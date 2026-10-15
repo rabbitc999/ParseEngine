@@ -1,0 +1,60 @@
+/* custom 运行时 DD（递归下降）专属结构：语义槽 + 回溯快照。 */
+typedef struct __ParserDdSlot_T
+{
+    uint8_t isTree;          /* 1：这一格装的是语法树节点；0：装语义值 */
+    ParserValue_T value;     /* isTree == 0 时的语义值 */
+{% if tree %}    ParserTree_T *pNode;     /* isTree != 0 时的子树（所有权在这一格里） */
+{% endif %}} ParserDdSlot_T;
+
+/* 一份「输入位置」快照：词法器位置 + Token 下标 + 行列 + 当前 lookahead。
+ * 当前 Token 的显示文本另存进 pCtx->ddText[textSlot]（固定字面量的 name /
+ * pName 指静态表、正则与数字的指 lexeme 缓冲，回溯后都不能直接复用）。 */
+typedef struct __ParserDdMark_T
+{
+    uint32_t textPos;
+    uint32_t tokenPos;
+    uint32_t line;
+    uint32_t column;
+    uint16_t textSlot;
+    uint16_t depth;          /* 已匹配的终结符数（回溯要一起还原） */
+    ParserToken_T current;
+} ParserDdMark_T;
+
+typedef struct __ParserCtx_T
+{
+    const ParserToken_T *pTokens;
+    uint32_t tokenCount;
+    uint32_t tokenPosition;
+    const char *pText;
+    uint32_t textPosition;
+    uint32_t line;
+    uint32_t column;
+    uint8_t textMode;
+    uint8_t ownsCurrentValue;
+    char lexeme[PARSER_MAX_STRING_LENGTH];
+    ParserToken_T current;
+    /* DD 不看展望符窗口，留 1 个槽位让共用代码里的数组始终合法 */
+    ParserToken_T lookahead[1];
+    ParserValue_T rootResult;
+{% if tree %}    ParserTree_T *pTreeRoot;
+{% endif %}    /* DD：递归深度 / 已匹配的终结符数 / 最远失败点（回溯时不清它） */
+    uint16_t ddFrameDepth;
+    uint16_t ddDepth;
+    int32_t ddFarthestDepth;
+    uint16_t ddFarthestTypes[PARSER_MAX_EXPECTED];
+    uint16_t ddFarthestTypeCount;
+    ParserToken_T ddFarthestToken;
+    char ddFarthestText[PARSER_MAX_STRING_LENGTH];
+    /* 回溯要还原「当时那个 Token 的显示文本」，按递归深度留副本 */
+    char ddText[PARSER_MAX_STACK_DEPTH][PARSER_MAX_STRING_LENGTH];
+} ParserCtx_T;
+
+typedef struct __ParserLexRule_T
+{
+    const char *pText;
+    uint32_t length;
+    ParserTokenType_T type;
+    uint8_t blankFirst;   /* 首字节是空白 / \b 通配：跳空白时要先看它能不能命中 */
+    uint8_t wildcard;     /* 含 \b 通配：命中后词素按输入抄一份 */
+    int32_t order;        /* 词法声明序（%commit 同长度比较用） */
+} ParserLexRule_T;

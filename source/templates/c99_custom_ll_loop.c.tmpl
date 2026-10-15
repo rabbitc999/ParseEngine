@@ -1,0 +1,525 @@
+{{ custom_sync_predicate }}
+
+#if PARSER_LOOKAHEAD_K >= 1
+/** 
+ * @brief 栈上第 index 项能不能**取**当前 Token（主循环能接着走）。 
+ *
+ * 终结符要相等；非终结符看预测表**这一列**上有没有条目（FIRST，或者可空
+ * 非终结符的 FOLLOW——ε 产生式的那些列）。 
+ * @param pCtx 上下文。 
+ * @param index 栈上第几项（0 是栈底）。 
+ * @param column 预测分析表的列号。 
+ * @param headType 当前 lookahead 的 Token 号。 
+ * @retval 能取返回 1。 
+ */
+static uint8_t Parser_LLItemTakes(const ParserCtx_T *pCtx, uint16_t index,
+                                  int32_t column, uint16_t headType)
+{
+    const ParserStackItem_T *pItem = &pCtx->stack[index];
+    if (pItem->kind == PARSER_ITEM_TERMINAL)
+    {
+        return (pItem->symbol == headType) ? 1u : 0u;
+    }
+    if ((pItem->kind == PARSER_ITEM_NONTERM) ||
+        (pItem->kind == PARSER_ITEM_LEFT_LOOP))
+    {
+        if (pItem->symbol >= {{ nonterm_count }}u) { return 0u; }
+        return ((column >= 0) && (s_ParserTable[pItem->symbol][column] >= 0))
+                   ? 1u
+                   : 0u;
+    }
+    return 0u;
+}
+
+/** 
+ * @brief 栈上第 index 项是不是「当前 Token 在它的 FOLLOW 里」。 
+ *
+ * 非可空非终结符的 FOLLOW 不在预测表里：这个 Token 说明**这一层该结束了**，
+ * 恢复时应当放弃这一层（弹掉它），而不是把 Token 丢掉。 
+ * @param pCtx 上下文。 
+ * @param index 栈上第几项（0 是栈底）。 
+ * @param headType 当前 lookahead 的 Token 号。 
+ * @retval 命中返回 1。 
+ */
+static uint8_t Parser_LLItemInFollow(const ParserCtx_T *pCtx, uint16_t index,
+                                     uint16_t headType)
+{
+    const ParserStackItem_T *pItem = &pCtx->stack[index];
+    if ((pItem->kind != PARSER_ITEM_NONTERM) &&
+        (pItem->kind != PARSER_ITEM_LEFT_LOOP))
+    {
+        return 0u;
+    }
+    if ((pItem->symbol >= {{ nonterm_count }}u) ||
+        (headType >= {{ terminal_count }}u))
+    {
+        return 0u;
+    }
+    return s_ParserFollow[pItem->symbol][headType];
+}
+
+/** 
+ * @brief 栈顶能不能取当前 Token。 
+ * @param pCtx 上下文。 
+ * @param column 预测分析表的列号。 
+ * @param headType 当前 lookahead 的 Token 号。 
+ * @retval 能取返回 1。 
+ */
+static uint8_t Parser_LLStackTakes(const ParserCtx_T *pCtx, int32_t column,
+                                   uint16_t headType)
+{
+    if (pCtx->stackTop == 0u)
+    {
+        return 0u;
+    }
+    return Parser_LLItemTakes(pCtx, (uint16_t)(pCtx->stackTop - 1u), column,
+                              headType);
+}
+
+/** 
+ * @brief 栈顶那一项是不是「当前 Token 在它的 FOLLOW 里」。 
+ * @param pCtx 上下文。 
+ * @param headType 当前 lookahead 的 Token 号。 
+ * @retval 命中返回 1。 
+ */
+static uint8_t Parser_LLStackInFollow(const ParserCtx_T *pCtx,
+                                      uint16_t headType)
+{
+    if (pCtx->stackTop == 0u)
+    {
+        return 0u;
+    }
+    return Parser_LLItemInFollow(pCtx, (uint16_t)(pCtx->stackTop - 1u),
+                                 headType);
+}
+
+/** 
+ * @brief 栈顶**之下**还有没有哪一项能取当前 Token。 
+ *
+ * 有，就说明「放弃栈顶、把当前 Token 交给外层」是一条可走的路——这就是
+ * 自顶向下的 FOLLOW 集恢复。 
+ * @param pCtx 上下文。 
+ * @param column 预测分析表的列号。 
+ * @param headType 当前 lookahead 的 Token 号。 
+ * @retval 有返回 1。 
+ */
+static uint8_t Parser_LLDeeperTakes(const ParserCtx_T *pCtx, int32_t column,
+                                    uint16_t headType)
+{
+    uint16_t index = (pCtx->stackTop > 0u) ? (uint16_t)(pCtx->stackTop - 1u)
+                                           : 0u;
+    while (index > 0u)
+    {
+        index--;
+        if (Parser_LLItemTakes(pCtx, index, column, headType) != 0u)
+        {
+            return 1u;
+        }
+    }
+    return 0u;
+}
+#endif /* PARSER_LOOKAHEAD_K >= 1 */
+
+/** 
+ * @brief 丢弃一个语义帧里还活着的语义值，并把帧标成「已丢弃」。 
+ * @param pFrame 语义帧。 
+ * @retval 无。 
+ */
+static void Parser_LLDiscardFrame(ParserSemanticFrame_T *pFrame)
+{
+    if (pFrame->valuesDiscarded != 0u)
+    {
+        return;
+    }
+    pFrame->valuesDiscarded = 1u;
+{% if has_destructors %}
+            {
+                uint16_t index = 0u;
+                for (index = 0u;
+                     index < (uint16_t)PARSER_VALUE_SLOTS; index++)
+                {
+                    if (pFrame->symbols[index] !=
+                        PARSER_INVALID_INDEX)
+                    {
+                        Parser_DiscardSlot(
+                            &pFrame->values[index],
+                            pFrame->symbols[index]);
+                    }
+                }
+                if (pFrame->resultDone != 0u)
+                {
+                    Parser_DiscardSlot(&pFrame->resultValue,
+                                       pFrame->resultSymbol);
+                }
+            }
+{% else %}
+#ifdef PARSER_USER_DISCARD_VALUE
+            {
+                uint16_t index = 0u;
+                for (index = 0u; index < (uint16_t)PARSER_VALUE_SLOTS; index++)
+                {
+                    PARSER_USER_DISCARD_VALUE(&pFrame->values[index]);
+                }
+                PARSER_USER_DISCARD_VALUE(&pFrame->resultValue);
+            }
+#endif
+{% endif %}
+}
+
+/** 
+ * @brief 把帧栈顶这些「已丢弃」的帧一起退掉（帧栈是严格 LIFO）。 
+ *
+ * 后面的 Parser_CompleteFrame 才能继续看到自己的帧在栈顶。 
+ * @param pCtx 上下文。 
+ * @retval 无。 
+ */
+static void Parser_LLUnwindFrames(ParserCtx_T *pCtx)
+{
+    while ((pCtx->frameTop > 0u) &&
+           (pCtx->frames[pCtx->frameTop - 1u].valuesDiscarded != 0u))
+    {
+        PARSER_MEMSET(&pCtx->frames[pCtx->frameTop - 1u], 0,
+               sizeof(ParserSemanticFrame_T));
+        pCtx->frameTop--;
+    }
+}
+
+/** 
+ * @brief 放弃「第 frameIndex 个语义帧以及它里面已经展开的内层帧」。 
+ *
+ * 错误恢复丢掉一个构造时用它：把这一串帧的语义值清理掉、标成已丢弃，再退掉
+ * 栈顶能退的帧——**不能只清一项所属的帧**，否则内层帧会留在帧栈上，后面
+ * 外层的 Parser_CompleteFrame 会因为「自己的帧不在栈顶」误报栈错误。 
+ * @param pCtx 上下文。 
+ * @param frameIndex 起始帧（含）。 
+ * @retval 无。 
+ */
+PARSER_UNUSED static void Parser_LLDiscardFramesFrom(ParserCtx_T *pCtx,
+                                                     uint16_t frameIndex)
+{
+    uint16_t index = frameIndex;
+    while (index < pCtx->frameTop)
+    {
+        Parser_LLDiscardFrame(&pCtx->frames[index]);
+        index++;
+    }
+    Parser_LLUnwindFrames(pCtx);
+}
+
+/** 
+ * @brief 弹掉栈顶一项，并清理它对应语义帧里的语义值。 
+ * @param pCtx 上下文。 
+ * @retval 无。 
+ */
+PARSER_UNUSED static void Parser_LLDiscardTop(ParserCtx_T *pCtx)
+{
+    ParserStackItem_T item;
+    if (pCtx->stackTop == 0u) { return; }
+    item = pCtx->stack[--pCtx->stackTop];
+    if (item.frameIndex != PARSER_INVALID_INDEX)
+    {
+        Parser_LLDiscardFrame(&pCtx->frames[item.frameIndex]);
+        Parser_LLUnwindFrames(pCtx);
+    }
+}
+
+/** 
+ * @brief LL 的错误恢复（panic mode）：对齐到「栈上某一项能接受当前 Token」的位置。 
+ *
+ * 每一步按这个顺序试： 
+ *   ① 栈顶能取它（预测表这一列有产生式）→ 对齐完成，主循环继续； 
+ *   ② 当前 Token 是 %sync 锚点 → 弹栈到能接受它的位置（写了 %sync 才有这一步）； 
+ *   ③ 栈顶那一项「该结束了」（当前 Token 在它的 FOLLOW 里），或者栈里更深处有项
+ *      能取它 → **放弃栈顶那一项所属的构造**（连它里面已展开的内层构造一起弹掉，
+ *      这就是 FOLLOW 集恢复）； 
+ *   ④ 谁都不认它 → 丢掉这个 Token，接着看下一个。 
+ * 弹栈与丢输入共用一份预算（256 步），病态输入也不会把解析拖死。 
+ * @param pCtx 上下文。 
+ * @param failedItem 刚才出错、被主循环弹掉的那一项（先放回栈上再恢复： 
+ *        「丢掉它」还是「丢掉 Token 后重试它」由下面几步自己决定）。 
+ * @retval PARSER_OK 表示已经对齐（主循环继续）；其它值表示无法恢复。 
+ */
+static int32_t Parser_SynchronizeLL(ParserCtx_T *pCtx,
+                                    ParserStackItem_T failedItem)
+{
+#if PARSER_LOOKAHEAD_K == 0
+    /* LL(0)：预测表只有 ε 一列，没有「当前 Token 属于谁」的信息，FOLLOW 恢复
+     * 无从判起（%sync 也一样）→ 保持「一错即停」。 */
+    (void)pCtx;
+    (void)failedItem;
+    return PARSER_ERR_SYNTAX;
+#else
+    uint32_t budget = 256u;
+    /* 出错的那一项是主循环弹出来的：放回去，让恢复逻辑统一处理 */
+    if (Parser_Push(pCtx, failedItem.kind, failedItem.symbol,
+                    failedItem.frameIndex, failedItem.valueIndex,
+                    failedItem.seedFrameIndex) != PARSER_OK)
+    {
+        return PARSER_ERR_STACK;
+    }
+    while (budget > 0u)
+    {
+        const int32_t column = Parser_TableColumn(pCtx);
+        const uint16_t head = (uint16_t)pCtx->current.type;
+        /* ① 栈顶能取它 → 对齐完成（主循环能接着推进） */
+        if (Parser_LLStackTakes(pCtx, column, head) != 0u)
+        {
+            return PARSER_OK;
+        }
+#ifdef PARSER_HAS_SYNC_TOKENS
+        /* ② %sync 锚点：弹栈到能接受它的位置（丢输入到锚点由 ③/④ 顺手做掉） */
+        if ((pCtx->current.type != TOKEN_END) &&
+            (Parser_IsSyncToken(head) != 0u))
+        {
+            while ((budget > 0u) && (pCtx->stackTop > 0u) &&
+                   (Parser_LLStackTakes(pCtx, column, head) == 0u))
+            {
+                Parser_LLDiscardTop(pCtx);
+                budget--;
+            }
+            return (pCtx->stackTop > 0u) ? PARSER_OK : PARSER_ERR_SYNTAX;
+        }
+#endif
+        /* ③ FOLLOW 集恢复：栈顶那一项「该结束了」，或者更深处有项能取当前
+         *    Token → 放弃「栈顶那一项所属的构造」（连同它里面已经展开的内层
+         *    构造），把当前 Token 交给外层 */
+        if ((pCtx->stackTop > 0u) &&
+            ((Parser_LLStackInFollow(pCtx, head) != 0u) ||
+             (Parser_LLDeeperTakes(pCtx, column, head) != 0u)))
+        {
+            const uint16_t frame = pCtx->stack[pCtx->stackTop - 1u].frameIndex;
+            if (frame == PARSER_INVALID_INDEX)
+            {
+                Parser_LLDiscardTop(pCtx);
+                budget--;
+                continue;
+            }
+            Parser_LLDiscardFramesFrom(pCtx, frame);
+            while ((budget > 0u) && (pCtx->stackTop > 0u) &&
+                   (pCtx->stack[pCtx->stackTop - 1u].frameIndex >= frame))
+            {
+                Parser_LLDiscardTop(pCtx);
+                budget--;
+            }
+            continue;
+        }
+        /* ④ 没人能接受它：丢掉这个 Token */
+        if (pCtx->current.type == TOKEN_END) { return PARSER_ERR_SYNTAX; }
+        if (Parser_AdvanceLookahead(pCtx) != PARSER_OK)
+        {
+            return PARSER_ERR_LEXER;
+        }
+        budget--;
+    }
+    return PARSER_ERR_SYNTAX;
+#endif /* PARSER_LOOKAHEAD_K == 0 */
+}
+
+/** 
+ * @brief 执行非递归预测分析（custom）。 
+ * @param pCtx 上下文。 
+ * @param pOut 输出语义结果。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_ParseLoop(ParserCtx_T *pCtx, ParserValue_T *pOut)
+{
+    if (Parser_Push(pCtx, PARSER_ITEM_NONTERM, {{ start_id }}u,
+                    PARSER_INVALID_INDEX, 0u,
+                    PARSER_INVALID_INDEX) != PARSER_OK) {
+        return PARSER_ERR_STACK;
+    }
+    while (pCtx->stackTop > 0u) {
+        ParserStackItem_T item = pCtx->stack[--pCtx->stackTop];
+        if (item.kind == PARSER_ITEM_TERMINAL) {
+            if ((uint16_t)pCtx->current.type != item.symbol) {
+                Parser_SetExpectedOneError(pCtx, (uint32_t)item.symbol);
+                if (Parser_SynchronizeLL(pCtx, item) != PARSER_OK) {
+                    return PARSER_ERR_SYNTAX;
+                }
+                continue;
+            }
+            if (Parser_CaptureTerminal(pCtx, item.frameIndex,
+                                       item.valueIndex) != PARSER_OK) {
+                return PARSER_ERR_STACK;
+            }
+            if (Parser_AdvanceLookahead(pCtx) != PARSER_OK) {
+                return PARSER_ERR_LEXER;
+            }
+        } else if (item.kind == PARSER_ITEM_NONTERM) {
+            int16_t production = -1;
+            uint16_t frameIndex = 0u;
+            int32_t column = 0;
+            ParserSemanticFrame_T *pFrame = NULL;
+            if ((uint32_t)pCtx->current.type >= {{ terminal_count }}u) {
+                Parser_SetSyntaxError(pCtx, (uint32_t)item.symbol);
+                if (Parser_SynchronizeLL(pCtx, item) != PARSER_OK) {
+                    return PARSER_ERR_SYNTAX;
+                }
+                continue;
+            }
+            column = Parser_TableColumn(pCtx);
+            if ((item.symbol >= {{ nonterm_count }}u) || (column < 0)) {
+                production = -1;
+            } else {
+                production = s_ParserTable[item.symbol][column];
+            }
+            if (production < 0) {
+                Parser_SetSyntaxError(pCtx, (uint32_t)item.symbol);
+                if (Parser_SynchronizeLL(pCtx, item) != PARSER_OK) {
+                    return PARSER_ERR_SYNTAX;
+                }
+                continue;
+            }
+            if (pCtx->frameTop >= PARSER_MAX_STACK_DEPTH) {
+                Parser_SetError(PARSER_ERR_STACK, pCtx->current.line,
+                                pCtx->current.column, "语义帧栈已满");
+                return PARSER_ERR_STACK;
+            }
+            frameIndex = pCtx->frameTop++;
+            pFrame = &pCtx->frames[frameIndex];
+            PARSER_MEMSET(pFrame, 0, sizeof(*pFrame));
+            pFrame->parentFrameIndex = item.frameIndex;
+            pFrame->parentValueIndex = item.valueIndex;
+{% if has_destructors %}
+            {
+                uint16_t slotIndex = 0u;
+                for (slotIndex = 0u;
+                     slotIndex < (uint16_t)PARSER_VALUE_SLOTS;
+                     slotIndex++)
+                {
+                    pFrame->symbols[slotIndex] =
+                        PARSER_INVALID_INDEX;
+                }
+                pFrame->resultSymbol =
+                    (uint16_t)(item.symbol + {{ terminal_count }}u);
+                pFrame->resultDone = 0u;
+            }
+{% endif %}
+            if (item.seedFrameIndex != PARSER_INVALID_INDEX) {
+                pFrame->values[1] =
+                    pCtx->frames[item.seedFrameIndex].resultValue;
+            }
+            if (Parser_ExpandProduction(pCtx, (uint16_t)production,
+                                        frameIndex) != PARSER_OK) {
+                Parser_SetError(PARSER_ERR_STACK, pCtx->current.line,
+                                pCtx->current.column, "分析栈已满");
+                return PARSER_ERR_STACK;
+            }
+        } else if (item.kind == PARSER_ITEM_LEFT_LOOP) {
+            int16_t production = -1;
+            int32_t column = 0;
+            ParserSemanticFrame_T *pFrame = &pCtx->frames[item.frameIndex];
+            if ((uint32_t)pCtx->current.type >= {{ terminal_count }}u) {
+                Parser_SetSyntaxError(pCtx, (uint32_t)item.symbol);
+                if (Parser_SynchronizeLL(pCtx, item) != PARSER_OK) {
+                    return PARSER_ERR_SYNTAX;
+                }
+                continue;
+            }
+            column = Parser_TableColumn(pCtx);
+            if ((item.symbol >= {{ nonterm_count }}u) || (column < 0)) {
+                production = -1;
+            } else {
+                production = s_ParserTable[item.symbol][column];
+            }
+            if (production < 0) {
+                Parser_SetSyntaxError(pCtx, (uint32_t)item.symbol);
+                if (Parser_SynchronizeLL(pCtx, item) != PARSER_OK) {
+                    return PARSER_ERR_SYNTAX;
+                }
+                continue;
+            }
+            if (s_ParserProductionIsLeftEmpty[production] != 0u) {
+                if (Parser_CompleteFrame(pCtx, item.frameIndex) != PARSER_OK) {
+                    return PARSER_ERR_STACK;
+                }
+            } else {
+                pFrame->values[1] = pFrame->resultValue;
+                if (Parser_ExpandProduction(pCtx, (uint16_t)production,
+                                            item.frameIndex) != PARSER_OK) {
+                    Parser_SetError(PARSER_ERR_STACK, pCtx->current.line,
+                                    pCtx->current.column, "分析栈已满");
+                    return PARSER_ERR_STACK;
+                }
+            }
+        } else {
+            ParserSemanticFrame_T *pFrame = &pCtx->frames[item.frameIndex];
+            if (item.kind == PARSER_ITEM_FORWARD) {
+                if (Parser_ForwardFrame(pFrame, item.valueIndex) != PARSER_OK) {
+                    return PARSER_ERR_STACK;
+                }
+            } else if (Parser_ExecuteAction(pCtx, item.symbol,
+                                            item.frameIndex) != PARSER_OK) {
+                return PARSER_ERR_SYNTAX;
+            }
+            if ((item.kind != PARSER_ITEM_ACTION_KEEP) &&
+                (Parser_CompleteFrame(pCtx, item.frameIndex) != PARSER_OK)) {
+                return PARSER_ERR_STACK;
+            }
+        }
+    }
+    if (pCtx->current.type != TOKEN_END) {
+        Parser_SetError(PARSER_ERR_SYNTAX, pCtx->current.line,
+                        pCtx->current.column, "输入尚未完全消费");
+        return PARSER_ERR_SYNTAX;
+    }
+    *pOut = pCtx->rootResult;
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 解析 Token 数组（custom）。 
+ * @param pTokens Token 数组。 
+ * @param count 数量。 
+ * @param pResult 输出语义结果。 
+ * @retval 状态码。 
+ */
+int32_t Parser_Run(const ParserToken_T *pTokens, uint32_t count,
+                   ParserValue_T *pResult)
+{
+    ParserCtx_T *pContext = &s_ParserContext;
+    int32_t status = PARSER_OK;
+    if (pResult == NULL) { return PARSER_ERR_SYNTAX; }
+    PARSER_MEMSET(pContext, 0, sizeof(*pContext));
+    Parser_ClearErrors();
+    pContext->pTokens = pTokens;
+    pContext->tokenCount = count;
+    pContext->line = 1u;
+    pContext->column = 1u;
+    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_FillLookaheadWindow(pContext) != PARSER_OK)
+    {
+        return PARSER_ERR_LEXER;
+    }
+    status = Parser_ParseLoop(pContext, pResult);
+    if (status != PARSER_OK) { Parser_ReleaseContext(pContext); }
+    return status;
+}
+
+/** 
+ * @brief 解析脚本文本（custom）。 
+ * @param pText 输入文本。 
+ * @param pResult 输出语义结果。 
+ * @retval 状态码。 
+ */
+int32_t Parser_RunText(const char *pText, ParserValue_T *pResult)
+{
+    ParserCtx_T *pContext = &s_ParserContext;
+    int32_t status = PARSER_OK;
+    if ((pText == NULL) || (pResult == NULL)) { return PARSER_ERR_SYNTAX; }
+    PARSER_MEMSET(pContext, 0, sizeof(*pContext));
+    Parser_ClearErrors();
+    pContext->pText = pText;
+    pContext->textMode = 1u;
+    pContext->line = 1u;
+    pContext->column = 1u;
+    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_FillLookaheadWindow(pContext) != PARSER_OK)
+    {
+        return PARSER_ERR_LEXER;
+    }
+    status = Parser_ParseLoop(pContext, pResult);
+    if (status != PARSER_OK) { Parser_ReleaseContext(pContext); }
+    return status;
+}
+

@@ -1,0 +1,6 @@
+{# 用户 %main 正文的包裹（CodeGenGo 的 mainGo / lexerMainGo）。
+   变量：body —— 用户正文。开头那个空行是原来拼接里就有的；
+   本模板自带行尾换行，所以**不要**走 renderValueTemplate。 #}
+
+// ---------- %main（用户正文）----------
+{{ body }}

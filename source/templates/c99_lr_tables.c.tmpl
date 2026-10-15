@@ -1,0 +1,58 @@
+{# C99 LR 分析表（ACTION / GOTO / 产生式长度与左部 / LR(k) 第二层）。
+   变量：
+     state_count / terminal_count / nonterm_count
+     action      —— ACTION：数组，每项有 cells（一行的单元格文本数组）
+     goto_rows   —— GOTO：同上
+     lengths     —— 每个产生式右部长度（"3u" 这种文本）
+     lhs_ids     —— 每个产生式左部非终结符编号（"2u"）
+     has_lookahead / lookahead_k / column_count
+     reduce / keys —— LR(k) 第二层的归约表与 k 元组列（同上，每项 cells）
+     codes / columns —— 列编码（升序）与列号
+     expected_tables —— 「每一行期望哪些 Token」那几张表（由生成器另外算好）
+   表的行与分隔符全部由 {% for %} 出（引擎没有 `{% if not %}`，所以"非首项"用
+   `{% if loop_first %}{% else %}, {% endif %}`、"非末项"用 loop_last 收在行尾）。
+   本文件**最后一行故意不带换行**：{{ expected_tables }} 的值自己以换行结尾，
+   多一个换行产物末尾就会多一个空行。改这个模板时别顺手补尾换行。 #}
+/* ACTION：0 出错，>0 移进到 action-1，<0 归约 -action-1，INT32_MAX 接受；GOTO：UINT16_MAX 出错。 */
+static const int32_t s_ParserAction[{{ state_count }}][{{ terminal_count }}] =
+{
+{% for row in action %}
+    { {% for cell in row.cells %}{% if loop_first %}{% else %}, {% endif %}{{ cell }}{% endfor %} }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+{% if has_lookahead %}
+/* LR({{ lookahead_k }})：第二层 ACTION——按 k 元组展望符建列的归约/接受（编码同第一层） */
+static const int32_t s_ParserReduce[{{ state_count }}][{{ column_count }}] =
+{
+{% for row in reduce %}
+    { {% for cell in row.cells %}{% if loop_first %}{% else %}, {% endif %}{{ cell }}{% endfor %} }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+/* 每列的 k 个 Token 号（信息用；运行时按下面的编码查） */
+static const uint16_t s_ParserLookaheadKeys[{{ column_count }}][{{ lookahead_k }}] =
+{
+{% for row in keys %}
+    { {% for cell in row.cells %}{% if loop_first %}{% else %}, {% endif %}{{ cell }}{% endfor %} }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+/* 列编码（升序）与对应的列号，运行时二分查找 */
+static const int64_t s_ParserLookaheadCode[{{ column_count }}] =
+{
+    {% for v in codes %}{% if loop_first %}{% else %}, {% endif %}{{ v }}{% endfor %}
+};
+static const uint16_t s_ParserLookaheadColumn[{{ column_count }}] =
+{
+    {% for v in columns %}{% if loop_first %}{% else %}, {% endif %}{{ v }}{% endfor %}
+};
+{% endif %}
+static const uint16_t s_ParserGoto[{{ state_count }}][{{ nonterm_count }}] =
+{
+{% for row in goto_rows %}
+    { {% for cell in row.cells %}{% if loop_first %}{% else %}, {% endif %}{{ cell }}{% endfor %} }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+static const uint16_t s_ParserProductionLength[] =
+{
+    {% for v in lengths %}{% if loop_first %}{% else %}, {% endif %}{{ v }}{% endfor %}
+};
+static const uint16_t s_ParserProductionLhs[] =
+{
+    {% for v in lhs_ids %}{% if loop_first %}{% else %}, {% endif %}{{ v }}{% endfor %}
+};
+{{ expected_tables }}

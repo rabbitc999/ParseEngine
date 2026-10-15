@@ -1,0 +1,23 @@
+解析输入: [server] host = localhost port = 8080
+解析成功
+语法树:
+file
+  sections
+    section
+      LBRACKET([)
+      VARIABLE(server)
+      RBRACKET(])
+      entries
+        entry
+          VARIABLE(host)
+          EQ(=)
+          value
+            VARIABLE(localhost)
+        entries
+          entry
+            VARIABLE(port)
+            EQ(=)
+            value
+              NUMBER(8080)
+          entries
+    sections

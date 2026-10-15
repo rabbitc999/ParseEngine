@@ -1,0 +1,554 @@
+{# 递归下降（DD）分析驱动（CodeGenC99 的 generatorCustomRuntimeC 那一支）。
+   变量：action_cases —— 生成期算好的语义动作分支（翻译模式 "dd"，$n 取
+         values[n]，第 0 个槽位留空）；terminal_count / start_id；
+         tree —— 是否 %tree。
+   本模板自带行尾换行。 #}
+/* ============ 递归下降（DD）分析驱动 ============ */
+
+/* 右部符号表（终结符用下标，非终结符用 {{ terminal_count }}u + 下标）与
+ * %tree 的非终结符名表；DD 匹配时走的就是这两张表 + 下面的区间表。 */
+static const uint16_t s_ParserTreeProdStart[] =
+{
+{% for v in prod_starts %}{% if loop_first %}{% else %},
+{% endif %}    {{ v }}u{% endfor %}
+};
+static const uint16_t s_ParserTreeProdLength[] =
+{
+{% for v in prod_lengths %}{% if loop_first %}{% else %},
+{% endif %}    {{ v }}u{% endfor %}
+};
+static const uint16_t s_ParserTreeProdSymbols[] =
+{
+{% for v in prod_symbols %}{% if loop_first %}{% else %},
+{% endif %}    {{ v }}u{% endfor %}
+};
+{% if tree %}static const char *const s_ParserTreeNontermNames[] =
+{
+{% for name in tree_nonterm_names %}{% if loop_first %}{% else %},
+{% endif %}    {{ name }}{% endfor %}
+};
+{% endif %}/* 每个非终结符的产生式区间：s_ParserDdProdStart[i] 起、s_ParserDdProdCount[i]
+ * 条，按声明顺序（回溯时依次试的就是这个顺序）。 */
+static const uint16_t s_ParserDdProdStart[] =
+{
+{% for v in prod_dd_starts %}{% if loop_first %}{% else %},
+{% endif %}    {{ v }}u{% endfor %}
+};
+static const uint16_t s_ParserDdProdCount[] =
+{
+{% for v in prod_dd_counts %}{% if loop_first %}{% else %},
+{% endif %}    {{ v }}u{% endfor %}
+};
+
+/* 整段解析失败时，最多往后跳几次同步 Token 再重试（%sync 的 panic mode）。 */
+#define PARSER_DD_MAX_RECOVERY_SKIPS 64u
+
+static uint8_t Parser_DdMatch(ParserCtx_T *pCtx, uint16_t production,
+                              uint8_t treeMode, ParserDdSlot_T *pSlots);
+static uint8_t Parser_DdParse(ParserCtx_T *pCtx, uint16_t nonterm,
+                              uint8_t treeMode, uint8_t requireEnd,
+                              ParserDdSlot_T *pOut);
+
+/** 
+ * @brief 存一份「输入位置」快照（回溯用）。 
+ * @param pCtx 上下文。 
+ * @param pMark 输出快照。 
+ * @retval 无。 
+ */
+static void Parser_DdMark(ParserCtx_T *pCtx, ParserDdMark_T *pMark)
+{
+    pMark->textPos = pCtx->textPosition;
+    pMark->tokenPos = pCtx->tokenPosition;
+    pMark->line = pCtx->line;
+    pMark->column = pCtx->column;
+    pMark->current = pCtx->current;
+    pMark->textSlot = pCtx->ddFrameDepth;
+    pMark->depth = pCtx->ddDepth;
+    Parser_TokenText(&pCtx->current, pCtx->ddText[pMark->textSlot],
+                     (uint32_t)sizeof(pCtx->ddText[0]));
+}
+
+/** 
+ * @brief 回退到快照。 
+ * 
+ * 当前 Token 的 name / pName 原来指向静态字面量或 lexeme 缓冲（后者早被后面
+ * 的取词覆盖了），所以恢复时重指回快照里存的那份文本副本。 
+ * @param pCtx 上下文。 
+ * @param pMark 快照。 
+ * @retval 无。 
+ */
+static void Parser_DdRestore(ParserCtx_T *pCtx, const ParserDdMark_T *pMark)
+{
+    pCtx->textPosition = pMark->textPos;
+    pCtx->tokenPosition = pMark->tokenPos;
+    pCtx->line = pMark->line;
+    pCtx->column = pMark->column;
+    pCtx->current = pMark->current;
+    if (pCtx->ddText[pMark->textSlot][0] != '\0') {
+        pCtx->current.name = pCtx->ddText[pMark->textSlot];
+        pCtx->current.pName = pCtx->ddText[pMark->textSlot];
+    }
+    /* 「已匹配的终结符数」也要一起还原：它是「最远失败点」的度量，忘了还
+     * 原就会把后面重试时匹配到的 Token 当成更深的失败点 */
+    pCtx->ddDepth = pMark->depth;
+}
+
+/** 
+ * @brief 记一次「在最远处期望某个 Token」（回溯不清这条记录）。 
+ * @param pCtx 上下文。 
+ * @param expected 期望的 Token 号。 
+ * @retval 无。 
+ */
+static void Parser_DdRecordFail(ParserCtx_T *pCtx, uint16_t expected)
+{
+    const int32_t depth = (int32_t)pCtx->ddDepth;
+    uint16_t at = 0u;
+    if (depth > pCtx->ddFarthestDepth) {
+        pCtx->ddFarthestDepth = depth;
+        pCtx->ddFarthestToken = pCtx->current;
+        Parser_TokenText(&pCtx->current, pCtx->ddFarthestText,
+                         (uint32_t)sizeof(pCtx->ddFarthestText));
+        pCtx->ddFarthestTypes[0] = expected;
+        pCtx->ddFarthestTypeCount = 1u;
+        return;
+    }
+    if (depth != pCtx->ddFarthestDepth) { return; }
+    for (at = 0u; at < pCtx->ddFarthestTypeCount; at++) {
+        if (pCtx->ddFarthestTypes[at] == expected) { return; }
+    }
+    if (pCtx->ddFarthestTypeCount < PARSER_MAX_EXPECTED) {
+        pCtx->ddFarthestTypes[pCtx->ddFarthestTypeCount++] = expected;
+    }
+}
+
+/** 
+ * @brief 释放语义槽里还挂着的子树（一条产生式没走完就放弃时用）。 
+ * @param pSlots 槽数组。 
+ * @param count 槽个数。 
+ * @retval 无。 
+ */
+static void Parser_DdFreeSlots(ParserDdSlot_T *pSlots, uint16_t count)
+{
+{% if tree %}    uint16_t at = 0u;
+    for (at = 0u; at < count; at++) {
+        if ((pSlots[at].isTree != 0u) && (pSlots[at].pNode != NULL)) {
+            Parser_TreeFree(pSlots[at].pNode);
+            pSlots[at].pNode = NULL;
+        }
+    }
+{% else %}    (void)pSlots;
+    (void)count;
+{% endif %}}
+
+/** 
+ * @brief 执行一个产生式的语义动作（`$n` 取 values[n]，第 0 个槽位留空）。 
+ * @param production 产生式编号。 
+ * @param values 右部语义值（下标 1 起）。 
+ * @param pResult 输出语义结果。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_DdApplyAction(uint16_t production, ParserValue_T *values,
+                                    ParseResult_T *pResult)
+{
+    ParseResult_T result;
+    (void)values;
+    PARSER_MEMSET(&result, 0, sizeof(result));
+    switch (production) {
+{{ action_cases }}
+        default: return PARSER_ERR_SYNTAX;
+    }
+    pResult->value = result.value;
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 右部匹配完了：%tree 建分支节点，否则跑语义动作。 
+ * @param pCtx 上下文。 
+ * @param production 产生式编号。 
+ * @param nonterm 这个非终结符的编号（建树时当节点名）。 
+ * @param treeMode 是否构建语法树。 
+ * @param pSlots 语义槽。 
+ * @param pOut 输出语义值 / 子树。 
+ * @retval 成功返回 1。 
+ */
+static uint8_t Parser_DdBuild(ParserCtx_T *pCtx, uint16_t production,
+                              uint16_t nonterm, uint8_t treeMode,
+                              ParserDdSlot_T *pSlots, ParserDdSlot_T *pOut)
+{
+    const uint16_t length = s_ParserTreeProdLength[production];
+    uint16_t index = 0u;
+    (void)pCtx;
+    if (treeMode != 0u) {
+{% if tree %}        ParserTree_T *pNode = Parser_TreeCreateNode(
+            s_ParserTreeNontermNames[nonterm], NULL);
+        if (pNode == NULL) { return 0u; }
+        for (index = 1u; index <= length; index++) {
+            if ((pSlots[index].isTree != 0u) && (pSlots[index].pNode != NULL)) {
+                if (Parser_TreeAttach(pNode, pSlots[index].pNode) != PARSER_OK) {
+                    Parser_TreeFree(pNode);
+                    return 0u;
+                }
+                pSlots[index].pNode = NULL;
+            }
+        }
+        pOut->isTree = 1u;
+        pOut->pNode = pNode;
+        return 1u;
+{% else %}        (void)nonterm;
+        (void)length;
+        return 0u;
+{% endif %}    }
+    {
+        ParserValue_T plain[PARSER_VALUE_SLOTS];
+        ParseResult_T result;
+        PARSER_MEMSET(plain, 0, sizeof(plain));
+        for (index = 0u; index < (uint16_t)PARSER_VALUE_SLOTS; index++) {
+            plain[index] = pSlots[index].value;
+        }
+        PARSER_MEMSET(&result, 0, sizeof(result));
+        if (Parser_DdApplyAction(production, plain, &result) != PARSER_OK) {
+            return 0u;
+        }
+        pOut->value = result.value;
+        return 1u;
+    }
+}
+
+/** 
+ * @brief 沿一条产生式的右部逐符号匹配。 
+ * 
+ * 终结符比对当前 Token（不等就记一次最远失败并返回 0），非终结符递归调用
+ * Parser_DdParse。匹配成功的语义值写进 pSlots[1..n]（第 0 个槽位留空）。 
+ * @param pCtx 上下文。 
+ * @param production 产生式编号。 
+ * @param treeMode 是否构建语法树。 
+ * @param pSlots 语义槽。 
+ * @retval 匹配成功返回 1。 
+ */
+static uint8_t Parser_DdMatch(ParserCtx_T *pCtx, uint16_t production,
+                              uint8_t treeMode, ParserDdSlot_T *pSlots)
+{
+    const uint16_t base = s_ParserTreeProdStart[production];
+    const uint16_t length = s_ParserTreeProdLength[production];
+    uint16_t index = 0u;
+    for (index = 0u; index < length; index++) {
+        const uint16_t symbol = s_ParserTreeProdSymbols[base + index];
+        if (symbol < {{ terminal_count }}u) {
+            if ((uint16_t)pCtx->current.type != symbol) {
+                Parser_DdRecordFail(pCtx, symbol);
+                return 0u;
+            }
+{% if tree %}            if (treeMode != 0u) {
+                char textBuffer[PARSER_MAX_STRING_LENGTH];
+                ParserTree_T *pLeaf = NULL;
+                Parser_TokenText(&pCtx->current, textBuffer,
+                                 (uint32_t)sizeof(textBuffer));
+                pLeaf = Parser_TreeCreateNode(
+                    Parser_TokenName(pCtx->current.type), textBuffer);
+                if (pLeaf == NULL) { return 0u; }
+                /* 叶节点的位置就是 Token 的起点（行 / 列 1 起，offset 字节） */
+                pLeaf->location.line = (int)pCtx->current.line;
+                pLeaf->location.column = (int)pCtx->current.column;
+                pLeaf->location.offset = (int)pCtx->current.offset;
+                pSlots[index + 1u].isTree = 1u;
+                pSlots[index + 1u].pNode = pLeaf;
+            } else
+{% endif %}            {
+                pSlots[index + 1u].value = pCtx->current.value;
+            }
+            pCtx->ddDepth++;
+            if (Parser_Advance(pCtx) != PARSER_OK) { return 0u; }
+            continue;
+        }
+        {
+            ParserDdSlot_T child;
+            PARSER_MEMSET(&child, 0, sizeof(child));
+            if (Parser_DdParse(pCtx,
+                               (uint16_t)(symbol - {{ terminal_count }}u),
+                               treeMode, 0u, &child) == 0u) {
+                return 0u;
+            }
+            pSlots[index + 1u] = child;
+        }
+    }
+    return 1u;
+}
+
+/** 
+ * @brief 解析一个非终结符：**按产生式声明顺序逐条试**，失败就回退输入位置。 
+ * 
+ * 这是递归下降的全部驱动逻辑，每个非终结符共用它——「一个非终结符一个解析
+ * 函数」由 s_ParserDdProdStart / s_ParserDdProdCount 两张表表达。 
+ * @param pCtx 上下文。 
+ * @param nonterm 非终结符编号。 
+ * @param treeMode 是否构建语法树。 
+ * @param requireEnd 要求匹配完右部后当前 Token 已经是 END（只有起始符号那一次为 1）。 
+ * @param pOut 输出语义值 / 子树。 
+ * @retval 成功返回 1。 
+ */
+static uint8_t Parser_DdParse(ParserCtx_T *pCtx, uint16_t nonterm,
+                              uint8_t treeMode, uint8_t requireEnd,
+                              ParserDdSlot_T *pOut)
+{
+    ParserDdMark_T mark;
+    ParserDdSlot_T slots[PARSER_VALUE_SLOTS];
+    uint16_t start = 0u;
+    uint16_t count = 0u;
+    uint16_t offset = 0u;
+    if (pCtx->ddFrameDepth >= (uint16_t)PARSER_MAX_STACK_DEPTH) {
+        Parser_SetError(PARSER_ERR_STACK, pCtx->current.line,
+                        pCtx->current.column, "递归太深（超过 max_stack_depth）");
+        return 0u;
+    }
+    Parser_DdMark(pCtx, &mark);
+    pCtx->ddFrameDepth++;
+    start = s_ParserDdProdStart[nonterm];
+    count = s_ParserDdProdCount[nonterm];
+    for (offset = 0u; offset < count; offset++) {
+        const uint16_t production = (uint16_t)(start + offset);
+        uint16_t slot = 0u;
+        Parser_DdRestore(pCtx, &mark);
+        PARSER_MEMSET(slots, 0, sizeof(slots));
+        if (Parser_DdMatch(pCtx, production, treeMode, slots) == 0u) {
+            Parser_DdFreeSlots(slots, (uint16_t)PARSER_VALUE_SLOTS);
+            continue;
+        }
+        if ((requireEnd != 0u) && (pCtx->current.type != TOKEN_END)) {
+            /* 右部走完了但输入还有剩：按「这里该结束了」记一次最远失败，
+             * 然后试本非终结符的下一条产生式 */
+            Parser_DdRecordFail(pCtx, (uint16_t)TOKEN_END);
+            Parser_DdFreeSlots(slots, (uint16_t)PARSER_VALUE_SLOTS);
+            continue;
+        }
+        if (Parser_DdBuild(pCtx, production, nonterm, treeMode, slots,
+                           pOut) == 0u) {
+            Parser_DdFreeSlots(slots, (uint16_t)PARSER_VALUE_SLOTS);
+            pCtx->ddFrameDepth--;
+            return 0u;
+        }
+        for (slot = 0u; slot < (uint16_t)PARSER_VALUE_SLOTS; slot++) {
+            slots[slot].isTree = 0u;
+            slots[slot].pNode = NULL;
+        }
+        pCtx->ddFrameDepth--;
+        return 1u;
+    }
+    Parser_DdRestore(pCtx, &mark);
+    pCtx->ddFrameDepth--;
+    return 0u;
+}
+
+/** 
+ * @brief 记一条「语法错误」：期望集合由调用方给（递归下降没有状态号）。 
+ * 
+ * 文案与 Parser_SetSyntaxError 逐字一致（期望集非空时「期望 A / B 之一，
+ * 实际是 C」，为空时用 PARSER_EXPECTED_FALLBACK）；只是期望集合不来自
+ * 按状态号索引的 s_ParserExpected* 表。 
+ * @param pCtx 上下文。 
+ * @param pTypes 期望的 Token 号数组。 
+ * @param count 个数。 
+ * @retval 无。 
+ */
+static void Parser_DdSetSyntaxError(ParserCtx_T *pCtx, const uint16_t *pTypes,
+                                    uint32_t count)
+{
+    ParserError_T *pEntry = NULL;
+    uint32_t expected[PARSER_MAX_EXPECTED];
+    uint32_t expectedCount = 0u;
+    uint32_t at = 0u;
+    char text[160];
+    uint32_t used = 0u;
+    int written = 0;
+    const char *pTokenName = NULL;
+    if (s_ParserErrorCount >= (uint32_t)PARSER_MAX_ERRORS) { return; }
+    for (at = 0u; (at < count) && (expectedCount < PARSER_MAX_EXPECTED); at++) {
+        expected[expectedCount++] = (uint32_t)pTypes[at];
+    }
+    pTokenName = Parser_TokenName(pCtx->current.type);
+    if (pTokenName == NULL) { pTokenName = "?"; }
+    written = snprintf(text, sizeof(text), "语法错误：");
+    if (written > 0) { used = (uint32_t)written; }
+    if (expectedCount == 0u) {
+        written = snprintf(text + used, sizeof(text) - used, "%s",
+                           PARSER_EXPECTED_FALLBACK);
+        if (written > 0) { used += (uint32_t)written; }
+    } else {
+        const uint32_t listed = (expectedCount > 4u) ? 4u : expectedCount;
+        for (at = 0u; (at < listed) && (used < sizeof(text)); at++) {
+            const char *pName = Parser_TokenName((ParserTokenType_T)expected[at]);
+            written = snprintf(text + used, sizeof(text) - used,
+                               (at == 0u) ? "期望 %s" : " / %s",
+                               (pName != NULL) ? pName : "?");
+            if (written > 0) { used += (uint32_t)written; }
+        }
+        if (expectedCount > 1u) {
+            if (expectedCount > listed) {
+                written = snprintf(text + used, sizeof(text) - used,
+                                   " 等 %u 个", (unsigned)expectedCount);
+                if (written > 0) { used += (uint32_t)written; }
+                written = snprintf(text + used, sizeof(text) - used, "之一");
+                if (written > 0) { used += (uint32_t)written; }
+            } else {
+                written = snprintf(text + used, sizeof(text) - used, " 之一");
+                if (written > 0) { used += (uint32_t)written; }
+            }
+        }
+        written = snprintf(text + used, sizeof(text) - used, "，实际是 %s",
+                           pTokenName);
+        if (written > 0) { used += (uint32_t)written; }
+    }
+    {
+        int32_t code = PARSER_ERR_SYNTAX;
+        if (expectedCount > 0u) {
+            code = (pCtx->current.type == TOKEN_END)
+                       ? PARSER_ERR_UNEXPECTED_EOF
+                       : PARSER_ERR_EXPECTED;
+        }
+        Parser_SetError(code, pCtx->current.line, pCtx->current.column, text);
+    }
+    if (s_ParserErrorCount == 0u) { return; }
+    pEntry = &s_ParserErrors[s_ParserErrorCount - 1u];
+    pEntry->tokenType = (uint32_t)pCtx->current.type;
+    pEntry->state = 0u;
+    pEntry->expectedCount = expectedCount;
+    pEntry->expectedTotal = expectedCount;
+    for (at = 0u; at < expectedCount; at++) {
+        pEntry->expected[at] = expected[at];
+    }
+    {
+        char lexeme[PARSER_ERROR_TOKEN_TEXT];
+        Parser_TokenText(&pCtx->current, lexeme, sizeof(lexeme));
+        snprintf(pEntry->tokenText, sizeof(pEntry->tokenText), "%.*s",
+                 (int)(sizeof(pEntry->tokenText) - 1u), lexeme);
+    }
+#ifdef PARSER_ERROR_CONTEXT
+    Parser_BuildErrorContext(pCtx, pEntry, pCtx->current.line,
+                             pCtx->current.column);
+#endif
+}
+
+/** 
+ * @brief 递归下降主循环：从起始符号开始解析，要求把输入吃到 END。 
+ * 
+ * 解析失败时按「最远失败点」报一条错；文法写了 %sync 的话，再跳到下一个同步
+ * Token 之后重试一段（panic mode），直到错误条数或跳过次数用完为止。 
+ * @param pCtx 上下文。 
+ * @param treeMode 是否构建语法树。 
+ * @retval 状态码；成功时结果在 pCtx->rootResult（%tree 时在 pCtx->pTreeRoot）。 
+ */
+static int32_t Parser_DdParseAll(ParserCtx_T *pCtx, uint8_t treeMode)
+{
+    uint32_t budget = PARSER_DD_MAX_RECOVERY_SKIPS;
+    for (;;) {
+        ParserDdMark_T mark;
+        ParserDdSlot_T built;
+        Parser_DdMark(pCtx, &mark);
+        PARSER_MEMSET(&built, 0, sizeof(built));
+        pCtx->ddDepth = 0u;
+        pCtx->ddFrameDepth = 0u;
+        pCtx->ddFarthestDepth = -1;
+        pCtx->ddFarthestTypeCount = 0u;
+        if (Parser_DdParse(pCtx, {{ start_id }}u, treeMode, 1u, &built) != 0u) {
+            if (treeMode != 0u) {
+{% if tree %}                pCtx->pTreeRoot = built.pNode;
+{% endif %}            } else {
+                pCtx->rootResult = built.value;
+            }
+            return PARSER_OK;
+        }
+        /* 失败：回到这一段起点，把「最远失败的那个 Token」摆到 current 上报错
+         * （报完再放回去，好接着往后找同步 Token） */
+        Parser_DdRestore(pCtx, &mark);
+        if (pCtx->ddFarthestTypeCount == 0u) {
+            pCtx->ddFarthestToken = pCtx->current;
+            Parser_TokenText(&pCtx->current, pCtx->ddFarthestText,
+                             (uint32_t)sizeof(pCtx->ddFarthestText));
+            pCtx->ddFarthestTypes[0] = (uint16_t)TOKEN_END;
+            pCtx->ddFarthestTypeCount = 1u;
+        }
+        {
+            const ParserToken_T savedToken = pCtx->current;
+            pCtx->current = pCtx->ddFarthestToken;
+            if (pCtx->ddFarthestText[0] != '\0') {
+                pCtx->current.name = pCtx->ddFarthestText;
+                pCtx->current.pName = pCtx->ddFarthestText;
+            }
+            Parser_DdSetSyntaxError(pCtx, pCtx->ddFarthestTypes,
+                                    pCtx->ddFarthestTypeCount);
+            pCtx->current = savedToken;
+        }
+        if ((budget == 0u) || (Parser_GetErrorCount() >=
+                               (uint32_t)PARSER_MAX_ERRORS)) {
+            return PARSER_ERR_SYNTAX;
+        }
+#ifdef PARSER_HAS_SYNC_TOKENS
+        /* panic mode：往前找下一个同步 Token，吃掉它再试一段 */
+        {
+            uint8_t found = 0u;
+            while (pCtx->current.type != TOKEN_END) {
+                if (Parser_IsSyncToken((uint16_t)pCtx->current.type) != 0u) {
+                    found = 1u;
+                    break;
+                }
+                if (Parser_Advance(pCtx) != PARSER_OK) {
+                    return PARSER_ERR_LEXER;
+                }
+            }
+            if ((found == 0u) || (Parser_Advance(pCtx) != PARSER_OK)) {
+                return PARSER_ERR_SYNTAX;
+            }
+        }
+        budget--;
+#else
+        return PARSER_ERR_SYNTAX;
+#endif
+    }
+}
+
+/** 
+ * @brief 解析 Token 数组（custom / DD）。 
+ * @param pTokens Token 数组。 
+ * @param count 数量。 
+ * @param pResult 输出语义结果。 
+ * @retval 状态码。 
+ */
+int32_t Parser_Run(const ParserToken_T *pTokens, uint32_t count,
+                   ParserValue_T *pResult)
+{
+    ParserCtx_T *pContext = &s_ParserContext;
+    int32_t status = PARSER_OK;
+    if (pResult == NULL) { return PARSER_ERR_SYNTAX; }
+    PARSER_MEMSET(pContext, 0, sizeof(*pContext));
+    Parser_ClearErrors();
+    pContext->pTokens = pTokens;
+    pContext->tokenCount = count;
+    pContext->line = 1u;
+    pContext->column = 1u;
+    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    status = Parser_DdParseAll(pContext, 0u);
+    if (status == PARSER_OK) { *pResult = pContext->rootResult; }
+    return status;
+}
+
+/** 
+ * @brief 解析脚本文本（custom / DD）。 
+ * @param pText 输入文本。 
+ * @param pResult 输出语义结果。 
+ * @retval 状态码。 
+ */
+int32_t Parser_RunText(const char *pText, ParserValue_T *pResult)
+{
+    ParserCtx_T *pContext = &s_ParserContext;
+    int32_t status = PARSER_OK;
+    if ((pText == NULL) || (pResult == NULL)) { return PARSER_ERR_SYNTAX; }
+    PARSER_MEMSET(pContext, 0, sizeof(*pContext));
+    Parser_ClearErrors();
+    pContext->pText = pText;
+    pContext->textMode = 1u;
+    pContext->line = 1u;
+    pContext->column = 1u;
+    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    status = Parser_DdParseAll(pContext, 0u);
+    if (status == PARSER_OK) { *pResult = pContext->rootResult; }
+    return status;
+}

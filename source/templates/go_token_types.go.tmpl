@@ -1,0 +1,20 @@
+{# Token 类型常量与名字表（CodeGenGo 的 goTokenTypes）。
+   变量：tokens —— 字段 name / value（name 不带 `TOKEN_` 前缀）
+         invalid_value —— `TOKEN_INVALID` 的值
+         names_count —— 名字表长度（含末尾的 INVALID）
+         names —— 带引号的名字数组
+         aliases —— 字段 name / alias（都已带引号）
+   本模板自带行尾换行。 #}
+{% for t in tokens %}const TOKEN_{{ t.name }} int32 = {{ t.value }}
+{% endfor %}const TOKEN_INVALID int32 = {{ invalid_value }}
+
+// TOKEN_NAMES Token 名称表：下标就是 Token 类型的值（末尾多一个 INVALID）。
+var TOKEN_NAMES = [{{ names_count }}]string{
+{% for n in names %}	{{ n }},
+{% endfor %}	"INVALID",
+}
+
+// TOKEN_ALIASES Token 名 -> 显示别名（`%token NAME "literal" alias "别名"`）。
+var TOKEN_ALIASES = map[string]string{
+{% for a in aliases %}	{{ a.name }}: {{ a.alias }},
+{% endfor %}}

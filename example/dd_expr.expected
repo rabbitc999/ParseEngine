@@ -1,0 +1,8 @@
+解析输入: 1 + 2
+解析成功
+语法树:
+expr
+  NUMBER(1)
+  PLUS(+)
+  expr
+    NUMBER(2)

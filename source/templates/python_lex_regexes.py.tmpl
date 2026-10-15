@@ -1,0 +1,17 @@
+{# `%token regex` / `%identifier` / `%commit` 的三张正则表（`re.compile` 在模块加载时编译一次）。 #}
+# %token regex 声明的 Token：与固定字面量一起做最长匹配，
+# 同长度时字面量优先（关键字不会被正则吃掉）。
+_REGEX_RULES = [
+{% for r in regex_rules %}    (re.compile({{ r.pattern }}), TOKEN_{{ r.token_name }}, {{ r.order }}),
+{% endfor %}]
+# %identifier 声明的标识符正则（命中关键字时换成关键字 Token）；
+# 没写 %identifier 时是 None，词法器退回内建的 C 风格标识符。
+_IDENTIFIER_RE = {% if has_identifier %}re.compile({{ identifier_pattern }}){% else %}None{% endif %}
+# %commit / %trivia 声明的片段：(正则, 类型名, 是否 skip, 声明序)，
+# 与 %token 规则共用一份最长匹配；没写时是空表。
+_COMMIT_RES = [
+{% for c in commit_res %}    (re.compile({{ c.pattern }}), {{ c.type }}, {% if c.skip %}True{% else %}False{% endif %}, {{ c.order }}),
+{% endfor %}]
+COMMIT_ALIASES = {
+{% for a in commit_aliases %}    {{ a.type }}: {{ a.alias }},
+{% endfor %}}

@@ -1,0 +1,42 @@
+解析输入: the man saw the girl with the telescope
+解析成功，共 2 个结果（歧义路径数）
+结果[0] 语法树:
+sentence
+  clause
+    np
+      DET(the)
+      nbar
+        NOUN(man)
+    vp
+      VERB(saw)
+      np
+        DET(the)
+        nbar
+          nbar
+            NOUN(girl)
+          pp
+            PREP(with)
+            np
+              DET(the)
+              nbar
+                NOUN(telescope)
+结果[1] 语法树:
+sentence
+  clause
+    np
+      DET(the)
+      nbar
+        NOUN(man)
+    vp
+      vp
+        VERB(saw)
+        np
+          DET(the)
+          nbar
+            NOUN(girl)
+      pp
+        PREP(with)
+        np
+          DET(the)
+          nbar
+            NOUN(telescope)

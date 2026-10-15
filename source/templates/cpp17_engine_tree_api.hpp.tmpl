@@ -1,0 +1,6 @@
+    /**
+     * @brief 解析文本并构建语法树（只建树，不跑语义动作）。
+     * @param text 输入文本。
+     * @return 语法树根；失败返回 nullptr（原因在 errors() 里）。
+     */
+    ParserMemory::UniquePtr<Tree> parseTree(std::string_view text);

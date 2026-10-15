@@ -1,0 +1,96 @@
+/**
+ * parser_prologue.c —— 生成器从里面取两段共用代码：
+ *   __SEC_DEFINES_*   PARSER_* 宏定义（写进 parser.h）
+ *   __SEC_ERROR_TYPE_* ParserError_T（写进 parser.h）
+ * 其余部分由 custom 产物自己的模板提供（public 分段标记换行时注意成对保留）。
+ */
+__SEC_DEFINES_BEGIN__#ifndef PARSER_MAX_STACK_DEPTH
+#define PARSER_MAX_STACK_DEPTH {{ max_stack_depth }}u
+#endif
+#ifndef PARSER_MAX_NAME_LENGTH
+#define PARSER_MAX_NAME_LENGTH 64u
+#endif
+#ifndef PARSER_MAX_STRING_LENGTH
+#define PARSER_MAX_STRING_LENGTH 128u
+#endif
+#ifndef PARSER_MAX_ERRORS
+#define PARSER_MAX_ERRORS {{ max_errors }}u
+#endif
+#ifndef PARSER_ERROR_RECOVERY_TOKENS
+#define PARSER_ERROR_RECOVERY_TOKENS {{ error_recovery_tokens }}u
+#endif
+/* LR(k) / LALR(k)：展望符长度 k（其余模式都是 1）。k > 1 时 ACTION 表分两层，
+ * 运行时维护一个 k 个 Token 的窗口（current 是窗口头，后面的在 ctx->lookahead
+ * 里），PARSER_LOOKAHEAD_COLUMN_COUNT 是归约列的个数。 */
+#ifndef PARSER_LOOKAHEAD_K
+#define PARSER_LOOKAHEAD_K {{ lookahead_k }}u
+#endif
+#define PARSER_LOOKAHEAD_COLUMN_COUNT {{ lookahead_column_count }}u
+
+/* 内存钩子：生成代码里的「清零」与「拷贝」分别走这两个宏，缺省是
+ * <string.h> 的 memset / memcpy。想换成自己的实现（无 libc 环境、带统计 /
+ * 越界检查的版本、RTOS 专用搬运），在 %code … %endcode 里先 #define 同名宏即可；
+ * 编译期 -D 也一样优先（本文件用的是 #ifndef 兜底）。*/
+#ifndef PARSER_MEMSET
+#include <string.h>
+#define PARSER_MEMSET(pDst, value, size) memset((pDst), (value), (size))
+#endif
+#ifndef PARSER_MEMCPY
+#include <string.h>
+#define PARSER_MEMCPY(pDst, pSrc, size) memcpy((pDst), (pSrc), (size))
+#endif
+
+#define PARSER_OK 0
+#define PARSER_ERR_STACK -20
+#define PARSER_ERR_SYNTAX -21
+#define PARSER_ERR_LEXER -22
+#define PARSER_ERR_DUPLICATE -23
+#define PARSER_ERR_UNDEFINED -24
+#define PARSER_ERR_SYSTEM -25
+/* 细分出来的语法/词法码：让调用方能按场景分支，而不用去解析 message */
+#define PARSER_ERR_EXPECTED -26          /* 期望若干 Token，实际是别的 */
+#define PARSER_ERR_UNEXPECTED_EOF -27    /* 提前遇到输入末尾 */
+#define PARSER_ERR_LEX_UNTERMINATED -28  /* 未闭合的字符串 / 注释 */
+#define PARSER_ERR_LEX_CHAR -29          /* 认不出来的字符 */
+#ifndef PARSER_MAX_EXPECTED
+#define PARSER_MAX_EXPECTED 8u           /* 每条错误最多记几个「期望 Token」 */
+#endif
+#ifndef PARSER_ERROR_TOKEN_TEXT
+#define PARSER_ERROR_TOKEN_TEXT 32u      /* 出错位置的词素最多存几个字节 */
+#endif
+#ifndef PARSER_ERROR_MESSAGE_MAX
+#define PARSER_ERROR_MESSAGE_MAX 192u    /* 一条错误说明最多存几个字节 */
+#endif
+/* %error_context：让错误记录里带「出错那一行 + ^ 指示」。默认关（费内存）。 */
+#ifdef PARSER_ERROR_CONTEXT
+#ifndef PARSER_ERROR_CONTEXT_LENGTH
+#define PARSER_ERROR_CONTEXT_LENGTH 120u
+#endif
+#endif
+#define PARSER_INVALID_INDEX UINT16_MAX
+#define PARSER_VALUE_SLOTS {{ max_slots }}u
+#if defined(__GNUC__)
+#define PARSER_UNUSED __attribute__((unused))
+#else
+#define PARSER_UNUSED
+#endif
+__SEC_DEFINES_END__
+
+__SEC_ERROR_TYPE_BEGIN__typedef struct __ParserError_T
+{
+    int32_t code;                       /* 错误码（见 PARSER_ERR_*） */
+    uint32_t line;                      /* 行号（1 起） */
+    uint32_t column;                    /* 列号（1 起） */
+    char message[PARSER_ERROR_MESSAGE_MAX]; /* 一句话说明（含「期望…实际是…」） */
+    uint32_t tokenType;                 /* 实际看到的 Token 类型 */
+    uint32_t state;                     /* LR 状态号；LL 模式下是栈顶符号编号 */
+    uint32_t expected[PARSER_MAX_EXPECTED]; /* 该位置期望的 Token 类型 */
+    uint32_t expectedCount;             /* expected 里有几个（可能被上限截断） */
+    uint32_t expectedTotal;             /* 期望总数（可能多于 expectedCount） */
+    char tokenText[PARSER_ERROR_TOKEN_TEXT]; /* 出错位置的词素（截断保存） */
+#ifdef PARSER_ERROR_CONTEXT
+    /* 出错那一行的原文 + ^ 指示（%error_context / -DPARSER_ERROR_CONTEXT 才有） */
+    char context[PARSER_ERROR_CONTEXT_LENGTH];
+#endif
+} ParserError_T;
+__SEC_ERROR_TYPE_END__

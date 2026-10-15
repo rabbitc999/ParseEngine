@@ -1,0 +1,14 @@
+    /// 执行一个产生式的语义动作。
+    ///
+    /// - `values`：右部语义值切片（`$1` 就是 `values[0]`）；
+    /// - `result`：语义结果（动作写它的 `value`）。
+    fn apply_action(
+        &mut self,
+        production: i32,
+        values: &[{{ value_type }}],
+        result: &mut Holder,
+    ) -> i32
+    {
+{{ lr_action_cases }}
+        STATUS_ERR_SYNTAX
+    }

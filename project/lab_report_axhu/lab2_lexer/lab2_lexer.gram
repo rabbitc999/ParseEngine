@@ -1,0 +1,158 @@
+/* ============================================================
+ * 实验二 · PL/0 词法分析程序
+ *
+ * 本文件只描述 PL/0 的**词法规则**：关键字、运算符、分隔符、标识符、
+ * 无符号整数。用 %mode lex 生成产物，产物里没有语法分析器，只把输入切成
+ * Token（lexer.c / lexer.h + 演示入口 main.c）。
+ *
+ * 词法规则（与实验要求一致）：
+ *   关键字  begin call const do end if odd procedure read then var while write
+ *   运算符  + - * / := # <> > < >= <= = （:=、<=、>= 是双字符，最长匹配优先）
+ *   分隔符  ; , ( ) .
+ *   标识符  字母开头的字母数字串（内建规则，命中 VARIABLE）
+ *   字面量  无符号整数（内建规则，命中 NUMBER）
+ *
+ * 生成与运行：
+ *   ParseEngine project/lab_report_axhu/lab2_lexer/lab2_lexer.gram --lang c \
+ *                 --out-dir out && make -C out
+ *   ./out/lexer_demo < project/lab_report_axhu/lab2_lexer/pl0_sample.pl0
+ * ============================================================ */
+
+%mode lex
+
+/* ---------- 关键字 ---------- */
+%define CONST     "const"
+%define VAR       "var"
+%define PROCEDURE "procedure"
+%define BEGIN     "begin"
+/* 注意：end 对应的 Token 不能叫 END——END 是运行时「输入结束」这个哨兵
+ * Token 的保留名，两者合并后词法器就分不出「读到 end」和「读到文件末尾」
+ * 了。按实验里的写法叫 PEND 即可。 */
+%define PEND      "end"
+%define IF        "if"
+%define THEN      "then"
+%define WHILE     "while"
+%define DO        "do"
+%define CALL      "call"
+%define ODD       "odd"
+%define READ      "read"
+%define WRITE     "write"
+
+/* ---------- 运算符（:= / <= / >= 必须排在单字符前面，最长匹配优先） ---------- */
+%define ASSIGN ":="
+%define NE     "#"
+%define LE     "<="
+%define GE     ">="
+%define LT     "<"
+%define GT     ">"
+%define EQ     "="
+%define PLUS   "+"
+%define MINUS  "-"
+%define STAR   "*"
+%define SLASH  "/"
+
+/* ---------- 分隔符 ---------- */
+%define COMMA  ","
+%define SEMI   ";"
+%define DOT    "."
+%define LPAREN "("
+%define RPAREN ")"
+
+%main
+/* main.c —— 读入整段 PL/0 源程序，按行打印词法分析结果
+ * 由 ParseEngine 从 lab2_lexer.gram 生成，请勿手工修改。
+ *
+ * 输出格式（与实验报告的约定一致）：
+ *   Line 1:
+ *   <关键字, "const">
+ *   <标识符, "a">
+ *   ...
+ */
+
+#include <stdio.h>
+#include <string.h>
+
+#include "lexer.h"
+
+/* 把生成的 Token 名归到实验要求的五个大类里。用 Token 名（字符串）判定，
+ * 这样增删 %define 不需要改这里的枚举顺序。 */
+static const char *CategoryOf(const char *pTokenName)
+{
+    static const char *const kKeywords[] = {
+        "CONST", "VAR",   "PROCEDURE", "BEGIN", "END",  "IF",  "THEN",
+        "WHILE", "DO",    "CALL",      "ODD",   "READ", "WRITE", "PEND"
+    };
+    static const char *const kOperators[] = {
+        "PLUS", "MINUS", "STAR", "SLASH", "ASSIGN",
+        "NE",   "LE",    "GE",   "LT",    "GT",    "EQ"
+    };
+    static const char *const kDelimiters[] = {
+        "COMMA", "SEMI", "DOT", "LPAREN", "RPAREN"
+    };
+    unsigned long index = 0ul;
+
+    if (pTokenName == NULL) { return "未知"; }
+    if (strcmp(pTokenName, "VARIABLE") == 0) { return "标识符"; }
+    if (strcmp(pTokenName, "NUMBER") == 0) { return "字面量"; }
+    for (index = 0ul; index < sizeof(kKeywords) / sizeof(kKeywords[0]);
+         index++) {
+        if (strcmp(pTokenName, kKeywords[index]) == 0) { return "关键字"; }
+    }
+    for (index = 0ul; index < sizeof(kOperators) / sizeof(kOperators[0]);
+         index++) {
+        if (strcmp(pTokenName, kOperators[index]) == 0) { return "运算符"; }
+    }
+    for (index = 0ul; index < sizeof(kDelimiters) / sizeof(kDelimiters[0]);
+         index++) {
+        if (strcmp(pTokenName, kDelimiters[index]) == 0) { return "分隔符"; }
+    }
+    return "未知";
+}
+
+int main(void)
+{
+    static char text[65536];
+    size_t used = 0u;
+    size_t got = 0u;
+    uint32_t currentLine = 0u;
+    ParserLexer_T lexer;
+    ParserToken_T token;
+    int32_t status = PARSER_OK;
+
+    /* 一次读完整个源程序：词法器自己维护行号 */
+    while ((got = fread(text + used, 1u, sizeof(text) - 1u - used, stdin)) > 0u)
+    {
+        used += got;
+    }
+    text[used] = '\0';
+
+    printf("-----------------------------------------------------------------\n");
+    printf("词法分析结果\n");
+    printf("<类型, 源串>\n");
+    printf("-----------------------------------------------------------------\n");
+
+    Parser_LexInit(&lexer, text);
+    while ((status = Parser_NextToken(&lexer, &token)) == PARSER_OK)
+    {
+        char lexeme[128];
+
+        if (token.type == TOKEN_END) { break; }
+        if (token.line != currentLine)
+        {
+            currentLine = token.line;
+            printf("Line %u: \n", (unsigned int)currentLine);
+        }
+        Parser_TokenText(&token, lexeme, sizeof(lexeme));
+        printf("<%s, \"%s\">\n", CategoryOf(Parser_TokenName(token.type)),
+               lexeme);
+    }
+    if (status != PARSER_OK)
+    {
+        const ParserError_T *pError = Parser_GetLastError();
+        printf("词法错误: code=%d line=%u column=%u message=%s\n",
+               pError->code, (unsigned int)pError->line,
+               (unsigned int)pError->column, pError->message);
+        return 1;
+    }
+    return 0;
+}

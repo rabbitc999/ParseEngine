@@ -1,0 +1,30 @@
+解析输入: x := 1 + 2 * 3 .
+解析成功
+语法树:
+program
+  block
+    const_part
+    var_part
+    proc_part
+    statement_opt
+      statement
+        VARIABLE(x)
+        ASSIGN(:=)
+        expression
+          sign
+          term
+            factor
+              NUMBER(1)
+            term_tail
+          expr_tail
+            PLUS(+)
+            term
+              factor
+                NUMBER(2)
+              term_tail
+                STAR(*)
+                factor
+                  NUMBER(3)
+                term_tail
+            expr_tail
+  DOT(.)

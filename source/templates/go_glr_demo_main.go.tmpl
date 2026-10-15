@@ -1,0 +1,34 @@
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+)
+
+// sDemoReadLine 从标准输入读一行（读到换行或 EOF 为止，去掉行尾换行）。
+func sDemoReadLine() string {
+	reader := bufio.NewReader(os.Stdin)
+	line, _ := reader.ReadString('\n')
+	return strings.TrimRight(line, "\r\n")
+}
+
+// main GLR 演示程序入口：读一行输入后解析，并打印全部结果。
+func main() {
+	inputText := sDemoReadLine()
+	fmt.Println("解析输入: " + inputText)
+	engine := NewParser()
+	status := {{ glr_run }}
+	if status != StatusOK {
+		if last := engine.LastError(); last != nil {
+			fmt.Printf("解析失败: code=%d line=%d column=%d message=%s\n",
+				last.Code, last.Line, last.Column, last.Message)
+		} else {
+			fmt.Println("解析失败: " + StatusName(status))
+		}
+		os.Exit(1)
+	}
+	fmt.Printf("解析成功，共 %d 个结果（歧义路径数）\n", engine.GLRResultCount())
+{{ demo_commits }}
+{{ glr_print }}
+	os.Exit(0)
+}

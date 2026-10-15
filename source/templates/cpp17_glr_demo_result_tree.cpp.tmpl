@@ -1,0 +1,10 @@
+{# GLR 演示程序里「打印全部语法树」那一段（%tree 文法）。 #}
+    for (std::size_t index = 0u; index < engine.glrResultCount(); ++index)
+    {
+        std::printf("结果[%u] 语法树:\n", static_cast<unsigned>(index));
+        const Tree *tree = engine.glrTree(index);
+        if (tree != nullptr)
+        {
+            tree->print();
+        }
+    }

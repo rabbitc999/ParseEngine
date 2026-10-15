@@ -1,0 +1,11 @@
+{ 浮点除法 + int() 截断 }
+{ 期望: 3.5 3 }
+program float_div;
+  var a: float;
+  var b: float;
+begin
+  a := 7.0;
+  b := 2.0;
+  write(a / b);
+  write(int(a / b))
+end.

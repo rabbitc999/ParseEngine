@@ -1,0 +1,59 @@
+/* ============================================================
+ * IELR(1) 示例 · 需要拆分「两个」状态的 LR(1) 文法
+ *
+ * 与 example/ielr_demo.gram 同属「非 LALR(1) 但 LR(1)」家族，但这里把
+ * 同一个冲突模式复制了两份：
+ *
+ *   s := a x d | b y d | a y e | b x e      (x, y 都从 c 归约)
+ *      | f p h | g q h | f q i | g p i      (p, q 都从 j 归约)
+ *   x := c;  y := c;
+ *   p := j;  q := j;
+ *
+ * LALR(1) 按 LR(0) core 合并状态，会把 x -> c . 与 y -> c . 的 lookahead
+ * 并到一起，在 d / e 上产生归约/归约冲突；p / q 那一组同理。因此 LALR
+ * 会报「两处」冲突，而 IELR 需要两个独立的状态拆分才能全部消解，正好用来
+ * 验证拆分是迭代进行的、而不是只处理第一个冲突。
+ *
+ * 对照：把首行换成 %mode lalr，ParseEngine 会直接报归约/归约冲突。
+ *
+ * 试用输入（左部 2 个字符对应 x/y 或 p/q 的取值，结果 = 值 * 10 + 分支号）：
+ *   a c d -> 11   b c d -> 21   a c e -> 22   b c e -> 12
+ *   f j h -> 33   g j h -> 43   f j i -> 44   g j i -> 34
+ * ============================================================ */
+
+%mode ielr
+%value_type int
+%start s
+
+%define A_TOK "a"
+%define B_TOK "b"
+%define C_TOK "c"
+%define D_TOK "d"
+%define E_TOK "e"
+%define F_TOK "f"
+%define G_TOK "g"
+%define H_TOK "h"
+%define I_TOK "i"
+%define J_TOK "j"
+
+%code
+/* custom 运行时：语义值类型由 %value_type 声明（int），动作就是普通 C 表达式 */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%d", *(pValue))
+%endcode
+
+/* 前四条与 example/ielr_demo.gram 同类：x / y 在 c 上归约冲突 */
+s := A_TOK x D_TOK { $$ = $2 * 10 + 1; }
+   | B_TOK y D_TOK { $$ = $2 * 10 + 1; }
+   | A_TOK y E_TOK { $$ = $2 * 10 + 2; }
+   | B_TOK x E_TOK { $$ = $2 * 10 + 2; }
+/* 后四条把同样的冲突模式再复制一份：p / q 在 j 上归约冲突 */
+   | F_TOK p H_TOK { $$ = $2 * 10 + 3; }
+   | G_TOK q H_TOK { $$ = $2 * 10 + 3; }
+   | F_TOK q I_TOK { $$ = $2 * 10 + 4; }
+   | G_TOK p I_TOK { $$ = $2 * 10 + 4; };
+
+x := C_TOK { $$ = 1; };
+y := C_TOK { $$ = 2; };
+p := J_TOK { $$ = 3; };
+q := J_TOK { $$ = 4; };

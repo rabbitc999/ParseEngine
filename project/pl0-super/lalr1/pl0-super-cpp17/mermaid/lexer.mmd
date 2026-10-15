@@ -1,0 +1,13 @@
+%% ==== 词法 DFA：标识符 ====
+flowchart LR
+    %% 标识符：#91;A-Za-z_#93;#91;A-Za-z0-9_#93;*（3 个状态，陷阱状态 s1 已省略）
+    ENTRY(["开始"]) --> s0
+    s0(("s0"))
+    s2((("s2")))
+    s0 -->|"A-Z …（共 53 个字符）"| s2
+    s2 -->|"0-9 A-Z …（共 53 个字符）"| s2
+    classDef startState fill:#e0e7ff,stroke:#4338ca,color:#1e1b4b
+    classDef acceptState fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef dfaState fill:#f1f5f9,stroke:#64748b,color:#334155
+    class s0 startState
+    class s2 acceptState

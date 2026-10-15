@@ -1,0 +1,50 @@
+{# C99 分析表的**声明**（`CodeGenC99::tableDeclsC` 的产物，插在 parser.c 里
+   `c99_parser_c_custom.c.tmpl` 的 `{{ table_decls }}`）。
+   变量：
+     lr_mode            —— LR 家族还是 LL 家族（两套 extern 完全不同）
+     state_count / terminal_count / nonterm_count
+     expected_rows      —— 「每一行期望哪些 Token」的行数（LR 按状态、LL 按非终结符）
+     expected_start_count —— expectedRows + 1
+     expected_fallback  —— 期望集为空时的兜底说明（LL 说「产生式」、LR 说「动作」）
+     lr_reduce / reduce_columns —— LR(k) 第二层归约表要不要发、多少列
+     ll_columns         —— 预测分析表的列数（k=1 用终结符数，否则用 k 元组列数）
+     ll_lookahead / ll_follow —— LL 的列编码表 / FOLLOW 集要不要发
+   「每一行期望哪些 Token」那段声明在两条分支里各写了一遍（模板里重复几行没关系，
+   总比让生成器拼字符串好）；`{{ expected_decls }}` 的值自带尾换行，所以两个分支里
+   都把它紧贴在下一行内容前面。 #}
+{% if lr_mode %}
+/* 分析表定义在 parser_table.c，由链接器解析 */
+extern const int32_t s_ParserAction[{{ state_count }}][{{ terminal_count }}];
+extern const uint16_t s_ParserGoto[{{ state_count }}][{{ nonterm_count }}];
+extern const uint16_t s_ParserProductionLength[];
+extern const uint16_t s_ParserProductionLhs[];
+/* 每一行「期望的 Token」：语法错误时用来填 ParserError_T::expected */
+#define PARSER_EXPECTED_ROW_COUNT {{ expected_rows }}u
+extern const uint16_t s_ParserExpectedStart[{{ expected_start_count }}];
+extern const uint16_t s_ParserExpectedData[];
+/* 期望集为空时的兜底说明（LL 说「产生式」、LR 说「动作」） */
+#define PARSER_EXPECTED_FALLBACK "{{ expected_fallback }}"
+{% if lr_reduce %}
+extern const int32_t s_ParserReduce[{{ state_count }}][{{ reduce_columns }}];
+extern const int64_t s_ParserLookaheadCode[];
+extern const uint16_t s_ParserLookaheadColumn[];
+{% endif %}
+{% else %}
+/* 预测分析表定义在 parser_table.c，由链接器解析 */
+extern const int16_t s_ParserTable[{{ nonterm_count }}][{{ ll_columns }}];
+{% if ll_lookahead %}
+extern const int64_t s_ParserLookaheadCode[];
+extern const uint16_t s_ParserLookaheadColumn[];
+{% endif %}
+{% if ll_follow %}
+/* FOLLOW 集（LL 的错误恢复用）*/
+extern const uint8_t s_ParserFollow[{{ nonterm_count }}][{{ terminal_count }}];
+{% endif %}
+/* 每一行「期望的 Token」：语法错误时用来填 ParserError_T::expected */
+#define PARSER_EXPECTED_ROW_COUNT {{ expected_rows }}u
+extern const uint16_t s_ParserExpectedStart[{{ expected_start_count }}];
+extern const uint16_t s_ParserExpectedData[];
+/* 期望集为空时的兜底说明（LL 说「产生式」、LR 说「动作」） */
+#define PARSER_EXPECTED_FALLBACK "{{ expected_fallback }}"
+extern const uint8_t s_ParserProductionIsLeftEmpty[];
+{% endif %}

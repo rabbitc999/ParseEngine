@@ -1,0 +1,15 @@
+# 名称: 机器配置 + 命名数据 + 只读区 + Bin 数据（example/arm32.ini）
+# 配置: example/arm32.ini
+# 期望: 1013 3.14159 16
+# 说明: data.* 按 decl 的类型装载命名数据，rodata.* 是只读变量，
+#       data_bin 的原始字节按顺序放进 .data（byte_0 是第一个字节）；
+#       声明过的字节逐字节给初值，其余字节打包成 `.hex 起始偏移 十六进制串`。
+0: (decl, i32, global, CONST_A)
+1: (decl, i32, global, CONST_B)
+2: (decl, f64, global, PI)
+3: (decl, i16, global, byte_0)
+4: (+, CONST_A, CONST_B, t1)
+5: (write:i32, t1, _, _)
+6: (write:f64, PI, _, _)
+7: (write, byte_0, _, _)
+8: (halt, _, _, _)

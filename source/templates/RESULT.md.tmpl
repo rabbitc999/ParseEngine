@@ -1,0 +1,38 @@
+# 生成结果
+
+## 生成信息
+
+| 项目 | 值 |
+| --- | --- |
+| 生成器 | ParseEngine |
+| 源文法 | {{ source_name }} |
+| 生成模式 | {{ mode_label }} |
+| 目标语言 | {{ lang_label }} |
+| %tree | {{ tree_state }} |
+| %teach | {{ teach_state }} |
+| %mermaid | {{ mermaid_state }} |
+{% include "info_precedence" %}
+| %expect | {{ expect }} |
+{% include "info_regex" %}
+| %identifier | {{ identifier }} |
+
+{% include "lang_note_section" %}{% include "sync_section" %}{% include "caps_section" %}{% include "user_section" %}{% include "lookahead_section" %}{% include "ielr_section" %}{% include "mermaid_section" %}## 产物文件
+
+{% for file in product_files %}- `{{ file }}`
+{% endfor %}
+
+{% include "api_section" %}
+
+{% include "run_section" %}{% include "runtime_section" %}{% include "tree_section" %}{% include "draw_section" %}## 冲突消解
+
+{{ resolutions }}
+
+## 未消解冲突
+
+{{ unresolved }}
+
+## 文法分析报告
+
+```text
+{{ report }}
+```

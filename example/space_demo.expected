@@ -1,0 +1,10 @@
+解析输入: a b
+解析成功
+语法树:
+start
+  LINES
+    LINE
+      PAIR
+        WORD(a)
+        SP( )
+        WORD(b)

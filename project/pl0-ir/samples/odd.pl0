@@ -1,0 +1,7 @@
+var n;
+begin
+    n := 0;
+    while odd n + 1 do
+        n := n + 2;
+    if n <> 0 then write n
+end.

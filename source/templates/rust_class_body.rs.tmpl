@@ -1,0 +1,8 @@
+{# `%class_body` 正文（CodeGenRust 的 rustClassBody）：插成一段 `impl Parser {}`。
+   变量：body —— 已插好行标记的正文（自带结尾换行）。
+   本模板开头带一个空行（原来那串拼接的头部就是 `\n`），自带行尾换行。 #}
+
+// ---------- %class_body（用户正文）----------
+impl Parser
+{
+{{ body }}}

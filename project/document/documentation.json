@@ -1,0 +1,37 @@
+{
+  "values": {
+    "build_entry": "build.sh",
+    "build_driver": "build-all.sh",
+    "build_scope": "ParseEngine、库和示例工程（Magel、MetroLang、Hydra86、RustView、CAS 已拆分为独立仓库）",
+    "test_policy": "不运行测试",
+    "excluded_scope": "上述独立仓库不在统一构建清单中",
+    "build_command": "sh build.sh",
+    "list_command": "sh build.sh --list",
+    "quiet_command": "sh build.sh -q",
+    "clean_preview": "sh clear.sh --dry-run",
+    "clean_command": "sh clear.sh",
+    "build_root": "build/",
+    "generator_dir": "build/bin/",
+    "rust_dir": "build/rust/<库名>/",
+    "project_dir": "build/project/<工程名>/",
+    "log_dir": "build/build-all/logs/",
+    "examples_dir": "build/build-all/examples/",
+    "magic_dir": "build/work/magel/",
+    "magic_dependencies": "build/work/build/",
+    "python_policy": "构建入口实际运行 `python3`、`python`，选择可用的 Python 3 解释器，跳过不可用的占位程序和 Python 2；检测结果传给生成器和 CAS。CAS 的 Makefile 单独运行时也会自动检测，可用 `PYTHON` 覆盖。C/C++ 编译器、make 和 Python 3 为必需工具；Rust、.NET 和 Go 工具链缺失时跳过对应部分。",
+    "clean_policy": "清理仅限根目录 `build/` 内被 Git 忽略的产物，保留受版本控制文件、未被忽略的未跟踪文件和嵌套 Git 仓库。检测到 `tmp/build.lock` 时拒绝清理；旧版本留在其他目录的产物不在清理范围内。",
+    "generator_release_dir": "build/bin/release/"
+  },
+  "documents": [
+    {
+      "template": "project/document/templates/build-summary.md.tmpl",
+      "output": "README.md",
+      "block": "build-summary"
+    },
+    {
+      "template": "project/document/templates/build-summary.md.tmpl",
+      "output": "doc/README.md",
+      "block": "build-summary"
+    }
+  ]
+}

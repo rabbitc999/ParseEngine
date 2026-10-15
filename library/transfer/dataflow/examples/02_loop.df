@@ -1,0 +1,19 @@
+# 名称: 循环
+# 说明: 循环头是回边与入口的汇合点：i 在头上有两个定值到达；循环体里的
+#       i + 1 每轮都重算，但活跃变量只有 i 与 s。
+# 期望 live L1 in: {i, s}
+# 期望 reach L1 in: {i@0, i@3, k@5, s@1, s@2}
+# 期望 avail L1 in: {}
+# 期望 const L1 in: {i=⊥, k=⊥, s=⊥}
+label entry
+  mov i, 0
+  mov s, 0
+label L1
+  add s, s, i
+  add i, i, 1
+  mov k, i
+  sub k, k, 3
+  jnz k, L1
+label L2
+  print s
+  halt

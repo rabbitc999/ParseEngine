@@ -1,0 +1,35 @@
+/* ============================================================
+ * 规则 | 分支写法示例
+ *
+ * 同一条规则里用 '|' 罗列多个候选，每个候选各带自己的语义动作，
+ * 整条规则必须以 ';' 结束。它完全等价于把每个候选拆成一条同名规则写。
+ *
+ * 试用输入：
+ *   a   -> 1
+ *   c   -> 3
+ *   b c -> 12   （B C 分支右部有两个符号，各带自己的动作）
+ *
+ * 注意固定字面量带关键字边界检查：B 与 C 都是字母，写成 "bc" 时
+ * 词法层不会把 "b" 单独切出来，所以要留空格写成 "b c"。
+ * ============================================================ */
+
+%mode lalr
+%value_type int
+%start s
+
+%define A "a"
+%define B "b"
+%define C "c"
+
+%code
+/* custom 运行时：语义值类型由 %value_type 声明（int），动作就是普通 C 表达式 */
+/* 数字 Token 的语义值取自词法器解析好的 pToken->value */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+
+/* 演示程序（main.c）打印解析结果 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%d", *(pValue))
+%endcode
+
+s := A { $$ = 1; }
+   | B C { $$ = 12; }
+   | C { $$ = 3; };

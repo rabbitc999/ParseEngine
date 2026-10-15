@@ -1,0 +1,8 @@
+{# GLR 的冲突候选动作表（同一个 ACTION 单元里除主动作外的冲突候选）。
+   变量：start_symbol（整数）/ extra_start、extra_count（&[&[i32]]）/ extra_data（&[i32]），
+   都在 CodeGenRust 里算好（rustGlrTables）。 #}
+/// GLR 额外候选动作：同一个 ACTION 单元里除主动作外的冲突候选。
+const _GLR_START_SYMBOL: i32 = {{ start_symbol }};
+static _GLR_EXTRA_START: &[&[i32]] = {{ extra_start }};
+static _GLR_EXTRA_COUNT: &[&[i32]] = {{ extra_count }};
+static _GLR_EXTRA_DATA: &[i32] = &[{{ extra_data }}];

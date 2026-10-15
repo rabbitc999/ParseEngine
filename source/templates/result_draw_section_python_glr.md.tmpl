@@ -1,0 +1,35 @@
+## 语法图（`--svg` / `--dot`）
+
+这一档（{{ mode_label }}）的产物自带**自绘 SVG** 的能力：只用标准库拼文本，
+不依赖任何第三方模块。图里有两部分：
+
+- **GSS（图结构栈）**：节点是「状态 + 节点号」（`q<状态> #<节点号>`），边上的
+  标签是符号名 —— 移进边画实线、归约边画虚线并带产生式号（`·P<n>`），被运行时
+  接受的节点画成金色高亮；
+- **各结果树**：每条歧义路径的语法树逐棵并排画（`%tree` 文法才有；非 `%tree`
+  的产物只有 GSS）。
+
+```python
+import parser
+
+engine = parser.Parser()
+status = engine.run_glr_tree({{ example_code }})  # 非 %tree 用 run_glr
+if status == parser.STATUS_OK:
+    engine.write_syntax_graph_svg("graph.svg")
+    engine.write_syntax_graph_dot("graph.dot")
+    print(engine.syntax_graph_svg())    # 也可以只要文本
+```
+
+演示程序认两个开关（**不给开关时输出与从前逐字相同**）：
+
+```sh
+printf '%s\n' {{ example_shell }} | python main.py --svg graph.svg --dot graph.dot
+```
+
+图就用这次解析留下的 GSS 与结果，**不会重新解析** —— 所以解析失败时画的是
+一张走到半路的图，那正是排查歧义 / 死路时想看的。装了 Graphviz（Python 包 +
+`dot` 命令）时 DOT 可以直接渲染：`graphviz.Source(engine.syntax_graph_dot()).render("gss")`。
+
+语法图提供给 `glr` / `earley` / `cyk`（其它模式产物里没有 `syntax_graph_svg` /
+`syntax_graph_dot` / `write_syntax_graph_svg` / `write_syntax_graph_dot`）。
+

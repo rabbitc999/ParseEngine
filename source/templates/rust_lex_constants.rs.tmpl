@@ -1,0 +1,5 @@
+{# 词法模式产物的容量常量（CodeGenRust 的 lexerRs）。
+   变量：terminal_count —— Token 个数（含 END）。
+   本模板自带行尾换行。 #}
+/// Token 个数（含 END）：与解析产物一致。
+const _TERMINAL_COUNT: usize = {{ terminal_count }};

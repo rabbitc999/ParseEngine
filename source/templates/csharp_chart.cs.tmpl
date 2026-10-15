@@ -1,0 +1,94 @@
+
+    // 图表只负责判定；通过后由 GLR 重建原文法的结果与语义动作。
+    private int _chartPrecheck()
+    {
+        string text = _input;
+        List<Token> sourceTokens = new List<Token>(_tokens);
+        List<int> tokens = new List<int>();
+        while (_current.type != TOKEN_END)
+        {
+            tokens.Add(_current.type);
+            int next = _advance();
+            if (next != STATUS_OK) return next;
+        }
+        int status = _textMode ? _prepareText(text) : _prepareTokens(sourceTokens);
+        if (status != STATUS_OK) return status;
+        bool accepted = {% if earley %}_earleyAccept(tokens){% else %}_cykAccept(tokens){% endif %};
+        if (!accepted)
+        {
+            _setError(STATUS_ERR_SYNTAX, _current.line, _current.column,
+                      "没有可接受的解析路径");
+            return STATUS_ERR_SYNTAX;
+        }
+        return STATUS_OK;
+    }
+
+    private static bool _earleyAccept(List<int> tokens)
+    {
+        int count = tokens.Count;
+        var chart = new HashSet<(int production, int dot, int origin)>[count + 1];
+        for (int i = 0; i <= count; i++)
+            chart[i] = new HashSet<(int, int, int)>();
+        for (int p = 0; p < _CHART_LHS.Length; p++)
+            if (_CHART_LHS[p] == _CHART_START) chart[0].Add((p, 0, 0));
+        for (int position = 0; position <= count; position++)
+        {
+            bool changed;
+            do
+            {
+                changed = false;
+                var snapshot = new List<(int production, int dot, int origin)>(chart[position]);
+                foreach (var item in snapshot)
+                {
+                    int p = item.production, dot = item.dot, origin = item.origin;
+                    if (dot == _CHART_RHS_LENGTH[p])
+                    {
+                        int completed = _TERMINAL_COUNT + _CHART_LHS[p];
+                        foreach (var parent in new List<(int production, int dot, int origin)>(chart[origin]))
+                            if (parent.dot < _CHART_RHS_LENGTH[parent.production] &&
+                                _CHART_RHS_SYMBOLS[_CHART_RHS_START[parent.production] + parent.dot] == completed)
+                                changed |= chart[position].Add((parent.production, parent.dot + 1, parent.origin));
+                        continue;
+                    }
+                    int symbol = _CHART_RHS_SYMBOLS[_CHART_RHS_START[p] + dot];
+                    if (symbol >= _TERMINAL_COUNT)
+                    {
+                        int nonterm = symbol - _TERMINAL_COUNT;
+                        for (int next = 0; next < _CHART_LHS.Length; next++)
+                            if (_CHART_LHS[next] == nonterm)
+                                changed |= chart[position].Add((next, 0, position));
+                    }
+                    else if (position < count && symbol == tokens[position])
+                        chart[position + 1].Add((p, dot + 1, origin));
+                }
+            } while (changed);
+        }
+        foreach (var item in chart[count])
+            if (_CHART_LHS[item.production] == _CHART_START && item.origin == 0 &&
+                item.dot == _CHART_RHS_LENGTH[item.production]) return true;
+        return false;
+    }
+
+    private static bool _cykAccept(List<int> tokens)
+    {
+        int count = tokens.Count;
+        if (count == 0) return _CHART_ACCEPTS_EMPTY;
+        var cells = new HashSet<int>[count, count + 1];
+        for (int i = 0; i < count; i++)
+            for (int j = i + 1; j <= count; j++) cells[i, j] = new HashSet<int>();
+        for (int i = 0; i < count; i++)
+            for (int rule = 0; rule < _CHART_UNARY_LHS.Length; rule++)
+                if (_CHART_UNARY_TOKEN[rule] == tokens[i])
+                    cells[i, i + 1].Add(_CHART_UNARY_LHS[rule]);
+        for (int length = 2; length <= count; length++)
+            for (int begin = 0; begin + length <= count; begin++)
+            {
+                int end = begin + length;
+                for (int middle = begin + 1; middle < end; middle++)
+                    for (int rule = 0; rule < _CHART_BINARY_LHS.Length; rule++)
+                        if (cells[begin, middle].Contains(_CHART_BINARY_LEFT[rule]) &&
+                            cells[middle, end].Contains(_CHART_BINARY_RIGHT[rule]))
+                            cells[begin, end].Add(_CHART_BINARY_LHS[rule]);
+            }
+        return cells[0, count].Contains(_CHART_START);
+    }

@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="866.0" height="742.0" viewBox="0 0 866.0 742.0" font-family="Consolas, 'DejaVu Sans Mono', 'Courier New', monospace">
+<title>语法图 · GLR</title>
+<rect x="0" y="0" width="866.0" height="742.0" fill="#ffffff"/>
+<text x="24.0" y="20.0" text-anchor="start" dominant-baseline="middle" font-size="14.0" fill="#1f2937" font-weight="bold">语法图 · GLR</text>
+<path d="M 64.4 100.0 C 87.4 100.0, 87.4 66.0, 110.4 66.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="87.4" y="77.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">IF</text>
+<path d="M 150.8 66.0 C 173.8 66.0, 173.8 83.0, 196.8 83.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="173.8" y="68.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">COND</text>
+<path d="M 150.8 66.0 C 173.8 66.0, 173.8 117.0, 196.8 117.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="173.8" y="85.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">expr·P1</text>
+<path d="M 237.2 117.0 C 260.2 117.0, 260.2 100.0, 283.2 100.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="260.2" y="102.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">THEN</text>
+<path d="M 323.6 100.0 C 346.6 100.0, 346.6 83.0, 369.6 83.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="346.6" y="85.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">IF</text>
+<path d="M 410.0 83.0 C 433.0 83.0, 433.0 83.0, 456.0 83.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="433.0" y="77.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">COND</text>
+<path d="M 410.0 83.0 C 433.0 83.0, 433.0 117.0, 456.0 117.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="433.0" y="94.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">expr·P1</text>
+<path d="M 496.4 117.0 C 519.4 117.0, 519.4 100.0, 542.4 100.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="519.4" y="102.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">THEN</text>
+<path d="M 582.8 100.0 C 605.8 100.0, 605.8 83.0, 628.8 83.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="605.8" y="85.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">OTHER</text>
+<path d="M 582.8 100.0 C 605.8 100.0, 605.8 117.0, 628.8 117.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="605.8" y="102.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">START·P4</text>
+<path d="M 323.6 100.0 C 476.2 100.0, 476.2 117.0, 628.8 117.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="476.2" y="102.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">START·P2</text>
+<path d="M 64.4 100.0 C 87.4 100.0, 87.4 100.0, 110.4 100.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="87.4" y="94.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">START·P2</text>
+<path d="M 669.2 117.0 C 692.2 117.0, 692.2 100.0, 715.2 100.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="692.2" y="102.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">ELSE</text>
+<path d="M 755.6 100.0 C 778.6 100.0, 778.6 83.0, 801.6 83.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="778.6" y="85.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">OTHER</text>
+<path d="M 755.6 100.0 C 778.6 100.0, 778.6 117.0, 801.6 117.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="778.6" y="102.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">START·P4</text>
+<path d="M 64.4 100.0 C 87.4 100.0, 87.4 134.0, 110.4 134.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="87.4" y="111.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">START·P3</text>
+<path d="M 64.4 100.0 C 87.4 100.0, 87.4 134.0, 110.4 134.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="87.4" y="111.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">START·P2</text>
+<path d="M 323.6 100.0 C 346.6 100.0, 346.6 117.0, 369.6 117.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="346.6" y="102.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">START·P3</text>
+<rect x="24.0" y="86.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="44.2" y="95.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q0</text>
+<text x="44.2" y="107.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#0</text>
+<rect x="110.4" y="52.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="130.6" y="61.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q2</text>
+<text x="130.6" y="73.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#1</text>
+<rect x="196.8" y="69.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="217.0" y="78.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q4</text>
+<text x="217.0" y="90.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#2</text>
+<rect x="196.8" y="103.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="217.0" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q5</text>
+<text x="217.0" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#3</text>
+<rect x="283.2" y="86.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="303.4" y="95.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q6</text>
+<text x="303.4" y="107.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#4</text>
+<rect x="369.6" y="69.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="389.8" y="78.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q2</text>
+<text x="389.8" y="90.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#5</text>
+<rect x="456.0" y="69.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="476.2" y="78.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q4</text>
+<text x="476.2" y="90.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#6</text>
+<rect x="456.0" y="103.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="476.2" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q5</text>
+<text x="476.2" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#7</text>
+<rect x="542.4" y="86.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="562.6" y="95.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q6</text>
+<text x="562.6" y="107.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#8</text>
+<rect x="628.8" y="69.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="649.0" y="78.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q3</text>
+<text x="649.0" y="90.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#9</text>
+<rect x="628.8" y="103.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="649.0" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q7</text>
+<text x="649.0" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#10</text>
+<rect x="110.4" y="86.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#fdf3d8" stroke="#c8922a" stroke-width="2.0"/>
+<text x="130.6" y="95.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q1</text>
+<text x="130.6" y="107.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#11</text>
+<rect x="715.2" y="86.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="735.4" y="95.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q8</text>
+<text x="735.4" y="107.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#12</text>
+<rect x="801.6" y="69.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="821.8" y="78.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q3</text>
+<text x="821.8" y="90.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#13</text>
+<rect x="801.6" y="103.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="821.8" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q9</text>
+<text x="821.8" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#14</text>
+<rect x="110.4" y="120.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#fdf3d8" stroke="#c8922a" stroke-width="2.0"/>
+<text x="130.6" y="129.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q1</text>
+<text x="130.6" y="141.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#15</text>
+<rect x="369.6" y="103.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="389.8" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q7</text>
+<text x="389.8" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#16</text>
+<text x="24.0" y="190.0" text-anchor="start" dominant-baseline="middle" font-size="13.0" fill="#1f2937" font-weight="bold">结果[0] 语法树</text>
+<path d="M 94.4 292.0 C 94.4 309.0, 94.4 309.0, 94.4 326.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 260.0 354.0 C 260.0 371.0, 260.0 371.0, 260.0 388.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 381.2 354.0 C 381.2 371.0, 381.2 371.0, 381.2 388.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 506.0 354.0 C 506.0 371.0, 506.0 371.0, 506.0 388.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 356.3 292.0 C 356.3 309.0, 206.6 309.0, 206.6 326.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 356.3 292.0 C 356.3 309.0, 260.0 309.0, 260.0 326.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 356.3 292.0 C 356.3 309.0, 318.8 309.0, 318.8 326.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 356.3 292.0 C 356.3 309.0, 381.2 309.0, 381.2 326.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 356.3 292.0 C 356.3 309.0, 443.6 309.0, 443.6 326.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 356.3 292.0 C 356.3 309.0, 506.0 309.0, 506.0 326.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 198.7 230.0 C 198.7 247.0, 41.0 247.0, 41.0 264.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 198.7 230.0 C 198.7 247.0, 94.4 247.0, 94.4 264.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 198.7 230.0 C 198.7 247.0, 153.2 247.0, 153.2 264.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 198.7 230.0 C 198.7 247.0, 356.3 247.0, 356.3 264.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<rect x="24.0" y="264.0" width="34.0" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="41.0" y="277.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">IF</text>
+<text x="41.0" y="292.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">if</text>
+<rect x="72.0" y="326.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="94.4" y="339.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">COND</text>
+<text x="94.4" y="354.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">cond</text>
+<rect x="72.0" y="264.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="94.4" y="278.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">expr</text>
+<rect x="130.8" y="264.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="153.2" y="277.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">THEN</text>
+<text x="153.2" y="292.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">then</text>
+<rect x="189.6" y="326.0" width="34.0" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="206.6" y="339.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">IF</text>
+<text x="206.6" y="354.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">if</text>
+<rect x="237.6" y="388.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="260.0" y="401.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">COND</text>
+<text x="260.0" y="416.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">cond</text>
+<rect x="237.6" y="326.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="260.0" y="340.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">expr</text>
+<rect x="296.4" y="326.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="318.8" y="339.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">THEN</text>
+<text x="318.8" y="354.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">then</text>
+<rect x="355.2" y="388.0" width="52.0" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="381.2" y="401.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">OTHER</text>
+<text x="381.2" y="416.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">other</text>
+<rect x="358.8" y="326.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="381.2" y="340.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">stmt</text>
+<rect x="421.2" y="326.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="443.6" y="339.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">ELSE</text>
+<text x="443.6" y="354.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">else</text>
+<rect x="480.0" y="388.0" width="52.0" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="506.0" y="401.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">OTHER</text>
+<text x="506.0" y="416.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">other</text>
+<rect x="483.6" y="326.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="506.0" y="340.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">stmt</text>
+<rect x="333.9" y="264.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="356.3" y="278.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">stmt</text>
+<rect x="176.2" y="202.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="198.7" y="216.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">stmt</text>
+<text x="24.0" y="456.0" text-anchor="start" dominant-baseline="middle" font-size="13.0" fill="#1f2937" font-weight="bold">结果[1] 语法树</text>
+<path d="M 94.4 558.0 C 94.4 575.0, 94.4 575.0, 94.4 592.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 260.0 620.0 C 260.0 637.0, 260.0 637.0, 260.0 654.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 381.2 620.0 C 381.2 637.0, 381.2 637.0, 381.2 654.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 293.9 558.0 C 293.9 575.0, 206.6 575.0, 206.6 592.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 293.9 558.0 C 293.9 575.0, 260.0 575.0, 260.0 592.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 293.9 558.0 C 293.9 575.0, 318.8 575.0, 318.8 592.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 293.9 558.0 C 293.9 575.0, 381.2 575.0, 381.2 592.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 506.0 558.0 C 506.0 575.0, 506.0 575.0, 506.0 592.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 273.5 496.0 C 273.5 513.0, 41.0 513.0, 41.0 530.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 273.5 496.0 C 273.5 513.0, 94.4 513.0, 94.4 530.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 273.5 496.0 C 273.5 513.0, 153.2 513.0, 153.2 530.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 273.5 496.0 C 273.5 513.0, 293.9 513.0, 293.9 530.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 273.5 496.0 C 273.5 513.0, 443.6 513.0, 443.6 530.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 273.5 496.0 C 273.5 513.0, 506.0 513.0, 506.0 530.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<rect x="24.0" y="530.0" width="34.0" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="41.0" y="543.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">IF</text>
+<text x="41.0" y="558.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">if</text>
+<rect x="72.0" y="592.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="94.4" y="605.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">COND</text>
+<text x="94.4" y="620.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">cond</text>
+<rect x="72.0" y="530.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="94.4" y="544.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">expr</text>
+<rect x="130.8" y="530.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="153.2" y="543.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">THEN</text>
+<text x="153.2" y="558.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">then</text>
+<rect x="189.6" y="592.0" width="34.0" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="206.6" y="605.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">IF</text>
+<text x="206.6" y="620.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">if</text>
+<rect x="237.6" y="654.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="260.0" y="667.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">COND</text>
+<text x="260.0" y="682.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">cond</text>
+<rect x="237.6" y="592.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="260.0" y="606.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">expr</text>
+<rect x="296.4" y="592.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="318.8" y="605.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">THEN</text>
+<text x="318.8" y="620.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">then</text>
+<rect x="355.2" y="654.0" width="52.0" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="381.2" y="667.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">OTHER</text>
+<text x="381.2" y="682.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">other</text>
+<rect x="358.8" y="592.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="381.2" y="606.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">stmt</text>
+<rect x="271.5" y="530.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="293.9" y="544.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">stmt</text>
+<rect x="421.2" y="530.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="443.6" y="543.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">ELSE</text>
+<text x="443.6" y="558.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">else</text>
+<rect x="480.0" y="592.0" width="52.0" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="506.0" y="605.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">OTHER</text>
+<text x="506.0" y="620.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">other</text>
+<rect x="483.6" y="530.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="506.0" y="544.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">stmt</text>
+<rect x="251.1" y="468.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="273.5" y="482.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">stmt</text>
+<text x="24.0" y="724.0" text-anchor="start" dominant-baseline="middle" font-size="11.0" fill="#6b7280">GSS：17 个节点 / 18 条边；结果路径 2 条</text>
+</svg>

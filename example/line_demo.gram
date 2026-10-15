@@ -1,0 +1,63 @@
+/* ============================================================
+ * #line 示例：让 C/C++ 编译器的报错指回 .gram
+ *
+ * 生成器会给「语义动作 / %code / %union / %epilogue / %main」都包一对 #line：
+ *
+ *     #line 17 "example/line_demo.gram"
+ *         <你的代码>
+ *     #line 42 "parser.c"
+ *
+ * 所以编译器报错时看到的是 .gram 的行号与原文，而不是 parser.c 里的位置。
+ * 成对出现的两行 #line：前一行把「下一行」标成 .gram 的第 N 行，后一行把行号
+ * 还给生成文件本身（第二行是随产物实际行号回填的，不用你操心）。
+ *
+ * 想亲眼看到效果：把下面 DemoTrace 的实现改成
+ *     return NoSuchGlobal;
+ * 再编译产物（C99）：
+ *     gcc -std=c99 -c parser.c
+ * 报错会是
+ *     example/line_demo.gram:NN:12: error: 'NoSuchGlobal' undeclared
+ * 其中 NN 就是那一行在 .gram 里的真实行号；换成 --lang cpp17 后用
+ * g++ -std=c++17 -c parser.cpp 得到同样指向 .gram 的报错。
+ *
+ * 同一份文法里 %code 的类型写错会指向 parser_user.h 里的对应 #line，
+ * %union 成员类型写错会指向 %union 那一行附近，%epilogue / %main 同理。
+ *
+ * 试用输入：1+2*3 -> 7
+ * ============================================================ */
+
+%mode lalr
+%value_type double
+
+%define PLUS "+"
+%define STAR "*"
+
+%code
+#include <stdio.h>
+
+/* 声明放这里：parser.c 与 parser_token.c 都能看到它 */
+double DemoTrace(double value);
+
+/* 数字 Token 的语义值取自词法器解析好的 pToken->value */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+
+/* 演示程序（main.c）打印解析结果 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%g", *(pValue))
+%endcode
+
+%start expr
+
+expr := expr PLUS term { $$ = $1 + $3; }
+      | term            { $$ = $1; };
+
+term := term STAR factor { $$ = DemoTrace($1 * $3); }
+      | factor            { $$ = $1; };
+
+factor := NUMBER { $$ = $1; };
+
+%epilogue
+/* %epilogue 的正文同样带 #line：这里写错会指回 .gram 的对应行 */
+double DemoTrace(double value)
+{
+    return value;
+}

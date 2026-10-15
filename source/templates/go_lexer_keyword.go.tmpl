@@ -1,0 +1,12 @@
+{# 关键字查表（CodeGenGo 的 goKeywordSection；只有 %identifier 时才发）。
+   变量：rows —— 字面量里像标识符的那些，字段 literal（已带引号）/ token
+                  （Token 名，不带 `TOKEN_` 前缀）。
+   本模板自带行尾换行。 #}
+// keywordType 关键字查表：命中返回对应 Token 类型，否则 TOKEN_INVALID。
+func keywordType(text string) int32 {
+	switch text {
+{% for r in rows %}	case {{ r.literal }}:
+		return TOKEN_{{ r.token }}
+{% endfor %}	}
+	return TOKEN_INVALID
+}

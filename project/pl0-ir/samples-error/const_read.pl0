@@ -1,0 +1,4 @@
+const n = 1;
+begin
+    read n
+end.

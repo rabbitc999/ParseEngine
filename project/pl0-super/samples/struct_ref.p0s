@@ -1,0 +1,16 @@
+{ 结构体（按字段扁平化）+ 引用（绑定一次，能读能写）+ 结构体整体复制 }
+{ 期望: 7 1.5 7 }
+program struct_ref;
+  struct Point ( x: int; y: float; );
+  var p: Point;
+  var q: Point;
+  ref rx := p.x;
+begin
+  p.x := 3;
+  p.y := 1.5;
+  rx := rx + 4;          { 通过引用写回 p.x }
+  q := p;                { 结构体整体复制（逐字段） }
+  write(q.x);
+  write(p.y);
+  write(rx)
+end.

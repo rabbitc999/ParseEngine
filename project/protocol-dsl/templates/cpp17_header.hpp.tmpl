@@ -1,0 +1,92 @@
+#ifndef ${module_name}_PROTOCOL_HPP
+#define ${module_name}_PROTOCOL_HPP
+
+// Generated binary codec for $protocol_name. Do not edit.
+
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <stdexcept>
+#include <type_traits>
+#include <vector>
+
+namespace $namespace {
+
+class DecodeError : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
+
+class EncodeError : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
+
+namespace detail {
+
+inline void require(const std::vector<std::uint8_t>& data, std::size_t offset, std::size_t size)
+{
+    if (offset > data.size() || size > data.size() - offset)
+        throw DecodeError("truncated packet");
+}
+
+template <typename T>
+T read_integer(const std::vector<std::uint8_t>& data, std::size_t& offset, bool little)
+{
+    static_assert(std::is_integral<T>::value, "integer required");
+    using U = typename std::make_unsigned<T>::type;
+    require(data, offset, sizeof(T));
+    U raw = 0;
+    if (little) {
+        for (std::size_t i = 0; i < sizeof(T); ++i)
+            raw |= static_cast<U>(data[offset + i]) << (i * 8U);
+    } else {
+        for (std::size_t i = 0; i < sizeof(T); ++i)
+            raw = static_cast<U>((raw << 8U) | data[offset + i]);
+    }
+    offset += sizeof(T);
+    if constexpr (std::is_signed<T>::value) {
+        const U sign = U(1) << (sizeof(T) * 8U - 1U);
+        if ((raw & sign) != 0) {
+            const U magnitude = static_cast<U>(~raw) + U(1);
+            if (magnitude == sign) return std::numeric_limits<T>::min();
+            return static_cast<T>(-static_cast<T>(magnitude));
+        }
+    }
+    return static_cast<T>(raw);
+}
+
+template <typename T>
+void write_integer(std::vector<std::uint8_t>& out, T input, bool little)
+{
+    static_assert(std::is_integral<T>::value, "integer required");
+    using U = typename std::make_unsigned<T>::type;
+    const U value = static_cast<U>(input);
+    if (little) {
+        for (std::size_t i = 0; i < sizeof(T); ++i)
+            out.push_back(static_cast<std::uint8_t>((value >> (i * 8U)) & U(0xff)));
+    } else {
+        for (std::size_t i = sizeof(T); i > 0; --i)
+            out.push_back(static_cast<std::uint8_t>((value >> ((i - 1U) * 8U)) & U(0xff)));
+    }
+}
+
+inline std::vector<std::uint8_t> read_bytes(const std::vector<std::uint8_t>& data,
+                                            std::size_t& offset, std::size_t size)
+{
+    require(data, offset, size);
+    std::vector<std::uint8_t> result(data.begin() + static_cast<std::ptrdiff_t>(offset),
+                                     data.begin() + static_cast<std::ptrdiff_t>(offset + size));
+    offset += size;
+    return result;
+}
+
+} // namespace detail
+
+$cpp_declarations
+
+} // namespace $namespace
+
+#endif

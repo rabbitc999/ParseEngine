@@ -1,0 +1,15 @@
+{# `%union` 的成员结构体（CodeGenRust 的 rustValueTypeDecl）。
+   变量：members —— 成员声明正文（如 `ival: i32`），原样贴进 `pub ` 之后。
+   本模板自带行尾换行。 #}
+/// `%union` 的成员：Rust 没有联合体，改成一个带成员字段的结构体。
+///
+/// 成员声明原样贴进来（请按 Rust 的字段写法：`ival: i32,` /
+/// `dval: f64,`），语义动作里的 `$n` / `$$` 会展开成
+/// `values[i].<成员>` / `result.value.<成员>`。语义值按值拷贝，所以
+/// 成员类型要满足 `Copy + Default + Debug`。
+#[derive(Clone, Copy, Default, Debug)]
+pub struct ParserValue
+{
+{% for m in members %}    pub {{ m }},
+{% endfor %}}
+

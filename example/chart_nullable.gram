@@ -1,0 +1,18 @@
+/* Earley / CYK: nullable prefix, unit production, long RHS, left recursion.
+ * Try "a b c b b", "a a b c", or an empty line.
+ */
+%mode earley
+%tree
+%start sentence
+
+%token A "a"
+%token B "b"
+%token C "c"
+
+sentence := prefix sequence
+          | ;
+prefix := A
+        | ;
+sequence := chain ;
+chain := chain B
+       | A B C ;

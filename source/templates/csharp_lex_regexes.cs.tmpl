@@ -1,0 +1,49 @@
+    // %token regex 声明的 Token：与固定字面量一起做最长匹配，
+    // 同长度时字面量优先（关键字不会被正则吃掉）。
+    private static readonly Regex[] _REGEX_RE_LIST = {
+{% for r in regexes %}
+        new Regex({{ r.pattern }}),
+{% endfor %}
+    };
+    private static readonly int[] _REGEX_TYPES = {
+{% for r in regexes %}
+        {{ r.type }},
+{% endfor %}
+    };
+    private static readonly int[] _REGEX_ORDERS = {
+{% for r in regexes %}
+        {{ r.order }},
+{% endfor %}
+    };
+    // %identifier 声明的标识符正则（命中关键字时换成关键字 Token）；
+    // 没写 %identifier 时是 null，词法器退回内建的标识符规则。
+    private static readonly Regex _IDENTIFIER_RE = {{ identifier_re }};
+    // %commit 声明的片段：与 %token 一起做最长匹配；
+    // 同长度时按声明序，先声明优先（skip 命中直接丢掉）。
+    private static readonly Regex[] _COMMIT_RE_LIST = {
+{% for c in commits %}
+        new Regex({{ c.pattern }}),
+{% endfor %}
+    };
+    private static readonly string[] _COMMIT_TYPES = {
+{% for c in commits %}
+        {{ c.type }},
+{% endfor %}
+    };
+    /** %commit/%trivia 类型到显示别名的映射。 */
+    private static readonly Dictionary<string, string> COMMIT_ALIASES = new Dictionary<string, string>
+    {
+{% for a in commit_aliases %}
+        [{{ a.type }}] = {{ a.alias }},
+{% endfor %}
+    };
+    private static readonly bool[] _COMMIT_SKIPS = {
+{% for c in commits %}
+        {{ c.skip }},
+{% endfor %}
+    };
+    private static readonly int[] _COMMIT_ORDERS = {
+{% for c in commits %}
+        {{ c.order }},
+{% endfor %}
+    };

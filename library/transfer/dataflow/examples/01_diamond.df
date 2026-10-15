@@ -1,0 +1,21 @@
+# 名称: 两条路径同时定义 d
+# 说明: 汇合点上一个变量的两个定值都到达；d 在两条路径上分别是常量 1 和 2，
+#       所以常量传播在汇合点得到 ⊥（非常量），而 a + b 在两条路径上都可用。
+# 期望 live entry in: {}
+# 期望 live entry out: {a, b}
+# 期望 live L2 in: {d}
+# 期望 reach L2 in: {a@0, b@1, c@2, d@4, d@6}
+# 期望 avail L2 in: {a add b}
+# 期望 const L2 in: {a=1, b=2, c=3, d=⊥}
+label entry
+  mov a, 1
+  mov b, 2
+  add c, a, b
+  jz c, L1
+  mov d, a
+  jmp L2
+label L1
+  mov d, b
+label L2
+  print d
+  halt

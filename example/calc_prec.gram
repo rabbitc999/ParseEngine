@@ -1,0 +1,58 @@
+/* ============================================================
+ * 计算器文法 · 用优先级消解冲突的写法（%left / %right / %prec）
+ *
+ * 这份文法故意写成二义文法：expr := expr PLUS expr 这类规则本身
+ * 既可能移进也可能归约，靠下面的优先级声明在生成期消解：
+ *   %left  PLUS MINUS      —— 加减左结合
+ *   %left  STAR SLASH      —— 乘除左结合，优先级高于加减
+ *   %right UMINUS          —— 一元负号，优先级高于乘除
+ *   %right POW             —— 幂右结合，优先级最高
+ * 行号越靠下优先级越高；同一行里从左到右依次递增。
+ * `expr := MINUS expr` 用 %prec UMINUS 借用伪 Token UMINUS 的优先级，
+ * 否则它只能按“最右终结符 MINUS”参与比较。
+ *
+ * 试用输入：
+ *   -2+3       -> 1
+ *   1+2*3      -> 7
+ *   (1+2)*3    -> 9
+ *   10-3-2     -> 5      （左结合）
+ *   2^3^2      -> 512    （右结合：2^(3^2)）
+ *   -2^2       -> -4     （UMINUS 低于 POW：-(2^2)）
+ * ============================================================ */
+
+%mode lalr
+%value_type double
+
+%left  PLUS MINUS
+%left  STAR SLASH
+%right UMINUS
+%right POW
+
+%define PLUS   "+"
+%define MINUS  "-"
+%define STAR   "*"
+%define SLASH  "/"
+%define POW    "^"
+%define LPAREN "("
+%define RPAREN ")"
+
+%start expr
+
+%code
+/* custom 运行时：语义值类型由 %value_type 声明（double）。pow 就是 <math.h>
+ * 里的函数，语义动作按普通 C 表达式生成。 */
+/* 数字 Token 的语义值取自词法器解析好的 pToken->value */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+
+/* 演示程序（main.c）打印解析结果 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%g", *(pValue))
+%endcode
+
+expr := expr PLUS expr  { $$ = $1 + $3; }
+expr := expr MINUS expr { $$ = $1 - $3; }
+expr := expr STAR expr  { $$ = $1 * $3; }
+expr := expr SLASH expr { $$ = $1 / $3; }
+expr := expr POW expr   { $$ = pow($1, $3); }
+expr := MINUS expr %prec UMINUS { $$ = -$2; }
+expr := LPAREN expr RPAREN { $$ = $2; }
+expr := NUMBER { $$ = $1; }

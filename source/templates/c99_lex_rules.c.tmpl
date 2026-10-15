@@ -1,0 +1,9 @@
+{# C99 固定字面量的匹配规则表**行**（`generatorLexRules` 的产物，整段当值插进
+   `c99_lexer_c_custom.c.tmpl` / `c99_parser_c_custom.c.tmpl` 的 `{{ lex_rules }}`）。
+   变量：lex_rules —— 每项 text / length / token / blank_first / blank_wildcard /
+                    decl_order（都是现成文本；length 与两个 0/1 标志在模板里补 u）。
+   行之间用「行尾逗号 + 换行」分隔，**最后一行不带换行**（插入点那一行自己补）——
+   所以 {% endfor %} 与 {% else %} 都收在同一行里，别挪到单独一行。
+   没有固定字面量时发 `{ NULL, 0u, TOKEN_END, 0u, 0u, 0 }` 占位（表不能是空的）。 #}
+{% if lex_rules %}{% for r in lex_rules %}{% if loop_first %}{% else %},
+{% endif %}    { {{ r.text }}, {{ r.length }}u, TOKEN_{{ r.token }}, {{ r.blank_first }}, {{ r.blank_wildcard }}, {{ r.decl_order }} }{% endfor %}{% else %}    { NULL, 0u, TOKEN_END, 0u, 0u, 0 }{% endif %}

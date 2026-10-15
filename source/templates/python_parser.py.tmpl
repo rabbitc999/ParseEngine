@@ -1,0 +1,350 @@
+# -*- coding: utf-8 -*-
+"""parser.py —— {{ mode_name }} 解析器（Python 产物）
+
+由 ParseEngine 自动生成，请勿手工修改。
+
+目标语言是 Python（只用标准库，没有第三方依赖）：
+
+  - 语义值是**任意 Python 对象**：动作里 ``$$`` 写 ``result.value``，
+    ``$1`` 读 ``values[0]``（``$n`` 就是右部第 n 个符号的语义值）；
+  - 语义动作按 Python 表达式翻译（``&&`` / ``||`` 请写成 ``and`` / ``or``）；
+  - ``%code … %endcode`` / ``%code … %endcode`` 的正文插在本模块 import 之后、
+    常量之前（缩进按 Python 规则归一化：去掉公共缩进、行首 tab 换成 4 空格），
+    ``%epilogue`` 追加到模块末尾，``%main`` 替换 main.py 的演示体；
+  - 没有 ``%union`` / ``%value_type`` / ``%token <成员>``：Python 里这些 C
+    专属的语义值模型都不需要，写了生成器会直接报错；
+  - 词法 / 语法表都是生成期算好的常量，运行时只做查表；
+  - 内存由 Python 自己管，没有分配器与释放钩子。
+
+典型用法：
+
+{% if lex %}    import parser
+
+    lexer = parser.{{ class }}()
+    status, tokens = lexer.tokenize("1+2*3")
+    for token in tokens:
+        print(parser.token_name(token.type), token.text)
+{% else %}    import parser
+
+    engine = parser.{{ class }}()
+    status = engine.run_text("1+2*3")
+    if status == parser.STATUS_OK:
+        print(engine.result)
+    else:
+        print(engine.last_error)
+
+``%tree`` 文法（只做语法分析并生成具体语法树）：
+
+    tree = parser.{{ class }}().parse_tree("1+2*3")
+    if tree is not None:
+        tree.print()
+{% endif %}"""
+
+import re
+import sys
+from collections import namedtuple
+{{ user_code }}
+# ============ 状态码（数值与 C / C++17 目标一致，方便三份产物对照）============
+
+STATUS_OK = 0
+STATUS_ERR_STACK = -20
+STATUS_ERR_SYNTAX = -21
+STATUS_ERR_LEXER = -22
+STATUS_ERR_DUPLICATE = -23
+STATUS_ERR_UNDEFINED = -24
+STATUS_ERR_SYSTEM = -25
+STATUS_ERR_EXPECTED = -26           # 期望若干 Token，实际是别的
+STATUS_ERR_UNEXPECTED_EOF = -27     # 提前遇到输入末尾
+STATUS_ERR_LEX_UNTERMINATED = -28   # 未闭合的字符串 / 注释
+STATUS_ERR_LEX_CHAR = -29           # 认不出来的字符
+# 内部哨兵：%commit 命中（不是 Token，吃掉原文后继续取）；不会交给调用方
+_LEX_COMMIT_CONSUMED = 1
+# 每条错误最多记几个「期望 Token」（与 C 目标的 PARSER_MAX_EXPECTED 一致）
+_MAX_EXPECTED = 8
+
+_STATUS_NAMES = {
+    STATUS_OK: "Ok",
+    STATUS_ERR_STACK: "ErrStack",
+    STATUS_ERR_SYNTAX: "ErrSyntax",
+    STATUS_ERR_LEXER: "ErrLexer",
+    STATUS_ERR_DUPLICATE: "ErrDuplicate",
+    STATUS_ERR_UNDEFINED: "ErrUndefined",
+    STATUS_ERR_SYSTEM: "ErrSystem",
+}
+
+
+def status_name(status):
+    """取状态码的名字（如 ``"Ok"`` / ``"ErrSyntax"``）。
+
+    :param status: 状态码。
+    :return: 名字；未知状态返回 ``"Unknown"``。
+    """
+    return _STATUS_NAMES.get(status, "Unknown")
+
+
+# ============ 容量常量 ============
+
+{{ constants }}
+
+# ============ Token 类型 ============
+
+{{ token_types }}
+
+
+class Token(object):
+    """词法单元：类型 + 词素 + 语义值 + 行列号。
+
+    语义值（``value``）由词法器按 Token 种类给出：字符串 Token 是去掉引号
+    并解好转义的 ``str``，数字 Token 是 ``int`` / ``float``，标识符与固定
+    字面量是词素文本本身，EOF / ``error`` 伪 Token 是 ``None``。
+    """
+
+    __slots__ = ("type", "text", "value", "line", "column", "offset")
+
+    def __init__(self, type=TOKEN_INVALID, text="", value=None, line=1,
+                 column=1, offset=0):
+        self.type = type
+        self.text = text
+        self.value = value
+        self.line = line
+        self.column = column
+        # 从输入开头算起的 UTF-8 字节偏移（0 起；Token 数组模式由调用方给）
+        self.offset = offset
+
+    def __repr__(self):
+        return "Token(type=%s, text=%r, line=%d, column=%d, offset=%d)" % (
+            token_name(self.type), self.text, self.line, self.column,
+            self.offset)
+
+
+def token_name(type_id):
+    """取 Token 类型名（去掉 ``TOKEN_`` 前缀之前的枚举名原样返回）。
+
+    :param type_id: Token 类型。
+    :return: 名字；越界返回 ``None``。
+    """
+    if not isinstance(type_id, int):
+        return None
+    if (type_id < 0) or (type_id >= len(TOKEN_NAMES)):
+        return None
+    name = TOKEN_NAMES[type_id]
+    alias = TOKEN_ALIASES.get(name)
+    return name if not alias else name + "(" + alias + ")"
+
+
+def token_text(token):
+    """取 Token 的显示文本：优先词素，没有词素时退回类型名。
+
+    :param token: 词法单元。
+    :return: 文本。
+    """
+    if token.text:
+        return token.text
+    name = token_name(token.type)
+    return name if name is not None else ""
+
+
+# ============ %commit 容器元素 ============
+
+# ``%commit`` 收集到的一条片段：行号（1 起）+ 类型名 + 匹配到的原文（含
+# 字面量本身）。文法里没写 %commit 时 ``engine.commits`` 恒为空列表；
+# ``%commit skip`` 命中的片段不进容器。
+ParserCommit = namedtuple("ParserCommit", ("line", "type", "text"))
+
+# 输入里的一个位置：行 + 列 + UTF-8 字节偏移。行 / 列都是 1 起，offset 是
+# 0 起的 UTF-8 字节偏移{% if tree_class %}；语法树节点上的 ``Tree.location`` 也是这个类型{% endif %}。
+ParserLocation = namedtuple("ParserLocation", ("line", "column", "offset"))
+
+
+# ============ 解析错误 ============
+
+
+class ParserError(Exception):
+    """一条解析错误：一次解析可以累积多条（错误恢复时）。"""
+
+    __slots__ = ("code", "line", "column", "message", "token_type",
+                 "token_text", "state", "expected", "context")
+
+    def __init__(self, code=0, line=0, column=0, message="",
+                 token_type=0, token_text="", state=0, expected=None,
+                 context=""):
+                 
+        Exception.__init__(self, message)
+        self.code = code
+        self.line = line
+        self.column = column
+        self.message = message
+        # 增强字段（语法错误时才有内容）：
+        #   token_type / token_text：实际看到的 Token 类型与词素
+        #   state：LR 状态号（LL 家族是栈顶符号编号）
+        #   expected：这里期望的 Token 类型列表（最多 PARSER_MAX_EXPECTED 个）
+        self.token_type = token_type
+        self.token_text = token_text
+        self.state = state
+        self.expected = list(expected) if expected else []
+        # 出错那一行的原文 + 一行 ^ 指示（文本模式才有源文）
+        self.context = context
+
+    def __str__(self):
+        return "第 %d 行第 %d 列：%s" % (self.line, self.column, self.message)
+
+
+{% if tree_class %}# ============ 语法树 ============
+
+
+class Tree(object):
+    """语法树节点（``%tree`` 文法）：名字 + 词素 + 位置 + 子节点。
+
+    父节点用列表持有子节点（``children``），整棵树随引用计数释放；要复制
+    一棵树用 ``clone()``。``location`` 是覆盖文本的起点（``ParserLocation``；
+    叶节点是 Token 的起点，分支节点取第一个子节点的位置），没有位置信息时
+    三个字段都是 0。
+    """
+
+    __slots__ = ("name", "text", "_location", "children")
+
+    def __init__(self, name="", text="", location=None):
+        self.name = name
+        self.text = text
+        self._location = (ParserLocation(0, 0, 0) if location is None
+                          else location)
+        self.children = []
+
+    @property
+    def location(self):
+        """节点覆盖文本的起点（``ParserLocation``）。
+
+        叶节点是 Token 的起点；分支节点取第一个有位置的子节点（按需计算，
+        所以先建父节点再填子节点也对）；都没有时三个字段都是 0。
+        """
+        if self._location.line == 0:
+            for child in self.children:
+                found = child.location
+                if found.line != 0:
+                    return found
+        return self._location
+
+    @location.setter
+    def location(self, value):
+        self._location = value
+
+    @property
+    def child_count(self):
+        """子节点个数。"""
+        return len(self.children)
+
+    def child(self, index):
+        """取第 index 个子节点；越界返回 ``None``。"""
+        if (index < 0) or (index >= len(self.children)):
+            return None
+        return self.children[index]
+
+    def add_child(self, child):
+        """追加一个子节点（``None`` 会被忽略）。"""
+        if child is not None:
+            self.children.append(child)
+
+    def clone(self):
+        """深拷贝整棵子树。"""
+        copy = Tree(self.name, self.text, self.location)
+        for child in self.children:
+            copy.children.append(child.clone())
+        return copy
+
+    def to_string(self):
+        """取整棵树的缩进文本（每层两个空格）。"""
+        lines = []
+        _append_tree_text(self, 0, lines)
+        return "".join(lines)
+
+    def print(self, stream=None):
+        """打印整棵树（缺省写到标准输出）。"""
+        target = sys.stdout if stream is None else stream
+        target.write(self.to_string())
+        target.flush()
+
+    def __repr__(self):
+        return "Tree(%r, %r, %d 个子节点)" % (self.name, self.text,
+                                              len(self.children))
+
+{% if tree_draw %}
+{{ tree_draw }}
+{% endif %}
+
+def _append_tree_text(node, depth, lines):
+    """递归拼一棵树的缩进文本。"""
+    text = ("  " * depth) + node.name
+    if node.text:
+        text += "(" + node.text + ")"
+    lines.append(text + "\n")
+    for child in node.children:
+        _append_tree_text(child, depth + 1, lines)
+
+
+{% if draw_common %}
+{{ draw_common }}
+{% endif %}{% endif %}# ============ 字符判定（按 ASCII 语义，和 C 目标的 isalpha / isdigit 对齐）============
+
+
+def _is_digit(ch):
+    """是不是 ASCII 数字（空串返回 False）。"""
+    return ("0" <= ch <= "9") if ch else False
+
+
+def _is_alpha(ch):
+    """是不是 ASCII 字母（空串返回 False）。"""
+    if not ch:
+        return False
+    return (("a" <= ch <= "z") or ("A" <= ch <= "Z"))
+
+
+def _is_alnum(ch):
+    """是不是 ASCII 字母或数字（空串返回 False）。"""
+    return _is_alpha(ch) or _is_digit(ch)
+
+
+def _is_word(ch):
+    """是不是标识符组成字符（字母 / 数字 / 下划线）。"""
+    return _is_alnum(ch) or (ch == "_")
+
+
+def _is_space(ch):
+    """是不是 C 语言的空白字符。"""
+    return ch in " \t\n\r\v\f" if ch else False
+
+
+# 字面量里的 \b 占位符（生成期写成 0x1F）：命中任意一个空白字符。
+_BLANK_WILDCARD = "\x1f"
+
+
+def _lex_rule_hit(rule_text, text, start):
+    """固定字面量命中判断（规则里的 \\x1f 是 \\b：命中任意一个空白字符）。"""
+    for offset, ch in enumerate(rule_text):
+        probe = text[start + offset:start + offset + 1]
+        if ch == _BLANK_WILDCARD:
+            if not _is_space(probe):
+                return False
+        elif probe != ch:
+            return False
+    return True
+
+
+def _lex_blank_rule_hit(text, start):
+    """当前位置能不能开始一个以空白 / \\b 通配开头的固定字面量。"""
+    for rule_text, _rule_type, _rule_length, rule_blank, _rule_order \
+            in _LEX_RULES:
+        if rule_blank and _lex_rule_hit(rule_text, text, start):
+            return True
+    return False
+
+
+def _lex_is_skip_char(ch):
+    """这个字符在取 Token 前要不要跳过（%space 决定的空白集合）。"""
+    return bool(ch) and (ch in _LEX_SKIP_CHARS)
+
+
+# ============ 词法 / 语法表（生成期算好）============
+
+{{ tables }}
+
+{{ engine }}

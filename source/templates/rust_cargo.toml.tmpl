@@ -1,0 +1,19 @@
+# Cargo.toml —— Rust 构建脚本（全部计算用标准库；词法正则用官方的 `regex`）
+#
+#   cargo build     # 编译（第一次要联网拉 `regex` 及其依赖）
+#   cargo run       # 编译并跑演示（演示程序从标准输入读一行）
+#
+# 只当解析库用时：把 src/main.rs 换成你自己的入口（或加一个 src/lib.rs），
+# 把 src/parser.rs / src/token.rs 当模块引进来即可。
+#
+# `regex` 是 rust-lang 官方的正则库（不是第三方替代品）：文法里 `%token regex` /
+# `%identifier` / `%commit` 的模式原样交给它，产物里不再有生成期算好的 DFA 表。
+# 需要 Rust 1.70+（`std::sync::OnceLock` 的稳定版本）。
+
+[package]
+name = "{{ package_name }}"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+regex = "1"

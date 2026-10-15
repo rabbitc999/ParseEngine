@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="736.4" height="1306.0" viewBox="0 0 736.4 1306.0" font-family="Consolas, 'DejaVu Sans Mono', 'Courier New', monospace">
+<title>语法图 · GLR</title>
+<rect x="0" y="0" width="736.4" height="1306.0" fill="#ffffff"/>
+<text x="24.0" y="20.0" text-anchor="start" dominant-baseline="middle" font-size="14.0" fill="#1f2937" font-weight="bold">语法图 · GLR</text>
+<path d="M 64.4 134.0 C 87.4 134.0, 87.4 66.0, 110.4 66.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="87.4" y="94.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">DET</text>
+<path d="M 150.8 66.0 C 173.8 66.0, 173.8 66.0, 196.8 66.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="173.8" y="60.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">NOUN</text>
+<path d="M 150.8 66.0 C 173.8 66.0, 173.8 100.0, 196.8 100.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="173.8" y="77.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">nbar·P6</text>
+<path d="M 64.4 134.0 C 87.4 134.0, 87.4 100.0, 110.4 100.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="87.4" y="111.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">np·P9</text>
+<path d="M 150.8 100.0 C 173.8 100.0, 173.8 134.0, 196.8 134.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="173.8" y="111.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">VERB</text>
+<path d="M 244.4 134.0 C 267.4 134.0, 267.4 83.0, 290.4 83.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="267.4" y="102.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">DET</text>
+<path d="M 338.0 83.0 C 361.0 83.0, 361.0 117.0, 384.0 117.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="361.0" y="94.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">NOUN</text>
+<path d="M 338.0 83.0 C 361.0 83.0, 361.0 151.0, 384.0 151.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="361.0" y="111.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">nbar·P6</text>
+<path d="M 244.4 134.0 C 267.4 134.0, 267.4 117.0, 290.4 117.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="267.4" y="119.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">np·P9</text>
+<path d="M 150.8 100.0 C 173.8 100.0, 173.8 168.0, 196.8 168.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="173.8" y="128.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">vp·P19</text>
+<path d="M 64.4 134.0 C 87.4 134.0, 87.4 134.0, 110.4 134.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="87.4" y="128.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">clause·P1</text>
+<path d="M 431.6 151.0 C 454.6 151.0, 454.6 117.0, 477.6 117.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="454.6" y="128.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">PREP</text>
+<path d="M 244.4 168.0 C 361.0 168.0, 361.0 117.0, 477.6 117.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="361.0" y="136.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">PREP</text>
+<path d="M 525.2 117.0 C 548.2 117.0, 548.2 117.0, 571.2 117.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="548.2" y="111.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">DET</text>
+<path d="M 618.8 117.0 C 641.8 117.0, 641.8 117.0, 664.8 117.0" fill="none" stroke="#3f7fbf" stroke-width="1.2"/>
+<text x="641.8" y="111.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">NOUN</text>
+<path d="M 618.8 117.0 C 641.8 117.0, 641.8 151.0, 664.8 151.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="641.8" y="128.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">nbar·P6</text>
+<path d="M 338.0 83.0 C 501.4 83.0, 501.4 151.0, 664.8 151.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="501.4" y="111.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">nbar·P7</text>
+<path d="M 525.2 117.0 C 548.2 117.0, 548.2 151.0, 571.2 151.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="548.2" y="128.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">np·P9</text>
+<path d="M 244.4 168.0 C 267.4 168.0, 267.4 151.0, 290.4 151.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="267.4" y="153.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">pp·P13</text>
+<path d="M 431.6 151.0 C 454.6 151.0, 454.6 151.0, 477.6 151.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="454.6" y="145.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">pp·P13</text>
+<path d="M 150.8 100.0 C 173.8 100.0, 173.8 202.0, 196.8 202.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="173.8" y="145.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">vp·P24</text>
+<path d="M 150.8 100.0 C 173.8 100.0, 173.8 202.0, 196.8 202.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="173.8" y="145.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">vp·P19</text>
+<path d="M 64.4 134.0 C 87.4 134.0, 87.4 168.0, 110.4 168.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="87.4" y="145.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">clause·P1</text>
+<path d="M 64.4 134.0 C 87.4 134.0, 87.4 168.0, 110.4 168.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="87.4" y="145.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">clause·P1</text>
+<path d="M 244.4 134.0 C 267.4 134.0, 267.4 185.0, 290.4 185.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="267.4" y="153.5" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">np·P9</text>
+<path d="M 64.4 134.0 C 87.4 134.0, 87.4 202.0, 110.4 202.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="87.4" y="162.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">START·P15</text>
+<path d="M 64.4 134.0 C 87.4 134.0, 87.4 202.0, 110.4 202.0" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="87.4" y="162.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#475569">START·P15</text>
+<rect x="24.0" y="120.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="44.2" y="129.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q0</text>
+<text x="44.2" y="141.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#0</text>
+<rect x="110.4" y="52.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="130.6" y="61.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q5</text>
+<text x="130.6" y="73.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#1</text>
+<rect x="196.8" y="52.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="220.6" y="61.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q15</text>
+<text x="220.6" y="73.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#2</text>
+<rect x="196.8" y="86.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="220.6" y="95.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q16</text>
+<text x="220.6" y="107.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#3</text>
+<rect x="110.4" y="86.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="130.6" y="95.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q2</text>
+<text x="130.6" y="107.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#4</text>
+<rect x="196.8" y="120.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="220.6" y="129.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q10</text>
+<text x="220.6" y="141.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#5</text>
+<rect x="290.4" y="69.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="314.2" y="78.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q5</text>
+<text x="314.2" y="90.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#6</text>
+<rect x="384.0" y="103.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="407.8" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q15</text>
+<text x="407.8" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#7</text>
+<rect x="384.0" y="137.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="407.8" y="146.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q16</text>
+<text x="407.8" y="158.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#8</text>
+<rect x="290.4" y="103.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="314.2" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q22</text>
+<text x="314.2" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#9</text>
+<rect x="196.8" y="154.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="220.6" y="163.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q8</text>
+<text x="220.6" y="175.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#10</text>
+<rect x="110.4" y="120.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="130.6" y="129.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q4</text>
+<text x="130.6" y="141.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#11</text>
+<rect x="477.6" y="103.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="501.4" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q17</text>
+<text x="501.4" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#12</text>
+<rect x="571.2" y="103.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="595.0" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q5</text>
+<text x="595.0" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#13</text>
+<rect x="664.8" y="103.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="688.6" y="112.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q15</text>
+<text x="688.6" y="124.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#14</text>
+<rect x="664.8" y="137.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="688.6" y="146.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q16</text>
+<text x="688.6" y="158.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#15</text>
+<rect x="571.2" y="137.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="595.0" y="146.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q34</text>
+<text x="595.0" y="158.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#16</text>
+<rect x="290.4" y="137.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="314.2" y="146.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q18</text>
+<text x="314.2" y="158.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#17</text>
+<rect x="477.6" y="137.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="501.4" y="146.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q31</text>
+<text x="501.4" y="158.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#18</text>
+<rect x="196.8" y="188.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="220.6" y="197.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q8</text>
+<text x="220.6" y="209.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#19</text>
+<rect x="110.4" y="154.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="130.6" y="163.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q4</text>
+<text x="130.6" y="175.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#20</text>
+<rect x="290.4" y="171.0" width="47.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="314.2" y="180.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q22</text>
+<text x="314.2" y="192.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#21</text>
+<rect x="110.4" y="188.0" width="40.4" height="28.0" rx="7.0" ry="7.0" fill="#fdf3d8" stroke="#c8922a" stroke-width="2.0"/>
+<text x="130.6" y="197.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">q1</text>
+<text x="130.6" y="209.0" text-anchor="middle" dominant-baseline="middle" font-size="10.0" fill="#6b7280">#22</text>
+<text x="24.0" y="258.0" text-anchor="start" dominant-baseline="middle" font-size="13.0" fill="#1f2937" font-weight="bold">结果[0] 语法树</text>
+<path d="M 98.0 484.0 C 98.0 501.0, 98.0 501.0, 98.0 518.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 70.4 422.0 C 70.4 439.0, 42.8 439.0, 42.8 456.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 70.4 422.0 C 70.4 439.0, 98.0 439.0, 98.0 456.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 267.2 608.0 C 267.2 625.0, 267.2 625.0, 267.2 642.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 451.7 732.0 C 451.7 749.0, 451.7 749.0, 451.7 766.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 416.4 670.0 C 416.4 687.0, 381.2 687.0, 381.2 704.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 416.4 670.0 C 416.4 687.0, 451.7 687.0, 451.7 704.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 371.2 608.0 C 371.2 625.0, 326.0 625.0, 326.0 642.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 371.2 608.0 C 371.2 625.0, 416.4 625.0, 416.4 642.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 319.2 546.0 C 319.2 563.0, 267.2 563.0, 267.2 580.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 319.2 546.0 C 319.2 563.0, 371.2 563.0, 371.2 580.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 265.6 484.0 C 265.6 501.0, 212.0 501.0, 212.0 518.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 265.6 484.0 C 265.6 501.0, 319.2 501.0, 319.2 518.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 211.2 422.0 C 211.2 439.0, 156.8 439.0, 156.8 456.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 211.2 422.0 C 211.2 439.0, 265.6 439.0, 265.6 456.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 140.8 360.0 C 140.8 377.0, 70.4 377.0, 70.4 394.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 140.8 360.0 C 140.8 377.0, 211.2 377.0, 211.2 394.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 140.8 298.0 C 140.8 315.0, 140.8 315.0, 140.8 332.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<rect x="24.0" y="456.0" width="37.6" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="42.8" y="469.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">DET</text>
+<text x="42.8" y="484.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">the</text>
+<rect x="75.6" y="518.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="98.0" y="531.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">NOUN</text>
+<text x="98.0" y="546.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">man</text>
+<rect x="75.6" y="456.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="98.0" y="470.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">nbar</text>
+<rect x="53.4" y="394.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="70.4" y="408.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">np</text>
+<rect x="134.4" y="456.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="156.8" y="469.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">VERB</text>
+<text x="156.8" y="484.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">saw</text>
+<rect x="193.2" y="518.0" width="37.6" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="212.0" y="531.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">DET</text>
+<text x="212.0" y="546.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">the</text>
+<rect x="244.8" y="642.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="267.2" y="655.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">NOUN</text>
+<text x="267.2" y="670.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">girl</text>
+<rect x="244.8" y="580.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="267.2" y="594.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">nbar</text>
+<rect x="303.6" y="642.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="326.0" y="655.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">PREP</text>
+<text x="326.0" y="670.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">with</text>
+<rect x="362.4" y="704.0" width="37.6" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="381.2" y="717.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">DET</text>
+<text x="381.2" y="732.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">the</text>
+<rect x="414.0" y="766.0" width="75.4" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="451.7" y="779.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">NOUN</text>
+<text x="451.7" y="794.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">telescope</text>
+<rect x="429.3" y="704.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="451.7" y="718.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">nbar</text>
+<rect x="399.4" y="642.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="416.4" y="656.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">np</text>
+<rect x="354.2" y="580.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="371.2" y="594.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">pp</text>
+<rect x="296.8" y="518.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="319.2" y="532.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">nbar</text>
+<rect x="248.6" y="456.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="265.6" y="470.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">np</text>
+<rect x="194.2" y="394.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="211.2" y="408.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">vp</text>
+<rect x="111.2" y="332.0" width="59.2" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="140.8" y="346.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">clause</text>
+<rect x="104.0" y="270.0" width="73.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="140.8" y="284.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">sentence</text>
+<text x="24.0" y="834.0" text-anchor="start" dominant-baseline="middle" font-size="13.0" fill="#1f2937" font-weight="bold">结果[1] 语法树</text>
+<path d="M 98.0 1060.0 C 98.0 1077.0, 98.0 1077.0, 98.0 1094.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 70.4 998.0 C 70.4 1015.0, 42.8 1015.0, 42.8 1032.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 70.4 998.0 C 70.4 1015.0, 98.0 1015.0, 98.0 1032.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 267.2 1184.0 C 267.2 1201.0, 267.2 1201.0, 267.2 1218.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 239.6 1122.0 C 239.6 1139.0, 212.0 1139.0, 212.0 1156.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 239.6 1122.0 C 239.6 1139.0, 267.2 1139.0, 267.2 1156.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 198.2 1060.0 C 198.2 1077.0, 156.8 1077.0, 156.8 1094.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 198.2 1060.0 C 198.2 1077.0, 239.6 1077.0, 239.6 1094.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 451.7 1184.0 C 451.7 1201.0, 451.7 1201.0, 451.7 1218.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 416.4 1122.0 C 416.4 1139.0, 381.2 1139.0, 381.2 1156.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 416.4 1122.0 C 416.4 1139.0, 451.7 1139.0, 451.7 1156.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 371.2 1060.0 C 371.2 1077.0, 326.0 1077.0, 326.0 1094.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 371.2 1060.0 C 371.2 1077.0, 416.4 1077.0, 416.4 1094.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 284.7 998.0 C 284.7 1015.0, 198.2 1015.0, 198.2 1032.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 284.7 998.0 C 284.7 1015.0, 371.2 1015.0, 371.2 1032.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 177.6 936.0 C 177.6 953.0, 70.4 953.0, 70.4 970.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 177.6 936.0 C 177.6 953.0, 284.7 953.0, 284.7 970.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<path d="M 177.6 874.0 C 177.6 891.0, 177.6 891.0, 177.6 908.0" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+<rect x="24.0" y="1032.0" width="37.6" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="42.8" y="1045.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">DET</text>
+<text x="42.8" y="1060.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">the</text>
+<rect x="75.6" y="1094.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="98.0" y="1107.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">NOUN</text>
+<text x="98.0" y="1122.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">man</text>
+<rect x="75.6" y="1032.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="98.0" y="1046.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">nbar</text>
+<rect x="53.4" y="970.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="70.4" y="984.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">np</text>
+<rect x="134.4" y="1094.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="156.8" y="1107.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">VERB</text>
+<text x="156.8" y="1122.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">saw</text>
+<rect x="193.2" y="1156.0" width="37.6" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="212.0" y="1169.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">DET</text>
+<text x="212.0" y="1184.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">the</text>
+<rect x="244.8" y="1218.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="267.2" y="1231.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">NOUN</text>
+<text x="267.2" y="1246.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">girl</text>
+<rect x="244.8" y="1156.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="267.2" y="1170.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">nbar</text>
+<rect x="222.6" y="1094.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="239.6" y="1108.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">np</text>
+<rect x="181.2" y="1032.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="198.2" y="1046.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">vp</text>
+<rect x="303.6" y="1094.0" width="44.8" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="326.0" y="1107.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">PREP</text>
+<text x="326.0" y="1122.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">with</text>
+<rect x="362.4" y="1156.0" width="37.6" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="381.2" y="1169.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">DET</text>
+<text x="381.2" y="1184.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">the</text>
+<rect x="414.0" y="1218.0" width="75.4" height="40.0" rx="7.0" ry="7.0" fill="#f7f8f6" stroke="#9aa0a6" stroke-width="1.2"/>
+<text x="451.7" y="1231.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">NOUN</text>
+<text x="451.7" y="1246.0" text-anchor="middle" dominant-baseline="middle" font-size="11.0" fill="#6b7280">telescope</text>
+<rect x="429.3" y="1156.0" width="44.8" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="451.7" y="1170.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">nbar</text>
+<rect x="399.4" y="1094.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="416.4" y="1108.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">np</text>
+<rect x="354.2" y="1032.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="371.2" y="1046.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">pp</text>
+<rect x="267.7" y="970.0" width="34.0" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="284.7" y="984.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">vp</text>
+<rect x="148.0" y="908.0" width="59.2" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="177.6" y="922.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">clause</text>
+<rect x="140.8" y="846.0" width="73.6" height="28.0" rx="7.0" ry="7.0" fill="#eef4fb" stroke="#5b7fa6" stroke-width="1.2"/>
+<text x="177.6" y="860.0" text-anchor="middle" dominant-baseline="middle" font-size="12.0" fill="#1f2937" font-weight="bold">sentence</text>
+<text x="24.0" y="1288.0" text-anchor="start" dominant-baseline="middle" font-size="11.0" fill="#6b7280">GSS：23 个节点 / 27 条边；结果路径 2 条</text>
+</svg>

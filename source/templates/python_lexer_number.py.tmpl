@@ -1,0 +1,38 @@
+        # 小数点和指数决定 float，后缀 d 决定 double；后缀 u 只用于整数。
+        if _is_digit(self._peek_char()) or (
+                (self._peek_char() == ".") and _is_digit(self._peek_char(1))):
+            start = self._text_pos
+            has_dot = False
+            has_exponent = False
+            suffix = ""
+            while _is_digit(self._peek_char()):
+                self._read_char()
+            if self._peek_char() == ".":
+                has_dot = True
+                self._read_char()
+                while _is_digit(self._peek_char()):
+                    self._read_char()
+            if self._peek_char() in ("e", "E"):
+                has_exponent = True
+                self._read_char()
+                if self._peek_char() in ("+", "-"):
+                    self._read_char()
+                if not _is_digit(self._peek_char()):
+                    return STATUS_ERR_LEXER, token
+                while _is_digit(self._peek_char()):
+                    self._read_char()
+            if _is_alpha(self._peek_char()):
+                suffix = self._read_char()
+            if _is_alpha(self._peek_char()):
+                return STATUS_ERR_LEXER, token
+            self._lexeme = self._input[start:self._text_pos]
+            if suffix:
+                self._lexeme = self._lexeme[:-1]
+            parsed = self._parse_number(self._lexeme, suffix, has_dot,
+                                        has_exponent)
+            if parsed is None:
+                return STATUS_ERR_LEXER, token
+            token.type = TOKEN_NUMBER
+            token.text = self._lexeme
+            token.value = parsed
+            return STATUS_OK, token

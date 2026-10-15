@@ -1,0 +1,22 @@
+{# GLR 的冲突候选动作表（同一个 ACTION 单元里除主动作外的冲突候选）。
+   变量：start_symbol（整数）/ rows、count_rows（二维初值表
+   文本，带缩进与花括号）/ data（一维初值表文本）。 #}
+/* GLR 额外候选动作：同一个 ACTION 单元里除主动作外的冲突候选。 */
+/// 起始符号（`kTerminalCount + 起始非终结符编号`）：归约边上的符号
+/// 与它相等且 ACTION 接受时，就是一条被接受的结果。
+inline constexpr std::uint16_t kGlrStartSymbol = {{ start_symbol }}u;
+/// GLR：一条归约路径的最大长度 / 单次解析最多访问多少条路径。
+inline constexpr std::uint32_t kMaxPathDepth = 64u;
+inline constexpr std::uint32_t kMaxPathVisits = 200000u;
+inline constexpr std::uint16_t kGlrExtraStart[{{ rows_state }}][{{ rows_term }}] =
+{
+{{ rows }}
+};
+inline constexpr std::uint8_t kGlrExtraCount[{{ rows_state }}][{{ rows_term }}] =
+{
+{{ count_rows }}
+};
+inline constexpr std::int32_t kGlrExtraData[] =
+{
+    {{ data }}
+};

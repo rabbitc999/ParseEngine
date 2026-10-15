@@ -1,0 +1,41 @@
+// parser.go —— {{ mode_name }} 解析器（Go 产物）
+//
+// 由 ParseEngine 自动生成，请勿手工修改。
+//
+// 目标语言是 Go（只用标准库；词法正则用标准库的 `regexp`，没有第三方依赖）：
+//   - 语义动作按 Go 表达式翻译：`$$` 写 `result.value`，`$1` 读
+//     `values[0]`（LR 归约）/ `values[1]`（LL 展开），与 C++17 / Python /
+//     C# / Rust 目标的展开方式一致；
+//   - 语义值类型由 `%value_type` 决定（原样填进产物）、`%union` 会生成一个
+//     带成员字段的结构体 `ParserValue`；两者都没写时是 `int64`；
+//   - `%code … %endcode` 的正文插在 import 之后（文件级；
+//     正文里**不要写 import**，要导入请用 `%import NAME`）；
+//   - `%class_body` … `%endbody` 的正文贴成一组 `func (p *Parser) …` 方法
+//     （Go 没有 class 这一层）；`%epilogue` 贴到本文件末尾；`%main` 替换
+//     main.go 的演示体；
+//   - 没有 `%destructor`（Go 的语义值由 GC 回收）；
+//   - 词法 / 语法表都是生成期算好的常量，运行时只做查表。
+//
+// 典型用法：
+//
+//	engine := NewParser()
+//	status := engine.RunText("1+2*3")
+//	if status == StatusOK {
+//		fmt.Println(engine.Result())
+//	} else {
+//		fmt.Println(engine.LastError())
+//	}
+//
+// ``%tree`` 文法（只做语法分析并生成具体语法树）：
+//
+//	if tree := NewParser().ParseTree("1+2*3"); tree != nil {
+//		tree.Print()
+//	}
+{{ package_comment }}
+package main
+
+{{ imports }}
+
+{{ user_code }}
+{{ engine }}
+{{ class_body }}

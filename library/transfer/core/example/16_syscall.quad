@@ -1,0 +1,16 @@
+# 名称: 系统调用（getpid / rand / time / putchar / exit）
+# 期望: 1
+# 期望文本: A
+# 说明: system 指令按名字调用模拟器提供的系统调用；exit 立即结束程序，
+#       所以后面的 write 不会执行。
+0: (decl, i32, global, r)
+1: (decl, i32, global, t)
+2: (decl, i32, global, p)
+3: (system, getpid, _, p)
+4: (write, p, _, _)
+5: (system, rand, _, r)
+6: (system, time, _, t)
+7: (system, putchar, 65, _)
+8: (system, exit, 0, _)
+9: (write, 999, _, _)
+10: (halt, _, _, _)

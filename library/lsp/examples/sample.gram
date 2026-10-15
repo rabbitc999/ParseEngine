@@ -1,0 +1,50 @@
+/* ============================================================
+ * lsp 示例文法：一份干净的小语言（表达式 + 赋值 + 打印）
+ *
+ * 用编辑器打开这个文件时，lsp-server 会给出：
+ *   诊断（这里没有）、悬停（%指令与 Token 的说明）、
+ *   补全（行首补 %指令，规则里补 Token / 非终结符）、
+ *   跳转（Token / 非终结符 → 声明处）、大纲、语义高亮。
+ * ============================================================ */
+
+%mode lalr
+%value_type double
+
+%define NUMBER   "[0-9]+"
+%define PLUS     "+"
+%define MINUS    "-"
+%define STAR     "*"
+%define SLASH    "/"
+%define LPAREN   "("
+%define RPAREN   ")"
+%define ASSIGN   ":="
+%define SEMI     ";"
+%define PRINT    "print"
+%token VARIABLE
+/* 关键字表放 CSV：`%token NAME include "表.csv"` 只给这个 Token **追加字面量别名**，
+ * 不新建 Token（同名前缀的 Token 名见 sample_keywords.csv 里的对照行）。 */
+%token KW_LET include "sample_keywords.csv"
+%left PLUS MINUS
+%left STAR SLASH
+%start program
+
+program := statement_list { $$ = $1; };
+
+statement_list := statement statement_list { $$ = $2; }
+                | %empty                  { $$ = 0; };
+
+statement := PRINT expr SEMI { $$ = $2; }
+           | KW_LET VARIABLE ASSIGN expr SEMI { $$ = $4; }
+           | VARIABLE ASSIGN expr SEMI { $$ = $3; };
+
+expr := expr PLUS term  { $$ = $1 + $3; }
+      | expr MINUS term { $$ = $1 - $3; }
+      | term            { $$ = $1; };
+
+term := term STAR factor  { $$ = $1 * $3; }
+      | term SLASH factor { $$ = $1 / $3; }
+      | factor            { $$ = $1; };
+
+factor := NUMBER          { $$ = $1; }
+        | VARIABLE        { $$ = $1; }
+        | LPAREN expr RPAREN { $$ = $2; };

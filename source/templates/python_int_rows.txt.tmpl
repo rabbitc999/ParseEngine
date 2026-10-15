@@ -1,0 +1,6 @@
+{# 二维整数表（`[[...], [...]]`）：每行一个子列表、行尾一律带逗号；子列表的换行位置
+   与续行缩进（`indent` + 5 空格）都由这里的 `{% for %}` 决定。 #}
+[
+{% for r in rows %}{{ indent }}    [{% for v in r.items %}{% if v.br %},
+{{ indent }}     {% else %}{% if loop_first %}{% else %}, {% endif %}{% endif %}{{ v.value }}{% endfor %}],
+{% endfor %}{{ indent }}]

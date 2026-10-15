@@ -1,0 +1,49 @@
+/* ============================================================
+ * LR(k) / LALR(k) 示例：同一份文法，k = 1 与 k = 2 的差别
+ *
+ * 这是教科书里的经典例子（Aho/Ullman）：
+ *
+ *     S -> A X C | A Y D | B Y C | B X D
+ *     X -> E
+ *     Y -> E
+ *
+ * 它有几个「按分析强度」逐步才能拿下的性质，正好用来对照：
+ *
+ *   --mode lr1          无冲突（规范 LR(1) 靠「项自带展望符」区分开）
+ *   --mode lalr         归约/归约冲突（同心合并把 a 分支与 b 分支并成一个
+ *                       状态，X -> E 与 Y -> E 的展望符被混在一起）
+ *   --mode ielr         无冲突（IELR 按需拆分那个被合并的状态）
+ *   --mode lrk --lookahead 2
+ *                       无冲突：状态 6 在 (C END) 上归约 X -> E、在 (D END)
+ *                       上归约 Y -> E；状态 9 正好相反
+ *   --mode lalrk --lookahead 2
+ *                       仍然是归约/归约冲突——LALR(k) 也按 core 合并，
+ *                       这个文法对任何 k 都不是 LALR(k)，只能在 LR(k) /
+ *                       IELR 里解掉
+ *
+ * 用法（产物层支持 k = 1，k > 1 目前先用报告看分析结果）：
+ *   ParseEngine --grammar-file example/lrk_demo.gram --mode lrk --lookahead 2 \
+ *                 --report /tmp/lrk2.txt --out-dir /tmp/lrk2
+ *   ParseEngine --grammar-file example/lrk_demo.gram --mode lrk --lookahead 2 \
+ *                 --dump-slr-tables --out-dir /tmp/lrk2
+ *
+ * 文法里不写 %mode / %lookahead：这样缺省（IELR(1)）也能正常生成产物，
+ * 想试 k 就在命令行上加 --mode lrk / --mode lalrk 与 --lookahead。
+ * ============================================================ */
+
+%tree
+
+%define A "a"
+%define B "b"
+%define C "c"
+%define D "d"
+%define E "e"
+
+S := A X C
+   | A Y D
+   | B Y C
+   | B X D
+   ;
+
+X := E ;
+Y := E ;

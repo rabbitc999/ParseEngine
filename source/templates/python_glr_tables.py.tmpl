@@ -1,0 +1,9 @@
+{# GLR 的额外候选动作表（同一个 ACTION 单元里除主动作外的冲突候选）。
+   变量：start_symbol（整数）/ extra_start、extra_count（二维表）/ extra_data（一维表），
+   都在 CodeGenPython 里算好（pyGlrTables）。 #}
+# GLR 额外候选动作：同一个 ACTION 单元里除主动作外的冲突候选。
+_GLR_START_SYMBOL = {{ start_symbol }}
+_GLR_EXTRA_START = {{ extra_start }}
+_GLR_EXTRA_COUNT = {{ extra_count }}
+_GLR_EXTRA_DATA = [
+            {{ extra_data }}]

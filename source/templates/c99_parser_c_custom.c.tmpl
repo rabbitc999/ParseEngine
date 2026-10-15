@@ -1,0 +1,437 @@
+/**
+ * parser.c —— custom 运行时：语义值类型 / 栈 / 内存管理由 %code … %endcode 提供
+ * 由 ParseEngine 自动生成（{{ mode_name }}）
+ *
+ * 语义值类型 ParserValue_T 由用户在 parser_user.h 中定义（POD 即可），
+ * 生成器只按普通 C 表达式翻译语义动作。
+ */
+
+#include <ctype.h>
+#include <errno.h>
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+{{ user_include }}
+#include "parser.h"
+#include "parser_token.h"
+
+typedef struct __ParseResult_T
+{
+    ParserValue_T value;
+} ParseResult_T;
+
+{{ table_decls }}
+{{ custom_item_types }}
+/* 一次解析里累积的错误（最多 PARSER_MAX_ERRORS 条）：GetLastError 返回最后
+ * 一条，GetErrorCount / GetError 用来遍历全部。 */
+static ParserError_T s_ParserErrors[PARSER_MAX_ERRORS];
+static uint32_t s_ParserErrorCount = 0u;
+static ParserCtx_T s_ParserContext;
+/* %commit 收集到的片段（模块级单例，与 s_ParserErrors 同一套口径：不放
+ * ParserCtx_T 里，免得每次解析的 PARSER_MEMSET 把上一批指针冲掉导致泄漏）。 */
+static ParserCommitList s_ParserCommits;
+
+/**
+ * @brief 释放 %commit 容器里的内存并清零（每次解析开始时先调一次）。
+ * @retval 无。
+ */
+void Parser_FreeCommits(void)
+{
+    int32_t index = 0;
+    if (s_ParserCommits.items != NULL) {
+        for (index = 0; index < s_ParserCommits.count; index++) {
+            free(s_ParserCommits.items[index].text);
+        }
+        free(s_ParserCommits.items);
+    }
+    s_ParserCommits.items = NULL;
+    s_ParserCommits.count = 0;
+    s_ParserCommits.capacity = 0;
+}
+
+/**
+ * @brief 取 %commit 容器（只读；调用方不要 free）。
+ * @retval 容器（非 NULL）。
+ */
+const ParserCommitList *Parser_GetCommits(void)
+{
+    return &s_ParserCommits;
+}
+
+/**
+ * @brief 追加一条 %commit 片段（文本按 length 拷贝一份，堆分配）。
+ * @param pCtx 上下文（%commit 容器是模块级单例，这里不用）。
+ * @param line 片段起始行号。
+ * @param pType 类型名（静态字符串，不拷贝）。
+ * @param pText 原文起点。
+ * @param length 原文长度（字节）。
+ * @retval 状态码；内存不够时返回 PARSER_ERR_STACK。
+ */
+static int32_t Parser_CommitAppend(ParserCtx_T *pCtx, int32_t line,
+                                   const char *pType, const char *pText,
+                                   uint32_t length)
+{
+    char *pCopy = NULL;
+    ParserCommit *pItems = NULL;
+    int32_t capacity = 0;
+    (void)pCtx;
+    pCopy = (char *)malloc((size_t)length + 1u);
+    if (pCopy == NULL) { return PARSER_ERR_STACK; }
+    PARSER_MEMCPY(pCopy, pText, length);
+    pCopy[length] = '\0';
+    if (s_ParserCommits.count >= s_ParserCommits.capacity) {
+        capacity = (s_ParserCommits.capacity == 0)
+                       ? 8 : (s_ParserCommits.capacity * 2);
+        pItems = (ParserCommit *)realloc(
+            s_ParserCommits.items, (size_t)capacity * sizeof(ParserCommit));
+        if (pItems == NULL) {
+            free(pCopy);
+            return PARSER_ERR_STACK;
+        }
+        s_ParserCommits.items = pItems;
+        s_ParserCommits.capacity = capacity;
+    }
+    s_ParserCommits.items[s_ParserCommits.count].line = line;
+    s_ParserCommits.items[s_ParserCommits.count].type = pType;
+    s_ParserCommits.items[s_ParserCommits.count].text = pCopy;
+    s_ParserCommits.count++;
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 清空错误表（每次解析开始时调用）。
+ * @retval 无。
+ */
+static void Parser_ClearErrors(void)
+{
+    PARSER_MEMSET(s_ParserErrors, 0, sizeof(s_ParserErrors));
+    s_ParserErrorCount = 0u;
+    /* %commit：上一批片段的内存要在这里还掉（谁分配、谁释放） */
+    Parser_FreeCommits();
+}
+
+/** 
+ * @brief 追加一条错误。
+ *
+ * 错误表满了就不再记（调用方用 Parser_GetErrorCount() 判满并停止恢复）。
+ * @param code 错误码。
+ * @param line 行。
+ * @param column 列。
+ * @param pMessage 说明。
+ * @retval 无。
+ */
+static void Parser_SetError(int32_t code, uint32_t line, uint32_t column,
+                            const char *pMessage)
+{
+    ParserError_T *pEntry = NULL;
+    if (s_ParserErrorCount >= (uint32_t)PARSER_MAX_ERRORS)
+    {
+        return;
+    }
+    pEntry = &s_ParserErrors[s_ParserErrorCount++];
+    pEntry->code = code;
+    pEntry->line = line;
+    pEntry->column = column;
+    /* 消息可能比字段长（例如带「期望 Token」列表的错误），按字段容量
+     * 截断：%.*s 让编译期就能看清不会溢出，也避免 -Wformat-truncation。*/
+    snprintf(pEntry->message, sizeof(pEntry->message),
+             "%.*s", (int)(sizeof(pEntry->message) - 1u),
+             (pMessage != NULL) ? pMessage : "解析错误");
+    pEntry->tokenType = 0u;
+    pEntry->state = 0u;
+    pEntry->expectedCount = 0u;
+    pEntry->expectedTotal = 0u;
+    pEntry->tokenText[0] = '\0';
+#ifdef PARSER_ERROR_CONTEXT
+    pEntry->context[0] = '\0';
+#endif
+}
+
+#ifdef PARSER_ERROR_CONTEXT
+/** 
+ * @brief 把出错那一行的原文与 ^ 指示写进错误的 context 字段（文本模式才有源文）。 
+ * @param pCtx 上下文。 
+ * @param pEntry 错误记录。 
+ * @param line 行号。 
+ * @param column 列号。 
+ * @retval 无。 
+ */
+static void Parser_BuildErrorContext(ParserCtx_T *pCtx, ParserError_T *pEntry,
+                                     uint32_t line, uint32_t column)
+{
+    const char *pLine = NULL;
+    uint32_t current = 1u;
+    uint32_t index = 0u;
+    uint32_t start = 0u;
+    uint32_t end = 0u;
+    uint32_t caret = 0u;
+    if ((pCtx == NULL) || (pCtx->textMode == 0u) || (pCtx->pText == NULL)) {
+        pEntry->context[0] = '\0';
+        return;
+    }
+    /* 找到第 line 行的起点 */
+    pLine = pCtx->pText;
+    for (index = 0u; pLine[index] != '\0'; index++) {
+        if (pLine[index] == '\n') {
+            current++;
+            if (current == line) { start = index + 1u; break; }
+        }
+    }
+    if (current != line) { pEntry->context[0] = '\0'; return; }
+    /* 行的终点（不含换行），空白行也别把 caret 挤出去 */
+    end = start;
+    while ((pLine[end] != '\0') && (pLine[end] != '\n') && (pLine[end] != '\r')) {
+        end++;
+    }
+    caret = (column > 0u) ? (column - 1u) : 0u;
+    if (caret > end - start) { caret = end - start; }
+    /* 太长就截断：保留出错列附近的一段 */
+    if ((end - start) > 60u) {
+        uint32_t keep = caret;
+        if (keep > 40u) { keep = 40u; }
+        start += keep;
+        caret -= keep;
+        end = start + 60u;
+        if (end > start) { /* 只用于提示，不做越界检查之外的保证 */ }
+    }
+    {
+        int used = snprintf(pEntry->context, sizeof(pEntry->context),
+                            "%.*s\n%*s^", (int)(end - start), pLine + start,
+                            (int)caret, "");
+        (void)used;
+    }
+}
+#endif /* PARSER_ERROR_CONTEXT */
+
+/** 
+ * @brief 记一条「只期望某一个 Token」的语法错误（例如终结符不匹配）。 
+ * @param pCtx 上下文。 
+ * @param expectedType 期望的 Token 类型。 
+ * @retval 无。 
+ */
+PARSER_UNUSED static void Parser_SetExpectedOneError(ParserCtx_T *pCtx, uint32_t expectedType)
+{
+    char text[160];
+    ParserError_T *pEntry = NULL;
+    const char *pTokenName = Parser_TokenName(pCtx->current.type);
+    const char *pExpected = Parser_TokenName((ParserTokenType_T)expectedType);
+    if (s_ParserErrorCount >= (uint32_t)PARSER_MAX_ERRORS) { return; }
+    snprintf(text, sizeof(text), "语法错误：期望 %s，实际是 %s",
+             (pExpected != NULL) ? pExpected : "?",
+             (pTokenName != NULL) ? pTokenName : "?");
+    Parser_SetError(PARSER_ERR_EXPECTED, pCtx->current.line, pCtx->current.column,
+                    text);
+    if (s_ParserErrorCount == 0u) { return; }
+    pEntry = &s_ParserErrors[s_ParserErrorCount - 1u];
+    pEntry->tokenType = (uint32_t)pCtx->current.type;
+    pEntry->expected[0] = expectedType;
+    pEntry->expectedCount = 1u;
+    pEntry->expectedTotal = 1u;
+    {
+        char lexeme[PARSER_ERROR_TOKEN_TEXT];
+        Parser_TokenText(&pCtx->current, lexeme, sizeof(lexeme));
+        snprintf(pEntry->tokenText, sizeof(pEntry->tokenText), "%.*s",
+                 (int)(sizeof(pEntry->tokenText) - 1u), lexeme);
+    }
+#ifdef PARSER_ERROR_CONTEXT
+    Parser_BuildErrorContext(pCtx, pEntry, pCtx->current.line,
+                             pCtx->current.column);
+#endif
+}
+
+/** 
+ * @brief 记一条「语法错误」：填实际 Token、期望集合、状态与词素，并生成说明。 
+ *
+ * 说明五档统一：期望集非空时是「期望 A / B 之一，实际是 C」（只列前 4 个，
+ * 其余用「等 N 个」带过；只有一个期望时不写「之一」），期望集为空时是
+ * PARSER_EXPECTED_FALLBACK。期望集合由生成期算好，运行时按状态（LL 模式按
+ * 栈顶非终结符）从 s_ParserExpected* 表里取。
+ * @param pCtx 上下文。 
+ * @param pStack 分析栈（LR 模式用；LL 模式传 NULL）。 
+ * @param state 出错时的状态号（LL 模式传栈顶符号编号）。 
+ * @retval 无。 
+ */
+PARSER_UNUSED static void Parser_SetSyntaxError(ParserCtx_T *pCtx, uint32_t state)
+{
+    ParserError_T *pEntry = NULL;
+    uint32_t expected[PARSER_MAX_EXPECTED];
+    uint32_t expectedCount = 0u;
+    uint32_t expectedTotal = 0u;
+    uint32_t slot = 0u;
+    uint32_t at = 0u;
+    char text[160];
+    uint32_t used = 0u;
+    int written = 0;
+    const char *pTokenName = NULL;
+    if (s_ParserErrorCount >= (uint32_t)PARSER_MAX_ERRORS) { return; }
+    /* 期望集合：生成期算好的「这一行有动作的列」 */
+    if (state < PARSER_EXPECTED_ROW_COUNT) {
+        const uint32_t begin = s_ParserExpectedStart[state];
+        const uint32_t end = s_ParserExpectedStart[state + 1u];
+        expectedTotal = end - begin;
+        for (at = begin; (at < end) && (slot < PARSER_MAX_EXPECTED); at++) {
+            expected[slot++] = s_ParserExpectedData[at];
+        }
+        expectedCount = slot;
+    }
+    /* 说明：期望 X / Y 之一，实际是 Z */
+    pTokenName = Parser_TokenName(pCtx->current.type);
+    if (pTokenName == NULL) { pTokenName = "?"; }
+    written = snprintf(text, sizeof(text), "语法错误：");
+    if (written > 0) { used = (uint32_t)written; }
+    if (expectedTotal == 0u) {
+        written = snprintf(text + used, sizeof(text) - used, "%s",
+                           PARSER_EXPECTED_FALLBACK);
+        if (written > 0) { used += (uint32_t)written; }
+    } else {
+        /* 消息只列前 4 个期望 Token（其余用「等 N 个」带过） */
+        const uint32_t listed = (expectedCount > 4u) ? 4u : expectedCount;
+        for (at = 0u; (at < listed) && (used < sizeof(text)); at++) {
+            const char *pName = Parser_TokenName((ParserTokenType_T)expected[at]);
+            written = snprintf(text + used, sizeof(text) - used,
+                               (at == 0u) ? "期望 %s" : " / %s",
+                               (pName != NULL) ? pName : "?");
+            if (written > 0) { used += (uint32_t)written; }
+        }
+        if (expectedTotal > 1u) {
+            if (expectedTotal > listed) {
+                written = snprintf(text + used, sizeof(text) - used,
+                                   " 等 %u 个", (unsigned)expectedTotal);
+                if (written > 0) { used += (uint32_t)written; }
+                written = snprintf(text + used, sizeof(text) - used, "之一");
+                if (written > 0) { used += (uint32_t)written; }
+            } else {
+                written = snprintf(text + used, sizeof(text) - used, " 之一");
+                if (written > 0) { used += (uint32_t)written; }
+            }
+        }
+        written = snprintf(text + used, sizeof(text) - used, "，实际是 %s",
+                           pTokenName);
+        if (written > 0) { used += (uint32_t)written; }
+    }
+    /* 码：期望集合可用时细分「意外 Token / 提前 EOF」，否则退回笼统的 -21 */
+    {
+        int32_t code = PARSER_ERR_SYNTAX;
+        if (expectedTotal > 0u) {
+            code = (pCtx->current.type == TOKEN_END)
+                       ? PARSER_ERR_UNEXPECTED_EOF
+                       : PARSER_ERR_EXPECTED;
+        }
+        Parser_SetError(code, pCtx->current.line, pCtx->current.column, text);
+    }
+    if (s_ParserErrorCount == 0u) { return; }
+    pEntry = &s_ParserErrors[s_ParserErrorCount - 1u];
+    pEntry->tokenType = (uint32_t)pCtx->current.type;
+    pEntry->state = state;
+    pEntry->expectedCount = expectedCount;
+    pEntry->expectedTotal = expectedTotal;
+    for (at = 0u; at < expectedCount; at++) {
+        pEntry->expected[at] = expected[at];
+    }
+    {
+        char lexeme[PARSER_ERROR_TOKEN_TEXT];
+        Parser_TokenText(&pCtx->current, lexeme, sizeof(lexeme));
+        snprintf(pEntry->tokenText, sizeof(pEntry->tokenText), "%.*s",
+                 (int)(sizeof(pEntry->tokenText) - 1u), lexeme);
+    }
+#ifdef PARSER_ERROR_CONTEXT
+    Parser_BuildErrorContext(pCtx, pEntry, pCtx->current.line,
+                             pCtx->current.column);
+#endif
+}
+
+/** 
+ * @brief 获取最后一条错误（没有错误时返回一条全零的记录）。 
+ * @retval 只读错误结构。 
+ */
+const ParserError_T *Parser_GetLastError(void)
+{
+    if (s_ParserErrorCount == 0u)
+    {
+        return &s_ParserErrors[0];
+    }
+    return &s_ParserErrors[s_ParserErrorCount - 1u];
+}
+
+/** 
+ * @brief 取本次解析累积的错误条数。 
+ * @retval 错误条数（0 表示没有错误）。 
+ */
+uint32_t Parser_GetErrorCount(void)
+{
+    return s_ParserErrorCount;
+}
+
+/** 
+ * @brief 取第 index 条错误。 
+ * @param index 下标（0 起）。 
+ * @retval 只读错误结构；越界返回 NULL。 
+ */
+const ParserError_T *Parser_GetError(uint32_t index)
+{
+    if (index >= s_ParserErrorCount)
+    {
+        return NULL;
+    }
+    return &s_ParserErrors[index];
+}
+
+/** 
+ * @brief 取当前 lookahead 的文本（动作里的 $token）。 
+ *
+ * 借用上下文的 lexeme 缓冲，所以只在「同一个 Token 还没被消费掉」的语义动作里
+ * 有效——动作跑完就作废，要长期保存请自己拷一份。 
+ * @param pCtx 上下文。 
+ * @retval 词素文本（永远不会是 NULL）。 
+ */
+static const char *Parser_CurrentTokenText(ParserCtx_T *pCtx)
+{
+    if (pCtx == NULL) { return ""; }
+    Parser_TokenText(&pCtx->current, pCtx->lexeme, sizeof(pCtx->lexeme));
+    /* 注：固定字面量 Token（例如 ";"）的 pName / name 都是空的，这里拿到的是
+     * Parser_TokenText 退回的类型名（SEMI）而不是字面量本身——字面量在词法
+     * 规则表里，而那张表与这个函数不在同一个编译段落，要拿得单独开个接口。 */
+    return pCtx->lexeme;
+}
+
+/**
+ * @brief 取当前 lookahead 的位置（行 / 列 1 起，offset 是 UTF-8 字节偏移）。
+ *
+ * 语义动作里的 `$line` / `$column` 读的就是这里的值；没有上下文（还没解析）
+ * 时返回 0 / 0 / 0。
+ * @retval 位置（值返回）。
+ */
+ParserLocation Parser_CurrentLocation(void)
+{
+    ParserLocation location;
+    location.line = (int)s_ParserContext.current.line;
+    location.column = (int)s_ParserContext.current.column;
+    location.offset = (int)s_ParserContext.current.offset;
+    return location;
+}
+
+/** 
+ * @brief 读取字符并维护行列号。 
+ * @param pCtx 上下文。 
+ * @retval 当前字符。 
+ */
+static char Parser_ReadChar(ParserCtx_T *pCtx)
+{
+    char ch = pCtx->pText[pCtx->textPosition++];
+    if (ch == '\n') { pCtx->line++; pCtx->column = 1u; }
+    else { pCtx->column++; }
+    return ch;
+}
+
+static const ParserLexRule_T s_ParserLexRules[] =
+{
+{{ lex_rules }}
+};
+
+{{ lexer }}
+{{ custom_tree_helpers }}
+{{ custom_runtime }}
+{{ custom_tree_entry }}

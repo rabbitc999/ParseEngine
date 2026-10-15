@@ -1,0 +1,18 @@
+{ 数组 + for + 浮点：算平方和，再打印一个元素 }
+{ 期望: 30 16 }
+program array_sum;
+  const N := 5;
+  var i: int;
+  var s: float;
+  array a[N]: int;
+begin
+  for i := 0 to N - 1 do begin
+    a[i] := i * i
+  end;
+  s := 0.0;
+  for i := 0 to N - 1 do begin
+    s := s + float(a[i])
+  end;
+  write(s);
+  write(a[4])
+end.

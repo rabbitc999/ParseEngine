@@ -1,0 +1,22 @@
+## 编译运行
+
+```sh
+# 方式一：make（生成目录自带 Makefile）：编译出 libparser.a 与演示程序
+make
+printf '%s\n' {{ example_shell }} | ./parser_demo    # 演示程序从标准输入读一行（读到换行或 EOF）
+./parser_demo < 输入.txt
+
+# 方式二：CMake（生成目录自带 CMakeLists.txt）：与 make 等价，产物在 build/
+cmake -S . -B build
+cmake --build build
+printf '%s\n' {{ example_shell }} | ./build/parser_demo
+```
+
+也可以直接调用编译器整体编译（{{ main_file }} 是演示程序，不需要时删掉即可）：
+
+```sh
+{{ link_command }}
+```
+
+{{ lib_note }}
+

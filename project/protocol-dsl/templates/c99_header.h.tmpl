@@ -1,0 +1,105 @@
+#ifndef ${macro_prefix}_PROTOCOL_H
+#define ${macro_prefix}_PROTOCOL_H
+
+/* Generated allocation-free C99 codec for $protocol_name. Do not edit. */
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
+typedef enum ${module_name}_error
+{
+    ${macro_prefix}_ERROR_NONE = 0,
+    ${macro_prefix}_ERROR_TRUNCATED,
+    ${macro_prefix}_ERROR_CAPACITY,
+    ${macro_prefix}_ERROR_LENGTH,
+    ${macro_prefix}_ERROR_ENUM,
+    ${macro_prefix}_ERROR_TRAILING
+} ${module_name}_error;
+
+typedef struct ${module_name}_bytes
+{
+    const uint8_t *data;
+    size_t size;
+} ${module_name}_bytes;
+
+static inline bool ${module_name}_read_u(const uint8_t *data, size_t size, size_t *offset,
+                                         size_t width, bool little, uint64_t *value,
+                                         ${module_name}_error *error)
+{
+    size_t i;
+    uint64_t result = 0;
+    if (*offset > size || width > size - *offset) {
+        *error = ${macro_prefix}_ERROR_TRUNCATED;
+        return false;
+    }
+    if (little) {
+        for (i = 0; i < width; ++i) result |= ((uint64_t)data[*offset + i]) << (i * 8U);
+    } else {
+        for (i = 0; i < width; ++i) result = (result << 8U) | data[*offset + i];
+    }
+    *offset += width;
+    *value = result;
+    return true;
+}
+
+static inline int64_t ${module_name}_sign_extend(uint64_t value, size_t width)
+{
+    const size_t bits = width * 8U;
+    const uint64_t sign = UINT64_C(1) << (bits - 1U);
+    uint64_t magnitude;
+    if ((value & sign) == 0U) return (int64_t)value;
+    magnitude = (~value) + UINT64_C(1);
+    if (width < 8U) magnitude &= (UINT64_C(1) << bits) - UINT64_C(1);
+    if (magnitude == (UINT64_C(1) << 63U)) return INT64_MIN;
+    return -(int64_t)magnitude;
+}
+
+static inline bool ${module_name}_write_u(uint8_t *out, size_t capacity, size_t *offset,
+                                          uint64_t value, size_t width, bool little,
+                                          ${module_name}_error *error)
+{
+    size_t i;
+    if (*offset > capacity || width > capacity - *offset) {
+        *error = ${macro_prefix}_ERROR_CAPACITY;
+        return false;
+    }
+    for (i = 0; i < width; ++i) {
+        const size_t shift = little ? i * 8U : (width - i - 1U) * 8U;
+        out[*offset + i] = (uint8_t)((value >> shift) & UINT64_C(0xff));
+    }
+    *offset += width;
+    return true;
+}
+
+static inline bool ${module_name}_read_bytes(const uint8_t *data, size_t size, size_t *offset,
+                                              size_t count, ${module_name}_bytes *value,
+                                              ${module_name}_error *error)
+{
+    if (*offset > size || count > size - *offset) {
+        *error = ${macro_prefix}_ERROR_TRUNCATED;
+        return false;
+    }
+    value->data = data + *offset;
+    value->size = count;
+    *offset += count;
+    return true;
+}
+
+static inline bool ${module_name}_write_bytes(uint8_t *out, size_t capacity, size_t *offset,
+                                               const uint8_t *data, size_t count,
+                                               ${module_name}_error *error)
+{
+    if (*offset > capacity || count > capacity - *offset) {
+        *error = ${macro_prefix}_ERROR_CAPACITY;
+        return false;
+    }
+    if (count != 0U) memcpy(out + *offset, data, count);
+    *offset += count;
+    return true;
+}
+
+$c_declarations
+
+#endif

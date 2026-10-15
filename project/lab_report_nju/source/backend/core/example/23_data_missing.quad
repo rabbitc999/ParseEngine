@@ -1,0 +1,9 @@
+# 名称: 机器没有数据区指令族（addr / load / store 的 feature 开关）
+# 配置: example/no_data.ini
+# 期望错误: 没有实现指令族 'data'
+# 说明: no_data.ini 用 feature.data=off 关掉数据区三件套。addr 本身合法，
+#       但目标机没有这条指令 —— 报的是"指令存在、机器不存在"，
+#       和 19_unknown_quad.quad 的"未知四元式"区分开。
+0: (addr, arr_1, _, p)
+1: (write, p, _, _)
+2: (halt, _, _, _)

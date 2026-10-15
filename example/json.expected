@@ -1,0 +1,28 @@
+解析输入: {"a": [1,2]}
+解析成功
+语法树:
+json
+  value
+    object
+      LBRACE({)
+      opt_members
+        members
+          pair
+            STRING(a)
+            COLON(:)
+            value
+              array
+                LBRACKET([)
+                opt_elements
+                  elements
+                    value
+                      NUMBER(1)
+                    more_elements
+                      COMMA(,)
+                      elements
+                        value
+                          NUMBER(2)
+                        more_elements
+                RBRACKET(])
+          more_members
+      RBRACE(})

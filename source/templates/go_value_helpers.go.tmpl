@@ -1,0 +1,40 @@
+{# 语义值转换函数（CodeGenGo 的 goValueHelpers）。
+   变量：
+     value_type         —— 语义值类型名
+     is_union           —— 语义值是不是 %union 结构体
+     text_cases         —— %union 里能吃字符串的成员，字段 kind / member
+     has_number_member  —— 数字该塞进哪个成员（没有就是假）
+     number_member / number_type —— 成员名与成员类型
+     is_text_carrier    —— 类型本身能装下字符串
+     is_numeric         —— 类型是标量数值（`T(x)` 转换合法）
+   两个分支互斥且必须覆盖全部情况（不是 union、不是数值、又不吃字符串时给零值）。
+   本模板自带行尾换行。 #}
+// valueFromText 把 Token 词素转成语义值（按 %value_type / %union 生成）。
+func valueFromText(kind int32, text string) {{ value_type }} {
+{% if is_union %}	value := {{ value_type }}{}
+	_ = kind
+{% for c in text_cases %}	if kind == {{ c.kind }} {
+		value.{{ c.member }} = text
+	}
+{% endfor %}	return value
+{% else %}{% if is_text_carrier %}	_ = kind
+	return {{ value_type }}(text)
+{% else %}	_, _ = kind, text
+	var zero {{ value_type }}
+	return zero
+{% endif %}{% endif %}}
+
+// valueFromNumber 把数字词素转成语义值（按 %value_type / %union 生成）。
+func valueFromNumber(number float64, isFloat bool) {{ value_type }} {
+{% if is_union %}	_ = isFloat
+	value := {{ value_type }}{}
+{% if has_number_member %}	value.{{ number_member }} = {{ number_type }}(number)
+{% endif %}	return value
+{% else %}{% if is_numeric %}	_ = isFloat
+	return {{ value_type }}(number)
+{% else %}{% if is_text_carrier %}	_ = isFloat
+	return {{ value_type }}(fmt.Sprintf("%v", number))
+{% else %}	_, _ = number, isFloat
+	var zero {{ value_type }}
+	return zero
+{% endif %}{% endif %}{% endif %}}

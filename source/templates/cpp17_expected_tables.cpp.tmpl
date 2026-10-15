@@ -1,0 +1,11 @@
+/// 每一行「期望哪些 Token」：语法错误时填 Error::expected()。
+/// 用 32 位：大文法（上百个 Token）的期望表偏移会超过 16 位范围，
+/// 收窄到 uint16 会截断偏移并读越界，这里不能改回 uint16。
+inline constexpr std::uint32_t kExpectedStart[{{ expected_row_count }}] =
+{
+    {% for v in expected_start %}{{ v }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+inline constexpr std::uint32_t kExpectedData[] =
+{
+    {% for v in expected_data %}{{ v }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};

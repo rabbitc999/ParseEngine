@@ -1,0 +1,7 @@
+{# 语义动作分支（`_apply_action` 的 `if/elif` 链）：一个产生式一段；动作体按行拆好，
+   12 空格缩进由这里给（Python 对缩进敏感）。 #}
+{% for c in cases %}{% if loop_first %}        if production == {% else %}        elif production == {% endif %}{{ c.id }}:
+{% if c.has_marker %}            {{ c.marker }}
+{% endif %}{% for l in c.lines %}            {{ l }}
+{% endfor %}            return STATUS_OK
+{% endfor %}

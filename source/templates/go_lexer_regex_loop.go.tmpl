@@ -1,0 +1,9 @@
+		for regexIndex := 0; regexIndex < len(sParserRegexRes); regexIndex++ {
+			matched := sParserLexRegexMatch(sParserRegexRes[regexIndex], p.text, p.bytePos)
+			if matched > bestLength {
+				bestLength = matched
+				bestKind = sParserRegexTypes[regexIndex]
+				bestFromRegex = true
+				bestOrder = sParserRegexOrders[regexIndex]
+			}
+		}

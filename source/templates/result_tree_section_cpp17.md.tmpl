@@ -1,0 +1,11 @@
+文法是纯 `%tree`（不写语义动作）时 `Engine::runText` 没有求值结果，演示程序
+会自动改打印语法树。C++17 产物的语法树节点是 `Tree`：节点用 `std::string`
+存符号名与 Token 词素（不保存语义值），父子所有权走 `std::unique_ptr`，
+整棵树出作用域自动释放。
+
+```cpp
+Engine engine;
+std::unique_ptr<Tree> tree = engine.parseTree("...");
+if (tree != nullptr) { tree->print(); }   /* 或者自己走 child(i) / childCount() */
+```
+

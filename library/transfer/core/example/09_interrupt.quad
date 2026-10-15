@@ -1,0 +1,11 @@
+# 名称: 软中断 int / iret
+# 期望: 42
+# 说明: int 像调用一样跳到处理程序但记成中断帧，iret 弹出中断帧返回。
+0: (decl, i16, global, x)
+1: (:=, 0, _, x)
+2: (int, handler, _, _)
+3: (write, x, _, _)
+4: (halt, _, _, _)
+5: (label, _, _, handler)
+6: (:=, 42, _, x)
+7: (iret, _, _, _)

@@ -1,0 +1,29 @@
+{# C99 取 Token 前的跳空白循环（`generatorLexerSkipLoopC` 的产物，整段当值插进
+   `c99_lexer.c.tmpl` 的 `{ lex_skip_loop }`）。
+   变量：
+     has_skip_set   —— 有没有 %space 或以空白开头的字面量（没有就用内置 isspace）
+     has_blank_rule —— 有没有以空白 / \b 通配开头的固定字面量（要一个个试命中，
+                       命中就停手交给词法匹配）
+   本文件**最后一行不带换行**：值结尾就是 `}`（原实现的返回值末尾没有换行），
+   插入点那一行自己会补换行——改这个模板时别顺手补尾换行。 #}
+{% if has_skip_set %}
+    while (Parser_LexIsSkipChar((unsigned char)pCtx->pText[pCtx->textPosition]) != 0) {
+{% if has_blank_rule %}
+        uint8_t blankHit = 0u;
+        for (index = 0u; index < (uint32_t)(sizeof(s_ParserLexRules) /
+                                        sizeof(s_ParserLexRules[0])); index++) {
+            const ParserLexRule_T *pBlankRule = &s_ParserLexRules[index];
+            if ((pBlankRule->blankFirst != 0u) &&
+                (Parser_LexRuleHit(pBlankRule, &pCtx->pText[pCtx->textPosition]) != 0)) {
+                blankHit = 1u;
+                break;
+            }
+        }
+        if (blankHit != 0u) {
+            break;
+        }
+{% endif %}
+        Parser_ReadChar(pCtx);
+    }{% else %}    while (isspace((unsigned char)pCtx->pText[pCtx->textPosition]) != 0) {
+        Parser_ReadChar(pCtx);
+    }{% endif %}

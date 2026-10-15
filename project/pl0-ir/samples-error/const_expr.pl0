@@ -1,0 +1,4 @@
+const a = 1, b = a;
+begin
+    write b
+end.

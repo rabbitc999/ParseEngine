@@ -1,0 +1,6 @@
+const two = 2, three = 3;
+var x;
+begin
+    x := two * three + 1;
+    write x
+end.

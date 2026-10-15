@@ -1,0 +1,86 @@
+/* ============================================================
+ * custom + %union 示例：按符号分 C 类型的语义值
+ *
+ *   %union { ... }          语义值类型：生成器把成员声明原样贴进
+ *                           typedef union { ... } ParserValue_T;
+ *                           （追加在 %code 用户代码之后）
+ *   %type  <成员> 符号...   给非终结符指定成员
+ *   %token <成员> NAME ...  给终结符指定成员
+ *
+ * 动作里照旧写 $1 + $3 / $$ = $1：生成器按符号绑定的成员自动补上
+ * 「.成员」——$1 是 NUMBER / term / expr 就展开成 values[1].ival。
+ * 生成期不做类型检查（$$ = $1 类型不匹配也照发），交给 C 编译器。
+ *
+ * 终结符也不用写 PARSER_USER_TOKEN_VALUE：写了 %union 时
+ * ParserToken_T.value 本身就是 ParserValue_T，词法器按 %token <ival>
+ * NUMBER 把数字词素写进 pToken->value.ival，Parser_UserTokenValue
+ * 再把整个 value 取出来。
+ *
+ * 试用输入：
+ *   1 + 2 * 3
+ *   (1 + 2) * 3
+ * ============================================================ */
+
+%mode ll1
+%start expr
+
+%union {
+    int          ival;   /* NUMBER 与 expr / term / factor 的语义值 */
+    double       dval;   /* 另一个不同类型的成员：average 的语义值 */
+    struct Node *node;   /* 结构体指针成员：类型来自下面 %code 里的定义 */
+}
+
+%code
+#include <stdio.h>
+
+/* %union 可以引用用户代码里定义的类型：这段代码排在生成器追加的
+   typedef union { ... } ParserValue_T; 之前 */
+struct Node
+{
+    int          value;
+    struct Node *next;
+};
+
+static struct Node g_DemoNode;
+
+static inline struct Node *Demo_MakeNode(int value)
+{
+    g_DemoNode.value = value;
+    g_DemoNode.next = NULL;
+    return &g_DemoNode;
+}
+
+/* 这里不用写 PARSER_USER_TOKEN_VALUE：%token <ival> NUMBER 已经告诉生成器
+   NUMBER 的语义值是哪个成员，词法器匹配到数字后直接写
+   pToken->value.ival，Parser_UserTokenValue 再把整个 value 取出来。*/
+%endcode
+
+%define PLUS   "+"
+%define STAR   "*"
+%define LPAREN "("
+%define RPAREN ")"
+
+%token <ival> NUMBER
+
+%type <ival> expr term factor
+%type <dval> average
+%type <node> name
+
+/* 经典算术文法：$1 / $3 / $$ 都是 <ival> */
+expr := expr PLUS term   { $$ = $1 + $3; }
+      | term             { $$ = $1; }
+      ;
+
+term := term STAR factor { $$ = $1 * $3; }
+      | factor           { $$ = $1; }
+      ;
+
+factor := NUMBER             { $$ = $1; }
+        | LPAREN expr RPAREN { $$ = $2; }
+        ;
+
+/* 下面两条演示另外两个成员：$$ 分别取 .dval / .node，$1 仍是 .ival。
+   它们没有出现在 %start 的可达路径上，但生成器照样会为它们生成动作
+   （见产物 parser.c 里对应的 case），这里用来对照成员拼装的结果。 */
+average := NUMBER { $$ = $1 / 2.0; }
+name    := NUMBER { $$ = Demo_MakeNode($1); }

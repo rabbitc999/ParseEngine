@@ -1,0 +1,13 @@
+protocol Control;
+endian big;
+
+enum State : u16 {
+    idle = 0;
+    ready = 4660;
+};
+
+packet ControlFrame {
+    i16 delta;
+    bytes magic[2];
+    State state;
+};

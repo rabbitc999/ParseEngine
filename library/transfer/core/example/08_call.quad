@@ -1,0 +1,24 @@
+# 名称: 函数调用与递归（u32 阶乘）
+# 输入: 6
+# 期望: 720
+# 说明: param 传实参并绑定形参名，call 跳到函数标签，ret 返回并把
+#       返回值写回调用方的目标变量；局部变量按帧存放，所以可以递归。
+0: (decl, u32, global, r)
+1: (decl, u32, global, s)
+2: (read, _, _, n)
+3: (param, n, _, k)
+4: (call, fact, _, r)
+5: (write:u32, r, _, _)
+6: (halt, _, _, _)
+7: (label, _, _, fact)
+8: (decl, u32, local, k)
+9: (<=:u32, k, 1, t)
+10: (jz, t, _, rec)
+11: (:=, 1, _, r)
+12: (ret:u32, r, _, _)
+13: (label, _, _, rec)
+14: (-:u32, k, 1, m)
+15: (param, m, _, k)
+16: (call, fact, _, s)
+17: (*:u32, k, s, r)
+18: (ret:u32, r, _, _)

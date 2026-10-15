@@ -1,0 +1,43 @@
+/* ============================================================
+ * INI 配置文法 · LL(1) + %tree · 规则 | 分支写法
+ *
+ * 演示：
+ *   - 段（[name]）与键值对（key = value）的层级结构；
+ *   - LL(1) 下用“尾链 + %empty”表达可重复列表：
+ *       sections := section sections | %empty;
+ *   - %identifier 提供变量名 VARIABLE，value 里用 '|' 罗列三种取值。
+ *
+ * 试用输入：
+ *   [server]
+ *   host = localhost
+ *   port = 8080
+ *   name = "demo"
+ *   [client]
+ *   retry = 3
+ * ============================================================ */
+
+%mode ll1
+%tree
+%start file
+
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+%define LBRACKET "["
+%define RBRACKET "]"
+%define EQ       "="
+
+file := sections;
+
+sections := section sections
+          | %empty;
+
+section := LBRACKET VARIABLE RBRACKET entries;
+
+entries := entry entries
+         | %empty;
+
+entry := VARIABLE EQ value;
+
+value := VARIABLE
+       | NUMBER
+       | STRING;

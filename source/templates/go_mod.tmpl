@@ -1,0 +1,10 @@
+// go.mod —— Go 构建脚本（只用标准库，没有第三方依赖）
+//
+//   go build        # 编译出可执行文件
+//   go run .        # 编译并跑演示（演示程序从标准输入读一行）
+//
+// 只当解析库用时：删掉 main.go，把 parser.go / token.go 加进你自己的包里
+// （它们都是 `package main`，改成你的包名即可）。
+module {{ module_name }}
+
+go 1.21

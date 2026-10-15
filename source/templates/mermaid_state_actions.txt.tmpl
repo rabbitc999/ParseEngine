@@ -1,0 +1,6 @@
+{# 某状态的 ACTION 动作摘要（Mermaid::stateActions 的排版）。
+   变量：parts（数组，元素 {word, values}，例如「移进」+ [a, b] /
+   「归约」+ [P2] /「接受」+ [END] /「冲突」+ 若干 Token）。
+   分隔符（「；」）与空格拼接都由本模板说了算。
+   **末尾不带换行**（调用方把它嵌进状态框的标签里）。 #}
+{% for part in parts %}{% if loop_first %}{% else %}；{% endif %}{{ part.word }}{% if part.values %} {% for value in part.values %}{% if loop_first %}{% else %} {% endif %}{{ value }}{% endfor %}{% endif %}{% endfor %}

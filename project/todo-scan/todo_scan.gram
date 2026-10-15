@@ -1,0 +1,102 @@
+/* ============================================================
+ * project/todo-scan/todo_scan.gram —— 从源码里扫 TODO / FIXME / NOTE
+ *
+ * 仓库里第四份「完整工程」示例，也是**最小的一份**：只有词法器（%mode lex），
+ * 一条产生式都不写——因为「把注释抽出来」这件事本来就只发生在词法层。
+ *
+ * 它演示的是 %commit 最直接的那个用途：**匹配到的东西不当 Token、也不丢掉，
+ * 而是按 {行号, 类型, 原文} 交出来**。这里的「类型」就是 %commit 声明里写的
+ * 关键字（todo / fixme / note），正好对应报告里的一列。
+ *
+ * 为什么要声明 CHAR 兜底：词法器只认它认识的规则，没被任何规则覆盖的字符会报
+ * 「认不出来的字符」并停下。要让整份源码都能扫过去，就得有一条「吃掉任意一个
+ * 非换行字符」的兜底 Token（换行单独一条，行号才对得上）。这些 Token 我们不
+ * 用——扫出来的东西全在 commits 里。
+ *
+ * 只针对 Python 产物（--lang python）：产物免编译，`make check` 秒级跑完。
+ * ============================================================ */
+
+%mode lex
+%class TodoScanner
+
+/* 兜底 Token：一个非换行字符 / 一个换行。词法层负责「走过去」，我们只要 commits。 */
+%token regex CHAR "[^\n]"
+%token NL "\n"
+
+/* %commit 的第 2 种写法：类型 + 模式。类型名会原样出现在 ParserCommit.type 里。 */
+%commit todo  "TODO[^\n]*"
+%commit fixme "FIXME[^\n]*"
+%commit note  "NOTE[^\n]*"
+
+%code
+    # 用户代码块：插在 parser.py 的 import 之后。
+
+    COMMENT_TYPES = (("todo", "TODO"), ("fixme", "FIXME"), ("note", "NOTE"))
+
+    def report_rows(scanned):
+        """把 (文件名, commits) 列表摊成报告里的行，并统计各类型条数。"""
+        rows = []
+        counts = {}
+        for name, commits in scanned:
+            for item in commits:
+                counts[item.type] = counts.get(item.type, 0) + 1
+                rows.append((item.type, name, item.line, item.text.strip()))
+        return rows, counts
+
+    def render_report(scanned):
+        """生成 Markdown 报告（固定格式，方便与期望文件逐行比对）。"""
+        rows, counts = report_rows(scanned)
+        summary = " / ".join("%s %d" % (key, counts.get(key, 0))
+                             for key, _ in COMMENT_TYPES)
+        lines = ["# TODO 扫描报告", "",
+                 "共 %d 条（%s）" % (len(rows), summary), "",
+                 "| 类型 | 文件 | 行 | 内容 |",
+                 "| --- | --- | ---: | --- |"]
+        for kind, name, line, text in rows:
+            lines.append("| %s | %s | %d | %s |" % (kind, name, line, text))
+        return "\n".join(lines)
+%endcode
+
+%main
+"""用法：todo_scan <源码文件> [更多文件…] —— 扫出 TODO / FIXME / NOTE 打成 Markdown。
+
+外壳（docstring / import parser / 类名别名 / if __name__ 收尾）由模板提供，
+这里只写 main()：逐个文件 tokenize（顺便收集 commits），最后一次性渲染报告。
+"""
+
+
+def main():
+    # 固定 UTF-8 输出：Windows 控制台默认代码页会把中文写成 GBK
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
+    if len(sys.argv) < 2:
+        print("用法: %s <源码文件> [更多文件…]" % sys.argv[0], file=sys.stderr)
+        return 2
+
+    scanned = []
+    for name in sys.argv[1:]:
+        try:
+            with open(name, "r", encoding="utf-8") as handle:
+                text = handle.read()
+        except OSError:
+            print("打不开文件: %s" % name, file=sys.stderr)
+            return 2
+        lexer = Parser()
+        status, _tokens = lexer.tokenize(text)
+        if status != parser.STATUS_OK:
+            error = lexer.last_error
+            print("第 %d 行第 %d 列：%s" % (error.line, error.column, error.message),
+                  file=sys.stderr)
+            return 1
+        scanned.append((name, list(lexer.commits)))
+
+    print(parser.render_report(scanned))
+    return 0
+
+
+# 外壳里的这行收尾也会被 %main 替换掉，自己补回来。
+if __name__ == "__main__":
+    sys.exit(main())

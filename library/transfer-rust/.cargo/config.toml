@@ -1,0 +1,3 @@
+# Rust 中间产物和可执行文件统一放在仓库 build 目录，不污染源码目录。
+[build]
+target-dir = "../../build/transfer/rust"

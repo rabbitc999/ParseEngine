@@ -1,0 +1,63 @@
+
+#ifndef PARSER_SKIP_DEMO_MAIN
+namespace ParserMemory = {{ ns }}::ParserMemory;
+
+/**
+ * @brief 把标准输入整个读进来（读到 EOF）。
+ * @return 读到的文本。
+ */
+static ParserMemory::String Lexer_DemoReadAll()
+{
+    ParserMemory::String text;
+    char buffer[4096];
+    std::size_t got = 0u;
+    while ((got = std::fread(buffer, 1u, sizeof(buffer), stdin)) > 0u)
+    {
+        text.append(buffer, got);
+    }
+    return text;
+}
+
+/**
+ * @brief 词法模式演示：读标准输入到 EOF，逐个打印 Token 的类型与词素。
+ *
+ * 输出一行一个 Token：`<类型>  "<词素>"  <行>:<列>`，最后一行是总数；遇到词法
+ * 错误（认不出来的字符 / 字符串没有闭合）打印一行说明并以 1 结束。
+ * @return 0 表示没有词法错误，1 表示有词法错误。
+ */
+int main()
+{
+    using namespace {{ ns }};
+    const ParserMemory::String input = Lexer_DemoReadAll();
+    Engine engine;
+    ParserMemory::Vector<Token> tokens;
+    const Status status = engine.tokenize(input, &tokens);
+    std::size_t count = 0u;
+    for (const Token &token : tokens)
+    {
+        const ParserMemory::String quoted = "\"" + tokenText(token) + "\"";
+        std::printf("%-12s %-12s %u:%u\n",
+                    (tokenName(token.type) != nullptr) ? tokenName(token.type)
+                                                       : "?",
+                    quoted.c_str(), token.line, token.column);
+        if (token.type != TokenType::TOKEN_END)
+        {
+            count++;
+        }
+    }
+    if (status != Status::Ok)
+    {
+        const Error *pError = engine.lastError();
+        if (pError != nullptr)
+        {
+            std::printf("词法错误: code=%d line=%u column=%u message=%s\n",
+                        pError->code(), pError->line(), pError->column(),
+                        pError->message().c_str());
+        }
+        return 1;
+    }
+    std::printf("共 %u 个 Token\n", static_cast<unsigned>(count));
+{{ demo_commits }}    return 0;
+}
+
+#endif /* PARSER_SKIP_DEMO_MAIN */

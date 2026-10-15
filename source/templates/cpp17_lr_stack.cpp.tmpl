@@ -1,0 +1,109 @@
+    /* ---------- LR 分析驱动 ---------- */
+
+    /// LR 分析栈：状态 / 符号 / 语义值 / 变量名 / （%tree）语法树节点。
+    struct LrStack
+    {
+        ParserMemory::Vector<std::uint16_t> states;
+        ParserMemory::Vector<std::uint16_t> symbols;
+        ParserMemory::Vector<ParserValue_T> values;
+        ParserMemory::Vector<ParserMemory::String> names;
+        ParserMemory::Vector<ParserMemory::UniquePtr<Tree>> nodes;
+        #ifdef PARSER_USER_REDUCTION_LINE
+        ParserMemory::Vector<std::size_t> sourceLines; ///< 按需记录符号起始行。
+        #endif
+        std::size_t top = 0u; ///< 有效槽位数（栈顶下标 = top - 1）
+
+        /// 保证第 index 个槽位可用（按需扩容，不预分配整条栈）。
+        void grow(std::size_t index)
+        {
+#ifdef PARSER_USER_REDUCTION_LINE
+            // 增量恢复可能只带基础栈字段；补齐位置槽，防止访问越界。
+            if (sourceLines.size() < states.size()) sourceLines.resize(states.size());
+#endif
+            if (index < states.size())
+            {
+                return;
+            }
+            const std::size_t size = (index < 256u) ? 256u : (index * 2u);
+            states.resize(size);
+            symbols.resize(size);
+            values.resize(size);
+            names.resize(size);
+            nodes.resize(size);
+#ifdef PARSER_USER_REDUCTION_LINE
+            sourceLines.resize(size);
+#endif
+        }
+
+        /// 入栈；栈深超过 kMaxStackDepth 时返回 false。
+        bool push(std::uint16_t state, std::uint16_t symbol,
+                  ParserValue_T value, std::string_view name)
+        {
+            if (top >= kMaxStackDepth)
+            {
+                return false;
+            }
+            grow(top);
+            states[top] = state;
+            symbols[top] = symbol;
+            values[top] = std::move(value);
+            names[top].assign(name);
+            nodes[top].reset();
+#ifdef PARSER_USER_REDUCTION_LINE
+            sourceLines[top] = 0;
+#endif
+            ++top;
+            return true;
+        }
+
+        /// 弹到 newTop：语义值 / 变量名 / 语法树节点全部按 RAII 释放。
+        void popTo(std::size_t newTop)
+        {
+            for (std::size_t index = newTop; index < top; ++index)
+            {
+                values[index] = ParserValue_T{};
+                names[index].clear();
+                nodes[index].reset();
+            }
+            top = newTop;
+        }
+
+        /// 丢弃栈顶一个槽位（错误恢复用）。
+        void discardTop()
+        {
+            if (top > 0u)
+            {
+{% if has_destructors %}                discardValueBySymbol(&values[top - 1u],
+                                     symbols[top - 1u]);
+{% endif %}                popTo(top - 1u);
+            }
+        }
+{% if has_destructors %}        /// 解析失败收尾：整栈逐项丢弃（%destructor；%tree 节点由 popTo 释放）。
+        void discardAll()
+        {
+            while (top > 0u) { discardTop(); }
+        }
+{% endif %}    };
+
+    /**
+     * @brief 执行一个产生式的语义动作。
+     *
+     * 动作里的 `$n` 由生成器翻成 `stack->values[stack->top - k + n - 1]`，
+     * 所以这里必须传**指针**（而不是引用），方便调用方换一个栈来跑动作。
+     * （top = 右部长度）。
+     * @param production 产生式编号。
+     * @param stack 分析栈（语义动作读它的 values / names）。
+     * @param result 语义结果（$$ 写它的 value）。
+     * @return Status::Ok 表示成功。
+     */
+    Status applyActionCode(std::uint16_t production, LrStack *stack,
+                           ParseResult &result)
+    {
+        (void)stack;
+        switch (production)
+        {
+{{ lr_action_cases }}
+        default: return Status::ErrSyntax;
+        }
+        return Status::Ok;
+    }

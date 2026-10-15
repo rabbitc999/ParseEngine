@@ -1,0 +1,381 @@
+/* ============================================================
+ * 实验一 · 文法类型的判断
+ *
+ * 输入一份文法的产生式（一行一条，`->` 左边是左部，右边是用 `|` 隔开的
+ * 若干候选式），输出它的四元组信息与 Chomsky 类型（0 / 1 / 2 / 3 型）。
+ *
+ * 输入格式（一行一条产生式）：
+ *   S->ACaB
+ *   Ca->aaC
+ *   CB->BC
+ *   ...
+ * 开始符号 = 第一条产生式的左部。
+ * 约定：大写字母（可带数字）是非终结符，其余单个字符是终结符；`e` 按实验
+ * 报告的习惯写成一个小写终结符 e（当作「空串」写也可以，长度记 1）。
+ *
+ * 这个 .gram 只描述**输入格式**的词法与语法：一行 = 左部 + `->` + 候选式
+ * 列表，候选式之间用 `|` 隔开。类型判断交给 %main 里对 CST 的一次遍历，
+ * 算法就是实验报告里那句「先假设是 3 型，逐条产生式不满足就往下降」。
+ *
+ * 生成与运行：
+ *   ParseEngine project/lab_report_axhu/lab1_grammar_type/lab1_grammar_type.gram \
+ *                 --lang c --out-dir out && make -C out
+ *   ./out/parser_demo < project/lab_report_axhu/lab1_grammar_type/case1.txt
+ * ============================================================ */
+
+%mode lalr
+%tree
+
+/* 一个符号 = 一个字符（字母 / 数字），所以用正则只吃一个字符 */
+%token regex SYM "[A-Za-z0-9]"
+/* 换行是真实 Token：一行一条产生式，靠它断句 */
+%token NL "\n"
+
+%define ARROW "->"
+/* 字面量里的 `|` 要转义——它本身是 %define 多分支的分隔符 */
+%define PIPE  "\|"
+
+/* 括号、运算符这类单字符终结符也当符号用 */
+%define LP    "("
+%define RP    ")"
+%define STAR  "*"
+%define PLUS  "+"
+%define SLASH "/"
+%define MINUS "-"
+%define EQ    "="
+%define LT    "<"
+%define GT    ">"
+%define COMMA ","
+
+%start Grammar
+
+Grammar := Lines;
+
+/* 空行直接丢掉 */
+Lines := Line
+       | NL Lines
+       | Line Lines;
+
+Line := SYMS ARROW ALTS NL;
+
+/* 左部：至少一个符号 */
+SYMS := SYMBOL
+      | SYMBOL SYMS;
+
+/* 右部：候选式之间用 `|` 隔开，候选式可以为空 */
+ALTS := ALT
+      | ALT PIPE ALTS;
+
+ALT := SYMS
+     | %empty;
+
+SYMBOL := SYM | LP | RP | STAR | PLUS | SLASH | MINUS | EQ | LT | GT | COMMA;
+
+%main
+/* main.c —— 读入文法产生式，打印四元组信息与 Chomsky 类型
+ * 由 ParseEngine 从 lab1_grammar_type.gram 生成，请勿手工修改。
+ */
+
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "parser.h"
+
+#define LAB1_MAX_PRODUCTIONS 256
+#define LAB1_MAX_SYMBOLS     64
+#define LAB1_NAME_CAP        32
+#define LAB1_RHS_CAP         128
+
+static char g_lhs[LAB1_MAX_PRODUCTIONS][LAB1_NAME_CAP];
+static char g_rhs[LAB1_MAX_PRODUCTIONS][LAB1_RHS_CAP];
+static int g_productionCount = 0;
+
+/* 终结符 / 非终结符集合：按字符去重，最后排序输出 */
+static char g_terminals[LAB1_MAX_SYMBOLS];
+static int g_terminalCount = 0;
+static char g_nonterminals[LAB1_MAX_SYMBOLS];
+static int g_nonterminalCount = 0;
+static char g_startSymbol = '\0';
+
+static int CompareChar(const void *pLeft, const void *pRight)
+{
+    return (int)(*(const char *)pLeft) - (int)(*(const char *)pRight);
+}
+
+static void AddChar(char *pSet, int *pCount, char symbol)
+{
+    int index = 0;
+    if (symbol == '\0') { return; }
+    for (index = 0; index < *pCount; index++)
+    {
+        if (pSet[index] == symbol) { return; }
+    }
+    if (*pCount >= LAB1_MAX_SYMBOLS) { return; }
+    pSet[(*pCount)++] = symbol;
+}
+
+static void AddSymbol(char symbol)
+{
+    if (isupper((unsigned char)symbol) != 0)
+    {
+        AddChar(g_nonterminals, &g_nonterminalCount, symbol);
+    }
+    else
+    {
+        AddChar(g_terminals, &g_terminalCount, symbol);
+    }
+}
+
+static const ParserTree_T *ChildAt(const ParserTree_T *pNode, uint32_t index)
+{
+    return Parser_TreeGetChild(pNode, index);
+}
+
+/* 把一个 SYMS / SYMBOL 子树里的终结符词素按顺序拼出来 */
+static void CollectSymbols(const ParserTree_T *pNode, char *pOut,
+                           size_t capacity)
+{
+    const char *pName = Parser_TreeGetName(pNode);
+    uint32_t index = 0u;
+    size_t used = strlen(pOut);
+
+    if (pName == NULL) { return; }
+    if (strcmp(pName, "SYMBOL") == 0)
+    {
+        /* SYMBOL := SYM | LP | ... ：唯一的那个孩子是终结符 */
+        const ParserTree_T *pTerminal = ChildAt(pNode, 0u);
+        const char *pText =
+            (pTerminal != NULL) ? Parser_TreeGetText(pTerminal) : NULL;
+        if ((pText != NULL) && (used + 1u < capacity))
+        {
+            pOut[used] = pText[0];
+            pOut[used + 1u] = '\0';
+        }
+        return;
+    }
+    if (strcmp(pName, "SYMS") == 0)
+    {
+        for (index = 0u; index < Parser_TreeChildCount(pNode); index++)
+        {
+            CollectSymbols(ChildAt(pNode, index), pOut, capacity);
+        }
+        return;
+    }
+    /* ALT / 其它包装层：直接往下走 */
+    for (index = 0u; index < Parser_TreeChildCount(pNode); index++)
+    {
+        CollectSymbols(ChildAt(pNode, index), pOut, capacity);
+    }
+}
+
+static void AddProduction(const char *pLhs, const char *pRhs)
+{
+    size_t index = 0u;
+    if (g_productionCount >= LAB1_MAX_PRODUCTIONS) { return; }
+    snprintf(g_lhs[g_productionCount], LAB1_NAME_CAP, "%s", pLhs);
+    snprintf(g_rhs[g_productionCount], LAB1_RHS_CAP, "%s", pRhs);
+    g_productionCount++;
+
+    if (g_startSymbol == '\0') { g_startSymbol = pLhs[0]; }
+    for (index = 0u; pLhs[index] != '\0'; index++) { AddSymbol(pLhs[index]); }
+    for (index = 0u; pRhs[index] != '\0'; index++) { AddSymbol(pRhs[index]); }
+}
+
+/* ALTS := ALT | ALT PIPE ALTS：同一个左部的每个候选式都要收下来，
+ * 所以遇到嵌套的 ALTS 要继续往下走（只取第一个候选式会漏掉 `|` 后面那些）。 */
+static void VisitAlts(const char *pLhs, const ParserTree_T *pAlts)
+{
+    uint32_t index = 0u;
+    for (index = 0u; index < Parser_TreeChildCount(pAlts); index++)
+    {
+        const ParserTree_T *pChild = ChildAt(pAlts, index);
+        const char *pName = Parser_TreeGetName(pChild);
+        char rhs[LAB1_RHS_CAP];
+        if (pName == NULL) { continue; }
+        if (strcmp(pName, "ALT") == 0)
+        {
+            rhs[0] = '\0';
+            CollectSymbols(pChild, rhs, sizeof(rhs));
+            AddProduction(pLhs, rhs);
+        }
+        else if (strcmp(pName, "ALTS") == 0)
+        {
+            VisitAlts(pLhs, pChild);
+        }
+    }
+}
+
+/* 一行产生式 -> 一条左部 + 若干候选式 */
+static void VisitLine(const ParserTree_T *pLine)
+{
+    char lhs[LAB1_RHS_CAP];
+    uint32_t index = 0u;
+    const ParserTree_T *pAlts = NULL;
+
+    lhs[0] = '\0';
+    for (index = 0u; index < Parser_TreeChildCount(pLine); index++)
+    {
+        const ParserTree_T *pChild = ChildAt(pLine, index);
+        const char *pName = Parser_TreeGetName(pChild);
+        if (pName == NULL) { continue; }
+        if (strcmp(pName, "SYMS") == 0) { CollectSymbols(pChild, lhs, sizeof(lhs)); }
+        if (strcmp(pName, "ALTS") == 0) { pAlts = pChild; }
+    }
+    if ((lhs[0] == '\0') || (pAlts == NULL)) { return; }
+    VisitAlts(lhs, pAlts);
+}
+
+static void VisitLines(const ParserTree_T *pLines)
+{
+    uint32_t index = 0u;
+    for (index = 0u; index < Parser_TreeChildCount(pLines); index++)
+    {
+        const ParserTree_T *pChild = ChildAt(pLines, index);
+        const char *pName = Parser_TreeGetName(pChild);
+        if (pName == NULL) { continue; }
+        if (strcmp(pName, "Line") == 0) { VisitLine(pChild); }
+        if (strcmp(pName, "Lines") == 0) { VisitLines(pChild); }
+    }
+}
+
+/* ---------- 类型判断：先设最高的 3 型，逐条产生式不满足就往下降 ---------- */
+
+static int IsSingleNonterminal(const char *pLhs)
+{
+    return (pLhs[0] != '\0') && (pLhs[1] == '\0') &&
+           (isupper((unsigned char)pLhs[0]) != 0);
+}
+
+static int IsTerminalChar(char symbol)
+{
+    return isupper((unsigned char)symbol) == 0;
+}
+
+/* 3 型（右线性 / 左线性）：A -> a、A -> aB、A -> Ba、A -> ε */
+static int MatchesType3(void)
+{
+    int index = 0;
+    for (index = 0; index < g_productionCount; index++)
+    {
+        const char *pRhs = g_rhs[index];
+        size_t length = strlen(pRhs);
+        if (!IsSingleNonterminal(g_lhs[index])) { return 0; }
+        if (length == 0u) { continue; }                       /* A -> ε */
+        if (length == 1u)
+        {
+            if (!IsTerminalChar(pRhs[0])) { return 0; }       /* A -> a */
+            continue;
+        }
+        if (length == 2u)
+        {
+            const int rightLinear = IsTerminalChar(pRhs[0]) &&
+                                    !IsTerminalChar(pRhs[1]);
+            const int leftLinear = !IsTerminalChar(pRhs[0]) &&
+                                   IsTerminalChar(pRhs[1]);
+            if (!rightLinear && !leftLinear) { return 0; }
+            continue;
+        }
+        return 0;
+    }
+    return 1;
+}
+
+/* 2 型（上下文无关）：每条产生式的左部都是单个非终结符 */
+static int MatchesType2(void)
+{
+    int index = 0;
+    for (index = 0; index < g_productionCount; index++)
+    {
+        if (!IsSingleNonterminal(g_lhs[index])) { return 0; }
+    }
+    return 1;
+}
+
+/* 1 型（上下文有关）：每条产生式都满足 |左部| <= |右部| */
+static int MatchesType1(void)
+{
+    int index = 0;
+    for (index = 0; index < g_productionCount; index++)
+    {
+        if (strlen(g_lhs[index]) > strlen(g_rhs[index])) { return 0; }
+    }
+    return 1;
+}
+
+int main(void)
+{
+    static char text[65536];
+    size_t used = 0u;
+    size_t got = 0u;
+    ParserTree_T *pTree = NULL;
+    const ParserTree_T *pRoot = NULL;
+    int type = 0;
+    int index = 0;
+    int distinctLhs = 0;
+
+    while ((got = fread(text + used, 1u, sizeof(text) - 1u - used, stdin)) > 0u)
+    {
+        used += got;
+    }
+    text[used] = '\0';
+
+    pTree = Parser_ParseTreeText(text);
+    if (pTree == NULL)
+    {
+        const ParserError_T *pError = Parser_GetLastError();
+        printf("读入的产生式无法识别: code=%d line=%u column=%u %s\n",
+               pError->code, (unsigned int)pError->line,
+               (unsigned int)pError->column, pError->message);
+        return 1;
+    }
+    /* Grammar := Lines */
+    pRoot = ChildAt(pTree, 0u);
+    if (pRoot != NULL) { VisitLines(pRoot); }
+    Parser_TreeFree(pTree);
+
+    if (g_productionCount == 0)
+    {
+        printf("没有读入任何产生式。\n");
+        return 1;
+    }
+
+    if (MatchesType3())      { type = 3; }
+    else if (MatchesType2()) { type = 2; }
+    else if (MatchesType1()) { type = 1; }
+    else                     { type = 0; }
+
+    /* 产生式个数：与本实验原程序的口径一致——按左部去重计数 */
+    for (index = 0; index < g_productionCount; index++)
+    {
+        int seen = 0;
+        int other = 0;
+        for (other = 0; other < index; other++)
+        {
+            if (strcmp(g_lhs[other], g_lhs[index]) == 0) { seen = 1; }
+        }
+        if (!seen) { distinctLhs++; }
+    }
+
+    qsort(g_terminals, (size_t)g_terminalCount, sizeof(char), CompareChar);
+    qsort(g_nonterminals, (size_t)g_nonterminalCount, sizeof(char), CompareChar);
+
+    printf("该文法为%d型文法。\n", type);
+    printf("终结符集合: {");
+    for (index = 0; index < g_terminalCount; index++)
+    {
+        printf("%s%c", (index == 0) ? "" : ", ", g_terminals[index]);
+    }
+    printf("}\n");
+    printf("非终结符集合: {");
+    for (index = 0; index < g_nonterminalCount; index++)
+    {
+        printf("%s%c", (index == 0) ? "" : ", ", g_nonterminals[index]);
+    }
+    printf("}\n");
+    printf("开始符号: %c\n", (g_startSymbol == '\0') ? '?' : g_startSymbol);
+    printf("产生式个数: %d\n", distinctLhs);
+    printf("（候选式条数: %d）\n", g_productionCount);
+    return 0;
+}

@@ -1,0 +1,115 @@
+/* ============================================================
+ * %destructor 示例：弹出 / 丢弃语义值时的清理代码
+ *
+ *   %union { ... }                    语义值类型（见 union_demo.gram）
+ *   %destructor <成员> { 清理代码 }    按 %union 成员登记清理代码
+ *
+ * 什么时候调：**语义值被丢弃**的时候——错误恢复弹栈（%sync 兜底弹掉的那些
+ * 槽位），以及解析失败时的收尾清栈。成功解析不清栈：起始符号的结果交还调用
+ * 方（bison 同规矩）。
+ *
+ * 片段里只认 $$：它就是**正在被丢弃的那个值**，按成员展开成堆上那个联合体成员
+ * （C 产物里是 pValue->成员）。写 $1 / $line 之类会报错——清理现场没有「右部
+ * 符号」可指。
+ *
+ * 谁走 %destructor：用 %type <成员> / %token <成员> 绑到该成员的符号。没绑
+ * %destructor 的成员保持原样（C 产物仍然调 PARSER_USER_DISCARD_VALUE 钩子）。
+ * 粒度是成员，不是符号：bison 的「%destructor 绑具体符号名」这版暂未实现。
+ *
+ * 限制：--lang python 会在生成期报错（Python 的语义值靠引用计数）。
+ * LL 家族（ll0 / ll1 / llk）与 LR 家族都支持。
+ *
+ * 这份文法自己就是小测：两个计数器分别数「释放了几次堆内存」「丢弃了几个数值」，
+ * 喂下面这些输入，三份产物（C / C++17）应当给出同样的计数：
+ *
+ *   a b ; c ;      -> 成功，0 次清理（成功不清栈）
+ *   a b )          -> 失败，str=1（list 的堆内存被 %destructor 释放）
+ *   12 )           -> 失败，num=1（number 的数值被丢弃）
+ *   a ; ; b ;      -> 失败，num=1（恢复弹栈丢掉 program 槽）
+ * ============================================================ */
+
+%mode lalr
+%start program
+%sync SEMI
+
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+%union {
+    char *str;   /* list / item 的语义值：堆上一小块内存，必须 free */
+    long  num;   /* program / stmt / number 的语义值：标量，没有内存要放 */
+}
+
+%define SEMI   ";"
+%define RPAREN ")"
+
+%token <num> NUMBER
+
+%type <num> program stmts stmt number
+%type <str> list item
+
+/* 按成员绑清理代码：str 要 free，num 什么都不用做（这里只计数，便于观察） */
+%destructor <str> { g_StrDiscarded++; free($$); }
+%destructor <num> { g_NumDiscarded++; }
+
+%code
+#include <stdlib.h>
+
+/* 计数器定义在 main.c / main.cpp（%main 段）：C 与 C++17 都只看声明 */
+extern int g_StrDiscarded;
+extern int g_NumDiscarded;
+
+/* 语义值是一小块堆内存。C 里 void* 能隐式转成 char*、C++ 里不行，
+   所以用宏包一层，让同一份文法在 --lang c 与 --lang cpp17 下都能编译 */
+#ifdef __cplusplus
+#define DEMO_NEW_BLOCK() (static_cast<char *>(malloc(2)))
+#else
+#define DEMO_NEW_BLOCK() ((char *)malloc(2))
+#endif
+%endcode
+
+program := stmts { $$ = 0; } ;
+
+stmts := stmts stmt { free(NULL); }
+       | stmt       { free(NULL); }
+       ;
+
+/* 语句边界是 `;`：出错时能弹到这个边界继续，%sync 的锚点就选它 */
+stmt := list SEMI   { free($1); $$ = 0; }
+      | number SEMI { $$ = 0; }
+      ;
+
+/* 列表把子项接过来，丢掉自己先前那份：所有权始终只有一个主人 */
+list := list item { $$ = $2; free($1); }
+      | item      { $$ = $1; }
+      ;
+
+item := VARIABLE { $$ = DEMO_NEW_BLOCK(); } ;
+
+number := NUMBER { $$ = 4242; } ;
+
+%main
+int g_StrDiscarded = 0;
+int g_NumDiscarded = 0;
+
+int main(void)
+{
+    static const char *const k_inputs[] = {
+        "a b ; c ;",
+        "a b )",
+        "12 )",
+        "a ; ; b ;",
+    };
+    size_t index = 0u;
+    for (index = 0u; index < sizeof(k_inputs) / sizeof(k_inputs[0]); index++)
+    {
+        ParserValue_T result;
+        int32_t status = PARSER_OK;
+        g_StrDiscarded = 0;
+        g_NumDiscarded = 0;
+        memset(&result, 0, sizeof(result));
+        status = Parser_RunText(k_inputs[index], &result);
+        printf("[%s] status=%d strDiscarded=%d numDiscarded=%d\n",
+               k_inputs[index], (int)status, g_StrDiscarded, g_NumDiscarded);
+    }
+    return 0;
+}

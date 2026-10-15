@@ -1,0 +1,147 @@
+    // ---------- Earley / CYK 图表判定 ----------
+
+    fn chart_precheck(&mut self) -> i32
+    {
+        let text_mode = self.text_mode;
+        let source = if text_mode { self.text.clone() } else { String::new() };
+        let mut tokens = Vec::new();
+        while self.current.kind != TOKEN_END
+        {
+            tokens.push(self.current.kind);
+            let status = self.advance();
+            if status != STATUS_OK
+            {
+                return status;
+            }
+        }
+        let status = if text_mode
+        {
+            self.prepare_text(&source)
+        }
+        else
+        {
+            self.token_pos = 0;
+            self.prepare_common()
+        };
+        if status != STATUS_OK
+        {
+            return status;
+        }
+        if self.chart_accept(&tokens)
+        {
+            return STATUS_OK;
+        }
+        let (line, column) = (self.current.line, self.current.column);
+        self.set_error(STATUS_ERR_SYNTAX, line, column,
+                       "没有可接受的解析路径");
+        STATUS_ERR_SYNTAX
+    }
+
+{% if earley %}    fn chart_accept(&self, tokens: &[i32]) -> bool
+    {
+        use std::collections::HashSet;
+        let count = tokens.len();
+        let mut chart: Vec<HashSet<(usize, usize, usize)>> =
+            vec![HashSet::new(); count + 1];
+        for production in 0..CHART_PRODUCTION_COUNT
+        {
+            if CHART_LHS[production] as usize == CHART_START
+            {
+                chart[0].insert((production, 0, 0));
+            }
+        }
+        for position in 0..=count
+        {
+            loop
+            {
+                let mut changed = false;
+                for (production, dot, origin) in chart[position].clone()
+                {
+                    let length = CHART_RHS_LENGTH[production] as usize;
+                    if dot == length
+                    {
+                        let completed = CHART_TERMINAL_COUNT + CHART_LHS[production];
+                        for (parent, parent_dot, parent_origin) in chart[origin].clone()
+                        {
+                            if parent_dot < CHART_RHS_LENGTH[parent] as usize &&
+                               CHART_RHS_SYMBOLS[
+                                   CHART_RHS_START[parent] as usize + parent_dot
+                               ] == completed
+                            {
+                                changed |= chart[position].insert(
+                                    (parent, parent_dot + 1, parent_origin));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        let symbol = CHART_RHS_SYMBOLS[
+                            CHART_RHS_START[production] as usize + dot];
+                        if symbol >= CHART_TERMINAL_COUNT
+                        {
+                            let nonterm = symbol - CHART_TERMINAL_COUNT;
+                            for next in 0..CHART_PRODUCTION_COUNT
+                            {
+                                if CHART_LHS[next] == nonterm
+                                {
+                                    changed |= chart[position].insert((next, 0, position));
+                                }
+                            }
+                        }
+                        else if position < count && symbol == tokens[position]
+                        {
+                            chart[position + 1].insert((production, dot + 1, origin));
+                        }
+                    }
+                }
+                if !changed
+                {
+                    break;
+                }
+            }
+        }
+        chart[count].iter().any(|(production, dot, origin)| {
+            CHART_LHS[*production] as usize == CHART_START &&
+            *origin == 0 && *dot == CHART_RHS_LENGTH[*production] as usize
+        })
+    }
+{% else %}    fn chart_accept(&self, tokens: &[i32]) -> bool
+    {
+        let count = tokens.len();
+        if count == 0
+        {
+            return CHART_ACCEPTS_EMPTY;
+        }
+        let mut cells = vec![
+            vec![vec![false; CHART_NONTERM_COUNT]; count + 1]; count];
+        for (index, token) in tokens.iter().enumerate()
+        {
+            for rule in 0..CHART_UNARY_COUNT
+            {
+                if CHART_UNARY_TOKEN[rule] == *token
+                {
+                    cells[index][index + 1][CHART_UNARY_LHS[rule] as usize] = true;
+                }
+            }
+        }
+        for length in 2..=count
+        {
+            for begin in 0..=count - length
+            {
+                let end = begin + length;
+                for middle in begin + 1..end
+                {
+                    for rule in 0..CHART_BINARY_COUNT
+                    {
+                        if cells[begin][middle][CHART_BINARY_LEFT[rule] as usize] &&
+                           cells[middle][end][CHART_BINARY_RIGHT[rule] as usize]
+                        {
+                            cells[begin][end][CHART_BINARY_LHS[rule] as usize] = true;
+                        }
+                    }
+                }
+            }
+        }
+        cells[0][count][CHART_START]
+    }
+{% endif %}

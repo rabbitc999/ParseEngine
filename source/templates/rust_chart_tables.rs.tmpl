@@ -1,0 +1,17 @@
+// ---------- 图表解析数据 ----------
+const CHART_START: usize = {{ start }};
+const CHART_TERMINAL_COUNT: i32 = {{ terminal_count }};
+const CHART_NONTERM_COUNT: usize = {{ nonterm_count }};
+const CHART_PRODUCTION_COUNT: usize = {{ production_count }};
+const CHART_UNARY_COUNT: usize = {{ unary_count }};
+const CHART_BINARY_COUNT: usize = {{ binary_count }};
+const CHART_ACCEPTS_EMPTY: bool = {% if accepts_empty %}true{% else %}false{% endif %};
+static CHART_LHS: &[i32] = &[{{ lhs }}];
+static CHART_RHS_START: &[i32] = &[{{ rhs_start }}];
+static CHART_RHS_LENGTH: &[i32] = &[{{ rhs_length }}];
+static CHART_RHS_SYMBOLS: &[i32] = &[{{ rhs_symbols }}];
+static CHART_UNARY_LHS: &[i32] = &[{{ unary_lhs }}];
+static CHART_UNARY_TOKEN: &[i32] = &[{{ unary_token }}];
+static CHART_BINARY_LHS: &[i32] = &[{{ binary_lhs }}];
+static CHART_BINARY_LEFT: &[i32] = &[{{ binary_left }}];
+static CHART_BINARY_RIGHT: &[i32] = &[{{ binary_right }}];

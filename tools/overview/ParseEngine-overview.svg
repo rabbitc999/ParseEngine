@@ -1,0 +1,224 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="900" viewBox="0 0 1560 900">
+  <rect width="1560" height="900" fill="#f4f7fb"/>
+  <text x="40" y="58" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="31" font-weight="700" fill="#10233f">ParseEngine 解析器生成器 · 仓库全景</text>
+  <text x="40" y="88" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="15" fill="#4a5b73">一份 .gram → 16 种生成模式 → 8 种目标语言 + 文法导出档 · 生成器 / 应用 / 附加库 / 工具四层，核心生成器无第三方依赖</text>
+  <rect x="40" y="118" width="360" height="700" rx="14" fill="#ffffff" stroke="#d8e1ee" stroke-width="1.5"/>
+  <text x="58" y="148" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="17" font-weight="700" fill="#14507e">① 生成器</text>
+  <text x="58" y="170" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">source/</text>
+  <rect x="58" y="190" width="324" height="32" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <rect x="66" y="197" width="18" height="18" rx="5" fill="#14507e"/>
+  <text x="75" y="206" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">1</text>
+  <text x="92" y="210" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#16405f">%if / %elif 预处理（--define 裁剪）</text>
+  <rect x="58" y="230" width="324" height="32" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <rect x="66" y="237" width="18" height="18" rx="5" fill="#14507e"/>
+  <text x="75" y="246" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">2</text>
+  <text x="92" y="250" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#16405f">文法解析（指令 / 规则 / 动作）</text>
+  <rect x="58" y="270" width="324" height="32" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <rect x="66" y="277" width="18" height="18" rx="5" fill="#14507e"/>
+  <text x="75" y="286" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">3</text>
+  <text x="92" y="290" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#16405f">词法：正则 → NFA → DFA</text>
+  <rect x="58" y="310" width="324" height="32" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <rect x="66" y="317" width="18" height="18" rx="5" fill="#14507e"/>
+  <text x="75" y="326" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">4</text>
+  <text x="92" y="330" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#16405f">分析：16 种模式，出表 + 消解</text>
+  <rect x="58" y="350" width="324" height="32" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <rect x="66" y="357" width="18" height="18" rx="5" fill="#14507e"/>
+  <text x="75" y="366" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">5</text>
+  <text x="92" y="370" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#16405f">代码生成：模板 → 完整工程</text>
+  <text x="58" y="410" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">16 种生成模式</text>
+  <rect x="58" y="422" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="93" y="436" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">LL(0)</text>
+  <rect x="136" y="422" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="171" y="436" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">LL(1)</text>
+  <rect x="214" y="422" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="249" y="436" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">LL(k)</text>
+  <rect x="292" y="422" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="327" y="436" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">LR(0)</text>
+  <rect x="58" y="456" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="93" y="470" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">SLR(1)</text>
+  <rect x="136" y="456" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="171" y="470" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">SLR(k)</text>
+  <rect x="214" y="456" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="249" y="470" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">LALR(1)</text>
+  <rect x="292" y="456" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="327" y="470" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">LALR(k)</text>
+  <rect x="58" y="490" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="93" y="504" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">LR(1)</text>
+  <rect x="136" y="490" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="171" y="504" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">LR(k)</text>
+  <rect x="214" y="490" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="249" y="504" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">IELR(1)</text>
+  <rect x="292" y="490" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="327" y="504" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">LEX</text>
+  <rect x="58" y="524" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="93" y="538" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">GLR</text>
+  <rect x="136" y="524" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="171" y="538" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">DD</text>
+  <rect x="214" y="524" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="249" y="538" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">Earley</text>
+  <rect x="292" y="524" width="70" height="26" rx="7" fill="#eef4fb" stroke="#c9dcf0" stroke-width="1"/>
+  <text x="327" y="538" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" font-weight="700" fill="#1d4f7a" text-anchor="middle" dominant-baseline="central">CYK</text>
+  <text x="58" y="568" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">8 种目标语言（6 完整 + 2 窄）+ 导出档</text>
+  <rect x="58" y="582" width="75" height="26" rx="7" fill="#eaf6ef" stroke="#bfe0cc" stroke-width="1"/>
+  <text x="95.5" y="596" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#1e6b46" text-anchor="middle" dominant-baseline="central">C99</text>
+  <rect x="141" y="582" width="75" height="26" rx="7" fill="#eaf6ef" stroke="#bfe0cc" stroke-width="1"/>
+  <text x="178.5" y="596" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#1e6b46" text-anchor="middle" dominant-baseline="central">C++17</text>
+  <rect x="224" y="582" width="75" height="26" rx="7" fill="#eaf6ef" stroke="#bfe0cc" stroke-width="1"/>
+  <text x="261.5" y="596" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#1e6b46" text-anchor="middle" dominant-baseline="central">Python</text>
+  <rect x="307" y="582" width="75" height="26" rx="7" fill="#eaf6ef" stroke="#bfe0cc" stroke-width="1"/>
+  <text x="344.5" y="596" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#1e6b46" text-anchor="middle" dominant-baseline="central">C#</text>
+  <rect x="58" y="616" width="75" height="26" rx="7" fill="#eaf6ef" stroke="#bfe0cc" stroke-width="1"/>
+  <text x="95.5" y="630" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#1e6b46" text-anchor="middle" dominant-baseline="central">Rust</text>
+  <rect x="141" y="616" width="75" height="26" rx="7" fill="#eaf6ef" stroke="#bfe0cc" stroke-width="1"/>
+  <text x="178.5" y="630" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#1e6b46" text-anchor="middle" dominant-baseline="central">Go</text>
+  <rect x="224" y="616" width="75" height="26" rx="7" fill="#eaf6ef" stroke="#bfe0cc" stroke-width="1"/>
+  <text x="261.5" y="630" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#1e6b46" text-anchor="middle" dominant-baseline="central">Java*</text>
+  <rect x="307" y="616" width="75" height="26" rx="7" fill="#eaf6ef" stroke="#bfe0cc" stroke-width="1"/>
+  <text x="344.5" y="630" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#1e6b46" text-anchor="middle" dominant-baseline="central">JS/TS*</text>
+  <text x="58" y="664" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">要点</text>
+  <text x="58" y="686" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">C++17 只用标准库，无第三方依赖</text>
+  <text x="58" y="706" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">source/templates/ 构建期内联，运行时无依赖</text>
+  <text x="58" y="726" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">单个可执行文件，运行不读目录</text>
+  <text x="58" y="746" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">47 条指令全部带生成期校验与行号</text>
+  <text x="58" y="766" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">* Java / JS-TS 当前仅支持 DD / Earley / CYK</text>
+  <rect x="410" y="118" width="360" height="700" rx="14" fill="#ffffff" stroke="#d8e1ee" stroke-width="1.5"/>
+  <text x="428" y="148" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="17" font-weight="700" fill="#14507e">② 应用</text>
+  <text x="428" y="170" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">根目录工程 · project/ · example/</text>
+  <text x="428" y="194" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">课程实验（2 套 · 8 份报告）</text>
+  <rect x="428" y="206" width="324" height="46" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="438" y="225" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">lab_report_axhu</text>
+  <text x="438" y="243" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">安徽新华：3 份 · 文法 / 词法 / 语法</text>
+  <rect x="428" y="258" width="324" height="46" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="438" y="277" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">lab_report_nju</text>
+  <text x="438" y="295" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">南京大学：5 份 · 严格 C-- 编译全流程</text>
+  <text x="428" y="326" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">根目录应用工程（0 个，均已拆分独立仓库）</text>
+  <text x="428" y="454" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">project/ 完整工程（9 个）</text>
+  <rect x="428" y="468" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="438" y="485" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">pl0-ir</text>
+  <text x="438" y="503" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">PL/0 → 三元式 / 四元式</text>
+  <rect x="594" y="468" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="604" y="485" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">mini-basic</text>
+  <text x="604" y="503" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">字节码 + 128 行 VM</text>
+  <rect x="428" y="520" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="438" y="537" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">log-ir</text>
+  <text x="438" y="555" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">日志 → JSON（Python）</text>
+  <rect x="594" y="520" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="604" y="537" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">todo-scan</text>
+  <text x="604" y="555" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">扫 TODO 出 Markdown</text>
+  <rect x="428" y="572" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="438" y="589" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">pl0-super</text>
+  <text x="438" y="607" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">两套前端：ll1 / lalr1</text>
+  <rect x="594" y="572" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="604" y="589" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">bigint-calc</text>
+  <text x="604" y="607" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">大整数计算器（BigInt）</text>
+  <rect x="428" y="624" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="438" y="641" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">protocol-dsl</text>
+  <text x="438" y="659" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">三套编译器 → 四档代码</text>
+  <rect x="594" y="624" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="604" y="641" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">lab_report_axhu</text>
+  <text x="604" y="659" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">安徽新华编译实验（3 份）</text>
+  <rect x="428" y="676" width="324" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="438" y="693" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">lab_report_nju</text>
+  <text x="438" y="711" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">南京大学 C-- 实验（5 份）</text>
+  <text x="428" y="744" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">example/ · 46 份文法</text>
+  <text x="428" y="766" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">calc / json / ini / mini_lang / llk_demo</text>
+  <text x="428" y="786" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">pl0 / c89_subset / lexer_only / commit_demo</text>
+  <text x="428" y="806" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">manifest.tsv 记实测语言档</text>
+  <rect x="780" y="118" width="360" height="700" rx="14" fill="#ffffff" stroke="#d8e1ee" stroke-width="1.5"/>
+  <text x="798" y="148" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="17" font-weight="700" fill="#14507e">③ 附加库</text>
+  <text x="798" y="170" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">library/ · 与主流程独立</text>
+  <text x="798" y="194" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">独立组件（10 个）</text>
+  <rect x="798" y="206" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="808" y="221" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">template[rust]</text>
+  <text x="808" y="236" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">模板引擎</text>
+  <text x="808" y="250" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">C++ / Rust</text>
+  <rect x="964" y="206" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="974" y="221" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">transfer[rust]</text>
+  <text x="974" y="236" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">IR 后端工具链</text>
+  <text x="974" y="250" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">C++ / Rust</text>
+  <rect x="798" y="260" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="808" y="275" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">simple_ast[rust]</text>
+  <text x="808" y="290" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">AST → IR + .data</text>
+  <text x="808" y="304" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">类型 / 泛型 / lambda</text>
+  <rect x="964" y="260" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="974" y="275" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">stackvm[rust]</text>
+  <text x="974" y="290" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">栈式虚拟机</text>
+  <text x="974" y="304" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">对象表 / bint / 容器</text>
+  <rect x="798" y="314" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="808" y="329" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">json[rust]</text>
+  <text x="808" y="344" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">JSON 数据模型</text>
+  <text x="808" y="358" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">C++17 / Rust</text>
+  <rect x="964" y="314" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="974" y="329" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">toml</text>
+  <text x="974" y="344" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">TOML 数据模型</text>
+  <text x="974" y="358" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">表 / 表数组 / 日期时间</text>
+  <rect x="798" y="368" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="808" y="383" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">big_number[rust]</text>
+  <text x="808" y="398" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">大整数 + BigFloat</text>
+  <text x="808" y="412" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">C++ / Rust</text>
+  <rect x="964" y="368" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="974" y="383" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">preprocess[rust]</text>
+  <text x="974" y="398" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">通用预处理器</text>
+  <text x="974" y="412" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f"># / % 条件编译</text>
+  <rect x="798" y="422" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="808" y="437" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">lsp</text>
+  <text x="808" y="452" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">.gram 语言服务</text>
+  <text x="808" y="466" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">诊断 / 补全 / 格式化</text>
+  <rect x="964" y="422" width="158" height="50" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="974" y="437" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">allocator</text>
+  <text x="974" y="452" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">自定义分配池</text>
+  <text x="974" y="466" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">C99 / C++17 · Memory</text>
+  <text x="798" y="490" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">transfer 后端链路</text>
+  <rect x="798" y="504" width="324" height="48" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <text x="808" y="525" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">IR 分析</text>
+  <text x="892" y="525" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">四元式 → 基本块 / CFG → 数据流</text>
+  <rect x="798" y="558" width="324" height="48" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <text x="808" y="579" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">优化</text>
+  <text x="892" y="579" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">常量 · CSE · DCE · 循环优化</text>
+  <rect x="798" y="612" width="324" height="48" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <text x="808" y="633" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">SSA 与分配</text>
+  <text x="892" y="633" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">Chaitin / 线性扫描</text>
+  <rect x="798" y="666" width="324" height="48" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <text x="808" y="687" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">教学后端</text>
+  <text x="892" y="687" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">MIPS / 8086 / ARM → 模拟执行</text>
+  <rect x="798" y="720" width="324" height="48" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
+  <text x="808" y="741" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">Hydra86 后端</text>
+  <text x="892" y="741" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">原生汇编 → pvm_cli 嵌入执行</text>
+  <rect x="1150" y="118" width="360" height="700" rx="14" fill="#ffffff" stroke="#d8e1ee" stroke-width="1.5"/>
+  <text x="1168" y="148" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="17" font-weight="700" fill="#14507e">④ 工具</text>
+  <text x="1168" y="170" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">vscode/ · tools/ · build/</text>
+  <text x="1168" y="194" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">编辑器（VS Code 插件）</text>
+  <rect x="1168" y="206" width="324" height="50" rx="9" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="1178" y="224" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">GramEditor for VS Code</text>
+  <text x="1178" y="240" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">零依赖，自带 .vsix 打包</text>
+  <text x="1178" y="254" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">vscode/ · 接 library/lsp · 不需要 npm</text>
+  <text x="1168" y="294" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">编辑 .gram 时的能力</text>
+  <text x="1168" y="312" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">高亮 · 折叠 · 实时诊断</text>
+  <text x="1168" y="330" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">悬停说明 · 补全 · 跳转定义</text>
+  <text x="1168" y="348" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">大纲 · 格式化 · 快速修复</text>
+  <text x="1168" y="366" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">一键生成解析器 · 改 library/lsp 即生效</text>
+  <text x="1168" y="384" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">Token / 完整语法树预览 · CSV / PNG / JPEG / SVG</text>
+  <text x="1168" y="406" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">tools/ · 构建 / 验收 / 图示</text>
+  <rect x="1168" y="428" width="324" height="48" rx="9" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="1178" y="443" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">构建与模板</text>
+  <text x="1178" y="458" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">embed_templates.py 内联模板</text>
+  <text x="1178" y="470" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">gen_all.sh 按 manifest 全量重生成</text>
+  <rect x="1168" y="480" width="324" height="48" rx="9" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="1178" y="495" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">验收三档</text>
+  <text x="1178" y="510" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">quick-verify.sh 秒级（约 24 秒）</text>
+  <text x="1178" y="522" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">isolated-build.sh 分钟级 · gen_all.sh 提交前</text>
+  <rect x="1168" y="532" width="324" height="48" rx="9" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="1178" y="547" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">比对与协作</text>
+  <text x="1178" y="562" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">diff.sh 产物逐字节比对</text>
+  <text x="1178" y="574" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">lock.sh 共享工作区的编译锁</text>
+  <rect x="1168" y="584" width="324" height="48" rx="9" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="1178" y="599" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">图示与图标</text>
+  <text x="1178" y="614" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">make_overview_image.py 本图</text>
+  <text x="1178" y="626" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">make_icon.py 图标（PNG + .ico）</text>
+  <text x="1168" y="652" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">构建 / 测试 / 产物</text>
+  <text x="1168" y="674" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">sh build.sh   统一构建，产物位于 build/</text>
+  <text x="1168" y="694" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">make -C source test-repro   两次生成逐字一致</text>
+  <text x="1168" y="714" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">project/document/   模板与文档同步生成器</text>
+  <text x="40" y="846" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#64748b">四层关系：生成器（①）产出解析器工程；应用（②）含 project/ 实验（magel / metro-lang / hydra-86 / rust-view / cas 已拆独立仓库）；附加库（③）提供数据模型与后端；工具（④）辅助开发和验证</text>
+  <text x="40" y="872" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#64748b">人机协同：需求、文法与算法选型由人，实现由 Codex + DeepSeek；真实生成、目标工具链与回归样例负责验收，当前口径见 doc/15 与专题文档</text>
+</svg>

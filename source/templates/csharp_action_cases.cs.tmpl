@@ -1,0 +1,15 @@
+{# C# 的语义动作分支（`_applyAction`，LR / LL 共用一份）。
+   变量：
+     cases —— 每个产生式一项，字段 id / keyword / has_line / line / body；
+              keyword 是 `if (production == ` 或 `else if (production == `；
+              has_line = 动作体非空且有文法行号（那两条 `// 在 …` / `// 继续 …`）；
+     file  —— 产物文件名（`// 继续 parser.cs 的正文` 用）。
+   `{% endfor %}` 独占一行，所以返回值末尾不会多出换行。 #}
+{% for c in cases %}        {{ c.keyword }}{{ c.id }})
+        {
+{% if c.has_line %}        // 在 @@SE_GRAMMAR_FILE@@ 的第 {{ c.line }} 行
+{% endif %}{% if c.body %}            {{ c.body }}
+{% endif %}{% if c.has_line %}            // 继续 {{ file }} 的正文
+{% endif %}            return STATUS_OK;
+        }
+{% endfor %}

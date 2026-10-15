@@ -1,0 +1,49 @@
+/* Token 名称表：下标与 ParserTokenType_T 枚举一一对应 */
+static const char *const s_ParserTokenNames[][2] =
+{
+{{ token_names }}
+};
+
+/** 
+ * @brief 取 Token 枚举名。 
+ * @param type Token 类型。 
+ * @retval 只读名字或 NULL。 
+ */
+const char *Parser_TokenName(ParserTokenType_T type)
+{
+    uint32_t index = (uint32_t)type;
+    if (index >= (uint32_t)(sizeof(s_ParserTokenNames) /
+                            sizeof(s_ParserTokenNames[0]))) {
+        return NULL;
+    }
+    return s_ParserTokenNames[index][0];
+}
+
+/** 
+ * @brief 把 Token 的文本写进缓冲区。
+ * @param pToken Token。
+ * @param pBuffer 输出缓冲区。
+ * @param size 缓冲区容量。
+ * @retval 无。
+ */
+void Parser_TokenText(const ParserToken_T *pToken, char *pBuffer,
+                      uint32_t size)
+{
+    const char *pName = NULL;
+    if ((pToken == NULL) || (pBuffer == NULL) || (size == 0u)) { return; }
+    pBuffer[0] = '\0';
+    /* 空串不算「有词素」：固定字面量 Token 的 pName 可能是空的，这时要退回
+     * 类型名，否则动作里的 $token 会拿到空串 */
+    if ((pToken->pName != NULL) && (pToken->pName[0] != '\0')) {
+        snprintf(pBuffer, size, "%s", pToken->pName);
+        return;
+    }
+    if ((pToken->name != NULL) && (pToken->name[0] != '\0')) {
+        snprintf(pBuffer, size, "%s", pToken->name);
+        return;
+    }
+    pName = Parser_TokenName(pToken->type);
+    if (pName != NULL) { snprintf(pBuffer, size, "%s", pName); }
+}
+
+{{ lex_dfa_decls }}

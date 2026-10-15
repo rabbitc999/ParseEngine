@@ -1,0 +1,18 @@
+        /* 标识符：%identifier 的 DFA 优先，其次退回默认的 C 风格标识符。 */
+        if ((std::isalpha(static_cast<unsigned char>(*pStart)) != 0) ||
+            (*pStart == '_'))
+        {
+            const std::size_t begin = m_textPos;
+            while ((std::isalnum(
+                        static_cast<unsigned char>(m_text[m_textPos])) != 0) ||
+                   (m_text[m_textPos] == '_'))
+            {
+                readChar();
+            }
+            m_lexeme.assign(pStart, m_textPos - begin);
+            token.type = TokenType::TOKEN_VARIABLE;
+            token.text = m_lexeme;
+            token.pName = m_lexeme.c_str();
+{% if union_member %}            token.value.{{ union_member }} = m_lexeme.data();{% endif %}
+            return Status::Ok;
+        }

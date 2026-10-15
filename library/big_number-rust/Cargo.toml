@@ -1,0 +1,15 @@
+[package]
+name = "big_number"
+version = "0.1.0"
+edition = "2021"
+description = "任意精度大整数 + 十进制浮点（C++ 版 library/big_number 的 Rust 移植，只依赖标准库）"
+default-run = "big-number-demo"
+
+# 库名与 C++ 版的 `libbig_number.a` 对齐：`use big_number::BigInt;`
+[lib]
+name = "big_number"
+path = "src/lib.rs"
+
+[[bin]]
+name = "big-number-demo"
+path = "src/main.rs"

@@ -1,0 +1,13 @@
+[package]
+name = "template_engine"
+version = "0.1.0"
+edition = "2021"
+description = "library/template 的 Rust 版：纯标准库文本模板引擎（{{ 变量 }} / {% if %} / {% for %} / {% include %} / {% raw %}）"
+default-run = "template-demo"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "template-demo"
+path = "src/main.rs"

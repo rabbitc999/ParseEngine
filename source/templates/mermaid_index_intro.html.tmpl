@@ -1,0 +1,3 @@
+{# 图示总览页的导语（Mermaid::projectFiles）。
+   变量：mode_label（模式标签，已 HTML 转义）。**末尾不带换行**。 #}
+<p class="note">本页把生成期算出来的状态机画成图：文法侧是 {{ mode_label }} 的 LR 状态机（状态 = LR 项集，边 = GOTO），词法侧是 <code>%token regex</code> / <code>%identifier</code> 编译出的 DFA。下面把所有图都内嵌了一遍，也可以点上面的链接单看图。</p>

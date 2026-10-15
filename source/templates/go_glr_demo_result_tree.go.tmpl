@@ -1,0 +1,8 @@
+{# GLR 演示程序里「打印全部语法树」那一段（%tree 文法）。 #}
+	for index := 0; index < engine.GLRResultCount(); index++ {
+		fmt.Printf("结果[%d] 语法树:\n", index)
+		tree := engine.GLRTree(index)
+		if tree != nil {
+			tree.Print()
+		}
+	}

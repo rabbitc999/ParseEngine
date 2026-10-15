@@ -1,0 +1,65 @@
+/* ============================================================
+ * 用 CSV 维护字面量别名表：%token NAME include "csv"
+ *
+ * 关键字表 / 指令表 / 枚举名表这类「一个 Token 有海量字面量」的场合，把别名
+ * 列表放进 CSV、用一条 %token 指令追加进来，比在 .gram 里写一长串
+ * `"a|b|c|..."` 好维护。语义只有一条：
+ *
+ *   %token NAME include "csv"
+ *     → 打开 CSV，只取**第一列**等于 NAME 的行，把每行的**第二列**作为
+ *       **字面量**追加到 NAME 的别名列表末尾（等价于逐行展开成
+ *       `%token NAME "字面量"`）。
+ *
+ * 三条容易踩错的边界（本示例都覆盖到了）：
+ *   1. 只「追加别名」，不新建 Token —— NAME 必须由普通 %token 声明
+ *      （`%token A include "..."` 自己也算一条声明）；
+ *   2. CSV 第一列出现文法里不存在的 token 名 → **整行静默忽略**；出现某个
+ *      Token 名但文法没对那个 Token 写 include → 同样忽略。本示例的
+ *      token_dict_kw.csv 里 B 的 2 行与 NOT_A_TOKEN 的 1 行就是对照组：
+ *      它们在 CSV 里，但文法只对 A（和 NUM）写了 include，所以一个都没进产物；
+ *   3. 第 2 列一律按**字面量**处理，绝不编译成正则 —— 要正则 Token 继续用
+ *      `%token regex NAME "..."`。
+ *
+ * 与手写声明完全等价（`--lang gram` 导出的是原文件，展开在内存里做）：
+ *   %token A include "token_dict_kw.csv"
+ *   %token <ival> NUM include "token_dict_num.csv"
+ * 展开后就是：
+ *   %token A "let|print|while"
+ *   %token <ival> NUM "num2|num3"
+ * 别名唯一性规则同手写：同一个 Token 下重复别名静默去重；不同 Token 用同一个
+ * 别名报错（错误指向 CSV 行）；别名撞上已声明的 Token 名也报错。
+ *
+ * 试用输入：
+ *   printf 'let num2 + num3 manual_b' | ./parser_demo
+ *     -> program / A(let) / NUM(num2) / PLUS(+) / NUM(num3) / B(manual_b)
+ *
+ * 对照实验：把输入换成 CSV 里 B 的那一行（unused_b1），词法器认不出来
+ * （B 的字面量表里只有手写的 "manual_b"）—— 这正是「未导入的整行被忽略」。
+ *
+ * 一个小坑：这份 CSV 里 NUM 的别名故意写成 "num2" / "num3" 而不是纯数字——
+ * 内置的 NUMBER 规则（整数 / 小数 / 科学计数）在「剩下的固定字面量」之前
+ * 匹配，纯数字串会先被吃成 NUMBER。真要用纯数字当别名，先 `%token NUMBER`
+ * 之类把内置规则接管掉。
+ * ============================================================ */
+
+%start program
+%tree
+
+%union {
+    int ival;
+}
+
+/* 带成员的 Token 也能用 include：只为 NUM 追加字面量别名，<ival> 成员绑定
+ * 不变，别名匹配到的 Token 仍是 NUM。 */
+%token <ival> NUM include "token_dict_num.csv"
+
+/* A 的别名（let / print / while）全部来自 CSV；同一份 CSV 里 B 与
+ * NOT_A_TOKEN 的行因为没写 include，整行忽略。 */
+%token A include "token_dict_kw.csv"
+
+/* 手写字面量的 Token：与 CSV 无关，写法完全不变。 */
+%token B "manual_b"
+
+%token PLUS "+"
+
+program := A NUM PLUS NUM B;

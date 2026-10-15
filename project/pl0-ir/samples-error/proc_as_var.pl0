@@ -1,0 +1,6 @@
+var x;
+procedure p;
+    begin end;
+begin
+    x := p
+end.

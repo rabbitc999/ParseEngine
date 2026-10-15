@@ -1,0 +1,29 @@
+        # 内建双引号字符串：词法阶段完成反转义，结果就是语义值。
+        if self._peek_char() == '"':
+            self._lexeme = ""
+            self._read_char()
+            while (self._peek_char() != "") and (self._peek_char() != '"'):
+                ch = self._read_char()
+                if ch == "\\":
+                    escaped = self._read_char()
+                    if escaped == "n":
+                        ch = "\n"
+                    elif escaped == "r":
+                        ch = "\r"
+                    elif escaped == "t":
+                        ch = "\t"
+                    elif escaped == "\\":
+                        ch = "\\"
+                    elif escaped == '"':
+                        ch = '"'
+                    else:
+                        return STATUS_ERR_LEXER, token
+                self._lexeme += ch
+            if self._peek_char() != '"':
+                # 读到输入末尾还没等到收尾的引号
+                return STATUS_ERR_LEX_UNTERMINATED, token
+            self._read_char()
+            token.type = TOKEN_STRING
+            token.text = self._lexeme
+            token.value = self._lexeme
+            return STATUS_OK, token

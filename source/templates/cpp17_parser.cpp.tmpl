@@ -1,0 +1,59 @@
+/**
+ * {% if lex %}lexer.cpp —— 词法模式（%mode lex）实现（C++17）{% else %}parser.cpp —— {{ mode_name }} 解析器实现（C++17）{% endif %}
+ *
+ * 由 ParseEngine 自动生成，请勿手工修改。
+ *
+ * 文件布局：
+ *   1) 未命名命名空间：生成期算好的分析表 / 词法 DFA / 树与动作辅助函数；
+ *   2) Engine::Private ：{% if lex %}词法器{% else %}词法器与分析驱动{% endif %}（Qt 风格 d-pointer）；
+ *   3) 公开 API 定义   ：statusName / tokenName / tokenText / Tree / Engine。
+ *
+ * 内存全部由标准库管理（ParserMemory::String / std::string_view / std::vector /
+ * std::unique_ptr），可由 PARSER_MEMORY_NAMESPACE 指定自定义分配器。
+ */
+
+#include "{{ hpp_name }}"
+
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cerrno>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <deque>
+#include <memory>
+#include <map>
+#include <regex>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+namespace {{ ns }}
+{
+
+namespace
+{
+{{ tables }}
+{{ helpers }}
+{{ tree_helpers }}
+{{ destructor_dispatch }}}
+
+class Engine::Private
+{
+public:
+{{ core }}
+{{ lexer }}
+{{ lr_stack }}
+{{ lr_loop }}
+{{ glr_driver }}{{ ll_driver }}{{ dd_driver }}
+};
+
+{{ public_api }}
+
+} // namespace {{ ns }}

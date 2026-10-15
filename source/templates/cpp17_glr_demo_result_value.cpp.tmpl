@@ -1,0 +1,10 @@
+{# GLR 演示程序里「打印全部语义结果」那一段（非 %tree 文法）。 #}
+    for (std::size_t index = 0u; index < engine.glrResultCount(); ++index)
+    {
+        const ParserValue_T *value = engine.glrResult(index);
+        if (value != nullptr)
+        {
+            std::printf("结果[%u]: %d\n", static_cast<unsigned>(index),
+                        static_cast<int>(*value));
+        }
+    }

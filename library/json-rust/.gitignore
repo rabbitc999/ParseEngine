@@ -1,0 +1,7 @@
+# 从仓库根带 --manifest-path 跑 cargo 时的落点（crate 目录里跑会按 .cargo/config.toml
+# 落到仓库的 build/json/rust）。
+#
+# 理论上仓库根的 .gitignore 里也该有一条 `/library/json-rust/target/`（别的 *-rust
+# crate 都是那么写的），但这棵树常有多人 / 多 agent 同时在改根 .gitignore ——
+# 那一行留给"把大家的改动一起落盘"的那次提交；本 crate 自己兜住，不依赖它。
+/target/

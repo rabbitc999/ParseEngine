@@ -1,0 +1,7 @@
+{# 把若干张图拼成 Markdown 代码块（Mermaid::markdownFences）。
+   变量：diagrams（数组，元素 {title, source}）。本模板自带行尾换行。 #}
+{% for diagram in diagrams %}[状态机图示] {{ diagram.title }}
+```mermaid
+{{ diagram.source }}```
+
+{% endfor %}

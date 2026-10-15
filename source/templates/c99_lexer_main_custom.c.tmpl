@@ -1,0 +1,23 @@
+/**
+ * {% if main_from_grammar %}main.c —— 入口来自文法里的 %main 段{% else %}main.c —— 词法模式演示：读标准输入，逐个打印 Token 的类型{% endif %}
+ * 由 ParseEngine 自动生成（LEX）
+ *
+ * 输入从标准输入一直读到 EOF（不是只读一行），一行输入一个 Token：
+ *
+ *   $ printf 'a + 12' | ./lexer_demo
+ *   VARIABLE     "a"          1:1
+ *   PLUS         "+"          1:3
+ *   NUMBER       "12"         1:5
+ *   END          ""           1:7
+ *   共 3 个 Token
+ *
+ * 认不出来的字符 / 字符串没有闭合会在最后打印一行错误说明并返回 1。
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "lexer.h"
+
+{{ lex_demo_main }}

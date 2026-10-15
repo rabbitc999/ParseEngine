@@ -1,0 +1,11 @@
+{ 字符串：赋值 + 拼接 + write }
+{ 期望: hello-world-42 }
+program string_cat;
+  str a;
+  str b;
+begin
+  a := "hello";
+  b := "-world";
+  a := a + b;
+  write(a + "-" + "42")
+end.

@@ -1,0 +1,633 @@
+/* ============================================================
+ * project/mini-basic/mini_basic.gram —— Mini-BASIC → 栈式字节码（C++17）
+ *
+ * 这是仓库里第二份「完整工程」（第一份是 project/pl0-ir/：PL/0 → 三元式 /
+ * 四元式）。它更小，但把「生成器 + 用户语义处理」的另一种典型分工走通了：
+ * 动作在**归约的那一刻**直接发出字节码，最后由一个几十行的栈式虚拟机执行，
+ * 所以样例能真的跑出结果（不是只打印语法树）。
+ *
+ * 想演示的四件事：
+ *   1. 用 %left / %right + %prec 在**生成期**消解表达式二义：expr 的规则写成
+ *      二义形式，优先级全交给生成器，运行时一句判断都没有；
+ *   2. if / while 的跳转**回填**：%epilogue 里三个补丁栈（JZ 待回填、if 的
+ *      JMP 待回填、while 的循环起点）就够，不需要 AST；
+ *   3. lvalue / rvalue 分开：name 只登记名字，expr 里的 name 才发 LOAD，
+ *      于是 `let x = 1;` 与 `print x;` 共用一条 name 规则；
+ *   4. 注释由 %trivia 在**词法器**里跳过（' 与 REM 两种 BASIC 注释），
+ *      语法层与运行时都不用管它。
+ *
+ * 只针对 C++17 产物（--lang cpp17）：%namespace / %epilogue / %main 的写法
+ * 都按 C++17 来，没有为 C99 / Python 后端做适配。
+ *
+ * 语言范围（刻意保持小）：
+ *   语句：let x = 表达式;  /  x = 表达式;  /  print 表达式;  /
+ *         if 条件 then 语句表 [else 语句表] end;  /
+ *         while 条件 do 语句表 end;
+ *   表达式：+ - * / %、一元负号、括号、比较（== != < <= > >=，结果是 1 / 0）
+ *   变量：赋值即声明（没赋过值就是 0），名字区分大小写
+ *   注释：' 到行尾、REM 到行尾（两种都由 %trivia 跳过）
+ * 不支持：字符串、数组、函数、goto、行号、嵌套注释。
+ *
+ * 语义值 ParserValue_T 是 double（%value_type double），而且**必须是 POD**：
+ * 生成的运行时会整块 memset / 按值拷贝。所以：
+ *   - NUMBER 的语义值 = 数字本身；
+ *   - ID 的语义值 = 名字在 %epilogue 名字池（std::vector<std::string>）里的下标；
+ *   - 其余 Token = 0。
+ * 名字池、字节码表、补丁栈都放在 %epilogue 的全局状态里（不是语义值），
+ * 所以类型仍然是 POD。
+ * ============================================================ */
+
+%mode lalr
+%namespace basic
+%value_type double
+
+/* ---- 词法：标识符用 %identifier，关键字与运算符是固定字面量 ---- */
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+/* ---- 注释：交给生成出来的词法器跳过（%trivia = 匹配即丢）----
+ *   ' ...    到行尾
+ *   REM ...  到行尾；REM 后面必须是行尾 / 空白 / 非标识符字符，
+ *            这样 `remark` / `REMARK` 这类名字还能当变量用
+ * 两条都是「行尾注释」，不需要跨行配对，正好是 DFA 最擅长的形状。 */
+%trivia "'[^\n]*"
+%trivia "REM[^A-Za-z0-9_][^\n]*"
+
+%define LET   "let"
+%define PRINT "print"
+%define IF    "if"
+%define THEN  "then"
+%define ELSE  "else"
+%define END   "end"
+%define WHILE "while"
+%define DO    "do"
+
+%define MOD   "%"
+%define PLUS  "+"
+%define MINUS "-"
+%define STAR  "*"
+%define SLASH "/"
+
+%define LPAREN "("
+%define RPAREN ")"
+%define ASSIGN "="
+%define EQ     "=="
+%define NE     "!="
+%define LE     "<="
+%define GE     ">="
+%define LT     "<"
+%define GT     ">"
+%define SEMI   ";"
+
+/* 优先级与结合性：expr 的二义在生成期就消解掉，运行时不再判断。
+ * 比较最低、加减次之、乘除取模最高；一元负号用 %prec 抬到最高。 */
+%left  EQ NE LT LE GT GE
+%left  PLUS MINUS
+%left  STAR SLASH MOD
+%right UMINUS
+
+%start program
+
+/* ---- 程序与语句 ----
+ * 每条产生式都要有动作（没写 %tree）：语句层不产生值，统一回 0。 */
+program := stmt_list { $$ = 0; } ;
+
+stmt_list := %empty           { $$ = 0; }
+           | stmt_list stmt   { $$ = $1; } ;
+
+stmt := let_stmt   { $$ = $1; }
+      | print_stmt { $$ = $1; }
+      | if_stmt    { $$ = $1; }
+      | while_stmt { $$ = $1; } ;
+
+/* lvalue：只登记名字（发不发 LOAD 由用它的地方决定）。
+ * 标识符的内建 Token 名是 VARIABLE（%identifier 声明的是它的模式）。 */
+name := VARIABLE { $$ = $1; } ;
+
+let_stmt := LET name ASSIGN expr SEMI { Basic_EmitStore($2, $line); $$ = 0; }
+          | name ASSIGN expr SEMI     { Basic_EmitStore($1, $line); $$ = 0; } ;
+
+print_stmt := PRINT expr SEMI { Basic_EmitPrint($line); $$ = 0; } ;
+
+/* if 分三步归约：算完条件先发 JZ（待回填），语句表结束再回填 JZ、发 JMP */
+if_head := IF expr { Basic_IfHead($line); $$ = 0; } ;
+
+if_then := if_head THEN stmt_list { Basic_IfThen($line); $$ = 0; } ;
+
+if_stmt := if_then END SEMI                { Basic_IfEnd(); $$ = 0; }
+         | if_then ELSE stmt_list END SEMI { Basic_IfEnd(); $$ = 0; } ;
+
+/* while 同理，但循环起点必须在**条件代码之前**记下来——否则回跳会跳回 JZ，
+ * 第二次判断时栈上已经没有条件值了。所以用 while_mark 这个中间非终结符
+ * 当「mid-rule action」：先记起点，再编译条件，最后发 JZ。 */
+while_mark := WHILE { Basic_WhileMark(); $$ = 0; } ;
+
+while_head := while_mark expr { Basic_WhileHead($line); $$ = 0; } ;
+
+while_stmt := while_head DO stmt_list END SEMI { Basic_WhileEnd($line); $$ = 0; } ;
+
+/* ---- 表达式：二义写法 + 优先级声明 ---- */
+expr := expr PLUS expr    { Basic_EmitBinary(BASIC_OP_ADD, $line); $$ = 0; }
+      | expr MINUS expr   { Basic_EmitBinary(BASIC_OP_SUB, $line); $$ = 0; }
+      | expr STAR expr    { Basic_EmitBinary(BASIC_OP_MUL, $line); $$ = 0; }
+      | expr SLASH expr   { Basic_EmitBinary(BASIC_OP_DIV, $line); $$ = 0; }
+      | expr MOD expr     { Basic_EmitBinary(BASIC_OP_MOD, $line); $$ = 0; }
+      | expr EQ expr      { Basic_EmitBinary(BASIC_OP_EQ, $line); $$ = 0; }
+      | expr NE expr      { Basic_EmitBinary(BASIC_OP_NE, $line); $$ = 0; }
+      | expr LT expr      { Basic_EmitBinary(BASIC_OP_LT, $line); $$ = 0; }
+      | expr LE expr      { Basic_EmitBinary(BASIC_OP_LE, $line); $$ = 0; }
+      | expr GT expr      { Basic_EmitBinary(BASIC_OP_GT, $line); $$ = 0; }
+      | expr GE expr      { Basic_EmitBinary(BASIC_OP_GE, $line); $$ = 0; }
+      | MINUS expr %prec UMINUS { Basic_EmitUnary(BASIC_OP_NEG, $line); $$ = 0; }
+      | LPAREN expr RPAREN      { $$ = $2; }
+      | NUMBER                  { Basic_EmitPush($1, $line); $$ = 0; }
+      | name                    { Basic_EmitLoad($1, $line); $$ = 0; } ;
+
+%code
+/* ---------------------------------------------------------------
+ * 用户代码块：类型、算子码、Token→语义值的钩子、帮助函数声明。
+ * 这里的内容进 basic_parser_user.h，被 basic_parser.cpp 与 basic_main.cpp 共享，
+ * 所以只放声明与宏（函数定义放 %epilogue）。
+ * 前缀用 Basic_：Parser_ 是生成器的保留前缀，不要碰。
+ * --------------------------------------------------------------- */
+
+/* basic_main.cpp 与 basic_parser.cpp 都从这里拿声明，顺手把两个文件都要用的
+ * 标准库头带上（main 那边只 include 了 cstdio / cstring / memory / string）。 */
+#include <stdio.h>
+#include <string.h>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <vector>
+
+/* 栈式虚拟机的算子码（动作发它，%epilogue 里的 Basic_Run 执行它） */
+typedef enum Basic_Op_T
+{
+    BASIC_OP_PUSH = 0,  /* 压常量 */
+    BASIC_OP_LOAD,      /* 压变量 */
+    BASIC_OP_STORE,     /* 弹栈顶存进变量 */
+    BASIC_OP_ADD,       /* 二元：弹右、弹左、压结果 */
+    BASIC_OP_SUB,
+    BASIC_OP_MUL,
+    BASIC_OP_DIV,
+    BASIC_OP_MOD,
+    BASIC_OP_NEG,       /* 一元：弹一个、压相反数 */
+    BASIC_OP_EQ,        /* 比较：结果 1 / 0 */
+    BASIC_OP_NE,
+    BASIC_OP_LT,
+    BASIC_OP_LE,
+    BASIC_OP_GT,
+    BASIC_OP_GE,
+    BASIC_OP_JMP,       /* 无条件跳 */
+    BASIC_OP_JZ,        /* 栈顶为 0 时跳 */
+    BASIC_OP_PRINT,     /* 弹栈顶打印（%g） */
+    BASIC_OP_HALT
+} Basic_Op_T;
+
+/* Token → 语义值：数字取词法器解析好的 value，标识符登记名字后取名字池下标。
+ * 宏写在 user 头里，但展开在 basic_parser.cpp 的命名空间内，所以能直接用
+ * TOKEN_*（与 project/pl0-ir/pl0.gram 同一套写法）。 */
+#define PARSER_USER_TOKEN_VALUE(pToken)                                 \
+    Basic_TokenValue((((pToken)->type) == TOKEN_NUMBER) ? 1 : 0,        \
+                     (((pToken)->type) == TOKEN_VARIABLE) ? 1 : 0,      \
+                     (double)((pToken)->value), (pToken)->pName)
+
+/* ---- 代码生成（实现见 %epilogue）---- */
+double Basic_TokenValue(int isNumber, int isIdentifier, double numberValue,
+                        const char *pName);
+double Basic_InternName(const char *pName);
+
+void   Basic_EmitPush(double value, int line);
+void   Basic_EmitLoad(double nameIndex, int line);
+void   Basic_EmitStore(double nameIndex, int line);
+void   Basic_EmitBinary(int op, int line);
+void   Basic_EmitUnary(int op, int line);
+void   Basic_EmitPrint(int line);
+
+void   Basic_IfHead(int line);
+void   Basic_IfThen(int line);
+void   Basic_IfEnd(void);
+void   Basic_WhileMark(void);
+void   Basic_WhileHead(int line);
+void   Basic_WhileEnd(int line);
+
+/* ---- 虚拟机（%main 调）---- */
+void   Basic_Reset(void);
+void   Basic_Finish(void);
+int    Basic_Run(void);
+void   Basic_DumpCode(void);
+%endcode
+
+%epilogue
+/* ---------------------------------------------------------------
+ * 代码生成与栈式虚拟机（贴在 basic_parser.cpp 末尾，命名空间内）。
+ * 全局状态：字节码表、名字池、三个补丁栈 —— 都是运行时状态，
+ * 不放语义值，所以 ParserValue_T 仍然是 POD。
+ * --------------------------------------------------------------- */
+
+/* 一条指令：算子 + 参数（常量值 / 变量下标 / 跳转目标）+ 源文法行号 */
+struct Basic_Instr_T
+{
+    int    op;
+    double arg;
+    int    line;
+};
+
+namespace
+{
+std::vector<Basic_Instr_T> g_basicCode;        /* 字节码 */
+std::vector<std::string>   g_basicNames;       /* 名字池（ID 的语义值是它的下标） */
+std::vector<std::size_t>   g_basicFalseJumps;  /* 待回填的 JZ（if / while 共用） */
+std::vector<std::size_t>   g_basicEndJumps;    /* if 的 JMP：跳到最后 */
+std::vector<std::size_t>   g_basicLoopStarts;  /* while 的循环起点 */
+} /* namespace */
+
+/* ---- 名字池与 Token 钩子 ---- */
+
+double Basic_InternName(const char *pName)
+{
+    if (pName == NULL)
+    {
+        return 0.0;
+    }
+    for (std::vector<std::string>::size_type index = 0;
+         index < g_basicNames.size(); ++index)
+    {
+        if (g_basicNames[index] == pName)
+        {
+            return static_cast<double>(index);
+        }
+    }
+    g_basicNames.push_back(std::string(pName));
+    return static_cast<double>(g_basicNames.size() - 1u);
+}
+
+double Basic_TokenValue(int isNumber, int isIdentifier, double numberValue,
+                        const char *pName)
+{
+    if (isNumber != 0)
+    {
+        return numberValue;
+    }
+    if ((isIdentifier != 0) && (pName != NULL))
+    {
+        return Basic_InternName(pName);
+    }
+    return 0.0;
+}
+
+/* ---- 发指令与回填 ---- */
+
+void Basic_Emit(int op, double arg, int line)
+{
+    Basic_Instr_T instr;
+    instr.op = op;
+    instr.arg = arg;
+    instr.line = line;
+    g_basicCode.push_back(instr);
+}
+
+/* 发一条「目标还不知道」的跳转，返回它的下标（等会儿回填） */
+std::size_t Basic_EmitPendingJump(int op, int line)
+{
+    const std::size_t index = g_basicCode.size();
+    Basic_Emit(op, 0.0, line);
+    return index;
+}
+
+/* 把第 index 条指令的目标改成「当前末尾」 */
+void Basic_PatchHere(std::size_t index)
+{
+    if (index < g_basicCode.size())
+    {
+        g_basicCode[index].arg = static_cast<double>(g_basicCode.size());
+    }
+}
+
+void Basic_EmitPush(double value, int line)
+{
+    Basic_Emit(BASIC_OP_PUSH, value, line);
+}
+
+void Basic_EmitLoad(double nameIndex, int line)
+{
+    Basic_Emit(BASIC_OP_LOAD, nameIndex, line);
+}
+
+void Basic_EmitStore(double nameIndex, int line)
+{
+    Basic_Emit(BASIC_OP_STORE, nameIndex, line);
+}
+
+void Basic_EmitBinary(int op, int line)
+{
+    Basic_Emit(op, 0.0, line);
+}
+
+void Basic_EmitUnary(int op, int line)
+{
+    Basic_Emit(op, 0.0, line);
+}
+
+void Basic_EmitPrint(int line)
+{
+    Basic_Emit(BASIC_OP_PRINT, 0.0, line);
+}
+
+/* ---- if / while：只用三个补丁栈，不建语法树 ---- */
+
+void Basic_IfHead(int line)
+{
+    /* 条件已经在栈顶：假就跳到 else / end */
+    g_basicFalseJumps.push_back(Basic_EmitPendingJump(BASIC_OP_JZ, line));
+}
+
+void Basic_IfThen(int line)
+{
+    /* then 分支走完。顺序很重要：**先**发那条「跳过 else」的 JMP，再把 JZ
+     * 回填到 JMP 的后面——这样条件为假时是从 JMP 之后开始执行 else 分支；
+     * 反过来（先回填再发 JMP）JZ 会正好落在 JMP 上，条件为假就直接跳到
+     * end，else 分支永远不执行。没有 else 时这条 JMP 跳到自己后面，无副作用。 */
+    const std::size_t endJump = Basic_EmitPendingJump(BASIC_OP_JMP, line);
+    Basic_PatchHere(g_basicFalseJumps.back());
+    g_basicFalseJumps.pop_back();
+    g_basicEndJumps.push_back(endJump);
+}
+
+void Basic_IfEnd(void)
+{
+    /* 没有 else 时这条 JMP 跳到自己后面，无副作用 */
+    Basic_PatchHere(g_basicEndJumps.back());
+    g_basicEndJumps.pop_back();
+}
+
+/* WHILE 刚被移进：条件代码还没发，这里的末尾就是循环开始的地方 */
+void Basic_WhileMark(void)
+{
+    g_basicLoopStarts.push_back(g_basicCode.size());
+}
+
+/* 条件编译完（值在栈顶）：发一条待回填的 JZ，为假时跳出循环 */
+void Basic_WhileHead(int line)
+{
+    g_basicFalseJumps.push_back(Basic_EmitPendingJump(BASIC_OP_JZ, line));
+}
+
+void Basic_WhileEnd(int line)
+{
+    Basic_Emit(BASIC_OP_JMP, static_cast<double>(g_basicLoopStarts.back()), line);
+    g_basicLoopStarts.pop_back();
+    Basic_PatchHere(g_basicFalseJumps.back());
+    g_basicFalseJumps.pop_back();
+}
+
+/* ---- 栈式虚拟机 ---- */
+
+double Basic_Pop(std::vector<double> &stack)
+{
+    if (stack.empty())
+    {
+        /* 编译正确时不会走到这儿；真走到了说明字节码生成有 bug，
+         * 报一句比让 vector 越界崩掉强。 */
+        fprintf(stderr, "内部错误：虚拟机栈空了（字节码生成有 bug）\n");
+        return 0.0;
+    }
+    const double value = stack.back();
+    stack.pop_back();
+    return value;
+}
+
+int Basic_RuntimeError(int line, const char *pMessage)
+{
+    if (line > 0)
+    {
+        fprintf(stderr, "运行时错误：第 %d 行：%s\n", line, pMessage);
+    }
+    else
+    {
+        fprintf(stderr, "运行时错误：%s\n", pMessage);
+    }
+    return 1;
+}
+
+void Basic_Reset(void)
+{
+    g_basicCode.clear();
+    g_basicNames.clear();
+    g_basicFalseJumps.clear();
+    g_basicEndJumps.clear();
+    g_basicLoopStarts.clear();
+}
+
+void Basic_Finish(void)
+{
+    Basic_Emit(BASIC_OP_HALT, 0.0, 0);
+}
+
+/* 反汇编（MINI_BASIC_DUMP=1 时 %main 会打一份到 stderr）：
+ * 看「文法动作到底发出了什么指令」比读代码快得多。 */
+void Basic_DumpCode(void)
+{
+    static const char *const kOpNames[] = {
+        "PUSH", "LOAD", "STORE", "ADD",  "SUB",   "MUL", "DIV",
+        "MOD",  "NEG",  "EQ",    "NE",   "LT",    "LE",  "GT",
+        "GE",   "JMP",  "JZ",    "PRINT", "HALT"};
+    for (std::size_t index = 0; index < g_basicCode.size(); ++index)
+    {
+        const Basic_Instr_T &instr = g_basicCode[index];
+        const char *pName = "?";
+        if ((instr.op >= 0) &&
+            (static_cast<std::size_t>(instr.op) <
+             (sizeof(kOpNames) / sizeof(kOpNames[0]))))
+        {
+            pName = kOpNames[instr.op];
+        }
+        fprintf(stderr, "%4u: %-5s %g    (行 %d)\n", (unsigned)index, pName,
+                instr.arg, instr.line);
+    }
+}
+
+int Basic_Run(void)
+{
+    std::vector<double> stack;
+    std::vector<double> variables(g_basicNames.size(), 0.0);
+    std::size_t pc = 0;
+
+    while (pc < g_basicCode.size())
+    {
+        const Basic_Instr_T instr = g_basicCode[pc];
+        const std::size_t next = pc + 1u;
+        double left = 0.0;
+        double right = 0.0;
+
+        switch (instr.op)
+        {
+        case BASIC_OP_PUSH:
+            stack.push_back(instr.arg);
+            pc = next;
+            break;
+        case BASIC_OP_LOAD:
+            stack.push_back(variables[static_cast<std::size_t>(instr.arg)]);
+            pc = next;
+            break;
+        case BASIC_OP_STORE:
+            variables[static_cast<std::size_t>(instr.arg)] = Basic_Pop(stack);
+            pc = next;
+            break;
+        case BASIC_OP_ADD:
+        case BASIC_OP_SUB:
+        case BASIC_OP_MUL:
+        case BASIC_OP_DIV:
+        case BASIC_OP_MOD:
+        case BASIC_OP_EQ:
+        case BASIC_OP_NE:
+        case BASIC_OP_LT:
+        case BASIC_OP_LE:
+        case BASIC_OP_GT:
+        case BASIC_OP_GE:
+            right = Basic_Pop(stack);
+            left = Basic_Pop(stack);
+            if ((instr.op == BASIC_OP_DIV) || (instr.op == BASIC_OP_MOD))
+            {
+                if (right == 0.0)
+                {
+                    return Basic_RuntimeError(instr.line, "除以零");
+                }
+            }
+            if (instr.op == BASIC_OP_ADD)
+            {
+                stack.push_back(left + right);
+            }
+            else if (instr.op == BASIC_OP_SUB)
+            {
+                stack.push_back(left - right);
+            }
+            else if (instr.op == BASIC_OP_MUL)
+            {
+                stack.push_back(left * right);
+            }
+            else if (instr.op == BASIC_OP_DIV)
+            {
+                stack.push_back(left / right);
+            }
+            else if (instr.op == BASIC_OP_MOD)
+            {
+                stack.push_back(fmod(left, right));
+            }
+            else if (instr.op == BASIC_OP_EQ)
+            {
+                stack.push_back((left == right) ? 1.0 : 0.0);
+            }
+            else if (instr.op == BASIC_OP_NE)
+            {
+                stack.push_back((left != right) ? 1.0 : 0.0);
+            }
+            else if (instr.op == BASIC_OP_LT)
+            {
+                stack.push_back((left < right) ? 1.0 : 0.0);
+            }
+            else if (instr.op == BASIC_OP_LE)
+            {
+                stack.push_back((left <= right) ? 1.0 : 0.0);
+            }
+            else if (instr.op == BASIC_OP_GT)
+            {
+                stack.push_back((left > right) ? 1.0 : 0.0);
+            }
+            else
+            {
+                stack.push_back((left >= right) ? 1.0 : 0.0);
+            }
+            pc = next;
+            break;
+        case BASIC_OP_NEG:
+            stack.push_back(0.0 - Basic_Pop(stack));
+            pc = next;
+            break;
+        case BASIC_OP_JMP:
+            pc = static_cast<std::size_t>(instr.arg);
+            break;
+        case BASIC_OP_JZ:
+            if (Basic_Pop(stack) == 0.0)
+            {
+                pc = static_cast<std::size_t>(instr.arg);
+            }
+            else
+            {
+                pc = next;
+            }
+            break;
+        case BASIC_OP_PRINT:
+            /* %g：整数不带小数点，1.5 就是 1.5 —— 期望文件好写也好比 */
+            printf("%g\n", Basic_Pop(stack));
+            pc = next;
+            break;
+        case BASIC_OP_HALT:
+            return 0;
+        default:
+            return Basic_RuntimeError(instr.line, "遇到不认识的指令");
+        }
+    }
+    return 0;
+}
+
+%main
+/* ============================================================
+ * 入口：mini_basic [源文件] —— 不给文件就读标准输入。
+ * 三步：解析（边归约边发字节码）→ 收尾发 HALT → 跑虚拟机。
+ *
+ * %main 会替换内建 demo main，外壳（stdio / fstream / string /
+ * basic_parser.hpp）仍是模板提供的；C++17 下它是独立编译单元，
+ * 模板已经插好 `using namespace basic;`，所以下面直接用 Basic_* 与
+ * Parser_RunText / ParserValue_T。
+ * ============================================================ */
+int main(int argc, char **argv)
+{
+    ParserValue_T result;
+    int32_t status = 0;
+    const ParserError_T *pError = NULL;
+    std::ifstream stream;
+    std::string text;
+
+    if (argc > 2)
+    {
+        fprintf(stderr, "用法: %s [Mini-BASIC 源文件]\n", argv[0]);
+        return 2;
+    }
+    if (argc == 2)
+    {
+        stream.open(argv[1], std::ios::binary);
+        if (!stream)
+        {
+            fprintf(stderr, "打不开文件: %s\n", argv[1]);
+            return 2;
+        }
+        text.assign(std::istreambuf_iterator<char>(stream),
+                    std::istreambuf_iterator<char>());
+        stream.close();
+    }
+    else
+    {
+        text.assign(std::istreambuf_iterator<char>(std::cin),
+                    std::istreambuf_iterator<char>());
+    }
+
+    Basic_Reset();
+    memset(&result, 0, sizeof(result));
+    status = Parser_RunText(text.c_str(), &result);
+    if (status != PARSER_OK)
+    {
+        pError = Parser_GetLastError();
+        /* 错误消息本身已经含「语法错误：期望 X / Y 之一，实际是 Z」，
+         * 这里只把第 2 项起（结构化位置）拼在最前面。 */
+        fprintf(stderr, "第 %u 行第 %u 列：%s\n", (unsigned)pError->line,
+                (unsigned)pError->column, pError->message);
+        return 1;
+    }
+
+    Basic_Finish();
+    if (getenv("MINI_BASIC_DUMP") != NULL)
+    {
+        Basic_DumpCode();
+    }
+    return Basic_Run();
+}

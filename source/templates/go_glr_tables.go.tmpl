@@ -1,0 +1,22 @@
+{# GLR 的冲突候选动作表（同一个 ACTION 单元里除主动作外的冲突候选）。
+   变量：start_symbol / max_path_depth / max_path_visits /
+   max_recovery_deletes / extra_start、extra_count（[][]int32 初值文本）/
+   extra_data（[]int32 初值文本）。 #}
+// GLR 额外候选动作：同一个 ACTION 单元里除主动作外的冲突候选。
+const sParserGlrStartSymbol int32 = {{ start_symbol }}
+
+// sParserGlrMaxRecoveryDeletes 一次 GLR 错误恢复最多吞几个 Token。
+const sParserGlrMaxRecoveryDeletes = {{ max_recovery_deletes }}
+
+// sParserMaxPathDepth / sParserMaxPathVisits：归约路径的最大长度、单次解析最多访问多少条路径。
+const sParserMaxPathDepth = {{ max_path_depth }}
+
+const sParserMaxPathVisits = {{ max_path_visits }}
+
+var sParserGlrExtraStart = [][]int32{{ extra_start }}
+
+var sParserGlrExtraCount = [][]int32{{ extra_count }}
+
+var sParserGlrExtraData = []int32{
+	{{ extra_data }},
+}

@@ -1,0 +1,35 @@
+/* ---------- 图表解析数据 ---------- */
+static constexpr int k_chartStart = {{ start }};
+static constexpr int k_chartTerminalCount = {{ terminal_count }};
+static constexpr int k_chartNontermCount = {{ nonterm_count }};
+static constexpr int k_chartProductionCount = {{ production_count }};
+static constexpr int k_chartUnaryCount = {{ unary_count }};
+static constexpr int k_chartBinaryCount = {{ binary_count }};
+static constexpr bool k_chartAcceptsEmpty = {% if accepts_empty %}true{% else %}false{% endif %};
+static constexpr int k_chartLhs[] = {
+{% for n in lhs %}    {{ n }},
+{% endfor %}};
+static constexpr int k_chartRhsStart[] = {
+{% for n in rhs_start %}    {{ n }},
+{% endfor %}};
+static constexpr int k_chartRhsLength[] = {
+{% for n in rhs_length %}    {{ n }},
+{% endfor %}};
+static constexpr int k_chartRhsSymbols[] = {
+{% for n in rhs_symbols %}    {{ n }},
+{% endfor %}};
+static constexpr int k_chartUnaryLhs[] = {
+{% for n in unary_lhs %}    {{ n }},
+{% endfor %}};
+static constexpr int k_chartUnaryToken[] = {
+{% for n in unary_token %}    {{ n }},
+{% endfor %}};
+static constexpr int k_chartBinaryLhs[] = {
+{% for n in binary_lhs %}    {{ n }},
+{% endfor %}};
+static constexpr int k_chartBinaryLeft[] = {
+{% for n in binary_left %}    {{ n }},
+{% endfor %}};
+static constexpr int k_chartBinaryRight[] = {
+{% for n in binary_right %}    {{ n }},
+{% endfor %}};

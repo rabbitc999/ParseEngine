@@ -1,0 +1,6 @@
+{# GLR 演示程序里「打印全部语义结果」那一段（非 %tree 文法）。 #}
+	for index := 0; index < engine.GLRResultCount(); index++ {
+		if value, ok := engine.GLRResult(index); ok {
+			fmt.Printf("结果[%d]: %v\n", index, value)
+		}
+	}

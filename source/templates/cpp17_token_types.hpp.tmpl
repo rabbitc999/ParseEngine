@@ -1,0 +1,10 @@
+/// 语义值类型：`%value_type` / `%union` 指定；都没有时是 int。
+{{ value_type_decl }}
+/// 词法单元类型（末尾的 TOKEN_END / TOKEN_INVALID 是哨兵）。
+enum TokenType : std::uint16_t
+{
+    {% for t in tokens %}{{ t }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+
+/// Token 类型个数（含 TOKEN_INVALID），也是 kTokenNames 的长度。
+inline constexpr std::size_t kTokenNameCount = {{ token_name_count }}u;

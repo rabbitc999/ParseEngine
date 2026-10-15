@@ -1,0 +1,100 @@
+/// 编译一条词法正则（`%token regex` / `%identifier` / `%commit`）。
+///
+/// 文法里的正则生成期已经校验过一遍（没通过时是生成期警告），这里是**目标语言
+/// 自己**的判断：真有问题就 panic 出来，省得对着「词法单元对不上」查半天。
+fn lex_compile_regex(pattern: &str) -> Regex
+{
+    match Regex::new(pattern)
+    {
+        Ok(value) => value,
+        Err(err) => panic!("正则 {} 编译失败：{}", pattern, err),
+    }
+}
+
+/// 用官方的 `regex` 从 `start`（**UTF-8 字节偏移**）起匹配，返回匹配到的
+/// **字符数**（0 = 当前位置匹配不上）。
+///
+/// `Regex::find_at` 是从 `start` 往后找、不锚定，所以要确认命中真的从 `start`
+/// 开始；最长前缀的语义靠表达式自己的贪婪量词，与 C99 的 DFA 表、C++17 的
+/// `std::regex` / Python 的 `re` / C# 的 `Regex` 是同一套口径。
+fn lex_regex_match(pattern: &Regex, text: &str, start: usize) -> usize
+{
+    match pattern.find_at(text, start)
+    {
+        Some(found) if found.start() == start => found.as_str().chars().count(),
+        _ => 0,
+    }
+}
+
+/// 字面量里的 `\b` 占位符（生成期写成 0x1F）：命中任意一个空白字符。
+const BLANK_WILDCARD: char = '\u{1f}';
+
+fn is_digit(ch: Option<char>) -> bool
+{
+    matches!(ch, Some('0'..='9'))
+}
+
+fn is_alpha(ch: Option<char>) -> bool
+{
+    matches!(ch, Some('a'..='z') | Some('A'..='Z'))
+}
+
+fn is_alnum(ch: Option<char>) -> bool
+{
+    is_alpha(ch) || is_digit(ch)
+}
+
+fn is_word(ch: Option<char>) -> bool
+{
+    is_alnum(ch) || matches!(ch, Some('_'))
+}
+
+fn is_space(ch: Option<char>) -> bool
+{
+    matches!(
+        ch,
+        Some(' ') | Some('\t') | Some('\n') | Some('\u{b}') | Some('\u{c}') | Some('\r')
+    )
+}
+
+/// 固定字面量命中判断（规则里的 0x1F 是 `\b`）。
+fn lex_rule_hit(rule: &str, text: &[char], start: usize) -> bool
+{
+    for (offset, ch) in rule.chars().enumerate()
+    {
+        let probe = text.get(start + offset).copied();
+        if ch == BLANK_WILDCARD
+        {
+            if !is_space(probe)
+            {
+                return false;
+            }
+        }
+        else if probe != Some(ch)
+        {
+            return false;
+        }
+    }
+    true
+}
+
+/// 当前位置能不能开始一个以空白 / `\b` 通配开头的固定字面量。
+fn lex_blank_rule_hit(text: &[char], start: usize) -> bool
+{
+    for index in 0.._LEX_RULES_TEXT.len()
+    {
+        if (_LEX_RULES_BLANK[index] == 1)
+            && lex_rule_hit(_LEX_RULES_TEXT[index], text, start)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// 这个字符在取 Token 前要不要跳过（`%space` 决定的空白集合）。
+fn lex_is_skip_char(ch: Option<char>) -> bool
+{
+    matches!(ch, Some(value) if _LEX_SKIP_CHARS.contains(value))
+}
+

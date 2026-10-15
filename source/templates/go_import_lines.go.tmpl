@@ -1,0 +1,8 @@
+{# `%import` 展开成的 import 行（CodeGenGo 的 goImportLines）。
+   变量：imports —— 已经拼好的行（标准库带引号、用户的 `%import` 原样或补引号）；
+   列表为空时调用方直接给空串。本模板自带行尾换行，而且**多一个空行**
+   （原来那串替换的结尾就带一个）。 #}
+import (
+{% for i in imports %}	{{ i }}
+{% endfor %})
+

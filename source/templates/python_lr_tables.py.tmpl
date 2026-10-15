@@ -1,0 +1,18 @@
+{# 分析表（LR 家族）：ACTION / GOTO / 产生式元数据。模板第一行是空行——它与上一节的
+   词法表之间的分隔空行；上面那行注释会被引擎丢掉，不产出字节。 #}
+
+# ---------- 分析表 ----------
+# ACTION：0 出错，>0 移进到 action-1，<0 归约 -action-1，
+# ACCEPT_ACTION 接受；GOTO：INVALID_STATE 出错。
+_ACTION = {{ action }}
+_GOTO = {{ goto }}
+{% if has_reduce %}# LR(k) / LALR(k) 的第二层 ACTION（按 k 元组展望符建列的归约/接受）。
+_REDUCE = {{ reduce }}
+_LOOKAHEAD_CODE = [
+            {{ lookahead_code }}]
+_LOOKAHEAD_COLUMN = [
+            {{ lookahead_column }}]
+{% endif %}_PRODUCTION_LENGTH = [
+            {{ production_length }}]
+_PRODUCTION_LHS = [
+            {{ production_lhs }}]

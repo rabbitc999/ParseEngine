@@ -1,0 +1,7 @@
+{ 常量除零：简化那一趟（常量折叠）就该报出来 }
+program div_zero_const;
+  var x: int;
+begin
+  x := 10 / 0;
+  write(x)
+end.

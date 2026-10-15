@@ -1,0 +1,284 @@
+{# 语法图（GLR 的 GSS + 各结果树）绘图 —— 注入解析器类的方法。
+   变量：mode_label —— 模式标签（如 GLR）。
+   只在 glr 档下发；别的档这一整段不出现。画图用的公共拼装在看
+   python_draw_common.py 生成的那一段（模块级函数）。
+   本模板自带行尾换行。 #}
+
+    def glr_symbol_text(self, symbol):
+        """GSS 边上的符号名：终结符查 Token 名表、非终结符查非终结符名表。
+
+        :param symbol: 边上的符号号（``< _TERMINAL_COUNT`` 是终结符，
+            否则是 ``_TERMINAL_COUNT + 非终结符下标``）。
+        :return: 符号名（认不出来时返回 ``"?"``）。
+        """
+        if symbol == _GLR_START_SYMBOL:
+            return "START"
+        if symbol < _TERMINAL_COUNT:
+            return _token_type_text(symbol)
+        index = symbol - _TERMINAL_COUNT
+        if (index >= 0) and (index < len(_TREE_NONTERM_NAMES)):
+            return _TREE_NONTERM_NAMES[index]
+        return "?"
+
+    def _glr_node_depth(self):
+        """算 GSS 每个节点的「层」（根是 0，其余取所有入边起点的层 + 1）。
+
+        用的是「反复松弛到不动」的朴素最长路算法：边要么跨输入位置（移进），
+        要么在同一位置里做归约链（可能指回更早建的节点），所以不能按节点
+        创建顺序一遍扫完；节点数是几十到几百的量级，松弛几轮就收敛。
+
+        :return: 每个节点一个整数层的列表（下标就是节点号）。
+        """
+        count = len(self._glr_nodes)
+        depth = [0] * count
+        for _round in range(count):
+            changed = False
+            for node in range(count):
+                best = depth[node]
+                for edge_id in self._glr_nodes[node].edges:
+                    source = self._glr_edges[edge_id].from_node
+                    if (source == _INVALID_INDEX) or (source >= count):
+                        continue
+                    if (depth[source] + 1) > best:
+                        best = depth[source] + 1
+                if best != depth[node]:
+                    depth[node] = best
+                    changed = True
+            if not changed:
+                break
+        return depth
+
+    def _glr_accept_nodes(self):
+        """取「会被运行时接受」的节点集合（判定与 `_glr_accept_node` 一致）：
+        ACTION[状态][END] 是接受动作，且图上有以起始符号入的边。
+
+        :return: 节点号的集合。
+        """
+        accepted = set()
+        for node in range(len(self._glr_nodes)):
+            state = self._glr_nodes[node].state
+            if state >= _STATE_COUNT:
+                continue
+            if _ACTION[state][TOKEN_END] != _ACCEPT_ACTION:
+                continue
+            for edge_id in self._glr_nodes[node].edges:
+                if self._glr_edges[edge_id].symbol == _GLR_START_SYMBOL:
+                    accepted.add(node)
+                    break
+        return accepted
+
+    def _glr_graph_layout(self):
+        """算 GSS 的分层布局：层号（横坐标）+ 层内序号（纵坐标）。
+
+        同层按节点号排、整层相对最高的一层居中，所以布局是确定性的。
+
+        :return: ``(depth, column_x, box_y, box_width, box_height, width,
+            height)``。
+        """
+        depth = self._glr_node_depth()
+        layering = {}
+        for node in range(len(self._glr_nodes)):
+            layering.setdefault(depth[node], []).append(node)
+        column_width = {}
+        for level in sorted(layering):
+            widest = 0.0
+            for node in layering[level]:
+                label = "q%d" % self._glr_nodes[node].state
+                found = _draw_text_width(label) + 26.0
+                if found > widest:
+                    widest = found
+            column_width[level] = widest
+        column_x = {}
+        cursor = 0.0
+        for level in sorted(layering):
+            column_x[level] = cursor
+            cursor += column_width[level] + 46.0
+        column_height = {}
+        tallest = 0.0
+        for level in sorted(layering):
+            found = (len(layering[level]) * 34.0) - 6.0
+            column_height[level] = found
+            if found > tallest:
+                tallest = found
+        box_y = {}
+        for level in sorted(layering):
+            top = (tallest - column_height[level]) / 2.0
+            index = 0
+            for node in layering[level]:
+                box_y[node] = top + (index * 34.0)
+                index += 1
+        return (depth, column_x, box_y, column_width, 28.0, cursor - 46.0,
+                tallest)
+
+    def _glr_graph_body(self, x0, y0):
+        """把 GSS 画成 SVG 片段（节点 = 状态，边 = 符号，接受节点高亮）。
+
+        :param x0: 原点横坐标。
+        :param y0: 原点纵坐标。
+        :return: ``(片段, 宽度, 高度)``。
+        """
+        if not self._glr_nodes:
+            return ("", 0.0, 0.0)
+        accepted = self._glr_accept_nodes()
+        (depth, column_x, box_y, column_width, box_height, width,
+         height) = self._glr_graph_layout()
+        body = []
+        for node in range(len(self._glr_nodes)):
+            for edge_id in self._glr_nodes[node].edges:
+                edge = self._glr_edges[edge_id]
+                if (edge.from_node == _INVALID_INDEX) or \
+                        (edge.from_node >= len(self._glr_nodes)):
+                    continue
+                shift = (edge.symbol < _TERMINAL_COUNT)
+                x1 = x0 + column_x[depth[edge.from_node]] + \
+                    column_width[depth[edge.from_node]]
+                y1 = y0 + box_y[edge.from_node] + (box_height / 2.0)
+                x2 = x0 + column_x[depth[node]]
+                y2 = y0 + box_y[node] + (box_height / 2.0)
+                bend = (x1 + x2) / 2.0
+                body.append(
+                    '<path d="M %.1f %.1f C %.1f %.1f, %.1f %.1f, %.1f %.1f" '
+                    'fill="none" stroke="%s" stroke-width="1.2"%s/>\n'
+                    % (x1, y1, bend, y1, bend, y2, x2, y2,
+                       "#3f7fbf" if shift else "#94a3b8",
+                       "" if shift else ' stroke-dasharray="5 4"'))
+                label = self.glr_symbol_text(edge.symbol)
+                if edge.production != _INVALID_INDEX:
+                    label += "·P%d" % edge.production
+                body.append(_draw_svg_text(bend, (y1 + y2) / 2.0 - 6.0, label,
+                                           size=_DRAW_FONT_SIZE - 1.0,
+                                           fill="#475569"))
+        for node in range(len(self._glr_nodes)):
+            left = x0 + column_x[depth[node]]
+            top = y0 + box_y[node]
+            if node in accepted:
+                body.append(_draw_svg_box(left, top, column_width[depth[node]],
+                                          box_height, "#fdf3d8", "#c8922a",
+                                          2.0))
+            else:
+                body.append(_draw_svg_box(left, top, column_width[depth[node]],
+                                          box_height, "#eef4fb", "#5b7fa6"))
+            body.append(_draw_svg_text(left + (column_width[depth[node]] / 2.0),
+                                       top + 9.0,
+                                       "q%d" % self._glr_nodes[node].state,
+                                       bold=True))
+            body.append(_draw_svg_text(left + (column_width[depth[node]] / 2.0),
+                                       top + 21.0, "#%d" % node,
+                                       size=_DRAW_FONT_SIZE - 2.0,
+                                       fill="#6b7280"))
+        return "".join(body), width, height
+
+    def syntax_graph_svg(self, title=None):
+        """把这次 GLR 解析的语法图画成 SVG 文本。
+
+        图里有两部分：左边是 **GSS（图结构栈）** —— 节点是「状态 + 节点号」，
+        边上的标签是符号名（移进边实线、归约边虚线并带产生式号 ``·P<n>``），
+        被运行时接受的节点画成高亮；右边（下面是）每条歧义路径的**结果树**，
+        逐棵并排画（`%tree` 文法才有，非 `%tree` 时只有 GSS）。
+
+        :param title: 图标题；``None`` 时用「语法图 · {{ mode_label }}」。
+        :return: SVG 文本（含 XML 声明）。
+        """
+        if title is None:
+            title = "语法图 · {{ mode_label }}"
+        margin = _DRAW_MARGIN
+        head = _draw_svg_text(margin, 20.0, title, size=14.0, anchor="start",
+                              bold=True)
+        summary = "GSS：%d 个节点 / %d 条边" % (len(self._glr_nodes),
+                                               len(self._glr_edges))
+        body = head
+        cursor_y = margin + 28.0
+        gss, gss_width, gss_height = self._glr_graph_body(margin, cursor_y)
+        if not gss:
+            gss = _draw_svg_text(margin, cursor_y + 12.0,
+                                 "（这次解析没有建出 GSS：输入还没走完就停了）",
+                                 size=_DRAW_FONT_SIZE, anchor="start")
+            gss_width = _draw_text_width("（这次解析没有建出 GSS：输入还没走完就停了）")
+            gss_height = 24.0
+        body += gss
+        width = gss_width
+        cursor_y += gss_height + 34.0
+        tree_count = len(self._glr_trees)
+        summary += "；结果路径 %d 条" % len(self._glr_results)
+        for index in range(tree_count):
+            caption = "结果[%d] 语法树" % index
+            body += _draw_svg_text(margin, cursor_y + 8.0, caption,
+                                   size=13.0, anchor="start", bold=True)
+            inner, inner_width, inner_height = _draw_tree_body(
+                self._glr_trees[index], margin, cursor_y + 20.0)
+            body += inner
+            if inner_width > width:
+                width = inner_width
+            cursor_y += inner_height + 40.0
+        if tree_count == 0:
+            body += _draw_svg_text(
+                margin, cursor_y,
+                "（没有结果树：%tree 文法才有，这次解析没有接受路径或没建树）",
+                size=_DRAW_FONT_SIZE, anchor="start", fill="#6b7280")
+            cursor_y += 24.0
+        body += _draw_svg_text(margin, cursor_y + 10.0, summary,
+                               size=_DRAW_FONT_SIZE - 1.0, anchor="start",
+                               fill="#6b7280")
+        return _draw_svg_document(width + (2.0 * margin), cursor_y + 28.0,
+                                  body, title)
+
+    def syntax_graph_dot(self):
+        """把这次 GLR 解析的语法图画成 Graphviz DOT 文本。
+
+        GSS 是 ``g<节点号>`` 的图（接受节点加粗），每条结果树放在一个
+        ``cluster`` 里。装了 Graphviz 就能 ``Source(dot).render()`` 渲染。
+
+        :return: DOT 文本（自带换行）。
+        """
+        accepted = self._glr_accept_nodes()
+        lines = ["digraph syntax_graph {",
+                 "  rankdir=LR;",
+                 "  node [shape=box, fontname=\"Consolas\", fontsize=11];",
+                 "  edge [color=\"#94a3b8\"];"]
+        for node in range(len(self._glr_nodes)):
+            state = self._glr_nodes[node].state
+            style = ", style=\"bold\", color=\"#c8922a\"" if node in accepted \
+                else ""
+            lines.append("  g%d [label=\"q%d\\n#%d\"%s];"
+                         % (node, state, node, style))
+        for node in range(len(self._glr_nodes)):
+            for edge_id in self._glr_nodes[node].edges:
+                edge = self._glr_edges[edge_id]
+                if (edge.from_node == _INVALID_INDEX) or \
+                        (edge.from_node >= len(self._glr_nodes)):
+                    continue
+                label = self.glr_symbol_text(edge.symbol)
+                if edge.production != _INVALID_INDEX:
+                    label += "·P%d" % edge.production
+                style = "" if edge.symbol < _TERMINAL_COUNT \
+                    else ", style=\"dashed\""
+                lines.append("  g%d -> g%d [label=\"%s\"%s];"
+                             % (edge.from_node, node,
+                                _draw_dot_escape(label), style))
+        for index in range(len(self._glr_trees)):
+            lines.append("  subgraph cluster_%d {" % index)
+            lines.append("    label=\"结果[%d] 语法树\";" % index)
+            lines.append("    color=\"#cbd5e1\";")
+            counter = [0]
+            _draw_tree_dot_walk(self._glr_trees[index], "t%d_" % index,
+                                counter, lines)
+            lines.append("  }")
+        lines.append("}")
+        return "\n".join(lines) + "\n"
+
+    def write_syntax_graph_svg(self, path, title=None):
+        """把语法图写成 ``.svg`` 文件（UTF-8、LF 行尾）。
+
+        :param path: 文件路径。
+        :param title: 图标题（``None`` 用缺省标题）。
+        :return: 写出的路径。
+        """
+        return _draw_write_text(path, self.syntax_graph_svg(title))
+
+    def write_syntax_graph_dot(self, path):
+        """把语法图写成 ``.dot`` 文件（UTF-8、LF 行尾）。
+
+        :param path: 文件路径。
+        :return: 写出的路径。
+        """
+        return _draw_write_text(path, self.syntax_graph_dot())

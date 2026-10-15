@@ -1,0 +1,82 @@
+/* ============ 语法树辅助：建叶子 / 建分支 / 深拷贝 / 打印 ============ */
+
+/// 名字为空时的兜底（保证树里不会出现 nullptr）。
+[[maybe_unused]] ParserMemory::String symbolOrPlaceholder(const char *name)
+{
+    return (name != nullptr) ? ParserMemory::String(name) : ParserMemory::String("?");
+}
+
+/// 建一个终结符叶子节点：名字是 Token 类型名，词素是 Token 的显示文本。
+[[maybe_unused]] ParserMemory::UniquePtr<Tree> makeLeaf(const Token &token)
+{
+    ParserLocation location;
+    location.line = static_cast<int>(token.line);
+    location.column = static_cast<int>(token.column);
+    location.offset = static_cast<int>(token.offset);
+    return ParserMemory::makeUnique<Tree>(symbolOrPlaceholder(tokenName(token.type)),
+                                  tokenText(token), location);
+}
+
+/// 把栈上 [base, base + length) 的节点收成一个非终结符节点。
+[[maybe_unused]] ParserMemory::UniquePtr<Tree> makeBranch(
+    ParserMemory::Vector<ParserMemory::UniquePtr<Tree>> &nodes, const char *name,
+    std::size_t base, std::size_t length)
+{
+    ParserMemory::UniquePtr<Tree> node =
+        ParserMemory::makeUnique<Tree>(symbolOrPlaceholder(name));
+    for (std::size_t index = 0u; index < length; ++index)
+    {
+        ParserMemory::UniquePtr<Tree> &child = nodes[base + index];
+        if (child != nullptr)
+        {
+            node->addChild(std::move(child));
+        }
+    }
+    return node;
+}
+
+/// 深拷贝一棵树。
+[[maybe_unused]] ParserMemory::UniquePtr<Tree> cloneTree(const Tree &source)
+{
+    ParserMemory::UniquePtr<Tree> copy =
+        ParserMemory::makeUnique<Tree>(source.name(), source.text(),
+                               source.location());
+    for (std::size_t index = 0u; index < source.childCount(); ++index)
+    {
+        const Tree *child = source.child(index);
+        if (child != nullptr)
+        {
+            copy->addChild(cloneTree(*child));
+        }
+    }
+    return copy;
+}
+
+/// 非终结符编号 -> 名字（%tree 建内部分支节点用）。
+[[maybe_unused]] inline const char *treeTreeName(std::uint16_t id) noexcept
+{
+    return (id < kNontermCount) ? kTreeNontermNames[id] : nullptr;
+}
+
+/// 递归拼一棵树的缩进文本。
+[[maybe_unused]] void appendTreeText(const Tree &node, std::size_t depth,
+                                     ParserMemory::String &out)
+{
+    out.append(depth * 2u, ' ');
+    out += node.name();
+    if (!node.text().empty())
+    {
+        out += '(';
+        out += node.text();
+        out += ')';
+    }
+    out += '\n';
+    for (std::size_t index = 0u; index < node.childCount(); ++index)
+    {
+        const Tree *child = node.child(index);
+        if (child != nullptr)
+        {
+            appendTreeText(*child, depth + 1u, out);
+        }
+    }
+}

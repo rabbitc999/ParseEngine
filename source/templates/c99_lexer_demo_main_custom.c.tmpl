@@ -1,0 +1,84 @@
+
+#ifndef PARSER_SKIP_DEMO_MAIN
+
+/**
+ * @brief 把标准输入整个读进来（读到 EOF）。
+ * @param pLength 输出长度（可为 NULL）。
+ * @retval 文本（malloc 出来的，调用方释放）；内存不足返回 NULL。
+ */
+static char *Lexer_DemoReadAll(size_t *pLength)
+{
+    size_t capacity = 256u;
+    size_t length = 0u;
+    char *pText = (char *)malloc(capacity);
+    int ch = 0;
+
+    if (pText == NULL) { return NULL; }
+    while ((ch = fgetc(stdin)) != EOF) {
+        if ((length + 1u) >= capacity) {
+            char *pGrown = (char *)realloc(pText, capacity * 2u);
+            if (pGrown == NULL) {
+                free(pText);
+                return NULL;
+            }
+            pText = pGrown;
+            capacity *= 2u;
+        }
+        pText[length] = (char)ch;
+        length++;
+    }
+    pText[length] = '\0';
+    if (pLength != NULL) { *pLength = length; }
+    return pText;
+}
+
+/** 
+ * @brief 词法模式演示：读标准输入到 EOF，逐个打印 Token 的类型与词素。 
+ *
+ * 输出一行一个 Token：`<类型>  "<词素>"  <行>:<列>`，最后一行是总数；遇到词法
+ * 错误（认不出来的字符 / 字符串没有闭合）打印一行说明并以 1 结束。 
+ * @retval 0 表示没有词法错误，1 表示有词法错误，2 表示读入失败。 
+ */
+int main(void)
+{
+    char *pInput = NULL;
+    ParserLexer_T lexer;
+    ParserToken_T token;
+    uint32_t count = 0u;
+    int32_t status = PARSER_OK;
+
+    pInput = Lexer_DemoReadAll(NULL);
+    if (pInput == NULL)
+    {
+        printf("读取标准输入失败，已退出。\n");
+        return 2;
+    }
+    Parser_LexInit(&lexer, pInput);
+    for (;;)
+    {
+        char textBuffer[PARSER_MAX_STRING_LENGTH];
+        char quoted[PARSER_MAX_STRING_LENGTH + 2u];
+        PARSER_MEMSET(&token, 0, sizeof(token));
+        status = Parser_NextToken(&lexer, &token);
+        if (status != PARSER_OK) { break; }
+        Parser_TokenText(&token, textBuffer, (uint32_t)sizeof(textBuffer));
+        snprintf(quoted, sizeof(quoted), "\"%s\"", textBuffer);
+        printf("%-12s %-12s %u:%u\n", Parser_TokenName(token.type), quoted,
+               token.line, token.column);
+        if (token.type == TOKEN_END) { break; }
+        count++;
+    }
+    if (status != PARSER_OK)
+    {
+        const ParserError_T *pError = Parser_GetLastError();
+        printf("词法错误: code=%d line=%u column=%u message=%s\n",
+               pError->code, pError->line, pError->column, pError->message);
+        free(pInput);
+        return 1;
+    }
+    printf("共 %u 个 Token\n", count);
+    free(pInput);
+    return 0;
+}
+
+#endif /* PARSER_SKIP_DEMO_MAIN */

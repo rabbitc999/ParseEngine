@@ -1,0 +1,24 @@
+{# LR 家族的分析表（CodeGenGo 的 goLrTables）。
+   变量：
+     action / goto / reduce        —— 二维整数表（已渲染好的 `[][]int32{…}`
+                                      字面量，含换行）
+     lookahead_code / lookahead_column / production_length / production_lhs
+                                   —— 一维整数表正文（不带花括号）
+     has_reduce                    —— 有没有 LR(k) 第二层（k > 1）
+   本模板自带行尾换行。 #}
+// sParserAction ACTION 表：0 出错，>0 移进到 action-1，<0 归约 -action-1。
+var sParserAction = [][]int32{{ action }}
+
+// sParserGoto GOTO 表：sParserInvalidState 出错。
+var sParserGoto = [][]int32{{ goto }}
+
+{% if has_reduce %}// sParserReduce LR(k) / LALR(k) 的第二层 ACTION（按 k 元组展望符建列）。
+var sParserReduce = [][]int32{{ reduce }}
+var sParserLookaheadCode = []int64{ {{ lookahead_code }} }
+var sParserLookaheadColumn = []int32{ {{ lookahead_column }} }
+{% else %}// sParserReduce k = 1：没有第二层（占位让常量始终存在）。
+var sParserReduce = [][]int32{}
+var sParserLookaheadCode = []int64{}
+var sParserLookaheadColumn = []int32{}
+{% endif %}var sParserProductionLength = []int32{ {{ production_length }} }
+var sParserProductionLHS = []int32{ {{ production_lhs }} }

@@ -1,0 +1,43 @@
+/* ============================================================
+ * 自定义指令示例：%tree + %copy
+ *
+ *   %tree                      生成通用语法树 API；语义值运行时只有 custom
+ *                              （缺省，不用写），树节点只保存
+ *                              符号名与 Token 词素，不保存语义值
+ *   %copy file lib/xxx.h       把库文件拷进生成目录（缺省就是 file 类型，
+ *                              也可以写 %copy dir 目录名 拷贝整个目录）
+ *
+ * 试用输入：
+ *   a + b * c
+ *   (a + b) * c
+ * ============================================================ */
+
+%mode lalr
+%tree
+%start stmt
+
+/* 拷贝库头文件：路径相对本文法文件所在目录 */
+%copy file lib/parser_value.h
+
+%code
+#include "parser_value.h"
+
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+%endcode
+
+%define PLUS   "+"
+%define STAR   "*"
+%define LPAREN "("
+%define RPAREN ")"
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+stmt := expr
+
+expr := expr PLUS term
+      | term;
+
+term := term STAR factor
+      | factor;
+
+factor := LPAREN expr RPAREN
+        | VARIABLE;

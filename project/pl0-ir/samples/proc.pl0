@@ -1,0 +1,20 @@
+{ 过程声明 + call + 局部变量：过程用外层变量通信（经典 PL/0 无参数） }
+const limit = 3;
+var total, i;
+
+procedure add;
+    var step;
+    begin
+        step := 0;
+        while step < limit do
+        begin
+            total := total + step;
+            step := step + 1
+        end
+    end;
+
+begin
+    total := 0;
+    call add;
+    write total
+end.

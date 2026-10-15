@@ -1,0 +1,29 @@
+/**
+ * parser_token.h —— Token 枚举、ParserToken_T 与 Token 名称接口（custom）
+ * 由 ParseEngine 自动生成（{{ mode_name }}）
+ */
+
+#ifndef PARSER_TOKEN_H
+#define PARSER_TOKEN_H
+
+#include <stdint.h>
+
+{{ token_types }}
+/** 
+ * @brief 取 Token 枚举名。
+ * @param type Token 类型。
+ * @retval 只读名字或 NULL。 
+ */
+const char *Parser_TokenName(ParserTokenType_T type);
+
+/** 
+ * @brief 把 Token 的文本写进缓冲区。
+ * @param pToken Token。
+ * @param pBuffer 输出缓冲区。
+ * @param size 容量。
+ * @retval 无。 
+ */
+void Parser_TokenText(const ParserToken_T *pToken, char *pBuffer,
+                      uint32_t size);
+{{ lex_decls }}
+#endif /* PARSER_TOKEN_H */

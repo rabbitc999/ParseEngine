@@ -1,0 +1,6 @@
+{# 演示 main 里「按 --svg / --dot 写出文件」的调用（GLR 档用这一份：
+   GLR 的图直接用这次解析留下的 GSS，不再重新解析，所以不带 input_text）。
+   变量：无。本模板自带行尾换行。 #}
+    for line in _demo_drawings(engine, _demo_option("--svg"),
+                               _demo_option("--dot")):
+        print(line)

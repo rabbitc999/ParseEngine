@@ -1,0 +1,8 @@
+# Rust 中间产物和可执行文件统一放在仓库 build 目录（和 C++ 版 library/big_number 的
+# 产物同在 build/big_number/ 之下），不污染源码目录。
+#
+# 注意：这份配置只在 **crate 目录里**跑 cargo 时生效（cargo 按「当前目录」往上找配置，
+# 不看 --manifest-path）。从仓库根跑 `cargo build --manifest-path library/big_number-rust/Cargo.toml`
+# 时落点会变成 library/big_number-rust/target/ —— 两处都已在 .gitignore 里。
+[build]
+target-dir = "../../build/big_number/rust"

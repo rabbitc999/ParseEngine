@@ -1,0 +1,65 @@
+/* ============================================================
+ * 迷你语言文法 · LL(1) + %tree · 规则 | 分支写法
+ *
+ * 覆盖赋值 / 打印 / if / while / 语句块，几乎每条规则都用 '|' 罗列候选。
+ * 表达式用“尾链 + %empty”消除左递归，满足 LL(1)：
+ *   expr_tail := PLUS term expr_tail | MINUS term expr_tail | %empty;
+ * 本文件只做语法分析、生成 CST（%tree），不写语义动作。
+ *
+ * 试用输入：
+ *   let a = 1 + 2 * 3; print a;
+ *   if a + 1 then print a; end
+ *   while a do let b = a - 1; print b; end
+ * ============================================================ */
+
+%mode ll1
+%tree
+%start program
+
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+%define LET    "let"
+%define PRINT  "print"
+%define IF     "if"
+%define THEN   "then"
+%define WHILE  "while"
+%define DO     "do"
+%define END    "end"
+
+%define EQ     "="
+%define PLUS   "+"
+%define MINUS  "-"
+%define STAR   "*"
+%define SLASH  "/"
+%define SEMI   ";"
+%define LPAREN "("
+%define RPAREN ")"
+%define LBRACE "{"
+%define RBRACE "}"
+
+program := statement_list;
+
+statement_list := statement statement_list
+                | %empty;
+
+statement := LET VARIABLE EQ expr SEMI
+           | PRINT expr SEMI
+           | IF expr THEN statement_list END
+           | WHILE expr DO statement_list END
+           | LBRACE statement_list RBRACE;
+
+expr := term expr_tail;
+
+expr_tail := PLUS term expr_tail
+           | MINUS term expr_tail
+           | %empty;
+
+term := atom term_tail;
+
+term_tail := STAR atom term_tail
+           | SLASH atom term_tail
+           | %empty;
+
+atom := NUMBER
+      | VARIABLE
+      | LPAREN expr RPAREN;

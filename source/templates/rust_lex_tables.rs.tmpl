@@ -1,0 +1,26 @@
+{# 词法表（CodeGenRust 的 rustLexTables）：固定字面量规则 + 跳过字符集。
+   变量：
+     rules       —— 字面量规则数组，字段 text（已带引号）/ type / length /
+                    blank / order
+     skip_chars  —— 带引号的字符集字面量（%space）
+   本模板自带行尾换行。 #}
+/// 固定字面量词法规则（按长度降序；第 4 张表说明该字面量以
+/// 空白 / \b 通配开头，跳空白时要先看它能不能命中）。
+static _LEX_RULES_TEXT: &[&str] = &[
+{% for r in rules %}        {{ r.text }},
+{% endfor %}    ];
+static _LEX_RULES_TYPE: &[i32] = &[
+{% for r in rules %}        {{ r.type }},
+{% endfor %}    ];
+static _LEX_RULES_LENGTH: &[i32] = &[
+{% for r in rules %}        {{ r.length }},
+{% endfor %}    ];
+static _LEX_RULES_BLANK: &[i32] = &[
+{% for r in rules %}        {{ r.blank }},
+{% endfor %}    ];
+/// 词法声明序（%commit 与 Token 同长度时比较「谁先声明」）。
+static _LEX_RULES_ORDER: &[i32] = &[
+{% for r in rules %}        {{ r.order }},
+{% endfor %}    ];
+/// 取 Token 前跳过的空白字符（%space；空串表示一个都不跳过）。
+static _LEX_SKIP_CHARS: &str = {{ skip_chars }};

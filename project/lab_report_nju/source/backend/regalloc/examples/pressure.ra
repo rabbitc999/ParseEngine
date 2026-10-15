@@ -1,0 +1,8 @@
+; 寄存器压力示例：t1 t2 t3 同时活跃，2 个寄存器时必然溢出。
+label entry
+  mov t1, 1
+  mov t2, 2
+  mov t3, 3
+  add t4, t1, t2
+  add t5, t4, t3
+  store [sum], t5

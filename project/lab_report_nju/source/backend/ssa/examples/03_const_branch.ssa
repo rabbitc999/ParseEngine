@@ -1,0 +1,17 @@
+# 名称: 条件在编译期已知
+# 期望: 2
+# 期望 φ: 1
+# 期望 折叠: 0
+# 期望 不可达: 1
+# 期望 GVN: 0
+# 说明: x 是常量 1，jz 永远不跳：dead 块被 SCCP 删掉，φ 只剩一个实参后被 GVN 归并
+label entry
+  mov x, 1
+  jz x, dead
+  mov y, 2
+  jmp out
+label dead
+  mov y, 3
+label out
+  print y
+  halt

@@ -1,0 +1,177 @@
+    struct ChartItem
+    {
+        int production;
+        int dot;
+        int origin;
+    };
+
+    static bool chartInsert(ParserMemory::Vector<ChartItem> &items, ChartItem item)
+    {
+        for (const ChartItem &present : items)
+        {
+            if ((present.production == item.production) &&
+                (present.dot == item.dot) && (present.origin == item.origin))
+            {
+                return false;
+            }
+        }
+        items.push_back(item);
+        return true;
+    }
+
+    static bool earleyAccept(const ParserMemory::Vector<int> &tokens)
+    {
+        const std::size_t count = tokens.size();
+        ParserMemory::Vector<ParserMemory::Vector<ChartItem>> chart(count + 1u);
+        for (int production = 0; production < k_chartProductionCount;
+             ++production)
+        {
+            if (k_chartLhs[production] == k_chartStart)
+            {
+                chart[0].push_back({production, 0, 0});
+            }
+        }
+        for (std::size_t position = 0u; position <= count; ++position)
+        {
+            bool changed;
+            do
+            {
+                changed = false;
+                for (std::size_t index = 0u; index < chart[position].size();
+                     ++index)
+                {
+                    const ChartItem item = chart[position][index];
+                    const int length = k_chartRhsLength[item.production];
+                    if (item.dot == length)
+                    {
+                        const int completed =
+                            k_chartTerminalCount + k_chartLhs[item.production];
+                        for (std::size_t parentIndex = 0u;
+                             parentIndex < chart[item.origin].size();
+                             ++parentIndex)
+                        {
+                            const ChartItem parent =
+                                chart[item.origin][parentIndex];
+                            if (parent.dot < k_chartRhsLength[parent.production] &&
+                                k_chartRhsSymbols[
+                                    k_chartRhsStart[parent.production] +
+                                    parent.dot] == completed)
+                            {
+                                changed |= chartInsert(
+                                    chart[position],
+                                    {parent.production, parent.dot + 1,
+                                     parent.origin});
+                            }
+                        }
+                    }
+                    else
+                    {
+                        const int symbol = k_chartRhsSymbols[
+                            k_chartRhsStart[item.production] + item.dot];
+                        if (symbol >= k_chartTerminalCount)
+                        {
+                            const int nonterm = symbol - k_chartTerminalCount;
+                            for (int next = 0; next < k_chartProductionCount;
+                                 ++next)
+                            {
+                                if (k_chartLhs[next] == nonterm)
+                                {
+                                    changed |= chartInsert(
+                                        chart[position],
+                                        {next, 0, static_cast<int>(position)});
+                                }
+                            }
+                        }
+                        else if (position < count &&
+                                 symbol == tokens[position])
+                        {
+                            chartInsert(chart[position + 1u],
+                                        {item.production, item.dot + 1,
+                                         item.origin});
+                        }
+                    }
+                }
+            } while (changed);
+        }
+        for (const ChartItem item : chart[count])
+        {
+            if (k_chartLhs[item.production] == k_chartStart &&
+                item.origin == 0 &&
+                item.dot == k_chartRhsLength[item.production])
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool cykAccept(const ParserMemory::Vector<int> &tokens)
+    {
+        const std::size_t count = tokens.size();
+        if (count == 0u)
+        {
+            return k_chartAcceptsEmpty;
+        }
+        ParserMemory::Vector<ParserMemory::Vector<ParserMemory::Vector<unsigned char>>> cells(
+            count, ParserMemory::Vector<ParserMemory::Vector<unsigned char>>(
+                       count + 1u,
+                       ParserMemory::Vector<unsigned char>(k_chartNontermCount, 0u)));
+        for (std::size_t index = 0u; index < count; ++index)
+        {
+            for (int rule = 0; rule < k_chartUnaryCount; ++rule)
+            {
+                if (k_chartUnaryToken[rule] == tokens[index])
+                {
+                    cells[index][index + 1u][k_chartUnaryLhs[rule]] = 1u;
+                }
+            }
+        }
+        for (std::size_t length = 2u; length <= count; ++length)
+        {
+            for (std::size_t begin = 0u; begin + length <= count; ++begin)
+            {
+                const std::size_t end = begin + length;
+                for (std::size_t middle = begin + 1u; middle < end; ++middle)
+                {
+                    for (int rule = 0; rule < k_chartBinaryCount; ++rule)
+                    {
+                        if (cells[begin][middle][k_chartBinaryLeft[rule]] &&
+                            cells[middle][end][k_chartBinaryRight[rule]])
+                        {
+                            cells[begin][end][k_chartBinaryLhs[rule]] = 1u;
+                        }
+                    }
+                }
+            }
+        }
+        return cells[0][count][k_chartStart] != 0u;
+    }
+
+    Status chartPrecheck()
+    {
+        const bool textMode = m_textMode;
+        const ParserMemory::String source = textMode ? m_input : ParserMemory::String();
+        ParserMemory::Vector<int> tokens;
+        while (m_current.type != TokenType::TOKEN_END)
+        {
+            tokens.push_back(static_cast<int>(m_current.type));
+            const Status status = advance();
+            if (status != Status::Ok)
+            {
+                return status;
+            }
+        }
+        const Status reset = textMode ? prepareText(source)
+                                      : (m_tokenPos = 0u, prepareCommon());
+        if (reset != Status::Ok)
+        {
+            return reset;
+        }
+        if (({% if earley %}earleyAccept{% else %}cykAccept{% endif %})(tokens))
+        {
+            return Status::Ok;
+        }
+        setError(failCode(Status::ErrSyntax), m_current.line,
+                 m_current.column, "没有可接受的解析路径");
+        return Status::ErrSyntax;
+    }

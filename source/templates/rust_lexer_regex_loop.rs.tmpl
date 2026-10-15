@@ -1,0 +1,11 @@
+        for (regex_index, pattern) in _regex_res().iter().enumerate()
+        {
+            let matched = lex_regex_match(pattern, &self.text, self.byte_pos);
+            if matched > best_length
+            {
+                best_length = matched;
+                best_kind = _REGEX_TYPES[regex_index];
+                best_from_regex = true;
+                best_order = _REGEX_ORDERS[regex_index];
+            }
+        }

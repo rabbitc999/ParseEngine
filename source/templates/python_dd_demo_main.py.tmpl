@@ -1,0 +1,41 @@
+
+def _read_line():
+    """从标准输入读一行（读到换行或 EOF 为止，去掉行尾换行）。"""
+    line = sys.stdin.readline()
+    if line.endswith("\n"):
+        line = line[:-1]
+    if line.endswith("\r"):
+        line = line[:-1]
+    return line
+
+
+def main():
+    """演示程序入口：读一行输入（到换行或 EOF）后开始解析。
+
+    递归下降**只保留第 1 条匹配路径**的结果（按产生式的声明顺序逐条试，
+    失败就回退输入位置再试下一条）；有歧义的文法不会像 GLR 那样把全部解释
+    都列出来，要比较不同解析请把最想要的那条产生式写在前面。
+
+    :return: 0 表示解析成功，1 表示解析失败。
+    """
+    input_text = _read_line()
+    print("解析输入: " + input_text)
+    engine = Parser()
+    status = engine.run_text(input_text)
+    if status != parser.STATUS_OK:
+        error = engine.last_error
+        if error is not None:
+            print("解析失败: code=%d line=%d column=%d message=%s" % (
+                error.code, error.line, error.column, error.message))
+        else:
+            print("解析失败: " + parser.status_name(status))
+        return 1
+    print("解析成功")
+    # 语义结果不是 None 时顺手打出来（%tree 文法走下面的树，不在这里打）
+    if engine.result is not None:
+        print("解析结果: %r" % (engine.result,))
+{{ demo_commits }}{{ demo_tree }}    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

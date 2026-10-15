@@ -1,0 +1,36 @@
+/* Parser.cs —— {{ mode_name }} 解析器（C# 产物）
+ *
+ * 由 ParseEngine 自动生成，请勿手工修改。
+ *
+ * 目标语言是 C#（只用标准库，没有第三方依赖）：
+ *   - 语义动作按 C# 表达式翻译：`$$` 写 `result.value`，`$1` 读
+ *     `values[0]`（LR 归约）/ `values[1]`（LL 展开），与 Python 一致；
+ *   - 语义值类型由 `%value_type` / `%union` 决定（`%union` 会生成一个带成员
+ *     字段的 `ParserValue` 类），两者都没写时是 `object`；
+ *   - `%code … %endcode` / `%code … %endcode` 的正文插在本文件 namespace 之后、
+ *     类之前（文件级；里面请写 C# 类）；
+ *   - `%class_body` … `%endbody` 的正文插在解析器类内部；`%epilogue` 贴到
+ *     本文件末尾；`%main` 替换 Program.cs 的演示体；
+ *   - 没有 `%destructor`（C# 的语义值由 GC 回收）；
+ *   - 类型名首字母大写（Parser / Token / Tree），公开方法统一为
+ *     runText / errors / lastError / result。
+ *
+ * 典型用法：
+ *
+ *     Parser engine = new Parser();
+ *     int status = engine.runText("1+2*3");
+ *     if (status == Parser.STATUS_OK) {
+ *         System.Console.WriteLine(engine.result());
+ *     } else {
+ *         System.Console.WriteLine(engine.lastError());
+ *     }
+ */
+{{ imports }}
+{{ package }}
+
+{{ user_code }}
+public class Parser
+{
+{{ engine }}
+{{ class_body }}
+}

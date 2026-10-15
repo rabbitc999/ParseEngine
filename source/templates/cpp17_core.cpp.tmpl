@@ -1,0 +1,303 @@
+    /* ---------- 错误表 ---------- */
+
+    /// @return 本次解析累积的错误。
+    ParserMemory::Vector<Error> &errors() noexcept { return m_errors; }
+
+    /// @return 最近一条错误；没有错误时返回 nullptr。
+    const Error *lastError() const noexcept
+    {
+        return m_errors.empty() ? nullptr : &m_errors.back();
+    }
+
+    /// 追加一条错误（错误表满时丢弃，与 C 目标的 PARSER_MAX_ERRORS 一致）。
+    void setError(std::int32_t code, std::uint32_t line, std::uint32_t column,
+                  ParserMemory::String message)
+    {
+        if (m_errors.size() >= kMaxErrors)
+        {
+            return;
+        }
+        m_errors.emplace_back(code, line, column, std::move(message));
+    }
+
+    /// 记一条「期望某个 Token」的语法错误（终结符不匹配时用，文案与 C 目标一致）。
+    void setExpectedOneError(std::uint16_t expectedType)
+    {
+        const char *pExpected =
+            tokenName(static_cast<TokenType>(expectedType));
+        ParserMemory::String message = "语法错误：期望 ";
+        message += (pExpected != nullptr) ? pExpected : "?";
+        message += "，实际是 ";
+        message += tokenTypeText(m_current.type);
+        if (m_errors.size() >= kMaxErrors)
+        {
+            return;
+        }
+        m_errors.emplace_back(static_cast<std::int32_t>(Status::ErrExpected),
+                              m_current.line, m_current.column,
+                              std::move(message),
+                              static_cast<std::uint32_t>(m_current.type),
+                              ParserMemory::String(m_current.text), 0u,
+                              ParserMemory::Vector<std::uint32_t>{static_cast<std::uint32_t>(
+                                  expectedType)},
+                              buildErrorContext(m_current.line,
+                                                m_current.column));
+    }
+
+{{ core_syntax_error }}    /**
+     * @brief 拼「出错那一行原文 + 一行 ^ 指示」（文本模式才有源文）。
+     * @param line 行号（1 起）。
+     * @param column 列号（1 起）。
+     * @return 两行文本；拿不到源文时返回空串。
+     */
+    ParserMemory::String buildErrorContext(std::uint32_t line,
+                                  std::uint32_t column) const
+    {
+        if (m_input.empty())
+        {
+            return ParserMemory::String();
+        }
+        std::size_t start = 0u;
+        std::uint32_t current = 1u;
+        for (std::size_t index = 0u; index < m_input.size(); ++index)
+        {
+            if (m_input[index] == '\n')
+            {
+                ++current;
+                if (current == line)
+                {
+                    start = index + 1u;
+                    break;
+                }
+            }
+        }
+        if (current != line)
+        {
+            return ParserMemory::String();
+        }
+        std::size_t end = m_input.find_first_of("\r\n", start);
+        if (end == ParserMemory::String::npos)
+        {
+            end = m_input.size();
+        }
+        std::size_t caret = (column > 0u) ? (column - 1u) : 0u;
+        if (caret > (end - start))
+        {
+            caret = end - start;
+        }
+        return m_input.substr(start, end - start) + "\n" +
+               ParserMemory::String(caret, ' ') + "^";
+    }
+
+    /// 动作里的 `$token`：当前 lookahead 的文本（空文本返回空串）。
+    ParserMemory::String currentTokenText() const
+    {
+        return ParserMemory::String(m_current.text);
+    }
+
+    /// 当前 lookahead 的位置；动作里的 `$line` / `$column` 读它。
+    ParserLocation currentLocation() const noexcept
+    {
+        ParserLocation location;
+        location.line = static_cast<int>(m_current.line);
+        location.column = static_cast<int>(m_current.column);
+        location.offset = static_cast<int>(m_current.offset);
+        return location;
+    }
+
+    /// 动作里的 `$code`：最近一条错误的码；还没有错误时返回 0。
+    std::int32_t lastErrorCode() const noexcept
+    {
+        const Error *entry = lastError();
+        return (entry != nullptr) ? entry->code() : 0;
+    }
+
+    /// 动作里的 `$message`：最近一条错误的说明；还没有错误时返回空串。
+    ParserMemory::String lastErrorMessage() const
+    {
+        const Error *entry = lastError();
+        return (entry != nullptr) ? entry->message() : ParserMemory::String();
+    }
+
+    /* ---------- 解析入口 ---------- */
+
+    /**
+     * @brief 文本模式：把输入拷一份（保证 '\0' 结尾）并读入第一个词法单元。
+     * @param text 输入文本。
+     * @return Status::Ok 表示就绪。
+     */
+    Status prepareText(std::string_view text)
+    {
+        m_input.assign(text);
+        m_text = m_input.c_str();
+        m_textPos = 0u;
+        m_textMode = true;
+        return prepareCommon();
+    }
+
+    /**
+     * @brief Token 模式：直接用调用方给的 Token 序列。
+     * @param tokens Token 序列（解析期间必须保持有效）。
+     * @return Status::Ok 表示就绪。
+     */
+    Status prepareTokens(const ParserMemory::Vector<Token> &tokens)
+    {
+        m_tokenArray = tokens.data();
+        m_tokenCount = tokens.size();
+        m_tokenPos = 0u;
+        m_textMode = false;
+        m_text = nullptr;
+        m_textPos = 0u;
+        return prepareCommon();
+    }
+
+    /// 两种模式共用的复位动作：清错误、清词素、取第一个 lookahead。
+    Status prepareCommon()
+    {
+        m_errors.clear();
+        m_commits.clear();
+        m_lexeme.clear();
+        m_errorStatus = 0;
+        m_line = 1u;
+        m_column = 1u;
+        m_current = Token();
+        if (advance() != Status::Ok)
+        {
+            return Status::ErrLexer;
+        }
+        return fillLookaheadWindow();
+    }
+
+    /**
+     * @brief LR(k) / LALR(k)：把 current 之后的 k-1 个 Token 预先取进窗口。
+     *
+     * 窗口头始终是 m_current，所以错误恢复里「不消耗 lookahead」、`yyclearin`
+     * 这些操作都只是挪动窗口。k = 1 时窗口是空的，这个函数是空操作。
+     * @return Status::Ok 表示就绪。
+     */
+    Status fillLookaheadWindow()
+    {
+        m_lookahead.assign(static_cast<std::size_t>(
+                               kLookaheadK > 1u ? kLookaheadK - 1u : 0u),
+                           Token());
+        if (m_lookahead.empty())
+        {
+            return Status::Ok;
+        }
+        const Token head = m_current;
+        for (std::size_t index = 0u; index < m_lookahead.size(); ++index)
+        {
+            if (advance() != Status::Ok)
+            {
+                return Status::ErrLexer;
+            }
+            m_lookahead[index] = m_current;
+        }
+        m_current = head;
+        return Status::Ok;
+    }
+
+    /**
+     * @brief LR(k) / LALR(k)：窗口左移一位（current 前进，末尾补一个新 Token）。
+     * @return Status::Ok 表示成功。
+     */
+    Status advanceWindow()
+    {
+        if (m_lookahead.empty())
+        {
+            return advance();
+        }
+        Token fresh;
+        if (advance() != Status::Ok)
+        {
+            return Status::ErrLexer;
+        }
+        fresh = m_current;
+        m_current = m_lookahead.front();
+        for (std::size_t index = 0u; index + 1u < m_lookahead.size(); ++index)
+        {
+            m_lookahead[index] = m_lookahead[index + 1u];
+        }
+        m_lookahead.back() = fresh;
+        return Status::Ok;
+    }
+
+    /**
+     * @brief 读一个字符并维护行列号（只在文本模式下用）。
+     * @return 读到的字符。
+     */
+    char readChar()
+    {
+        const char ch = m_text[m_textPos++];
+        if (ch == '\n')
+        {
+            ++m_line;
+            m_column = 1u;
+        }
+        else
+        {
+            ++m_column;
+        }
+        return ch;
+    }
+
+    /**
+     * @brief 取下一个 lookahead：文本模式走词法器，Token 模式按序号取。
+     * @return Status::Ok 表示成功。
+     */
+    Status advance()
+    {
+        if (!m_textMode)
+        {
+            if (m_tokenPos < m_tokenCount)
+            {
+                m_current = m_tokenArray[m_tokenPos++];
+            }
+            else
+            {
+                m_current = Token();
+                m_current.type = TokenType::TOKEN_END;
+            }
+            return Status::Ok;
+        }
+        Token token;
+            const Status status = lexNext(token);
+            if (status != Status::Ok)
+            {
+                // 按细分码给一句人话：未闭合字符串 / 认不出来的字符 / 其它
+                const char *why =
+                    (status == Status::ErrLexUnterminated)
+                        ? "字符串没有闭合"
+                        : ((status == Status::ErrLexChar) ? "认不出来的字符"
+                                                          : "词法解析失败");
+                setError(failCode(status == Status::ErrLexUnterminated ||
+                                          status == Status::ErrLexChar
+                                      ? status
+                                      : Status::ErrLexer),
+                         token.line, token.column, why);
+            token.type = TokenType::TOKEN_INVALID;
+            m_current = token;
+            return status;
+        }
+        m_current = token;
+        return Status::Ok;
+    }
+
+{{ core_parse_entry }}    /* ---------- 引擎状态 ---------- */
+    ParserMemory::Vector<Error> m_errors;      ///< 本次解析的错误表
+    /// %commit 收集到的片段（按出现顺序；跳过空白后按最长匹配识别）
+    ParserMemory::Vector<ParserCommit> m_commits;
+    ParserMemory::String m_input;              ///< 文本模式的输入副本
+    const char *m_text = nullptr;     ///< m_input.c_str()
+    std::size_t m_textPos = 0u;       ///< 文本模式的读写位置
+    const Token *m_tokenArray = nullptr; ///< Token 数组（调用方所有）
+    std::size_t m_tokenCount = 0u;    ///< Token 个数
+    std::size_t m_tokenPos = 0u;      ///< 下一个 Token 下标
+    bool m_textMode = true;           ///< true：文本模式；false：Token 模式
+    Token m_current;                  ///< 当前 lookahead
+    /// LR(k) / LALR(k)：current 之后的 k-1 个 Token（k = 1 时为空）
+    ParserMemory::Vector<Token> m_lookahead;
+    ParserMemory::String m_lexeme;             ///< 词素缓冲
+    std::uint32_t m_line = 1u;        ///< 当前行号
+    std::uint32_t m_column = 1u;      ///< 当前列号
+    std::int32_t m_errorStatus = 0;   ///< >0 表示正处在错误恢复过程中

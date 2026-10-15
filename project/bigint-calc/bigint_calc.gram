@@ -1,0 +1,338 @@
+/* ============================================================
+ * project/bigint-calc —— 大整数计算器（C++17）
+ *
+ * 用 ParseEngine 生成解析器，语义值直接就是 library/big_number 的
+ * bigint::BigInt，所以结果只受内存限制：2^10000、5000! 都是普通输入。
+ *
+ * 只支持**整数**运算：
+ *   +  -  *  /  %        二元算术（/ 与 % 向零截断，除数为 0 报错）
+ *   ^                    幂（右结合，指数必须是非负整数）
+ *   !                    后缀阶乘（只对非负整数）
+ *   -x                   一元负号（优先级低于 ^：-2^2 == -4）
+ *   ( … )                括号
+ * 不支持：小数、变量、函数调用（要那些就往后加规则，生成器不用改）。
+ *
+ * 一行一个表达式；`#` 到行尾是注释（%trivia 在词法器里跳过）。
+ *
+ * 代码分三处写（与 doc/07-codegen.md 的分工表一致）：
+ *   %code        类型、宏、帮助函数声明  —— 进 bigcalc_parser_user.h
+ *   %epilogue    帮助函数实现 + 错误状态 —— 贴到 bigcalc_parser.cpp 末尾
+ *   %main        命令行入口             —— 进 bigcalc_main.cpp
+ * ============================================================ */
+
+%mode lalr
+%namespace bigcalc
+
+/* 语义值就是大整数本身：生成器补 `typedef bigint::BigInt ParserValue_T;`。
+ * 变量名在 %code 里 include 了 bigint.hpp 之后可见。 */
+%value_type bigint::BigInt
+
+/* 优先级从低到高：加减 < 乘除取余 < 一元负号 < 幂 < 后缀阶乘 */
+%left  PLUS MINUS
+%left  STAR SLASH PERCENT
+%right UMINUS
+%right CARET
+%left  BANG
+
+%define PLUS    "+"
+%define MINUS   "-"
+%define STAR    "*"
+%define SLASH   "/"
+%define PERCENT "%"
+%define CARET   "^"
+%define BANG    "!"
+%define LPAREN  "("
+%define RPAREN  ")"
+
+/* 自己声明 NUMBER 的词法规则：内建 NUMBER 会把词素解析成 int32 / double，
+ * 几百位的字面量在词法层就被判「解析失败」；换成 %token regex 之后词法器
+ * 只认词素，数值由语义值那一步交给 BigInt::fromString 去读（任意长度）。
+ * 正则里带上小数 / 指数形式，是为了能在语义层给一句「只支持整数」的人话。 */
+%token regex NUMBER "[0-9]+([.][0-9]*)?([eE][+-]?[0-9]+)?"
+
+/* 注释：`#` 到行尾，词法器里直接跳过 */
+%trivia "#[^\n]*"
+
+/* 把工程的挂载点一起带到生成目录：生成的 Makefile 末尾有 `-include local.mk`，
+ * 里面补 library/big_number 的头文件搜索路径、链接它的源码，并接上 `check`。 */
+%copy file local.mk
+
+%code
+/* ---------------------------------------------------------------
+ * 用户代码块：进 bigcalc_parser_user.h，被 bigcalc_parser.cpp /
+ * bigcalc_main.cpp 共享，所以这里只放声明与宏（定义放 %epilogue）。
+ *
+ * BigInt 是「符号 + limb 数组」的值语义类型（内部是 std::vector），
+ * 拷贝 / 移动 / 析构都由标准库管；C++17 产物不 memset 语义值，
+ * 所以这里能直接当 ParserValue_T 用。
+ * --------------------------------------------------------------- */
+#include <cstdint>
+#include <string>
+
+#include "bigint.hpp"
+
+using bigint::BigInt;
+
+/* 语义错误状态：语义动作不能抛异常，出错就记在这里，入口读它 */
+struct Calc_State_T
+{
+    bool failed = false;      /* 是否有语义错误（除零 / 负指数 / 负阶乘 / 非法字面量） */
+    std::string message;      /* 报错说明 */
+};
+
+Calc_State_T &Calc_State();
+void Calc_Fail(const std::string &message);
+
+/* Token -> 语义值：NUMBER 按**原文**构造大整数（词法器的 value 只是
+ * int / double，装不下几百位的字面量）；小数在这里被拒掉。 */
+BigInt Calc_FromLexeme(const char *pText);
+
+/* 语义动作用的帮助函数：先查边界，再算（除零 / 负指数 / 负阶乘都进错误状态） */
+BigInt Calc_Div(const BigInt &left, const BigInt &right);
+BigInt Calc_Mod(const BigInt &left, const BigInt &right);
+BigInt Calc_Pow(const BigInt &base, const BigInt &exponent);
+BigInt Calc_Fact(const BigInt &value);
+
+/* Token 词素：%token regex 命中的词素写在 pName（常量字面量写在 name），
+ * 两个都兜一下，写法换成内建 NUMBER 也一样能用。 */
+#define CALC_LEXEME(pToken) \
+    (((pToken)->pName != nullptr) ? (pToken)->pName : (pToken)->name)
+
+#define PARSER_USER_TOKEN_VALUE(pToken) \
+    (((pToken)->type == TOKEN_NUMBER) ? Calc_FromLexeme(CALC_LEXEME(pToken)) \
+                                      : ParserValue_T())
+%endcode
+
+%start expr
+
+/* ---------- 表达式：一份优先级声明 + 一个非终结符，经典 yacc 写法 ---------- */
+expr := expr PLUS expr    { $$ = $1 + $3; }
+expr := expr MINUS expr   { $$ = $1 - $3; }
+expr := expr STAR expr    { $$ = $1 * $3; }
+expr := expr SLASH expr   { $$ = Calc_Div($1, $3); }
+expr := expr PERCENT expr { $$ = Calc_Mod($1, $3); }
+expr := expr CARET expr   { $$ = Calc_Pow($1, $3); }
+expr := expr BANG         { $$ = Calc_Fact($1); }
+expr := MINUS expr %prec UMINUS { $$ = -$2; }
+expr := LPAREN expr RPAREN { $$ = $2; }
+expr := NUMBER { $$ = $1; }
+
+%epilogue
+/* ============================================================
+ * 帮助函数的实现（贴到 bigcalc_parser.cpp 末尾，命名空间之外）。
+ * ============================================================ */
+Calc_State_T &Calc_State()
+{
+    static Calc_State_T state;
+    return state;
+}
+
+void Calc_Fail(const std::string &message)
+{
+    Calc_State_T &state = Calc_State();
+    if (!state.failed)
+    {
+        state.failed = true;
+        state.message = message;
+    }
+}
+
+/* 词素 -> BigInt：只认十进制整数串；带 '.' / 'e' 的浮点字面量直接报错 */
+BigInt Calc_FromLexeme(const char *pText)
+{
+    const std::string text = (pText != nullptr) ? std::string(pText)
+                                                : std::string();
+    if (text.find_first_of(".eE") != std::string::npos)
+    {
+        Calc_Fail("只支持整数，不支持小数：'" + text + "'");
+        return BigInt();
+    }
+    bool ok = false;
+    const BigInt value = BigInt::fromString(text, &ok);   /* 不做异常 */
+    if (!ok)
+    {
+        Calc_Fail("认不出来的整数字面量：'" + text + "'");
+        return BigInt();
+    }
+    return value;
+}
+
+/* 除法 / 取余：用 divmod（除零返回 false，不抛异常） */
+BigInt Calc_Div(const BigInt &left, const BigInt &right)
+{
+    BigInt quotient;
+    BigInt remainder;
+    if (!left.divmod(right, &quotient, &remainder))
+    {
+        Calc_Fail("除数不能为 0");
+        return BigInt();
+    }
+    return quotient;
+}
+
+BigInt Calc_Mod(const BigInt &left, const BigInt &right)
+{
+    BigInt quotient;
+    BigInt remainder;
+    if (!left.divmod(right, &quotient, &remainder))
+    {
+        Calc_Fail("除数不能为 0");
+        return BigInt();
+    }
+    return remainder;
+}
+
+/* 幂：指数必须是非负整数，且要能塞进 uint64_t（否则是天文数字，算不动） */
+BigInt Calc_Pow(const BigInt &base, const BigInt &exponent)
+{
+    if (exponent.sign() < 0)
+    {
+        Calc_Fail("指数不能是负数（只支持整数幂）：" + exponent.toString());
+        return BigInt();
+    }
+    if (exponent.sign() == 0)
+    {
+        return BigInt(1);
+    }
+    /* 指数位数超过 64 位就没法算了：这里按「比 int64 上限还大」处理 */
+    if (exponent.decimalDigits() > 19)
+    {
+        Calc_Fail("指数太大（超过 64 位）：" + exponent.toString());
+        return BigInt();
+    }
+    return base.pow(static_cast<std::uint64_t>(exponent.toI64()));
+}
+
+/* 阶乘：只对非负整数有意义；n! 用「大数 × 小整数」迭代乘，n 很大时也够用 */
+BigInt Calc_Fact(const BigInt &value)
+{
+    if (value.sign() < 0)
+    {
+        Calc_Fail("阶乘只对非负整数有意义：" + value.toString() + "!");
+        return BigInt();
+    }
+    if (value.sign() == 0)
+    {
+        return BigInt(1);   /* 0! == 1 */
+    }
+    if (value.decimalDigits() > 19)
+    {
+        Calc_Fail("阶乘参数太大（超过 64 位）：" + value.toString());
+        return BigInt();
+    }
+    const std::int64_t count = value.toI64();
+    BigInt result(1);
+    for (std::int64_t index = 2; index <= count; ++index)
+    {
+        result *= BigInt(index);
+    }
+    return result;
+}
+
+%main
+/* ============================================================
+ * 入口：bigint_calc_demo [文件]
+ *
+ * 读文件（没给文件就读标准输入），**一行一个表达式**，每行打印一个结果；
+ * 任何一行报错（语法错 / 除零 / 负指数 / 负阶乘）就打印一行说明并以 1 退出。
+ * 外壳（stdio / string / bigcalc_parser.hpp）由模板提供，前面已自动补
+ * `using namespace bigcalc;`。
+ * ============================================================ */
+int main(int argc, char **argv)
+{
+    std::string text;
+    if (argc > 1)
+    {
+        std::FILE *pFile = std::fopen(argv[1], "rb");
+        if (pFile == nullptr)
+        {
+            std::fprintf(stderr, "打不开文件: %s\n", argv[1]);
+            return 2;
+        }
+        char buffer[4096];
+        std::size_t got = 0u;
+        while ((got = std::fread(buffer, 1u, sizeof(buffer), pFile)) > 0u)
+        {
+            text.append(buffer, got);
+        }
+        std::fclose(pFile);
+    }
+    else
+    {
+        char buffer[4096];
+        std::size_t got = 0u;
+        while ((got = std::fread(buffer, 1u, sizeof(buffer), stdin)) > 0u)
+        {
+            text.append(buffer, got);
+        }
+    }
+
+    Engine engine;
+    std::size_t lineNo = 0u;
+    std::size_t begin = 0u;
+    while (begin <= text.size())
+    {
+        std::size_t end = text.find('\n', begin);
+        if (end == std::string::npos)
+        {
+            end = text.size();
+        }
+        std::string line = text.substr(begin, end - begin);
+        if (!line.empty() && (line.back() == '\r'))
+        {
+            line.pop_back();
+        }
+        ++lineNo;
+
+        /* 只看这一行里有没有可见字符：纯空行 / 纯注释行跳过（注释交给 %trivia） */
+        bool hasCode = false;
+        for (const char ch : line)
+        {
+            if ((ch != ' ') && (ch != '\t'))
+            {
+                hasCode = true;
+                break;
+            }
+        }
+        if (hasCode && (line.find_first_not_of(" \t") != std::string::npos) &&
+            (line[line.find_first_not_of(" \t")] != '#'))
+        {
+            ParserValue_T result{};
+            const Status status = engine.runText(line, &result);
+            if (status != Status::Ok)
+            {
+                const Error *pError = engine.lastError();
+                if (pError != nullptr)
+                {
+                    /* 语法错误：解析器知道列号，报「第 N 行第 M 列：…」 */
+                    std::fprintf(stderr, "第 %u 行第 %u 列：%s\n",
+                                 static_cast<unsigned>(lineNo),
+                                 static_cast<unsigned>(pError->column()),
+                                 pError->message().c_str());
+                }
+                else
+                {
+                    std::fprintf(stderr, "第 %u 行：%s\n",
+                                 static_cast<unsigned>(lineNo),
+                                 statusName(status));
+                }
+                return 1;
+            }
+            if (Calc_State().failed)
+            {
+                std::fprintf(stderr, "第 %u 行：%s\n",
+                             static_cast<unsigned>(lineNo),
+                             Calc_State().message.c_str());
+                return 1;
+            }
+            std::printf("%s\n", result.toString().c_str());
+        }
+
+        if (end == text.size())
+        {
+            break;
+        }
+        begin = end + 1u;
+    }
+    return 0;
+}

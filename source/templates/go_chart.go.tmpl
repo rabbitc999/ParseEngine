@@ -1,0 +1,128 @@
+// ---------- Earley / CYK 图表判定 ----------
+
+type sChartItem struct {
+	production int
+	dot        int
+	origin     int
+}
+
+func (p *Parser) chartPrecheck() int32 {
+	textMode := p.textMode
+	source := p.text
+	tokens := make([]int32, 0)
+	for p.current.Type != TOKEN_END {
+		tokens = append(tokens, p.current.Type)
+		if p.advance() != StatusOK {
+			return StatusErrLexer
+		}
+	}
+	var reset int32
+	if textMode {
+		reset = p.prepareText(source)
+	} else {
+		p.tokenPos = 0
+		reset = p.prepareCommon()
+	}
+	if reset != StatusOK {
+		return reset
+	}
+	accepted := {% if earley %}sParserEarleyAccept(tokens){% else %}sParserCykAccept(tokens){% endif %}
+	if accepted {
+		return StatusOK
+	}
+	p.setError(StatusErrSyntax, p.current.Line, p.current.Column, "没有可接受的解析路径")
+	return StatusErrSyntax
+}
+
+{% if earley %}func sParserEarleyAccept(tokens []int32) bool {
+	count := len(tokens)
+	chart := make([]map[sChartItem]struct{}, count+1)
+	for index := range chart {
+		chart[index] = make(map[sChartItem]struct{})
+	}
+	for production := 0; production < sParserChartProductionCount; production++ {
+		if int(sParserChartLHS[production]) == sParserChartStart {
+			chart[0][sChartItem{production: production}] = struct{}{}
+		}
+	}
+	for position := 0; position <= count; position++ {
+		changed := true
+		for changed {
+			changed = false
+			for item := range chart[position] {
+				length := int(sParserChartRHSLength[item.production])
+				if item.dot == length {
+					completed := int32(sParserChartTerminalCount) + sParserChartLHS[item.production]
+					for parent := range chart[item.origin] {
+						if parent.dot < int(sParserChartRHSLength[parent.production]) &&
+							sParserChartRHSSymbols[int(sParserChartRHSStart[parent.production])+parent.dot] == completed {
+							next := sChartItem{parent.production, parent.dot + 1, parent.origin}
+							if _, found := chart[position][next]; !found {
+								chart[position][next] = struct{}{}
+								changed = true
+							}
+						}
+					}
+					continue
+				}
+				symbol := sParserChartRHSSymbols[int(sParserChartRHSStart[item.production])+item.dot]
+				if symbol >= int32(sParserChartTerminalCount) {
+					nonterm := symbol - int32(sParserChartTerminalCount)
+					for nextProduction := 0; nextProduction < sParserChartProductionCount; nextProduction++ {
+						if sParserChartLHS[nextProduction] == nonterm {
+							next := sChartItem{nextProduction, 0, position}
+							if _, found := chart[position][next]; !found {
+								chart[position][next] = struct{}{}
+								changed = true
+							}
+						}
+					}
+				} else if position < count && symbol == tokens[position] {
+					chart[position+1][sChartItem{item.production, item.dot + 1, item.origin}] = struct{}{}
+				}
+			}
+		}
+	}
+	for item := range chart[count] {
+		if int(sParserChartLHS[item.production]) == sParserChartStart && item.origin == 0 &&
+			item.dot == int(sParserChartRHSLength[item.production]) {
+			return true
+		}
+	}
+	return false
+}
+{% else %}func sParserCykAccept(tokens []int32) bool {
+	count := len(tokens)
+	if count == 0 {
+		return sParserChartAcceptsEmpty
+	}
+	cells := make([][][]bool, count)
+	for begin := 0; begin < count; begin++ {
+		cells[begin] = make([][]bool, count+1)
+		for end := begin + 1; end <= count; end++ {
+			cells[begin][end] = make([]bool, sParserChartNontermCount)
+		}
+	}
+	for index, token := range tokens {
+		for rule := 0; rule < sParserChartUnaryCount; rule++ {
+			if sParserChartUnaryToken[rule] == token {
+				cells[index][index+1][sParserChartUnaryLHS[rule]] = true
+			}
+		}
+	}
+	for length := 2; length <= count; length++ {
+		for begin := 0; begin+length <= count; begin++ {
+			end := begin + length
+			for middle := begin + 1; middle < end; middle++ {
+				for rule := 0; rule < sParserChartBinaryCount; rule++ {
+					if cells[begin][middle][sParserChartBinaryLeft[rule]] &&
+						cells[middle][end][sParserChartBinaryRight[rule]] {
+						cells[begin][end][sParserChartBinaryLHS[rule]] = true
+					}
+				}
+			}
+		}
+	}
+	return cells[0][count][sParserChartStart]
+}
+{% endif %}

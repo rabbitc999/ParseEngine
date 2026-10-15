@@ -1,0 +1,31 @@
+{ 综合样例：三层嵌套过程 + 递归 + 同名遮蔽 + 两种注释 + ? / ! + 空语句 }
+var x, y;
+
+procedure outer;
+    var x;
+    procedure mid;
+        var x;
+        procedure deep;
+            begin
+                x := x + 1;        { 改的是 mid.x }
+                call mid           { mid 调自己：过程体里能递归调用自己 }
+            end;
+        begin
+            x := 5;
+            call deep
+        end;
+    begin
+        x := 2;
+        call mid;
+        ;
+    end;
+
+begin
+    x := 1;
+    y := 1;
+    call outer;
+    ? y;
+    ! x;
+    (* 花括号与 Pascal 两种注释都能混用 *)
+    write x + y
+end.

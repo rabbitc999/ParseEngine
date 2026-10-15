@@ -1,0 +1,6 @@
+    // 递归下降表：每个非终结符的产生式区间（`_DD_PROD_START[i]` 起、
+    // `_DD_PROD_COUNT[i]` 条，按声明顺序——回溯时依次试的就是这个顺序），
+    // 以及它的语义槽位个数（最长的右部 + 1，第 0 个槽位留空）。
+    private static readonly int[] _DD_PROD_START = {{ prod_start }};
+    private static readonly int[] _DD_PROD_COUNT = {{ prod_count }};
+    private static readonly int[] _DD_PROD_SLOTS = {{ prod_slots }};

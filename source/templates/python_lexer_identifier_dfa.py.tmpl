@@ -1,0 +1,14 @@
+        # 标识符：%identifier 声明的正则（命中关键字时换成关键字 Token）。
+        ident_length = _lex_regex_match(_IDENTIFIER_RE, self._input,
+                                        self._text_pos)
+        if ident_length > 0:
+            start = self._text_pos
+            for _ in range(ident_length):
+                self._read_char()
+            self._lexeme = self._input[start:self._text_pos]
+            keyword = _KEYWORDS.get(self._lexeme, TOKEN_INVALID)
+            token.type = (keyword if keyword != TOKEN_INVALID
+                          else TOKEN_VARIABLE)
+            token.text = self._lexeme
+            token.value = self._lexeme
+            return STATUS_OK, token

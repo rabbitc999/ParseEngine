@@ -1,0 +1,14 @@
+{# LL 的产生式展开分支（CodeGenRust 的 rustExpandCases）。
+   变量：prods —— 字段 id / steps；steps 每项字段 is_comment / kind /
+                  symbol / slot。
+   本模板自带行尾换行。 #}
+{% for p in prods %}        if production == {{ p.id }}
+        {
+{% for s in p.steps %}{% if s.is_comment %}            // 空尾规则由 LeftLoop 直接完成
+{% else %}            if !self.ll_push({{ s.kind }}, {{ s.symbol }}, frame_index, {{ s.slot }}, INVALID_INDEX)
+            {
+                return STATUS_ERR_STACK;
+            }
+{% endif %}{% endfor %}            return STATUS_OK;
+        }
+{% endfor %}

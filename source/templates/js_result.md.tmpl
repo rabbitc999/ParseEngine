@@ -1,0 +1,20 @@
+# 生成结果（JavaScript / TypeScript）
+
+- 文法文件：`{{ source_name }}`
+- 生成模式：{{ mode_label }}
+- 目标语言：`--lang js`
+- 语法树：{% if tree %}启用{% else %}未启用{% endif %}
+
+## 产物
+
+- `parser.ts`：带可擦除 TypeScript 类型标注的词法器、解析器与入口
+- `package.json`：Node.js ESM 工程描述
+- `RESULT.md`：本说明
+
+## 运行
+
+```sh
+printf '%s\n' {{ example_shell }} | node parser.ts
+```
+
+需要 Node.js 22 或更高版本直接擦除类型标注；也可用 TypeScript 编译器处理。JS 档当前支持 DD、Earley 与 CYK。DD 按产生式声明顺序回溯；Earley 实现预测、扫描与完成；CYK 用 CNF 跨度表判定，再按原文法重建第一棵派生树。窄后端不支持语义动作、错误恢复、`%union` 或用户代码段。

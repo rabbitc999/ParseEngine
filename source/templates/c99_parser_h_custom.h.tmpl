@@ -1,0 +1,110 @@
+/**
+ * parser.h —— custom 运行时公开 API：Parser_RunText / Parser_Run / Error
+ * 由 ParseEngine 自动生成（{{ mode_name }}）
+ */
+
+#ifndef PARSER_H
+#define PARSER_H
+
+#include <stdint.h>
+
+{{ user_include }}
+#include "parser_token.h"
+
+{{ defines }}
+/**
+ * @brief `%commit` 收集到的一条片段：行号 + 类型 + 原文。
+ *
+ * `type` 指向静态字符串（来自文法，**不要 free**）；`text` 是堆内存，由
+ * `Parser_FreeCommits()` 统一释放（或在下一次解析开始时自动释放）。
+ */
+typedef struct __ParserCommit_T
+{
+    int         line; /**< 片段起始行号（1 起）。 */
+    const char *type; /**< `%commit` 的类型名；skip 不进容器。 */
+    char       *text; /**< 匹配到的原文（堆分配）。 */
+} ParserCommit;
+
+/** @brief `%commit` 容器：一条动态数组（由 Parser_GetCommits 暴露）。 */
+typedef struct __ParserCommitList_T
+{
+    ParserCommit *items;    /**< 元素（堆分配，由 Parser_FreeCommits 释放）。 */
+    int           count;    /**< 元素个数。 */
+    int           capacity; /**< 已分配容量（生成器自用）。 */
+} ParserCommitList;
+
+/** @brief 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起）。 */
+typedef struct __ParserLocation_T
+{
+    int line;   /**< 行号（1 起）。 */
+    int column; /**< 列号（1 起）。 */
+    int offset; /**< UTF-8 字节偏移（0 起）。 */
+} ParserLocation;
+
+{{ error_type }}{{ tree_api }}
+/** 
+ * @brief 解析 Token 数组。 
+ * @param pTokens Token 数组。
+ * @param count 数量。 
+ * @param pResult 输出语义结果（成功时写入）。
+ * @retval PARSER_OK 表示成功，其余为错误码。 
+ */
+int32_t Parser_Run(const ParserToken_T *pTokens, uint32_t count,
+                   ParserValue_T *pResult);
+
+/** 
+ * @brief 解析脚本文本。 
+ * @param pText 输入文本。
+ * @param pResult 输出语义结果（成功时写入）。
+ * @retval PARSER_OK 表示成功，其余为错误码。 
+ */
+int32_t Parser_RunText(const char *pText, ParserValue_T *pResult);
+
+/**
+ * @brief 取最近一次错误。
+ * @retval 只读错误结构。
+ */
+const ParserError_T *Parser_GetLastError(void);
+
+/**
+ * @brief 取最近一次解析累积的错误条数（一次解析可以报多个错）。
+ * @retval 错误条数；0 表示没有错误。
+ */
+uint32_t Parser_GetErrorCount(void);
+
+/**
+ * @brief 取第 index 条错误。
+ * @param index 下标（0 起）。
+ * @retval 只读错误结构；越界返回 NULL。
+ */
+const ParserError_T *Parser_GetError(uint32_t index);
+
+/**
+ * @brief 取本次解析收集到的 `%commit` 片段（按出现顺序）。
+ *
+ * 返回的是解析器内部的只读容器：**不要 free**，要清理用
+ * `Parser_FreeCommits()`；下一次 `Parser_RunText` / `Parser_Run` 开始时也会
+ * 自动释放上一次的内容。文法里没写 `%commit` 时 `count` 恒为 0。
+ * @retval 只读容器（非 NULL）。
+ */
+const ParserCommitList *Parser_GetCommits(void);
+
+/**
+ * @brief 释放 `Parser_GetCommits()` 里那些片段占的内存。
+ *
+ * C99 没有 RAII：`ParserCommit::text` 是 `malloc` 出来的，调用方取完内容后
+ * 必须调一次（或直接开始下一次解析，内部会先释放再清空）。
+ * @retval 无。
+ */
+void Parser_FreeCommits(void);
+
+/**
+ * @brief 取当前 lookahead 的位置（行 / 列 1 起，offset 是 UTF-8 字节偏移）。
+ *
+ * 语义动作里的 `$line` / `$column` 读的就是这里的值；词法错误时它指向出错
+ * 位置，与 `Parser_GetLastError()` 里的行列号一致。
+ * @retval 位置（值返回，无所有权问题）。
+ */
+ParserLocation Parser_CurrentLocation(void);
+
+#endif /* PARSER_H */

@@ -1,0 +1,42 @@
+/* ACTION：0 出错，>0 移进到 action-1，<0 归约 -action-1，INT32_MAX 接受；GOTO：0xFFFF 出错。 */
+inline constexpr std::int32_t kAction[{{ state_count }}][{{ terminal_count }}] =
+{
+{% for row in action_rows %}{% if loop_first %}{% else %},
+{% endif %}    { {% for c in row %}{{ c }}{% if loop_last %}{% else %}, {% endif %}{% endfor %} }{% endfor %}
+};
+/* LR(k) / LALR(k)：第二层 ACTION——按 k 元组展望符建列的归约/接受（编码同第一层）。k = 1 时不用这一层。 */
+inline constexpr std::int32_t kReduce[{{ state_count }}][{{ column_count }}] =
+{
+{% for row in reduce_rows %}{% if loop_first %}{% else %},
+{% endif %}    { {% for c in row %}{{ c }}{% if loop_last %}{% else %}, {% endif %}{% endfor %} }{% endfor %}
+};
+/// 每列的 k 个 Token 号（信息用；运行时按下面的编码查）。
+inline constexpr std::uint16_t kLookaheadKeys[{{ column_count }}][{{ lookahead_k }}] =
+{
+{% for row in key_rows %}{% if loop_first %}{% else %},
+{% endif %}    { {% for c in row %}{{ c }}{% if loop_last %}{% else %}, {% endif %}{% endfor %} }{% endfor %}
+};
+/// 列编码（升序）与对应的列号，运行时二分查找。
+inline constexpr std::int64_t kLookaheadCode[{{ column_count }}] =
+{
+    {% for v in code_list %}{{ v }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+inline constexpr std::uint16_t kLookaheadColumn[{{ column_count }}] =
+{
+    {% for v in column_list %}{{ v }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+
+inline constexpr std::uint16_t kGoto[{{ state_count }}][{{ nonterm_count }}] =
+{
+{% for row in goto_rows %}{% if loop_first %}{% else %},
+{% endif %}    { {% for c in row %}{{ c }}{% if loop_last %}{% else %}, {% endif %}{% endfor %} }{% endfor %}
+};
+inline constexpr std::uint16_t kProductionLength[] =
+{
+    {% for v in production_lengths %}{{ v }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+inline constexpr std::uint16_t kProductionLhs[] =
+{
+    {% for v in production_lhs %}{{ v }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+

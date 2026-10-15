@@ -1,0 +1,19 @@
+{ 全部运算符：四则、一元正负、括号、六种比较（含 # 别名）、odd }
+var a, b, c;
+begin
+    a := 2;
+    b := 3;
+    c := 4;
+    write a + b * c - c / a;
+    write -a + +b;
+    write (a + b) * c;
+    if a = 2 then write 1;
+    if a <> 3 then write 2;
+    if a # 3 then write 3;
+    if a < b then write 4;
+    if a <= b then write 5;
+    if b > a then write 6;
+    if b >= a then write 7;
+    if odd a then write 8;
+    if odd a + b then write 9
+end.

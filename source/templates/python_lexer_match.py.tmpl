@@ -1,0 +1,57 @@
+        # 固定字面量与 %token regex 一起做最长匹配，字面量优先。
+        best_length = 0
+        best_type = TOKEN_INVALID
+        best_from_regex = False
+        best_wildcard = False
+        best_text = ""
+        best_order = 0
+        start = self._text_pos
+        for rule_text, rule_type, rule_length, _rule_blank, rule_order \
+                in _LEX_RULES:
+            if not _lex_rule_hit(rule_text, self._input, start):
+                continue
+            last = rule_text[-1]
+            nxt = self._peek_char(rule_length)
+            if _is_word(last) and _is_word(nxt):
+                continue
+            if rule_length > best_length:
+                best_length = rule_length
+                best_type = rule_type
+                best_from_regex = False
+                best_wildcard = _BLANK_WILDCARD in rule_text
+                best_text = rule_text
+                best_order = rule_order
+{{ lex_regex_loop }}        # %commit：与 Token 规则共用一份最长匹配；同长度时按声明序，
+        # 先声明优先（skip 命中不算 Token，直接丢掉）。
+        commit_length = 0
+        commit_index = 0
+        for index, (pattern, _commit_type, _commit_skip, _commit_order) \
+                in enumerate(_COMMIT_RES):
+            matched = _lex_regex_match(pattern, self._input, start)
+            if matched > commit_length:
+                commit_length = matched
+                commit_index = index
+        if commit_length and (
+                (commit_length > best_length) or
+                ((commit_length == best_length) and
+                 ((best_type == TOKEN_INVALID) or
+                  (_COMMIT_RES[commit_index][3] < best_order)))):
+            _pattern, commit_type, commit_skip, _order = _COMMIT_RES[commit_index]
+            if not commit_skip:
+                self.commits.append(ParserCommit(self._line, commit_type,
+                                                 self._input[start:start + commit_length]))
+            for _ in range(commit_length):
+                self._read_char()
+            return _LEX_COMMIT_CONSUMED, Token(TOKEN_INVALID, "", None,
+                                               self._line, self._column)
+        if best_type != TOKEN_INVALID:
+            for _ in range(best_length):
+                self._read_char()
+            token.type = best_type
+            if best_from_regex or best_wildcard:
+                self._lexeme = self._input[start:start + best_length]
+                token.text = self._lexeme
+            else:
+                token.text = best_text
+            token.value = token.text
+            return STATUS_OK, token

@@ -1,0 +1,65 @@
+    // ---------- 词法器 ----------
+
+    /**
+     * 取下一个词法单元。
+     *
+     * `%commit` 命中的片段不是 Token：吃掉原文（收进容器或丢掉）后继续取，
+     * 直到拿到真正的 Token 或词法错误。
+     *
+     * @param item 输出词法单元。
+     * @return 状态码。
+     */
+    private int _lexNext(Token item)
+    {
+        while (true)
+        {
+            int status = _lexNextRaw(item);
+            if (status != _LEX_COMMIT_CONSUMED)
+            {
+                return status;
+            }
+        }
+    }
+
+    /**
+     * 取下一个词法单元（单趟；`%commit` 命中时返回哨兵状态）。
+     *
+     * 顺序与 C 目标一致：跳过空白（%space）→ 双引号字符串 → %token regex 与
+     * 固定字面量一起做最长匹配（字面量优先）→ 数字 → 标识符。
+     *
+     * @param item 输出词法单元。
+     * @return 状态码；词法错误时是 STATUS_ERR_LEXER 或细分码。
+     */
+    private int _lexNextRaw(Token item)
+    {
+        while (_lexIsSkipChar(_peekChar(0)))
+        {
+            // 空白也可能是 Token（%token NL "\n" / %token SP "\b"）：
+            // 命中以空白开头的字面量就停手，交给词法匹配
+            if (_lexBlankRuleHit(_input, _textPos))
+            {
+                break;
+            }
+            _readChar();
+        }
+        // 位置在跳完空白之后再定（与 C / C++17 / Python 目标的列号一致）
+        item.line = _line;
+        item.column = _column;
+        item.offset = _bytePos;
+        if (_peekChar(0) < 0)
+        {
+            item.type = TOKEN_END;
+            return STATUS_OK;
+        }
+
+{{ lex_string_block }}
+
+{{ lex_match_block }}
+
+{{ lex_number_block }}
+
+{{ lex_identifier_block }}
+
+        // 一条规则都没命中：认不出来的字符（细分码，与其它目标一致）
+        return STATUS_ERR_LEX_CHAR;
+    }

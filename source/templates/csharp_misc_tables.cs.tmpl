@@ -1,0 +1,11 @@
+    // %sync 声明的同步 Token / error 伪终结符。
+    private static readonly int[] _SYNC_TOKENS = {{ sync_tokens }};
+    private const bool _HAS_ERROR_TOKEN = {{ has_error_token }};
+    private const int _ERROR_TOKEN_ID = {{ error_token_id }};
+
+    // 非终结符名表（%tree 建内部分支节点用）。
+    private static readonly string[] _TREE_NONTERM_NAMES = {
+{% for n in nonterms %}
+        {{ n }},
+{% endfor %}
+    };

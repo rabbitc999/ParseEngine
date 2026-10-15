@@ -1,0 +1,64 @@
+//! Generated allocation-free codec for $protocol_name.
+//!
+//! This module uses only `core` and can be included in a `#![no_std]` crate.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecodeError {
+    Truncated,
+    InvalidEnum,
+    TrailingBytes,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EncodeError {
+    Capacity,
+    LengthMismatch,
+}
+
+fn read_u(data: &[u8], offset: &mut usize, width: usize, little: bool) -> Result<u64, DecodeError> {
+    if *offset > data.len() || width > data.len() - *offset {
+        return Err(DecodeError::Truncated);
+    }
+    let mut value = 0u64;
+    if little {
+        for i in 0..width { value |= (data[*offset + i] as u64) << (i * 8); }
+    } else {
+        for i in 0..width { value = (value << 8) | data[*offset + i] as u64; }
+    }
+    *offset += width;
+    Ok(value)
+}
+
+fn write_u(out: &mut [u8], offset: &mut usize, value: u64,
+           width: usize, little: bool) -> Result<(), EncodeError> {
+    if *offset > out.len() || width > out.len() - *offset {
+        return Err(EncodeError::Capacity);
+    }
+    for i in 0..width {
+        let shift = if little { i * 8 } else { (width - i - 1) * 8 };
+        out[*offset + i] = ((value >> shift) & 0xff) as u8;
+    }
+    *offset += width;
+    Ok(())
+}
+
+fn read_bytes<'a>(data: &'a [u8], offset: &mut usize,
+                  size: usize) -> Result<&'a [u8], DecodeError> {
+    if *offset > data.len() || size > data.len() - *offset {
+        return Err(DecodeError::Truncated);
+    }
+    let result = &data[*offset..*offset + size];
+    *offset += size;
+    Ok(result)
+}
+
+fn write_bytes(out: &mut [u8], offset: &mut usize, data: &[u8]) -> Result<(), EncodeError> {
+    if *offset > out.len() || data.len() > out.len() - *offset {
+        return Err(EncodeError::Capacity);
+    }
+    out[*offset..*offset + data.len()].copy_from_slice(data);
+    *offset += data.len();
+    Ok(())
+}
+
+$rust_declarations

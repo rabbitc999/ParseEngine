@@ -1,0 +1,1028 @@
+/* ============================================================
+ * project/pl0.gram —— 完整 PL/0 前端 + 四元式生成（C++17）
+ *
+ * 这是一份完整的 C++17 工程示例：用 ParseEngine 生成解析器，再用它把
+ * PL/0 源码编译成**四元式**（quadruple，形如 `i: (op, arg1, arg2, result)`）。
+ *
+ * 四元式与三元式的唯一差别：每条记录**显式写出结果放哪**。
+ * 临时量不再是「本条的下标」，而是独立名字（t1、t2 …），
+ * 可以被后面的指令直接引用——这正是四元式比三元式更适合做优化与
+ * 目标代码生成的原因：引用稳定，不随指令搬动而失效。
+ *
+ * 文法范围（Wirth 的 PL/0，一样不少）：
+ *   常量声明 / 变量声明 / **过程声明（可嵌套）** / 赋值 / call /
+ *   begin-end 复合语句 / if-then / while-do / read / write / odd /
+ *   四则运算 / 一元正负 / 六种比较（= <> < <= > >=，# 作为 <> 的别名）/
+ *   **可选空语句**（statement 可以什么都不写）；
+ *   注释支持 { ... } 与 (* ... *) 两种写法：由文法里的 %trivia 在**词法器**里
+ *   跳过（%main 不剥文本，只对「注释没闭合」补一句更清楚的报错）。
+ * 不支持：数组（经典 PL/0 本来就没有；扩展语法不属于 PL/0）。
+ *
+ * 语义值 ParserValue_T 是一个「位置」（place），而且**必须是 POD**：
+ * 生成的运行时会对它 memset / 按值拷贝（`ParserValue_T values[...]` 整块清零），
+ * 所以里面只放 int，名字统一放 %epilogue 的名字池（std::vector<std::string>），
+ * 位置里只存下标。位置种类：
+ *   CONST 常量（值） / NAME 变量或过程（名字池下标） / TEMP 四元式结果（临时量编号）/
+ *   LABEL 标签（号） / CODE 算子码（比较与算术算子）
+ *
+ * 变量/过程用**限定名**区分作用域：顶层 `x`；过程 p 里的局部变量 `p.x`；
+ * 嵌套过程 p.q 里的 `p.q.x`。于是
+ *   var x; procedure p; var x; begin x := 1 end; begin x := 2 end.
+ * 里的两个 x 分别写成 `p.x` 与 `x`，四元式里不再混淆。
+ *
+ * 代码分三处写（和 doc/07-codegen.md 的分工表一致）：
+ *   %code        类型、宏、帮助函数声明 —— 进 pl0_parser_user.h
+ *   %epilogue    名字池 / 符号表 / 四元式表 / 注释检查 / 帮助函数实现
+ *                —— 贴到 pl0_parser.cpp 末尾
+ *   %main        命令行入口（读 .pl0 文件 → 检查注释 → 解析 → 打印四元式）
+ *                —— 进 pl0_main.cpp
+ * ============================================================ */
+
+%mode lalr
+%namespace pl0
+
+/* ---- 词法：标识符用 %identifier，其余是固定字面量 ---- */
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+%define CONST   "const"
+%define VAR     "var"
+%define PROCEDURE "procedure"
+%define BEGIN   "begin"
+%define END     "end"
+%define IF      "if"
+%define THEN    "then"
+%define WHILE   "while"
+%define DO      "do"
+%define CALL    "call"
+%define READ    "read"
+%define WRITE   "write"
+%define READ2   "?"
+%define WRITE2  "!"
+%define ODD     "odd"
+
+%define ASSIGN  ":="
+%define EQ      "="
+%define NEQ     "<>"
+%define NEQ2    "#"
+%define LE      "<="
+%define GE      ">="
+%define LT      "<"
+%define GT      ">"
+
+%define PLUS    "+"
+%define MINUS   "-"
+%define STAR    "*"
+%define SLASH   "/"
+%define LPAREN  "("
+%define RPAREN  ")"
+%define COMMA   ","
+%define SEMI    ";"
+%define DOT     "."
+
+/* ---- 注释：交给生成出来的词法器跳过（%trivia = 匹配即丢）----
+ * PL/0 的两种注释都不嵌套，正好写成 DFA 友好的正则：
+ *   { ... }      —— 「除了 } 什么都不吃」直到第一个 }
+ *   (* ... *)    —— 与 C 的块注释同款，中间的 * 串用 \*+ 吃掉
+ * 注释命中的文本直接丢掉，不进语法层、也不进容器（%commit 才收进容器）。
+ * 这样解析器本身（不只是演示程序）就支持注释——当库用时不用先预剥文本。 */
+%trivia "\{[^}]*\}"
+%trivia "\(\*([^*]|\*+[^)]+)*\*+\)"
+
+%code
+/* ---------------------------------------------------------------
+ * 用户代码块：类型、算子码、Token→语义值的钩子、帮助函数声明。
+ * 这里的内容进 pl0_parser_user.h，被 pl0_parser.cpp / pl0_main.cpp 共享，
+ * 所以只放声明与宏（函数定义放 %epilogue）。
+ * --------------------------------------------------------------- */
+#include <stdio.h>
+#include <string>
+#include <vector>
+#include <fstream>
+
+/* 位置种类 */
+#define PL0_PLACE_NONE   0
+#define PL0_PLACE_CONST  1
+#define PL0_PLACE_NAME   2   /* 变量或过程：index 是名字池下标 */
+#define PL0_PLACE_TEMP   3   /* 四元式结果：value 是临时量编号 */
+#define PL0_PLACE_LABEL  4
+#define PL0_PLACE_CODE   5
+
+/* 语义值：一个「位置」。
+ *
+ * 注意：**必须是 POD**——生成的运行时会对 ParserValue_T 整块 memset
+ * （语义值栈、初值、error 占位值），也会按值拷贝。所以这里只放 int；
+ * 名字放 %epilogue 的名字池，位置里只存下标。
+ *
+ * TEMP 的语义：value 是**临时量编号**（t1、t2 … 的 1、2 …），
+ * 与四元式的下标无关——这是四元式区别于三元式的关键。 */
+typedef struct Pl0_Place_T
+{
+    int kind;   /* PL0_PLACE_* */
+    int value;  /* CONST：常量值；TEMP：临时量编号；LABEL：标签号；CODE：算子码 */
+    int index;  /* NAME：名字池下标；TEMP 不再用它 */
+} ParserValue_T;
+
+/* 算子码：动作里只能传数字/宏，字符串在帮助函数里映射 */
+#define PL0_OP_ADD  1
+#define PL0_OP_SUB  2
+#define PL0_OP_MUL  3
+#define PL0_OP_DIV  4
+#define PL0_OP_NEG  5
+#define PL0_OP_ODD  6
+#define PL0_CMP_EQ  7
+#define PL0_CMP_NE  8
+#define PL0_CMP_LT  9
+#define PL0_CMP_LE  10
+#define PL0_CMP_GT  11
+#define PL0_CMP_GE  12
+
+/* Token → 语义值：数字 Token 取词法器解析好的 value，标识符先记下名字
+ * （**不查表** —— 声明处的 `var x`、`procedure p` 也要经过这里，那时它们
+ * 还没进符号表），关键字与运算符没有语义值（给空位置）。查表在真正用到
+ * 这个名字的地方做（Pl0_Resolve / Pl0_Assign / Pl0_Read / Pl0_Call）。
+ * 宏本身写在 parser_user.h 里（不参与 C++17 的标识符改写），但它展开在
+ * pl0_parser.cpp 的 namespace 内，所以这里能直接用 TOKEN_*。 */
+#define PARSER_USER_TOKEN_VALUE(pToken)                                  \
+    Pl0_PlaceFromToken((((pToken)->type) == TOKEN_NUMBER) ? 1 : 0,        \
+                       (((pToken)->type) == TOKEN_VARIABLE) ? 1 : 0,      \
+                       (int)((pToken)->value), (pToken)->pName)
+
+/* ---- 帮助函数（实现见 %epilogue）---- */
+ParserValue_T Pl0_PlaceNone(void);
+ParserValue_T Pl0_PlaceFromToken(int isNumber, int isIdentifier, int value,
+                                 const char *pName);
+ParserValue_T Pl0_Code(int code);
+ParserValue_T Pl0_Resolve(ParserValue_T place);
+
+ParserValue_T Pl0_Binary(int op, ParserValue_T left, ParserValue_T right);
+ParserValue_T Pl0_Negate(ParserValue_T operand);
+ParserValue_T Pl0_OddJump(ParserValue_T operand);
+ParserValue_T Pl0_CondJump(int cmpOp, ParserValue_T left,
+                           ParserValue_T right);
+void          Pl0_EndIf(ParserValue_T falseLabel);
+ParserValue_T Pl0_BeginWhile(void);
+void          Pl0_EndWhile(ParserValue_T falseLabel);
+
+void          Pl0_DefineConst(ParserValue_T name, ParserValue_T value);
+void          Pl0_DefineVar(ParserValue_T name);
+ParserValue_T Pl0_BeginProc(ParserValue_T name);
+void          Pl0_EndProc(void);
+void          Pl0_Call(ParserValue_T name);
+void          Pl0_Assign(ParserValue_T target, ParserValue_T value);
+void          Pl0_Read(ParserValue_T target);
+void          Pl0_Write(ParserValue_T value);
+
+int           Pl0_CheckComments(const std::string &text);
+int           Pl0_HasError(void);
+void          Pl0_PrintQuads(void);
+%endcode
+
+%start program
+
+/* ---- 程序与块 ---- */
+program    := block DOT
+              {
+                  $$ = $1;
+              }
+            ;
+
+block      := const_part var_part proc_part stmt
+              {
+                  $$ = $4;
+              }
+            ;
+
+const_part := CONST const_list SEMI
+              {
+                  $$ = $2;
+              }
+            | %empty { $$ = Pl0_PlaceNone(); }
+            ;
+
+const_list := const_item
+              {
+                  $$ = $1;
+              }
+            | const_list COMMA const_item
+              {
+                  $$ = $3;
+              }
+            ;
+
+const_item := VARIABLE EQ NUMBER
+              {
+                  Pl0_DefineConst($1, $3);
+                  $$ = Pl0_PlaceNone();
+              }
+            ;
+
+var_part   := VAR var_list SEMI
+              {
+                  $$ = $2;
+              }
+            | %empty { $$ = Pl0_PlaceNone(); }
+            ;
+
+var_list   := VARIABLE
+              {
+                  Pl0_DefineVar($1);
+                  $$ = Pl0_PlaceNone();
+              }
+            | var_list COMMA VARIABLE
+              {
+                  Pl0_DefineVar($3);
+                  $$ = $1;
+              }
+            ;
+
+/* 过程声明：可以嵌套，也可以递归调用自己 */
+proc_part  := proc_decl proc_part
+              {
+                  $$ = $1;
+              }
+            | %empty { $$ = Pl0_PlaceNone(); }
+            ;
+
+proc_decl  := proc_head block SEMI
+              {
+                  Pl0_EndProc();
+                  $$ = $1;
+              }
+            ;
+
+proc_head  := PROCEDURE VARIABLE SEMI
+              {
+                  $$ = Pl0_BeginProc($2);
+              }
+            ;
+
+/* ---- 语句（PL/0 的 statement 可以为空）---- */
+stmt       := assign
+              {
+                  $$ = $1;
+              }
+            | call_stmt
+              {
+                  $$ = $1;
+              }
+            | compound
+              {
+                  $$ = $1;
+              }
+            | if_stmt
+              {
+                  $$ = $1;
+              }
+            | while_stmt
+              {
+                  $$ = $1;
+              }
+            | read_stmt
+              {
+                  $$ = $1;
+              }
+            | write_stmt
+              {
+                  $$ = $1;
+              }
+            | %empty { $$ = Pl0_PlaceNone(); }
+            ;
+
+assign     := VARIABLE ASSIGN expr
+              {
+                  Pl0_Assign($1, $3);
+                  $$ = Pl0_PlaceNone();
+              }
+            ;
+
+call_stmt  := CALL VARIABLE
+              {
+                  Pl0_Call($2);
+                  $$ = Pl0_PlaceNone();
+              }
+            ;
+
+compound   := BEGIN stmt_list END
+              {
+                  $$ = Pl0_PlaceNone();
+              }
+            ;
+
+stmt_list  := stmt
+              {
+                  $$ = $1;
+              }
+            | stmt_list SEMI stmt
+              {
+                  $$ = $3;
+              }
+            ;
+
+if_stmt    := IF cond THEN stmt
+              {
+                  Pl0_EndIf($2);
+                  $$ = Pl0_PlaceNone();
+              }
+            ;
+
+while_stmt := WHILE while_head cond DO stmt
+              {
+                  Pl0_EndWhile($3);
+                  $$ = Pl0_PlaceNone();
+              }
+            ;
+
+while_head := %empty { $$ = Pl0_BeginWhile(); }
+            ;
+
+/* read / write 三种写法都收：现代写法 read x / write e、带括号的 read(x)
+ * （write(x) 会按 `WRITE expr` 解析，expr 本身就是 (x)，不用单列分支），
+ * 以及 Wirth 原版的 ? x / ! e。
+ * 注意不能单列 `WRITE LPAREN expr RPAREN`：那和 `factor := LPAREN expr RPAREN`
+ * 在 `WRITE ( expr )` 上会撞成归约/归约冲突（真实的二义性），而它本来就是
+ * `WRITE expr` 的一种。 */
+read_stmt  := READ VARIABLE
+              {
+                  Pl0_Read($2);
+                  $$ = Pl0_PlaceNone();
+              }
+            | READ LPAREN VARIABLE RPAREN
+              {
+                  Pl0_Read($3);
+                  $$ = Pl0_PlaceNone();
+              }
+            | READ2 VARIABLE
+              {
+                  Pl0_Read($2);
+                  $$ = Pl0_PlaceNone();
+              }
+            ;
+
+write_stmt := WRITE expr
+              {
+                  Pl0_Write($2);
+                  $$ = Pl0_PlaceNone();
+              }
+            | WRITE2 expr
+              {
+                  Pl0_Write($2);
+                  $$ = Pl0_PlaceNone();
+              }
+            ;
+
+/* ---- 条件与表达式 ---- */
+cond       := ODD expr
+              {
+                  $$ = Pl0_OddJump($2);
+              }
+            | expr relop expr
+              {
+                  $$ = Pl0_CondJump($2.value, $1, $3);
+              }
+            ;
+
+relop      := EQ  { $$ = Pl0_Code(PL0_CMP_EQ); }
+            | NEQ { $$ = Pl0_Code(PL0_CMP_NE); }
+            | NEQ2 { $$ = Pl0_Code(PL0_CMP_NE); }
+            | LT  { $$ = Pl0_Code(PL0_CMP_LT); }
+            | LE  { $$ = Pl0_Code(PL0_CMP_LE); }
+            | GT  { $$ = Pl0_Code(PL0_CMP_GT); }
+            | GE  { $$ = Pl0_Code(PL0_CMP_GE); }
+            ;
+
+expr       := term
+              {
+                  $$ = $1;
+              }
+            | expr PLUS term
+              {
+                  $$ = Pl0_Binary(PL0_OP_ADD, $1, $3);
+              }
+            | expr MINUS term
+              {
+                  $$ = Pl0_Binary(PL0_OP_SUB, $1, $3);
+              }
+            ;
+
+term       := factor
+              {
+                  $$ = $1;
+              }
+            | term STAR factor
+              {
+                  $$ = Pl0_Binary(PL0_OP_MUL, $1, $3);
+              }
+            | term SLASH factor
+              {
+                  $$ = Pl0_Binary(PL0_OP_DIV, $1, $3);
+              }
+            ;
+
+factor     := VARIABLE
+              {
+                  $$ = Pl0_Resolve($1);
+              }
+            | NUMBER
+              {
+                  $$ = $1;
+              }
+            | LPAREN expr RPAREN
+              {
+                  $$ = $2;
+              }
+            | MINUS factor
+              {
+                  $$ = Pl0_Negate($2);
+              }
+            | PLUS factor
+              {
+                  $$ = $2;
+              }
+            ;
+
+%epilogue
+/* ---------------------------------------------------------------
+ * 四元式生成器实现（C++17：容器一律用标准库）。
+ *
+ * 这一段被原样贴到 pl0_parser.cpp 末尾 —— C++17 下它在 namespace pl0
+ * **之外**，所以这里只用标准库与自己的全局状态，不引用解析器命名空间里的
+ * 东西（要引用就得写 pl0::Xxx 全限定名）。
+ *
+ * 数据：
+ *   g_pl0Names    名字池（语义值是 POD，名字存这里，位置里只存下标）
+ *   g_pl0Symbols  符号表（栈式：进过程记下 size，出过程 resize 回去）
+ *   g_pl0Scopes   作用域栈（每层记「进入时的符号数 + 上层限定名」）
+ *   g_pl0Quads    四元式表
+ *   g_pl0Labels   while 的开始标签栈
+ *   g_pl0TempCount 临时量编号计数器（t1、t2 …）
+ * 查找符号时从 vector 尾部往前扫，得到的就是「由内向外最近」的那个，
+ * 天然支持同名遮蔽（shadowing）。
+ * --------------------------------------------------------------- */
+
+#define PL0_SYM_CONST 1
+#define PL0_SYM_VAR   2
+#define PL0_SYM_PROC  3
+
+typedef struct Pl0_Quad_T
+{
+    std::string op;      /* 算子 */
+    std::string arg1;    /* 第一操作数；没有时 "_" */
+    std::string arg2;    /* 第二操作数；没有时 "_" */
+    std::string result;  /* 结果放哪；没有时 "_" */
+} Pl0_Quad_T;
+
+typedef struct Pl0_Symbol_T
+{
+    std::string name;       /* 原始名字 */
+    std::string qualified;  /* 限定名（顶层 x；p 里 p.x；p.q 里 p.q.x） */
+    int kind;               /* PL0_SYM_* */
+    int value;              /* 常量值 */
+    int scopeDepth;         /* 声明时所在的作用域层，判同层重名用 */
+} Pl0_Symbol_T;
+
+typedef struct Pl0_Scope_T
+{
+    std::vector<Pl0_Symbol_T>::size_type mark;  /* 进入本层时的符号数 */
+    std::string savedPath;                      /* 进入本层前的限定名前缀 */
+} Pl0_Scope_T;
+
+static std::vector<std::string> g_pl0Names;      /* 名字池（去重） */
+static std::vector<Pl0_Quad_T> g_pl0Quads;       /* 四元式表 */
+static std::vector<Pl0_Symbol_T> g_pl0Symbols;   /* 符号表（栈式） */
+static std::vector<Pl0_Scope_T> g_pl0Scopes;     /* 作用域栈 */
+static std::vector<int> g_pl0Labels;             /* while 开始标签栈 */
+static std::string g_pl0ScopePath;               /* 当前限定名前缀 */
+static int  g_pl0ScopeDepth = 0;
+static int  g_pl0LabelCount = 0;
+static int  g_pl0TempCount = 0;                  /* 临时量编号计数器 */
+static bool g_pl0HasError = false;
+
+/* ---- 名字池 ---- */
+static int Pl0_Intern(const std::string &name)
+{
+    for (std::vector<std::string>::size_type index = 0;
+         index < g_pl0Names.size(); ++index)
+    {
+        if (g_pl0Names[index] == name)
+        {
+            return static_cast<int>(index);
+        }
+    }
+    g_pl0Names.push_back(name);
+    return static_cast<int>(g_pl0Names.size()) - 1;
+}
+
+static const std::string &Pl0_Name(int id)
+{
+    static const std::string k_empty;
+    if ((id < 0) || (static_cast<std::vector<std::string>::size_type>(id) >=
+                     g_pl0Names.size()))
+    {
+        return k_empty;
+    }
+    return g_pl0Names[static_cast<std::vector<std::string>::size_type>(id)];
+}
+
+/* ---- 位置（语义值）---- */
+static ParserValue_T Pl0_MakePlace(int kind, int value, int index)
+{
+    ParserValue_T place;
+    place.kind = kind;
+    place.value = value;
+    place.index = index;
+    return place;
+}
+
+ParserValue_T Pl0_PlaceNone(void)
+{
+    return Pl0_MakePlace(PL0_PLACE_NONE, 0, 0);
+}
+
+ParserValue_T Pl0_Code(int code)
+{
+    return Pl0_MakePlace(PL0_PLACE_CODE, code, 0);
+}
+
+ParserValue_T Pl0_PlaceFromToken(int isNumber, int isIdentifier, int value,
+                                 const char *pName)
+{
+    if (isNumber != 0)
+    {
+        return Pl0_MakePlace(PL0_PLACE_CONST, value, 0);
+    }
+    if ((isIdentifier == 0) || (pName == NULL) || (pName[0] == '\0'))
+    {
+        return Pl0_PlaceNone();
+    }
+    /* 只记名字，不查表：这一趟也可能是 `var x` / `procedure p` 的声明处 */
+    return Pl0_MakePlace(PL0_PLACE_NAME, 0, Pl0_Intern(pName));
+}
+
+/* 临时量名字：t1、t2 … —— 四元式里结果用显式名字引用，
+ * 与指令下标解耦，所以搬动指令不会让引用失效。 */
+static std::string Pl0_TempName(int id)
+{
+    return "t" + std::to_string(id);
+}
+
+static int Pl0_NewTemp(void)
+{
+    return ++g_pl0TempCount;
+}
+
+/* 位置 → 四元式里的操作数文本 */
+static std::string Pl0_Operand(ParserValue_T place)
+{
+    switch (place.kind)
+    {
+    case PL0_PLACE_CONST:
+        return std::to_string(place.value);
+    case PL0_PLACE_NAME:
+        return Pl0_Name(place.index);
+    case PL0_PLACE_TEMP:
+        return Pl0_TempName(place.value);   /* 四元式：tN，不是 (N) */
+    case PL0_PLACE_LABEL:
+        return "L" + std::to_string(place.value);
+    default:
+        return "_";
+    }
+}
+
+/* ---- 四元式表 ---- */
+static int Pl0_Emit(const std::string &op, const std::string &arg1,
+                    const std::string &arg2, const std::string &result)
+{
+    Pl0_Quad_T quad;
+    quad.op = op;
+    quad.arg1 = arg1;
+    quad.arg2 = arg2;
+    quad.result = result;
+    g_pl0Quads.push_back(quad);
+    return static_cast<int>(g_pl0Quads.size()) - 1;
+}
+
+/* ---- 符号表与作用域 ---- */
+static Pl0_Symbol_T *Pl0_FindSymbol(const std::string &name)
+{
+    for (std::vector<Pl0_Symbol_T>::size_type index = g_pl0Symbols.size();
+         index > 0; --index)
+    {
+        if (g_pl0Symbols[index - 1].name == name)
+        {
+            return &g_pl0Symbols[index - 1];
+        }
+    }
+    return NULL;
+}
+
+/* 按当前作用域拼限定名：顶层 x；p 里 x -> p.x；p.q 里 x -> p.q.x */
+static std::string Pl0_Qualify(const std::string &name)
+{
+    return g_pl0ScopePath.empty() ? name : (g_pl0ScopePath + "." + name);
+}
+
+/* 在当前作用域声明一个名字（同层重名报错，遮蔽外层允许） */
+static Pl0_Symbol_T *Pl0_Declare(const std::string &name, int kind, int value)
+{
+    Pl0_Symbol_T *pExisting = Pl0_FindSymbol(name);
+    Pl0_Symbol_T symbol;
+    if ((pExisting != NULL) && (pExisting->scopeDepth == g_pl0ScopeDepth))
+    {
+        fprintf(stderr, "重复声明: %s\n", name.c_str());
+        g_pl0HasError = true;
+        return NULL;
+    }
+    symbol.name = name;
+    symbol.qualified = Pl0_Qualify(name);
+    symbol.kind = kind;
+    symbol.value = value;
+    symbol.scopeDepth = g_pl0ScopeDepth;
+    g_pl0Symbols.push_back(symbol);
+    return &g_pl0Symbols.back();
+}
+
+/* 当右值用：常量折叠成值，变量换成限定名，没声明/是过程都报错 */
+ParserValue_T Pl0_Resolve(ParserValue_T place)
+{
+    Pl0_Symbol_T *pSymbol = NULL;
+    if (place.kind != PL0_PLACE_NAME)
+    {
+        return place;
+    }
+    pSymbol = Pl0_FindSymbol(Pl0_Name(place.index));
+    if (pSymbol == NULL)
+    {
+        fprintf(stderr, "未声明的标识符: %s\n",
+                Pl0_Name(place.index).c_str());
+        g_pl0HasError = true;
+        return place;
+    }
+    if (pSymbol->kind == PL0_SYM_CONST)
+    {
+        return Pl0_MakePlace(PL0_PLACE_CONST, pSymbol->value, 0);
+    }
+    if (pSymbol->kind == PL0_SYM_PROC)
+    {
+        fprintf(stderr, "过程不能当变量用: %s\n", pSymbol->name.c_str());
+        g_pl0HasError = true;
+        return place;
+    }
+    return Pl0_MakePlace(PL0_PLACE_NAME, 0, Pl0_Intern(pSymbol->qualified));
+}
+
+/* 当左值用（赋值左边 / read 的参数）：必须是变量 */
+static Pl0_Symbol_T *Pl0_ResolveTarget(ParserValue_T place)
+{
+    const std::string &name = Pl0_Name(place.index);
+    Pl0_Symbol_T *pSymbol = Pl0_FindSymbol(name);
+    if (pSymbol == NULL)
+    {
+        fprintf(stderr, "未声明的标识符: %s\n", name.c_str());
+        g_pl0HasError = true;
+        return NULL;
+    }
+    if (pSymbol->kind == PL0_SYM_CONST)
+    {
+        fprintf(stderr, "不能给常量赋值: %s\n", name.c_str());
+        g_pl0HasError = true;
+        return NULL;
+    }
+    if (pSymbol->kind == PL0_SYM_PROC)
+    {
+        fprintf(stderr, "过程不能当变量用: %s\n", name.c_str());
+        g_pl0HasError = true;
+        return NULL;
+    }
+    return pSymbol;
+}
+
+/* ---- 表达式与条件 ---- */
+static const char *Pl0_OpText(int op)
+{
+    switch (op)
+    {
+    case PL0_OP_ADD: return "+";
+    case PL0_OP_SUB: return "-";
+    case PL0_OP_MUL: return "*";
+    case PL0_OP_DIV: return "/";
+    case PL0_OP_NEG: return "neg";
+    case PL0_OP_ODD: return "odd";
+    case PL0_CMP_EQ: return "==";
+    case PL0_CMP_NE: return "!=";
+    case PL0_CMP_LT: return "<";
+    case PL0_CMP_LE: return "<=";
+    case PL0_CMP_GT: return ">";
+    case PL0_CMP_GE: return ">=";
+    default: return "?";
+    }
+}
+
+ParserValue_T Pl0_Binary(int op, ParserValue_T left, ParserValue_T right)
+{
+    int temp = 0;
+    /* 两个都是常量就直接折叠，省得为字面量生成四元式 */
+    if ((left.kind == PL0_PLACE_CONST) && (right.kind == PL0_PLACE_CONST))
+    {
+        int value = 0;
+        switch (op)
+        {
+        case PL0_OP_ADD: value = left.value + right.value; break;
+        case PL0_OP_SUB: value = left.value - right.value; break;
+        case PL0_OP_MUL: value = left.value * right.value; break;
+        case PL0_OP_DIV:
+            if (right.value == 0)
+            {
+                fprintf(stderr, "除数为常量 0\n");
+                g_pl0HasError = true;
+                value = 0;
+            }
+            else
+            {
+                value = left.value / right.value;
+            }
+            break;
+        default: break;
+        }
+        return Pl0_MakePlace(PL0_PLACE_CONST, value, 0);
+    }
+    temp = Pl0_NewTemp();
+    Pl0_Emit(Pl0_OpText(op), Pl0_Operand(left), Pl0_Operand(right),
+             Pl0_TempName(temp));
+    return Pl0_MakePlace(PL0_PLACE_TEMP, temp, 0);
+}
+
+ParserValue_T Pl0_Negate(ParserValue_T operand)
+{
+    int temp = 0;
+    if (operand.kind == PL0_PLACE_CONST)
+    {
+        return Pl0_MakePlace(PL0_PLACE_CONST, -operand.value, 0);
+    }
+    temp = Pl0_NewTemp();
+    Pl0_Emit("neg", Pl0_Operand(operand), "_", Pl0_TempName(temp));
+    return Pl0_MakePlace(PL0_PLACE_TEMP, temp, 0);
+}
+
+/* 生成「算一个结果 + 为假就跳」这一对四元式，返回假出口标签 */
+static ParserValue_T Pl0_TestJump(const std::string &op, ParserValue_T operand)
+{
+    const int temp = Pl0_NewTemp();
+    const int label = ++g_pl0LabelCount;
+    Pl0_Emit(op, Pl0_Operand(operand), "_", Pl0_TempName(temp));
+    Pl0_Emit("jz", Pl0_TempName(temp), "_", "L" + std::to_string(label));
+    return Pl0_MakePlace(PL0_PLACE_LABEL, label, 0);
+}
+
+ParserValue_T Pl0_OddJump(ParserValue_T operand)
+{
+    return Pl0_TestJump("odd", operand);
+}
+
+ParserValue_T Pl0_CondJump(int cmpOp, ParserValue_T left, ParserValue_T right)
+{
+    const int temp = Pl0_NewTemp();
+    const int label = ++g_pl0LabelCount;
+    Pl0_Emit(Pl0_OpText(cmpOp), Pl0_Operand(left), Pl0_Operand(right),
+             Pl0_TempName(temp));
+    Pl0_Emit("jz", Pl0_TempName(temp), "_", "L" + std::to_string(label));
+    return Pl0_MakePlace(PL0_PLACE_LABEL, label, 0);
+}
+
+void Pl0_EndIf(ParserValue_T falseLabel)
+{
+    Pl0_Emit("label", "_", "_", "L" + std::to_string(falseLabel.value));
+}
+
+ParserValue_T Pl0_BeginWhile(void)
+{
+    const int label = ++g_pl0LabelCount;
+    Pl0_Emit("label", "_", "_", "L" + std::to_string(label));
+    g_pl0Labels.push_back(label);
+    return Pl0_MakePlace(PL0_PLACE_LABEL, label, 0);
+}
+
+void Pl0_EndWhile(ParserValue_T falseLabel)
+{
+    int beginLabel = 0;
+    if (!g_pl0Labels.empty())
+    {
+        beginLabel = g_pl0Labels.back();
+        g_pl0Labels.pop_back();
+    }
+    Pl0_Emit("j", "_", "_", "L" + std::to_string(beginLabel));
+    Pl0_Emit("label", "_", "_", "L" + std::to_string(falseLabel.value));
+}
+
+/* ---- 声明与过程 ---- */
+void Pl0_DefineConst(ParserValue_T name, ParserValue_T value)
+{
+    Pl0_Declare(Pl0_Name(name.index), PL0_SYM_CONST, value.value);
+}
+
+void Pl0_DefineVar(ParserValue_T name)
+{
+    Pl0_Declare(Pl0_Name(name.index), PL0_SYM_VAR, 0);
+}
+
+/* 进入过程：先登记过程名（递归调用自己才查得到），再开一层作用域 */
+ParserValue_T Pl0_BeginProc(ParserValue_T name)
+{
+    const std::string qualified = Pl0_Qualify(Pl0_Name(name.index));
+    Pl0_Scope_T scope;
+    if (Pl0_Declare(Pl0_Name(name.index), PL0_SYM_PROC, 0) == NULL)
+    {
+        return Pl0_PlaceNone();
+    }
+    Pl0_Emit("proc", qualified, "_", "_");
+    scope.mark = g_pl0Symbols.size();
+    scope.savedPath = g_pl0ScopePath;
+    g_pl0Scopes.push_back(scope);
+    g_pl0ScopePath = qualified;
+    g_pl0ScopeDepth++;
+    return Pl0_MakePlace(PL0_PLACE_NAME, 0, Pl0_Intern(qualified));
+}
+
+/* 离开过程：退掉这一层的局部符号，收回限定名前缀，补一条 endproc */
+void Pl0_EndProc(void)
+{
+    std::string qualified;
+    if (g_pl0Scopes.empty())
+    {
+        return;
+    }
+    qualified = g_pl0ScopePath;
+    g_pl0Symbols.resize(g_pl0Scopes.back().mark);
+    g_pl0ScopePath = g_pl0Scopes.back().savedPath;
+    g_pl0Scopes.pop_back();
+    g_pl0ScopeDepth--;
+    Pl0_Emit("endproc", qualified, "_", "_");
+}
+
+/* call：名字必须是已声明的过程（可以是外层的） */
+void Pl0_Call(ParserValue_T name)
+{
+    const std::string &text = Pl0_Name(name.index);
+    Pl0_Symbol_T *pSymbol = Pl0_FindSymbol(text);
+    if (pSymbol == NULL)
+    {
+        fprintf(stderr, "未声明的过程: %s\n", text.c_str());
+        g_pl0HasError = true;
+        return;
+    }
+    if (pSymbol->kind != PL0_SYM_PROC)
+    {
+        fprintf(stderr, "%s 不是过程\n", text.c_str());
+        g_pl0HasError = true;
+        return;
+    }
+    Pl0_Emit("call", pSymbol->qualified, "_", "_");
+}
+
+void Pl0_Assign(ParserValue_T target, ParserValue_T value)
+{
+    Pl0_Symbol_T *pSymbol = Pl0_ResolveTarget(target);
+    if (pSymbol == NULL)
+    {
+        return;
+    }
+    Pl0_Emit(":=", Pl0_Operand(value), "_", pSymbol->qualified);
+}
+
+void Pl0_Read(ParserValue_T target)
+{
+    Pl0_Symbol_T *pSymbol = Pl0_ResolveTarget(target);
+    if (pSymbol == NULL)
+    {
+        return;
+    }
+    Pl0_Emit("read", "_", "_", pSymbol->qualified);
+}
+
+void Pl0_Write(ParserValue_T value)
+{
+    Pl0_Emit("write", Pl0_Operand(value), "_", "_");
+}
+
+/* ---- 注释剥离 ----
+ * 注释的**跳过**由文法的 %trivia 在词法器里做（{ ... } 与 (* ... *) 两条规则），
+ * 这里只做一件词法器做不了的事：把「注释没闭合」报成一句人话。
+ * 词法器遇到没闭合的 { / (* 只会说「认不出来的字符」，不如这里直说。
+ * 只读不改：不动 text，所以报错的行列号仍与原文一一对应。
+ * 返回 1 表示有没闭合的注释（首行报错已经打印），0 表示都闭合。 */
+int Pl0_CheckComments(const std::string &text)
+{
+    std::string::size_type index = 0;
+    while (index < text.size())
+    {
+        if (text[index] == '{')
+        {
+            std::string::size_type cursor = index + 1;
+            while ((cursor < text.size()) && (text[cursor] != '}'))
+            {
+                ++cursor;
+            }
+            if (cursor >= text.size())
+            {
+                fprintf(stderr, "注释没有闭合（{ 少一个 }）\n");
+                g_pl0HasError = true;
+                return 1;
+            }
+            index = cursor + 1;
+            continue;
+        }
+        if ((text[index] == '(') && (index + 1 < text.size()) &&
+            (text[index + 1] == '*'))
+        {
+            std::string::size_type cursor = index + 2;
+            while ((cursor + 1 < text.size()) &&
+                   !((text[cursor] == '*') && (text[cursor + 1] == ')')))
+            {
+                ++cursor;
+            }
+            if (cursor + 1 >= text.size())
+            {
+                fprintf(stderr, "注释没有闭合（(* 少一个 *)）\n");
+                g_pl0HasError = true;
+                return 1;
+            }
+            index = cursor + 2;
+            continue;
+        }
+        ++index;
+    }
+    return 0;
+}
+
+int Pl0_HasError(void)
+{
+    return g_pl0HasError ? 1 : 0;
+}
+
+void Pl0_PrintQuads(void)
+{
+    printf("四元式：共 %d 条\n", static_cast<int>(g_pl0Quads.size()));
+    for (std::vector<Pl0_Quad_T>::size_type index = 0;
+         index < g_pl0Quads.size(); ++index)
+    {
+        printf("%3d: (%s, %s, %s, %s)\n", static_cast<int>(index),
+               g_pl0Quads[index].op.c_str(),
+               g_pl0Quads[index].arg1.c_str(),
+               g_pl0Quads[index].arg2.c_str(),
+               g_pl0Quads[index].result.c_str());
+    }
+}
+
+%main
+/* ============================================================
+ * 入口：pl0 <源文件> —— 读文件、检查注释、解析、打印四元式（注释由词法器跳过）。
+ *
+ * %main 会替换内建 demo main，外壳（stdio / string / pl0_parser.hpp）
+ * 仍是模板提供的；C++17 下它是独立编译单元，模板已经插好
+ * `using namespace pl0;`，所以下面直接用 RunText / ParserValue_T。
+ * ============================================================ */
+int main(int argc, char **argv)
+{
+    ParserValue_T result;
+    int32_t status = 0;
+    const ParserError_T *pError = NULL;
+    std::ifstream stream;
+    std::string text;
+
+    if (argc != 2)
+    {
+        fprintf(stderr, "用法: %s <PL/0 源文件>\n", argv[0]);
+        return 2;
+    }
+    stream.open(argv[1], std::ios::binary);
+    if (!stream)
+    {
+        fprintf(stderr, "打不开文件: %s\n", argv[1]);
+        return 2;
+    }
+    text.assign(std::istreambuf_iterator<char>(stream),
+                std::istreambuf_iterator<char>());
+    stream.close();
+
+    /* 注释由文法的 %trivia 在词法器里跳过；这里只把「没闭合」报得更清楚 */
+    if (Pl0_CheckComments(text) != 0)
+    {
+        return 1;
+    }
+
+    memset(&result, 0, sizeof(result));
+    status = Parser_RunText(text.c_str(), &result);
+    if (status != PARSER_OK)
+    {
+        pError = Parser_GetLastError();
+        fprintf(stderr, "语法错误: code=%d line=%u column=%u message=%s\n",
+                (int)pError->code, (unsigned)pError->line,
+                (unsigned)pError->column, pError->message);
+        return 1;
+    }
+    if (Pl0_HasError() != 0)
+    {
+        return 1;
+    }
+    Pl0_PrintQuads();
+    return 0;
+}

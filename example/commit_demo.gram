@@ -1,0 +1,53 @@
+// ============================================================
+// %commit 示例 · 把「识别但不进语法层」的文本收进容器
+//
+//   %commit block "/\*([^*]|\*+[^*/])*\*+/"   块注释：收进容器，类型 block
+//   %commit line  "//[^\n]*"                  行注释：收进容器，类型 line
+//   %commit "0x[0-9a-fA-F]+"                  类型缺省 = "default"
+//   %commit skip  "@[A-Za-z]+"                匹配即丢（等价于 %trivia，兼容保留）
+//   %trivia       "#[A-Za-z]+"                匹配即丢（推荐写法）
+//
+// %trivia 与 %commit skip 完全等价：@tag 与 #tag 都不进容器。下面故意两种
+// 写法各留一条，对照它们的输出（用 %commit skip 换掉 %trivia 重新生成，
+// 产物与运行结果逐字相同）。
+//
+// 匹配规则：最长匹配优先；同长度时按 %commit / %token 的声明顺序，先声明
+// 优先。%commit 命中的文本不是 Token，不进语法分析；匹配到的原文（含字面
+// 量本身）按出现顺序收进容器（C99 Parser_GetCommits / C++17 Engine::commits
+// / Python engine.commits / C# Commits）。演示程序还会打印
+// 当前位置（current_location），四档（C / C++17 / Python / C#）一致。
+//
+// 试用输入（演示 main 从标准输入读一行）：
+//   /* c1 */ 1+2 0x1F @tag #tag // c2
+// 预期输出（四档逐字一致；C# 在 Windows 上是 CRLF 行尾）：
+//   解析输入: /* c1 */ 1+2 0x1F @tag #tag // c2
+//   解析成功
+//   commits: 3        ← @tag（%commit skip）与 #tag（%trivia）都没进容器
+//     [0] line=1 type=block text=/* c1 */
+//     [1] line=1 type=default text=0x1F
+//     [2] line=1 type=line text=// c2
+//   location: line=1 column=34 offset=33
+//   语法树:
+//   program
+//     expr
+//       expr
+//         NUMBER(1)
+//       PLUS(+)
+//       NUMBER(2)
+// ============================================================
+
+%mode slr
+%tree
+
+%define PLUS "+"
+
+%commit block "/\*([^*]|\*+[^*/])*\*+/"
+%commit line  "//[^\n]*"
+%commit "0x[0-9a-fA-F]+"
+%commit skip "@[A-Za-z]+"
+%trivia      "#[A-Za-z]+"
+
+%start program
+
+program := expr;
+expr := expr PLUS NUMBER | NUMBER;

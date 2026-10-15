@@ -1,0 +1,24 @@
+        // 标识符：%identifier 声明的正则（命中关键字时换成关键字 Token）。
+        let ident_length =
+            lex_regex_match(_identifier_re(), &self.text, self.byte_pos);
+        if ident_length > 0
+        {
+            let ident_start = self.text_pos;
+            for _ in 0..ident_length
+            {
+                self.read_char();
+            }
+            self.lexeme = self.input[ident_start..self.text_pos].iter().collect();
+            let keyword = keyword_type(&self.lexeme);
+            item.kind = if keyword != TOKEN_INVALID
+            {
+                keyword
+            }
+            else
+            {
+                TOKEN_VARIABLE
+            };
+            item.text = self.lexeme.clone();
+            item.value = value_from_text(item.kind, &self.lexeme);
+            return STATUS_OK;
+        }

@@ -1,0 +1,52 @@
+
+    /* ---------- 词法模式入口 ---------- */
+
+    /// tokenize 交出去的 Token 需要稳定的词素缓冲（Token::text 是 string_view）。
+    ParserMemory::Deque<ParserMemory::String> m_tokenTexts;
+
+    /**
+     * @brief 把词素拷进稳定缓冲，返回可以安全交出去的 Token。
+     * @param token 词法器刚切出来的 Token（词素指向复用缓冲）。
+     * @return 词素指向稳定缓冲的 Token。
+     */
+    Token stableToken(const Token &token)
+    {
+        if (token.text.empty()) { return token; }
+        m_tokenTexts.emplace_back(token.text);
+        const ParserMemory::String &stable = m_tokenTexts.back();
+        Token result = token;
+        result.text = stable;
+        if (token.name != nullptr) { result.name = stable.c_str(); }
+        if (token.pName != nullptr) { result.pName = stable.c_str(); }
+        return result;
+    }
+
+    /**
+     * @brief 把一段文本切成 Token（末尾含一个 TOKEN_END）。
+     *
+     * 词法错误记进 m_errors（细分码：ErrLexUnterminated 字符串没有
+     * 闭合、ErrLexChar 认不出来的字符），返回值不是 Ok 时 Token 列表
+     * 里是出错之前已经切好的那些 Token。
+     *
+     * 交出去的 Token 词素指向本引擎内部的稳定缓冲，只在下一次
+     * tokenize 之前有效；要长期保存请自己拷成 ParserMemory::String。
+     * @param text 输入文本。
+     * @param out 输出 Token 列表；可为 nullptr。
+     * @return Status::Ok 表示没有词法错误。
+     */
+    Status tokenize(std::string_view text, ParserMemory::Vector<Token> *out)
+    {
+        if (out != nullptr) { out->clear(); }
+        m_tokenTexts.clear();
+        if (prepareText(text) != Status::Ok) { return Status::ErrLexer; }
+        // prepareText 已经取到第一个 Token（m_current），它的错误也已经
+        // 记进 m_errors；这里逐个搬走，直到 TOKEN_END 为止。
+        for (;;)
+        {
+            if (out != nullptr) { out->push_back(stableToken(m_current)); }
+            if (m_current.type == TokenType::TOKEN_END) { break; }
+            const Status status = advance();
+            if (status != Status::Ok) { return status; }
+        }
+        return Status::Ok;
+    }

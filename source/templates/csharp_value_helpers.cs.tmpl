@@ -1,0 +1,40 @@
+    /** 新建一个语义值（%union 时是新的 ParserValue）。 */
+    private static {{ value_type }} _newValue()
+    {
+        return {{ new_value_expr }};
+    }
+
+    /** 把 Token 词素转成语义值（按 %value_type / %union 生成）。 */
+    private static {{ value_type }} _valueFromText(int type, string text)
+    {
+{% if is_union %}
+        ParserValue value = new ParserValue();
+        switch (type)
+        {
+{% for c in text_cases %}
+        case {{ c.id }}:
+            value.{{ c.member }} = text;
+            break;
+{% endfor %}
+        default:
+            break;
+        }
+        return value;
+{% else %}
+        return {{ from_text_expr }};
+{% endif %}
+    }
+
+    /** 把数字词素转成语义值（按 %value_type / %union 生成）。 */
+    private static {{ value_type }} _valueFromNumber(double number, bool isFloat)
+    {
+{% if is_union %}
+        ParserValue value = new ParserValue();
+{% if has_number_member %}
+        value.{{ number_member }} = ({{ number_member_type }}) number;
+{% endif %}
+        return value;
+{% else %}
+        return {{ from_number_expr }};
+{% endif %}
+    }

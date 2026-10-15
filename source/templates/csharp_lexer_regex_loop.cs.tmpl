@@ -1,0 +1,12 @@
+        for (int regexIndex = 0; regexIndex < _REGEX_RE_LIST.Length; regexIndex++)
+        {
+            int matched =
+                _lexRegexMatch(_REGEX_RE_LIST[regexIndex], _input, matchStart);
+            if (matched > bestLength)
+            {
+                bestLength = matched;
+                bestType = _REGEX_TYPES[regexIndex];
+                bestFromRegex = true;
+                bestOrder = _REGEX_ORDERS[regexIndex];
+            }
+        }

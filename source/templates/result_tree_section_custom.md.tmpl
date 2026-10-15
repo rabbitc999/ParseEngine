@@ -1,0 +1,10 @@
+文法是纯 `%tree`（不写语义动作）时 `Parser_RunText` 没有求值结果，
+演示程序会自动改打印语法树。custom 运行时的语法树只保存符号名与 Token
+词素，不保存语义值，节点类型是 `ParserTree_T`：
+
+```c
+ParserTree_T *pTree = Parser_ParseTreeText("...");
+if (pTree != NULL) { Parser_TreePrint(pTree); }
+Parser_TreeFree(pTree);
+```
+

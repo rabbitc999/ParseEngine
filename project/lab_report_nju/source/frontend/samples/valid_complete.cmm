@@ -1,0 +1,21 @@
+struct Point {
+    float x;
+    float y;
+};
+
+int add(int left, int right) {
+    return left + right;
+}
+
+int main() {
+    int values[4];
+    struct Point point;
+    struct { int code; } local;
+    values[0] = 1;
+    values[1] = 2;
+    point.x = 1.0;
+    point.y = 2.0;
+    local.code = 3;
+    write(add(values[0], values[1]));
+    return 0;
+}

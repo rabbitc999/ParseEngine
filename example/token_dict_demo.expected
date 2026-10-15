@@ -1,0 +1,9 @@
+解析输入: let num2 + num3 manual_b
+解析成功
+语法树:
+program
+  A(let)
+  NUM(num2)
+  PLUS(+)
+  NUM(num3)
+  B(manual_b)

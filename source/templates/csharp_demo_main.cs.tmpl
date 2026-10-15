@@ -1,0 +1,38 @@
+    /** 从标准输入读一行（读到换行或 EOF 为止，去掉行尾换行）。 */
+    private static string _readLine()
+    {
+        string line = System.Console.In.ReadLine();
+        return (line == null) ? "" : line;
+    }
+
+    /** 演示程序入口：读一行输入（到换行或 EOF）后开始解析。 */
+    public static void Main(string[] args)
+    {
+        string inputText = _readLine();
+        System.Console.WriteLine("解析输入: " + inputText);
+        Parser engine = new Parser();
+        int status = engine.runText(inputText);
+        if (status != Parser.STATUS_OK)
+        {
+            Parser.ParserError error = engine.lastError();
+            if (error != null)
+            {
+                System.Console.WriteLine("解析失败: code=" + error.code +
+                                         " line=" + error.line + " column=" +
+                                         error.column + " message=" +
+                                         error.message);
+            }
+            else
+            {
+                System.Console.WriteLine("解析失败: " +
+                                         Parser.statusName(status));
+            }
+            System.Environment.Exit(1);
+        }
+        System.Console.WriteLine("解析成功");
+{% if dd %}        // 递归下降只保留第 1 条匹配路径的结果（按产生式声明顺序逐条试，失败回退
+        // 输入位置再试下一条）；有歧义的文法不会像 GLR 那样列出全部解释。
+{% endif %}{{ demo_commits }}
+{{ demo_print }}
+        System.Environment.Exit(0);
+    }

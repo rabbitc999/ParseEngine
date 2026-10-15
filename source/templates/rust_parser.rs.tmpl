@@ -1,0 +1,49 @@
+//! parser.rs —— {{ mode_name }} 解析器（Rust 产物）
+//!
+//! 由 ParseEngine 自动生成，请勿手工修改。
+//!
+//! 目标语言是 Rust（计算全用标准库；词法正则用官方的 `regex` crate）：
+//!   - 语义动作按 Rust 表达式翻译：`$$` 写 `result.value`，`$1` 读
+//!     `values[0]`（LR 归约）/ `values[1]`（LL 展开），与 Python / Java / C#
+//!     目标的展开方式一致；
+//!   - 语义值类型由 `%value_type` 决定（原样填进产物）、`%union` 会生成一个
+//!     带成员字段的结构体 `ParserValue`；两者都没写时是 `i64`。语义值**按值
+//!     拷贝**，所以它要满足 `Copy + Default + Debug`；
+//!   - `%code … %endcode` 的正文插在本文件 `use` 之后（文件级）；
+//!   - `%class_body` … `%endbody` 的正文插成一段 `impl Parser { ... }`（放辅助
+//!     方法 / 关联函数）；`%epilogue` 贴到本文件末尾；`%main` 替换 main.rs 的
+//!     演示体；
+//!   - 没有 `%destructor`（Rust 的语义值按值拷贝、由所有权回收）；
+//!   - 词法 / 语法表都是生成期算好的常量，运行时只做查表。
+//!
+//! 典型用法：
+//!
+//!     let mut engine = Parser::new();
+//!     let status = engine.run_text("1+2*3");
+//!     if status == parser::STATUS_OK {
+//!         println!("{:?}", engine.result());
+//!     } else {
+//!         println!("{:?}", engine.last_error());
+//!     }
+//!
+//! ``%tree`` 文法（只做语法分析并生成具体语法树）：
+//!
+//!     if let Some(tree) = Parser::new().parse_tree("1+2*3") { tree.print(); }
+{{ package_comment }}
+
+#![allow(dead_code, non_snake_case, unused_variables, unused_mut)]
+#![allow(unused_imports, unused_assignments, unused_parens)]
+#![allow(non_upper_case_globals)]
+
+// 词法正则交给 Rust 官方的 `regex`（`%token regex` / `%identifier` / `%commit`）；
+// 正则表是 `OnceLock`，第一次取 Token 时编译一次，之后复用。
+use regex::Regex;
+use std::sync::OnceLock;
+
+use crate::token::*;
+
+{{ imports }}
+
+{{ user_code }}
+{{ engine }}
+{{ class_body }}

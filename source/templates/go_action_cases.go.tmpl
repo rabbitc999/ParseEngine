@@ -1,0 +1,15 @@
+{# 语义动作分支（CodeGenGo 的 goActionCases）。
+   变量：cases —— 每条产生式一项，字段 first（是不是第一条，决定写 if 还是
+                  else if）/ id / has_line / line / body（**按行**的动作正文，
+                  每一行的缩进由本模板加）/ file_name
+   **`} else if` 必须写在同一行**（Go 的行尾会自动插分号，`}` 独占一行再接
+   `else` 是语法错误）；所以闭合花括号落在**下一条**分支的开头，整个链的最后一个
+   `}` 由模板末尾的 `{% if cases %}` 补上。本模板自带行尾换行。 #}
+{% for c in cases %}{% if c.first %}	if production == {{ c.id }} {
+{% else %}	} else if production == {{ c.id }} {
+{% endif %}{% if c.has_line %}		// 在 @@SE_GRAMMAR_FILE@@ 的第 {{ c.line }} 行
+{% endif %}{% if c.body %}{% for line in c.body %}		{{ line }}
+{% endfor %}{% endif %}{% if c.has_line %}		// 继续 {{ c.file_name }} 的正文
+{% endif %}		return StatusOK
+{% endfor %}{% if cases %}	}
+{% endif %}

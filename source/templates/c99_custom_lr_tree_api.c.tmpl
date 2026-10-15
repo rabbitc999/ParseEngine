@@ -1,0 +1,23 @@
+
+/** 
+ * @brief 直接解析脚本文本并返回语法树根节点（LR 模式 / custom）。 
+ * @param pText 输入。 
+ * @retval 根节点或 NULL。 
+ */
+ParserTree_T *Parser_ParseTreeText(const char *pText)
+{
+    ParserCtx_T *pContext = &s_ParserContext;
+    ParserTree_T *pTree = NULL;
+    ParserValue_T value;
+    if (pText == NULL) { return NULL; }
+    PARSER_MEMSET(&value, 0, sizeof(value));
+    PARSER_MEMSET(pContext, 0, sizeof(*pContext));
+    Parser_ClearErrors();
+    pContext->pText = pText;
+    pContext->textMode = 1u;
+    pContext->line = 1u;
+    pContext->column = 1u;
+    if (Parser_Advance(pContext) != PARSER_OK) { return NULL; }
+    (void)Parser_ParseLoopLR(pContext, &value, &pTree);
+    return pTree;
+}

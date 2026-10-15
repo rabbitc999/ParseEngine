@@ -1,0 +1,251 @@
+// ============================================================
+// 状态码 / 容量常量（数值与其它目标一致）
+// ============================================================
+
+pub const STATUS_OK: i32 = 0;
+pub const STATUS_ERR_LEXER: i32 = -22;
+pub const STATUS_ERR_LEX_UNTERMINATED: i32 = -28;
+pub const STATUS_ERR_LEX_CHAR: i32 = -29;
+
+/// 一次词法分析最多记录多少条错误（`%max_errors`）。
+const MAX_ERRORS: usize = {{ max_errors }};
+
+{{ constants }}
+
+{{ tables }}
+
+/// 取状态码的名字（如 `"Ok"` / `"ErrLexer"`）。
+pub fn status_name(status: i32) -> &'static str
+{
+    match status
+    {
+        STATUS_OK => "Ok",
+        STATUS_ERR_LEXER => "ErrLexer",
+        STATUS_ERR_LEX_UNTERMINATED => "ErrLexUnterminated",
+        STATUS_ERR_LEX_CHAR => "ErrLexChar",
+        _ => "Unknown",
+    }
+}
+
+/// 一条词法错误。
+#[derive(Clone, Debug)]
+pub struct ParserError
+{
+    pub code: i32,
+    pub line: u32,
+    pub column: u32,
+    pub message: String,
+}
+
+impl ParserError
+{
+    fn new(code: i32, line: u32, column: u32, message: &str) -> ParserError
+    {
+        ParserError {
+            code,
+            line,
+            column,
+            message: message.to_string(),
+        }
+    }
+}
+
+impl std::fmt::Display for ParserError
+{
+    fn fmt(&self, out: &mut std::fmt::Formatter) -> std::fmt::Result
+    {
+        write!(
+            out,
+            "第 {} 行第 {} 列：{}",
+            self.line, self.column, self.message
+        )
+    }
+}
+
+/// `%commit` 收集到的一条片段：行号 + 类型 + 原文。
+#[derive(Clone, Debug)]
+pub struct ParserCommit
+{
+    /// 片段起始行号（1 起）。
+    pub line: i32,
+    /// `%commit` 的类型名（缺省 `"default"`）。
+    pub kind: String,
+    /// 匹配到的原文（含字面量本身）。
+    pub text: String,
+}
+
+/// 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起）。
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ParserLocation
+{
+    /// 行号（1 起）。
+    pub line: i32,
+    /// 列号（1 起）。
+    pub column: i32,
+    /// UTF-8 字节偏移（0 起）。
+    pub offset: i32,
+}
+
+/// `%mode lex` 的词法器：只有词法，没有分析表 / 分析栈 / 解析入口。
+pub struct Parser
+{
+    errors: Vec<ParserError>,
+    input: Vec<char>,
+    /// 原始输入文本：词法正则走官方的 `regex`（以**字节**定位），
+    /// 表里存的是字符，所以这里再留一份原文给 `lex_regex_match` 用。
+    text: String,
+    text_pos: usize,
+    line: u32,
+    column: u32,
+    byte_pos: usize,
+    lexeme: String,
+    commits: Vec<ParserCommit>,
+}
+
+impl Parser
+{
+    /// 建一个词法器。
+    pub fn new() -> Parser
+    {
+        Parser {
+            errors: Vec::new(),
+            input: Vec::new(),
+            text: String::new(),
+            text_pos: 0,
+            line: 1,
+            column: 1,
+            byte_pos: 0,
+            lexeme: String::new(),
+            commits: Vec::new(),
+        }
+    }
+
+    /// 本次词法分析累积的错误。
+    pub fn errors(&self) -> &Vec<ParserError>
+    {
+        &self.errors
+    }
+
+    /// 最近一条错误；没有错误时返回 `None`。
+    pub fn last_error(&self) -> Option<&ParserError>
+    {
+        self.errors.last()
+    }
+
+    /// `%commit` 收集到的片段（按出现顺序；没写 `%commit` 时恒为空）。
+    pub fn commits(&self) -> &Vec<ParserCommit>
+    {
+        &self.commits
+    }
+
+    /// 当前词法位置：行 / 列 1 起 + UTF-8 字节偏移（0 起）。
+    pub fn current_location(&self) -> ParserLocation
+    {
+        ParserLocation {
+            line: self.line as i32,
+            column: self.column as i32,
+            offset: self.byte_pos as i32,
+        }
+    }
+
+    fn set_error(&mut self, code: i32, line: u32, column: u32, message: &str)
+    {
+        if self.errors.len() >= MAX_ERRORS
+        {
+            return;
+        }
+        self.errors.push(ParserError::new(code, line, column, message));
+    }
+
+    /// 把 `text` 切成 Token 列表（末尾带一个 `TOKEN_END`）。
+    ///
+    /// 返回 `(状态码, Token 列表)`；状态码不是 `STATUS_OK` 时说明见 `errors()`。
+    pub fn tokenize(&mut self, text: &str) -> (i32, Vec<Token>)
+    {
+        self.errors.clear();
+        self.input = text.chars().collect();
+        self.text = text.to_string();
+        self.text_pos = 0;
+        self.line = 1;
+        self.column = 1;
+        self.byte_pos = 0;
+        self.commits.clear();
+        self.lexeme.clear();
+        let mut tokens: Vec<Token> = Vec::new();
+        loop
+        {
+            let mut item = Token::at(TOKEN_INVALID, "", self.line, self.column);
+            let status = self.lex_next(&mut item);
+            if status != STATUS_OK
+            {
+                let why = if status == STATUS_ERR_LEX_UNTERMINATED
+                {
+                    "字符串没有闭合"
+                }
+                else if status == STATUS_ERR_LEX_CHAR
+                {
+                    "认不出来的字符"
+                }
+                else
+                {
+                    "词法解析失败"
+                };
+                let code = if (status == STATUS_ERR_LEX_UNTERMINATED)
+                    || (status == STATUS_ERR_LEX_CHAR)
+                {
+                    status
+                }
+                else
+                {
+                    STATUS_ERR_LEXER
+                };
+                let (line, column) = (item.line, item.column);
+                self.set_error(code, line, column, why);
+                return (status, tokens);
+            }
+            let done = item.kind == TOKEN_END;
+            tokens.push(item);
+            if done
+            {
+                break;
+            }
+        }
+        (STATUS_OK, tokens)
+    }
+
+    fn peek(&self, offset: usize) -> Option<char>
+    {
+        let index = self.text_pos.checked_add(offset)?;
+        self.input.get(index).copied()
+    }
+
+    fn read_char(&mut self) -> char
+    {
+        let ch = self.input[self.text_pos];
+        self.text_pos += 1;
+        // UTF-8 字节偏移（与其它目标对齐）
+        self.byte_pos += ch.len_utf8();
+        if ch == '\n'
+        {
+            self.line += 1;
+            self.column = 1;
+        }
+        else
+        {
+            self.column += 1;
+        }
+        ch
+    }
+
+{{ lexer }}
+}
+
+// ============================================================
+// 模块级辅助函数（词法 DFA / 语义值转换 / 关键字表）
+// ============================================================
+
+{{ lexer_helpers }}
+
+{{ value_helpers }}
+
+{{ keyword_method }}

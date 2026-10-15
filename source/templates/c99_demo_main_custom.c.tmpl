@@ -1,0 +1,80 @@
+
+#ifndef PARSER_SKIP_DEMO_MAIN
+
+/**
+ * @brief 从标准输入读一行（读到换行或 EOF 为止），返回读到的文本。
+ * @retval 非 NULL 表示读到的文本（不含行尾换行），NULL 表示内存不足。
+ */
+static char *Parser_DemoReadLine(void)
+{
+    size_t capacity = 256u;
+    size_t length = 0u;
+    char *pText = (char *)malloc(capacity);
+
+    if (pText == NULL) {
+        return NULL;
+    }
+    for (;;) {
+        int ch = fgetc(stdin);
+        if ((ch == EOF) || (ch == '\n')) {
+            break;
+        }
+        if ((length + 1u) >= capacity) {
+            char *pGrown = (char *)realloc(pText, capacity * 2u);
+            if (pGrown == NULL) {
+                free(pText);
+                return NULL;
+            }
+            pText = pGrown;
+            capacity *= 2u;
+        }
+        pText[length] = (char)ch;
+        length++;
+    }
+    /* 兼容 CRLF 输入：行尾的 \r 不算输入内容 */
+    if ((length > 0u) && (pText[length - 1u] == '\r')) {
+        length--;
+    }
+    pText[length] = '\0';
+    return pText;
+}
+
+/** 
+ * @brief 演示程序入口：读一行输入（读到换行或 EOF）后开始解析。 
+ * @retval 0 表示解析成功，1 表示解析失败，2 表示读取标准输入失败。
+ */
+int main(void)
+{
+    char *pInput = NULL;
+    ParserValue_T result;
+    int32_t status = PARSER_OK;
+    const ParserError_T *pError = NULL;
+{{ demo_tree_decl }}
+    PARSER_MEMSET(&result, 0, sizeof(result));
+    pInput = Parser_DemoReadLine();
+    if (pInput == NULL) {
+        printf("读取标准输入失败，已退出。\n");
+        return 2;
+    }
+    printf("解析输入: %s\n", pInput);
+    status = Parser_RunText(pInput, &result);
+    if (status != PARSER_OK) {
+        pError = Parser_GetLastError();
+        printf("解析失败: code=%d line=%u column=%u message=%s\n",
+               pError->code, pError->line, pError->column, pError->message);
+        free(pInput);
+        return 1;
+    }
+    printf("解析成功\n");
+#ifdef PARSER_USER_DEMO_PRINT_VALUE
+    /* %code … %endcode 里定义了打印宏时把语义结果打出来；没定义就只报解析成功 */
+    printf("解析结果: ");
+    PARSER_USER_DEMO_PRINT_VALUE(&result);
+    printf("\n");
+#endif
+{{ demo_commits }}
+{{ demo_tree_fallback }}    free(pInput);
+    return 0;
+}
+
+#endif /* PARSER_SKIP_DEMO_MAIN */

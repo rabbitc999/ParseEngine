@@ -1,0 +1,104 @@
+/* 受控英语句法：主谓宾、定状补、祈使句、虚拟语气与从句。
+ *
+ * 这是句法示例，不是完整英语：词表有限，不检查人称一致、时态搭配或语义选择。
+ * 默认 Earley；可用 --mode cyk / --mode glr 对照同一份歧义文法。
+ * 输入按词用空格分开，不带标点。例：
+ *   the teacher made the student happy
+ *   if the girl were happy Tom would help her
+ */
+
+%mode glr
+%tree
+%start sentence
+
+%token DET       "the|a|an|my|his|their"
+%token PROPER    "Tom|Mary|Alice|Bob"
+%token PRON      "I|you|he|she|they|we|him|her|them|it"
+%token NOUN      "man|woman|girl|boy|teacher|student|book|window|telescope|friend|room|letter|story|idea"
+%token ADJ       "young|old|happy|ready|quiet|clever|blue|kind"
+%token ADV       "quickly|quietly|yesterday|carefully"
+%token PREP      "with|in|near|on|under|to"
+%token REL       "who|which"
+%token THAT      "that"
+%token WHEN      "when"
+%token BECAUSE   "because"
+%token IF        "if"
+%token CONJ      "and|or"
+%token V_INTR    "arrived|smiled|slept|laughed|left"
+%token V_TRANS   "reads|likes|helps|finds|paints|praises"
+%token V_PAST    "saw|read|found|helped|painted"
+%token V_LINK    "is|was|seems"
+%token WERE      "were"
+%token V_DITR    "gave|sent|told"
+%token V_CAUSE   "made|called|considered"
+%token V_REPORT  "believes|thinks|said"
+%token V_BASE    "open|close|help|show|leave|paint|find|praise"
+%token BE        "be"
+%token MODAL     "would|could|might"
+%token WISH      "wishes|wished"
+%token PLEASE    "please"
+%token DO        "do"
+%token NOT       "not"
+
+sentence := core
+          | sentence CONJ core ;
+
+core := clause
+      | imperative
+      | counterfactual
+      | wish_sentence
+      | adverb_clause clause
+      | clause adverb_clause ;
+
+/* 主语 + 谓语；宾语、补语、状语由 vp 的不同右部承载。 */
+clause := np vp ;
+
+np := PROPER
+    | PRON
+    | DET nominal ;
+
+nominal := NOUN
+         | ADJ nominal
+         | nominal relative_clause
+         | nominal pp ;
+
+relative_clause := REL vp             /* who read the book */
+                 | THAT np transitive ; /* that Tom read（宾语空位） */
+
+pp := PREP np ;
+
+transitive := V_TRANS
+            | V_PAST ;
+
+vp := V_INTR
+    | transitive np                    /* 宾语 */
+    | V_DITR np np                     /* 间接宾语 + 直接宾语 */
+    | V_LINK complement                /* 主语补语 */
+    | WERE complement
+    | V_CAUSE np complement            /* 宾语补语 */
+    | V_REPORT THAT clause             /* 宾语从句 */
+    | ADV vp                           /* 前置状语 */
+    | vp ADV                           /* 后置状语 */
+    | vp pp ;                          /* PP 可挂谓语，也可挂名词 */
+
+complement := ADJ
+            | np
+            | pp ;
+
+adverb_clause := WHEN clause
+               | BECAUSE clause ;
+
+imperative := base_vp
+            | PLEASE base_vp
+            | DO NOT base_vp ;
+
+base_vp := V_BASE
+         | V_BASE np
+         | V_BASE np pp
+         | BE complement ;
+
+/* 虚拟条件句与 wish 从句保留专门的形态，不混入普通陈述句。 */
+counterfactual := IF np WERE complement np MODAL base_vp
+                | IF np V_PAST np np MODAL base_vp ;
+
+wish_sentence := np WISH THAT np WERE complement ;

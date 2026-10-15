@@ -1,0 +1,24 @@
+# 一份示例配置：涵盖 TOML 的主要语法。
+name = "pl0-super"
+version = 2
+debug = false
+targets = ["mips", "arm"]
+ratio = 0.75
+released = 2024-05-01T09:30:00Z
+
+[limits]
+maxDepth = 64
+maxErrors = 8
+
+[labels]
+cn = "PL/0 超集"
+en = "PL/0 superset"
+
+[[tokens]]
+name = "NUMBER"
+priority = 10
+pattern = "[0-9]+"
+
+[[tokens]]
+name = "IDENT"
+priority = 5

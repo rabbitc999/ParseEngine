@@ -1,0 +1,12 @@
+{# 静态文案：整段贴进 RESULT.md。里面的花括号对是文法写法不是模板标签，所以包了 raw #}
+## 运行时与内存
+
+- 语义值：`ParserValue_T` 由文法给出（`%value_type` / `%union` /
+  `%code … %endcode`）；都没有时生成器补 `typedef int ParserValue_T;`。按值拷贝。
+- 内存：**全部由标准库管理**（`std::string` / `std::string_view` /
+  `std::vector` / `std::unique_ptr` / `std::function`），C++17 产物
+  **不支持自定义分配器**，也没有 `PARSER_USER_*` 释放钩子——析构函数
+  就是释放。
+- 语法树（`%tree`）：节点是 `Tree`，父节点用 `std::unique_ptr` 持有子
+  节点，`std::unique_ptr<Tree>` 出作用域自动释放整棵树。
+

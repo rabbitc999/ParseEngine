@@ -1,0 +1,52 @@
+# Makefile —— 词法模式（%mode lex）产物，由 ParseEngine 自动生成（C++17）
+#
+# 目标：
+#   make        默认编译静态库 liblexer.a 与演示程序 lexer_demo
+#   make lib    只编译静态库 liblexer.a
+#   make demo   只编译演示程序 lexer_demo
+#   make run    编译并运行演示程序（从标准输入读到 EOF，逐个打印 Token 类型）
+#   make clean  删除中间文件与产物
+#
+# 产物里**没有解析器**：liblexer.a 只有词法器与 Token 名 / 词素接口。
+# 语义值类型 ParserValue_T 由文法（%value_type / %union / %code）给出，
+# 内存一律由标准库管理，**不支持自定义分配器**。
+#
+# 覆盖变量示例：
+#   make CXX=clang++ CXXFLAGS="-std=c++17 -O0 -g -Wall -Wextra"
+CXX      = g++
+AR       = ar
+CXXFLAGS = -std=c++17 -Wall -Wextra -O2
+LDLIBS   = -lm
+ARFLAGS  = rcs
+
+LIB_SRCS  := lexer.cpp{% for src in lib_srcs %} {{ src }}{% endfor %}
+DEMO_SRCS := main.cpp
+HDRS      := lexer.hpp{% if user_header %} parser_user.h{% endif %}{% for hdr in hdr_srcs %} {{ hdr }}{% endfor %}
+LIB_OBJS  := $(patsubst %.cpp,%.o,$(patsubst %.c,%.o,$(LIB_SRCS)))
+DEMO_OBJS := $(patsubst %.cpp,%.o,$(DEMO_SRCS))
+
+LIB    := liblexer.a
+TARGET := lexer_demo
+
+.PHONY: all lib demo run clean
+
+all: $(LIB) $(TARGET)
+
+lib: $(LIB)
+
+demo: $(TARGET)
+
+$(LIB): $(LIB_OBJS)
+	$(AR) $(ARFLAGS) $@ $^
+
+$(TARGET): $(DEMO_OBJS) $(LIB)
+	$(CXX) $(CXXFLAGS) -o $@ $(DEMO_OBJS) $(LIB) $(LDLIBS)
+
+%.o: %.cpp $(HDRS)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+run: $(TARGET)
+	./$(TARGET) $(ARGS)
+
+clean:
+	rm -f $(LIB_OBJS) $(DEMO_OBJS) $(LIB) $(TARGET)

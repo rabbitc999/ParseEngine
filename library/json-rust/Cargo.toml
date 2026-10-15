@@ -1,0 +1,23 @@
+[package]
+name = "json"
+version = "0.1.0"
+edition = "2021"
+description = "library/json 的 Rust 版：JSON 解析、序列化、可直接迭代的容器，以及 JSON ↔ 模型类投射（只依赖标准库）"
+default-run = "json-cli"
+
+# 库名与 C++ 版（`library/json`，命名空间 `json` / `libjson.a`）对齐：
+# `use json::{parse, Value};`
+[lib]
+name = "json"
+path = "src/lib.rs"
+
+# 命令行工具（对应 C++ 版的 main.cpp → build/json/json）。这里叫 json-cli，
+# 免得和库名混淆，也和 library/preprocess-rust 的 preprocess-cli 一致。
+[[bin]]
+name = "json-cli"
+path = "src/main.rs"
+
+# 投射演示（对应 C++ 版的 examples/model_demo.cpp → build/json/model-demo）。
+[[bin]]
+name = "json-model-demo"
+path = "src/bin/model_demo.rs"

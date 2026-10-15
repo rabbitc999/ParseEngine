@@ -1,0 +1,16 @@
+{# 词法 DFA 页面的导语与两张表（Mermaid::lexerIntro；只在有正则时用）。
+   变量：literal_tokens（数组，元素是固定字面量 Token，已转义）、
+         rows（数组，元素 {name, pattern, states, accepts}，都已转义/格式化）、
+         cells（数组，元素 {index, text}）。本模板自带行尾换行。 #}
+<p class="note">词法层在生成期把每条正则编译成极小 DFA（解析 → 构造 NFA → 子集构造 → 划分法最小化），运行期只查表。下面是每条正则的 DFA：节点是 DFA 状态，双圆是接受状态，边上是字符类，陷阱状态与指向它的边省略不提。</p>
+{% if literal_tokens %}<p class="note">固定字面量 Token（{% for token in literal_tokens %}{% if loop_first %}{% else %}、{% endif %}<code>{{ token }}</code>{% endfor %}）走关键字查表，不走 DFA，因此不在下面的图里。</p>
+{% endif %}<table>
+<tr><th>Token</th><th>正则</th><th>状态数</th><th>接受状态</th></tr>
+{% for row in rows %}<tr><td>{{ row.name }}</td><td><code>{{ row.pattern }}</code></td><td>{{ row.states }}</td><td>{{ row.accepts }}</td></tr>
+{% endfor %}</table>
+<h2>共享字符类划分</h2>
+<p class="note">全部正则共用一份字符类划分（把 256 个字节划成互不相交的类），图的边标签就是这些类。字符太多的类按区段截断显示。</p>
+<table>
+<tr><th>编码</th><th>字符集合</th></tr>
+{% for cell in cells %}<tr><td>{{ cell.index }}</td><td>{{ cell.text }}</td></tr>
+{% endfor %}</table>

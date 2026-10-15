@@ -1,0 +1,23 @@
+{# LL 家族的预测分析表（CodeGenGo 的 goLlTables）。
+   变量：
+     ll_table / follow             —— 二维整数表
+     left_empty / lookahead_code / lookahead_column —— 一维整数表正文
+     has_columns                   —— k >= 2（有列编码表）
+     has_follow                    —— k != 0（有 FOLLOW 集）
+   本模板自带行尾换行。 #}
+// sParserLLTable 预测分析表：单元里的产生式编号，-1 表示没有可用产生式。
+var sParserLLTable = [][]int32{{ ll_table }}
+
+{% if has_columns %}// sParserLookaheadCode / sParserLookaheadColumn：LL(k) 分析表的列编码（升序）与列号。
+var sParserLookaheadCode = []int64{ {{ lookahead_code }} }
+var sParserLookaheadColumn = []int32{ {{ lookahead_column }} }
+{% else %}var sParserLookaheadCode = []int64{}
+var sParserLookaheadColumn = []int32{}
+{% endif %}// sParserProductionIsLeftEmpty 左递归规则的空尾标记（`left_empty` 为 1）。
+var sParserProductionIsLeftEmpty = []int32{ {{ left_empty }} }
+
+{% if has_follow %}// sParserLLFollow FOLLOW 集：错误恢复用。
+var sParserLLFollow = [][]int32{{ follow }}
+{% else %}// sParserLLFollow LL(0) 没有可用的 FOLLOW 信息（恢复在 LL(0) 下不启用）。
+var sParserLLFollow = [][]int32{}
+{% endif %}

@@ -1,0 +1,14 @@
+{# 「用户代码段（%epilogue / %main）」小节：两个段都没写时整段不出现。
+   变量：has_user_sections（真假）、has_epilogue（真假）、main_count（整数，0 = 用内建 demo main）、
+         parser_name（parser.c / parser.cpp / parser.py）、
+         main_name（main.c / main.cpp / main.py）、
+         cpp17（真假，决定要不要那句 namespace 说明）、namespace_name（C++17 的命名空间名）。 #}
+{% if has_user_sections %}
+## 用户代码段（%epilogue / %main）
+
+| 段 | 状态 | 落点 |
+| --- | --- | --- |
+| `%epilogue` | {% if has_epilogue %}已启用{% else %}未使用{% endif %} | {% if has_epilogue %}追加到 {{ parser_name }} 末尾{% if cpp17 %}（在 `namespace {{ namespace_name }}` 外面，前面有一行 `using namespace {{ namespace_name }};`）{% endif %}{% else %}—{% endif %} |
+| `%main` | {% if main_count %}{{ main_count }} 段{% else %}未使用（用内建 demo main）{% endif %} | {% if main_count %}替换 {{ main_name }} 的正文{% if cpp17 %}（正文前面补 `using namespace {{ namespace_name }};`）{% endif %}{% else %}{{ main_name }} 是生成器内建的演示入口{% endif %} |
+
+{% endif %}

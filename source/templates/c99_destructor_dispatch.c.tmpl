@@ -1,0 +1,57 @@
+{# C99 %destructor 的分派表：Parser_DiscardValue + Parser_DiscardSlot。
+   变量：
+     cases —— 每个 %union 成员一组，字段：
+                member（成员名）、names（绑了它的符号名，顿号分隔）、
+                labels（这一组的 case 标号数组，如 "3"、"4"）、
+                body（清理片段按行拆开的数组；空数组表示整块不输出）
+   生成器那头先判「有没有 %destructor 且确实有符号绑定」，没有就不渲染这份模板。
+   块标签都按独占一行写，空行位置是照着产物摆的，别随手加空行。 #}
+/**
+ * @brief %destructor：按栈上符号绑定的 %union 成员调对应清理片段。
+ *
+ * symbol 是统一符号编号（终结符 = Token 号，非终结符 = 终结符个数 + 编号），
+ * 与 LR 栈的 symbols[] / LL 语义帧记录的一致。
+ * @param pValue 正在被丢弃的那个语义值。
+ * @param symbol 这个语义值的文法符号（统一编号）。
+ * @retval 1 表示该符号绑了 %destructor（已经清理过）；0 表示没绑，调用方
+ *         可以退回 PARSER_USER_DISCARD_VALUE 钩子。
+ */
+static uint8_t Parser_DiscardValue(ParserValue_T *pValue, uint16_t symbol)
+{
+    (void)pValue;
+    switch (symbol)
+    {
+{% for case in cases %}
+    /* %destructor <{{ case.member }}>：{{ case.names }} */
+{% for label in case.labels %}
+    case {{ label }}u:
+{% endfor %}
+    {
+{% if case.body %}
+{% for line in case.body %}
+        {{ line }}
+{% endfor %}
+{% endif %}
+        break;
+    }
+{% endfor %}
+    default:
+        return 0u;
+    }
+    return 1u;
+}
+
+/**
+ * @brief 丢弃一个语义值：绑了 %destructor 就按符号走它，没绑就退回全局钩子。
+ * @param pValue 被丢弃的语义值。
+ * @param symbol 这个语义值的文法符号（统一编号）。
+ * @retval 无。
+ */
+static void Parser_DiscardSlot(ParserValue_T *pValue, uint16_t symbol)
+{
+    if (Parser_DiscardValue(pValue, symbol) != 0u) { return; }
+#ifdef PARSER_USER_DISCARD_VALUE
+    PARSER_USER_DISCARD_VALUE(pValue);
+#endif
+    (void)pValue;
+}

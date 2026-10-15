@@ -1,0 +1,7 @@
+token,word,note,extra
+A,"let",关键字,第 3 / 第 4 列都是噪音
+A,"print",关键字,忽略
+A,"while",关键字,
+B,"unused_b1",对照,文法没导入 B：这两行整行被忽略
+B,"unused_b2",对照,忽略
+NOT_A_TOKEN,"ghost",不存在,静默忽略

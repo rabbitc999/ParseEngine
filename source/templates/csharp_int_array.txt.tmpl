@@ -1,0 +1,2 @@
+{# 整数表 → C# 数组字面量（`{1, 2, 3}`）。花括号要原样进产物，所以用 {% raw %} 挡住引擎。 #}
+{% raw %}{{% endraw %}{% for v in values %}{{ v.sep }}{{ v.value }}{% endfor %}{% raw %}}{% endraw %}

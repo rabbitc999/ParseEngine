@@ -1,0 +1,17 @@
+/* 语法树元数据：右部符号表（终结符用下标，非终结符用 kTerminalCount + 下标）。 */
+inline constexpr std::uint16_t treeProdStart[] =
+{
+{% for v in prod_starts %}{% if loop_first %}{% else %},
+{% endif %}    {{ v }}u{% endfor %}
+};
+inline constexpr std::uint16_t treeProdLength[] =
+{
+{% for v in prod_lengths %}{% if loop_first %}{% else %},
+{% endif %}    {{ v }}u{% endfor %}
+};
+inline constexpr std::uint16_t treeProdSymbols[] =
+{
+{% for v in prod_symbols %}{% if loop_first %}{% else %},
+{% endif %}    {{ v }}u{% endfor %}
+};
+

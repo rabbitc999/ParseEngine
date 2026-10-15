@@ -1,0 +1,5 @@
+{# 演示 main 里「按 --svg / --dot 写出文件」的调用（LR 白名单档用这一份）。
+   变量：无。本模板自带行尾换行。 #}
+    for line in _demo_drawings(engine, input_text, _demo_option("--svg"),
+                               _demo_option("--dot")):
+        print(line)

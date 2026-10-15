@@ -1,0 +1,10 @@
+; 调用示例：块里有 call 时，调用者保存的寄存器（C、D）不能装同时在用的值。
+; 机器有 4 个寄存器，实际只有被调用者保存的 A、B 可用，于是 t1 被溢出。
+label entry
+  mov t1, 1
+  mov t2, 2
+  mov t3, 3
+  call f
+  add t4, t1, t2
+  add t5, t4, t3
+  store [out], t5

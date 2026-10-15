@@ -1,0 +1,9 @@
+/* ============ 通用语法树 API（由 %tree 指令启用） ============ */
+
+/* 语法树元数据：非终结符名表 */
+static const char *const s_ParserTreeNontermNames[] =
+{
+{% for name in tree_nonterm_names %}{% if loop_first %}{% else %},
+{% endif %}    {{ name }}{% endfor %}
+};
+

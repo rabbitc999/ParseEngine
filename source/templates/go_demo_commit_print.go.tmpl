@@ -1,0 +1,12 @@
+{# 演示 main 里的 `%commit` + location 打印片段（CodeGenGo）。
+   一个变量都没有；文法里没写 %commit 时调用方直接给空串。
+   本模板自带行尾换行。 #}
+	// %commit：打印收集到的片段（行号 + 类型 + 原文）与当前位置
+	fmt.Printf("commits: %d\n", len(engine.Commits()))
+	for index, entry := range engine.Commits() {
+		fmt.Printf("  [%d] line=%d type=%s text=%s\n",
+			index, entry.Line, entry.Type, entry.Text)
+	}
+	location := engine.CurrentLocation()
+	fmt.Printf("location: line=%d column=%d offset=%d\n",
+		location.Line, location.Column, location.Offset)

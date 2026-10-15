@@ -1,0 +1,5 @@
+{# 一张词法 DFA 图下面的说明（Mermaid::lexerDiagrams 的 note）。
+   变量：pattern（正则，已转义）、state_count（状态数文本）、
+   accept_list（接受状态清单，已转义）、trap（陷阱状态号文本）。
+   **末尾不带换行**。 #}
+<p class="note">正则 <code>{{ pattern }}</code>，共 {{ state_count }} 个状态（双圆 = 接受状态 {{ accept_list }}，陷阱状态 s{{ trap }} 与指向它的边已省略）。边上的标签是共享字符类划分后的字符集合，<code>a-z</code> 表示连续区间，<code>空格</code> 表示空格字符。</p>

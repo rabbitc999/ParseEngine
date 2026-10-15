@@ -1,0 +1,22 @@
+# 名称: 字符串指令（复制 / 长度 / 比较 / 拼接 / 子串 / 查找）
+# 期望: 5 -1 6 12
+# 期望文本: hello world!
+# 说明: str 类型按字节计数与比较；ssub 是"源 + 起点 + 长度"，
+#       write 一个 str 变量会把它输出到 STDOUT 文本通道。
+0: (decl, str, global, a)
+1: (decl, str, global, b)
+2: (decl, str, global, c)
+3: (decl, i32, global, n)
+4: (scopy, "hello", _, a)
+5: (slen, a, _, n)
+6: (write, n, _, _)
+7: (scat, a, " world!", c)
+8: (write, c, _, _)
+9: (scmp, a, c, n)
+10: (write, n, _, _)
+11: (ssub, c, 6, b, 5)
+12: (sfind, c, b, n)
+13: (write, n, _, _)
+14: (slen, c, _, n)
+15: (write, n, _, _)
+16: (halt, _, _, _)

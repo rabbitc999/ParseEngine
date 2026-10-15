@@ -1,0 +1,20 @@
+[package]
+name = "preprocess"
+version = "0.1.0"
+edition = "2021"
+description = "library/preprocess 的 Rust 版：通用文本预处理器（#/% 指令、条件编译、include/import、行号映射、可插拔包含加载器），只依赖标准库"
+default-run = "preprocess-cli"
+
+# 库名与 C++ 版（`library/preprocess`，命名空间 `preprocess` / `libpreprocess.a`）对齐：
+# `use preprocess::{Options, Preprocessor, Result};`
+[lib]
+name = "preprocess"
+path = "src/lib.rs"
+
+# 命令行工具（对应 C++ 版的 main.cpp → build/preprocess/preprocess）。
+# 这里叫 preprocess-cli，免得和库名混淆（与 library/json-rust 的 json-cli 一致）。
+[[bin]]
+name = "preprocess-cli"
+path = "src/main.rs"
+
+# 自检在 tests/preprocess.rs（对应 C++ 版的 test_preprocess.cpp），用 `cargo test` 跑。

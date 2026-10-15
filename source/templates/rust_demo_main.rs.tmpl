@@ -1,0 +1,45 @@
+/// 从标准输入读一行（读到换行或 EOF 为止，去掉行尾换行）。
+fn read_line() -> String
+{
+    let mut line = String::new();
+    let _ = std::io::stdin().read_line(&mut line);
+    while line.ends_with('\n') || line.ends_with('\r')
+    {
+        line.pop();
+    }
+    line
+}
+
+/// 演示程序入口：读一行输入（到换行或 EOF）后开始解析。
+fn main()
+{
+    let input_text = read_line();
+    println!("解析输入: {}", input_text);
+    let mut engine = Parser::new();
+    let status = engine.run_text(&input_text);
+    if status != parser::STATUS_OK
+    {
+        match engine.last_error()
+        {
+            Some(error) => println!(
+                "解析失败: code={} line={} column={} message={}",
+                error.code, error.line, error.column, error.message
+            ),
+            None => println!("解析失败: {}", parser::status_name(status)),
+        }
+        std::process::exit(1);
+    }
+    println!("解析成功");
+{% if dd %}    // 递归下降只保留第 1 条匹配路径的结果（按产生式声明顺序逐条试，失败回退
+    // 输入位置再试下一条）；有歧义的文法不会像 GLR 那样列出全部解释。
+{% endif %}{{ demo_commits }}
+{% if tree %}    if let Some(tree) = engine.parse_tree(&input_text)
+    {
+        println!("语法树:");
+        tree.print();
+    }
+
+{% else %}    println!("解析结果: {:?}", engine.result());
+
+{% endif %}    std::process::exit(0);
+}

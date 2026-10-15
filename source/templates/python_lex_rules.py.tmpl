@@ -1,0 +1,8 @@
+{# 词法表这一节的开头（节标题 + 固定字面量规则表）：`pyLexTables` 总是先调它。 #}
+# ---------- 词法表 ----------
+# 固定字面量词法规则：(字面量, Token 类型, 字符数, 首字符是空白/通配, 声明序)，按长度降序。
+# 字面量里的 \x1f 是 \b 通配（命中任意一个空白字符）；第 4 项表示
+# 该字面量以空白 / 通配开头，跳空白时要先看它能不能命中。
+_LEX_RULES = [
+{% for r in rules %}    ({{ r.literal }}, TOKEN_{{ r.token_name }}, {{ r.length }}, {% if r.blank %}True{% else %}False{% endif %}, {{ r.decl_order }}),
+{% endfor %}]

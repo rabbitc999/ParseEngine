@@ -1,0 +1,6 @@
+{% if union_mode %}union ParserValue_T
+{
+{{ union_body }}
+};
+{% else %}typedef {{ value_type }} ParserValue_T;
+{% endif %}

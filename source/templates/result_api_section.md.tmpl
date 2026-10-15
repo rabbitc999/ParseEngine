@@ -1,0 +1,24 @@
+{# 「位置信息与 %commit」小节。
+   变量：loc_api / loc_file（当前位置接口名与它所在的产物文件）、
+         has_commits（真假：这一档有没有 %commit）、
+         commit_api / commit_file（取片段接口名与文件）、
+         show_free_commits（真假：只有 C99 才需要「取完要手动释放」那一行）、
+         free_api / free_file（释放接口名与文件）。
+   接线提示：本文件末尾只留一个空行，和别的小节一致；旧写法是 `{{ extra_api_section }}`
+   独占一行 + 模板自己的换行，所以 C++17 / Python 档这里实际会多一个空行（C 档被
+   collapseBlankLines 压掉了）。接线后三档统一成一个空行——要逐字节不变就把
+   RESULT.md 里这一处补一个空行。 #}
+## 位置信息与 %commit
+
+| 内容 | 位置 | 说明 |
+| --- | --- | --- |
+| `{{ loc_api }}` | `{{ loc_file }}` | 当前 lookahead 的 `{line, column, offset}`（行 / 列 1 起，offset 是 UTF-8 字节偏移） |
+{% if has_commits %}
+| `{{ commit_api }}` | `{{ commit_file }}` | `%commit` 收集到的片段（按出现顺序；元素 `{line, type, text}`） |
+{% if show_free_commits %}
+| `{{ free_api }}` | `{{ free_file }}` | 释放片段里的 `text`（C99 没有 RAII：取完内容必须调一次；下一次解析开始也会自动释放） |
+{% endif %}
+{% else %}
+| `%commit` | — | 本文法没有声明 `%commit`，容器恒为空 |
+{% endif %}
+

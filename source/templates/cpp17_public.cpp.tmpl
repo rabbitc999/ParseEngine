@@ -1,0 +1,154 @@
+/* ============ 公开 API 的定义 ============ */
+
+const char *statusName(Status status) noexcept
+{
+    switch (status)
+    {
+    case Status::Ok: return "Ok";
+    case Status::ErrStack: return "ErrStack";
+    case Status::ErrSyntax: return "ErrSyntax";
+    case Status::ErrLexer: return "ErrLexer";
+    case Status::ErrDuplicate: return "ErrDuplicate";
+    case Status::ErrUndefined: return "ErrUndefined";
+    case Status::ErrSystem: return "ErrSystem";
+    }
+    return "Unknown";
+}
+
+const char *tokenName(TokenType type) noexcept
+{
+    const std::uint32_t index = static_cast<std::uint32_t>(type);
+    if (index >= kTokenNameCount)
+    {
+        return nullptr;
+    }
+    if (kTokenNames[index][1][0] == '\0')
+    {
+        return kTokenNames[index][0];
+    }
+    static thread_local ParserMemory::String displayed;
+    displayed = ParserMemory::String(kTokenNames[index][0]) + "(" +
+                kTokenNames[index][1] + ")";
+    return displayed.c_str();
+}
+
+ParserMemory::String tokenText(const Token &token)
+{
+    if (!token.text.empty())
+    {
+        return ParserMemory::String(token.text);
+    }
+    const char *name = tokenName(token.type);
+    return (name != nullptr) ? ParserMemory::String(name) : ParserMemory::String();
+}
+
+Error::Error(std::int32_t code, std::uint32_t line, std::uint32_t column,
+             ParserMemory::String message)
+    : m_code(code), m_line(line), m_column(column), m_message(std::move(message))
+{
+}
+
+Error::Error(std::int32_t code, std::uint32_t line, std::uint32_t column,
+             ParserMemory::String message, std::uint32_t tokenType,
+             ParserMemory::String tokenText, std::uint32_t state,
+             ParserMemory::Vector<std::uint32_t> expected, ParserMemory::String context)
+    : m_code(code), m_line(line), m_column(column), m_message(std::move(message)),
+      m_tokenType(tokenType), m_tokenText(std::move(tokenText)), m_state(state),
+      m_expected(std::move(expected)), m_context(std::move(context))
+{
+}
+
+ParserMemory::String Error::toString() const
+{
+    return "第 " + ParserMemory::toString(m_line) + " 行第 " +
+           ParserMemory::toString(m_column) + " 列：" + m_message;
+}
+
+{% if tree_class %}Tree::Tree(ParserMemory::String name, ParserMemory::String text, ParserLocation location)
+    : m_name(std::move(name)), m_text(std::move(text)),
+      m_location(location)
+{
+}
+
+const Tree *Tree::child(std::size_t index) const noexcept
+{
+    return (index < m_children.size()) ? m_children[index].get() : nullptr;
+}
+
+Tree *Tree::child(std::size_t index) noexcept
+{
+    return (index < m_children.size()) ? m_children[index].get() : nullptr;
+}
+
+void Tree::addChild(ParserMemory::UniquePtr<Tree> child)
+{
+    if (child != nullptr)
+    {
+        m_children.push_back(std::move(child));
+    }
+}
+
+const ParserLocation &Tree::location() const noexcept
+{
+    if ((m_location.line == 0) && !m_children.empty())
+    {
+        // 分支节点：取第一个有位置的子节点（覆盖文本的起点）
+        for (const ParserMemory::UniquePtr<Tree> &child : m_children)
+        {
+            if ((child != nullptr) && (child->location().line != 0))
+            {
+                return child->location();
+            }
+        }
+    }
+    return m_location;
+}
+
+ParserMemory::String Tree::toString() const
+{
+    ParserMemory::String text;
+    appendTreeText(*this, 0u, text);
+    return text;
+}
+
+void Tree::print(std::FILE *stream) const
+{
+    const ParserMemory::String text = toString();
+    std::FILE *target = (stream != nullptr) ? stream : stdout;
+    std::fwrite(text.data(), 1u, text.size(), target);
+}
+
+{% endif %}Engine::Engine() : d(ParserMemory::makeUnique<Private>())
+{
+}
+
+Engine::~Engine() = default;
+
+{{ engine_parse_impl }}{{ glr_impl }}{% if parse_tree %}ParserMemory::UniquePtr<Tree> Engine::parseTree(std::string_view text)
+{
+    return d->parseTree(text);
+}
+{% endif %}{# 上面这行行尾的换行要留住（所以拿这条注释挡住「块标签独占一行就整行删掉」）：
+   {{ engine_parse_impl }} 的值本身以空行结尾，原来「__SEC_PUBLIC_TREE_END__ 独占
+   一行」又留下一个空行；「没写 %tree」时这个换行是唯一分隔，写了 %tree 时空行
+   还归它。 #}
+const ParserMemory::Vector<Error> &Engine::errors() const noexcept
+{
+    return d->m_errors;
+}
+
+const Error *Engine::lastError() const noexcept
+{
+    return d->lastError();
+}
+
+ParserLocation Engine::currentLocation() const noexcept
+{
+    return d->currentLocation();
+}
+
+const ParserMemory::Vector<ParserCommit> &Engine::commits() const noexcept
+{
+    return d->m_commits;
+}
+

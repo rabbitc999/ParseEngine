@@ -1,0 +1,12 @@
+{# Token 类型段：每个 Token 的编号、名字表、别名表（下标就是类型值，末尾多一个 INVALID）。 #}
+{% for t in tokens %}TOKEN_{{ t.name }} = {{ t.value }}
+{% endfor %}TOKEN_INVALID = {{ invalid_id }}
+
+# Token 名称表：下标就是 Token 类型的值（末尾多一个 INVALID）。
+TOKEN_NAMES = (
+{% for n in names %}    {{ n }},
+{% endfor %}    "INVALID",
+)
+TOKEN_ALIASES = {
+{% for a in aliases %}    {{ a.name }}: {{ a.alias }},
+{% endfor %}}

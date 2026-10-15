@@ -1,0 +1,306 @@
+{# LR 分析驱动（CodeGenGo 的 buildParserGo 里那一块，照 CodeGenRust 逐项对齐）。
+   变量：value_type —— 语义值类型名。本模板自带行尾换行。 #}
+// ---------- LR 分析栈 ----------
+
+func (p *Parser) lrPush(state int32, symbol int32, value {{ value_type }}, name string, node *Tree) int32 {
+	if p.top >= sParserMaxStackDepth {
+		return StatusErrStack
+	}
+	p.states = append(p.states, state)
+	p.symbols = append(p.symbols, symbol)
+	p.values = append(p.values, value)
+	p.names = append(p.names, name)
+	p.nodes = append(p.nodes, node)
+	p.top = len(p.states)
+	return StatusOK
+}
+
+func (p *Parser) lrPopTo(newTop int) {
+	if newTop >= p.top {
+		return
+	}
+	p.states = p.states[:newTop]
+	p.symbols = p.symbols[:newTop]
+	p.values = p.values[:newTop]
+	p.names = p.names[:newTop]
+	p.nodes = p.nodes[:newTop]
+	p.top = newTop
+}
+
+func (p *Parser) lrDiscardTop() {
+	if p.top > 0 {
+		p.lrPopTo(p.top - 1)
+	}
+}
+
+// lrShift 移进：把当前 Token 压栈；`%tree` 时顺带建一个叶子节点。
+func (p *Parser) lrShift(state int32, treeMode bool) int32 {
+	var node *Tree
+	if treeMode {
+		node = sParserMakeLeaf(&p.current)
+	}
+	return p.lrPush(state, p.current.Type, p.current.Value, p.current.Text, node)
+}
+
+// lrReduce 归约：执行语义动作、弹出右部、按 GOTO 压回结果。
+func (p *Parser) lrReduce(production int32, treeMode bool) int32 {
+	length := int(sParserProductionLength[production])
+	lhs := sParserProductionLHS[production]
+	if length > p.top {
+		return StatusErrStack
+	}
+	base := p.top - length
+	var node *Tree
+	var zero {{ value_type }}
+	resultValue := zero
+	if treeMode {
+		branch := NewTree(sParserTreeName(lhs), "")
+		for index := 0; index < length; index++ {
+			if child := p.nodes[base+index]; child != nil {
+				branch.AddChild(child)
+				p.nodes[base+index] = nil
+			}
+		}
+		node = branch
+	} else {
+		for index := 0; index < length; index++ {
+			p.actionValues[index] = p.values[base+index]
+		}
+		result := &sHolder{}
+		if p.applyAction(production, p.actionValues[:length], result) != StatusOK {
+			return StatusErrSyntax
+		}
+		resultValue = result.value
+	}
+	p.lrPopTo(base)
+	if p.top == 0 {
+		p.setError(StatusErrStack, p.current.Line, p.current.Column, "归约后分析栈为空")
+		return StatusErrStack
+	}
+	state := sParserGoto[p.states[p.top-1]][lhs]
+	if state == sParserInvalidState {
+		p.setError(StatusErrSyntax, p.current.Line, p.current.Column, "GOTO 表没有匹配项")
+		return StatusErrSyntax
+	}
+	return p.lrPush(state, lhs, resultValue, "", node)
+}
+
+// lrPanicReduce panic reduce：`%sync` 恢复时先把栈顶状态上待归约的项做掉。
+func (p *Parser) lrPanicReduce(state int32, treeMode bool) int32 {
+	if sParserLookaheadK > 1 {
+		for column := 0; column < int(sParserLookaheadColumnCount); column++ {
+			action := sParserReduce[state][column]
+			if action >= 0 {
+				continue
+			}
+			production := -action - 1
+			length := int(sParserProductionLength[production])
+			if length == 0 {
+				continue
+			}
+			if length > p.top {
+				return StatusErrSyntax
+			}
+			return p.lrReduce(production, treeMode)
+		}
+		return StatusErrSyntax
+	}
+	for terminal := 0; terminal < int(sParserTerminalCount); terminal++ {
+		action := sParserAction[state][terminal]
+		if action >= 0 {
+			continue
+		}
+		production := -action - 1
+		length := int(sParserProductionLength[production])
+		if length == 0 {
+			continue
+		}
+		if length > p.top {
+			return StatusErrSyntax
+		}
+		return p.lrReduce(production, treeMode)
+	}
+	return StatusErrSyntax
+}
+
+func (p *Parser) lookaheadCodeLong(head int32) int64 {
+	code := int64(head)
+	scale := int64(sParserTerminalCount)
+	for index := int32(1); index < sParserLookaheadK; index++ {
+		code += int64(p.lookahead[index-1].Type) * scale
+		scale *= int64(sParserTerminalCount)
+	}
+	return code
+}
+
+// findLookaheadColumn 二分查找窗口对应的归约列；没有这一列返回 -1。
+func (p *Parser) findLookaheadColumn(code int64) int32 {
+	if sParserLookaheadColumnCount == 0 {
+		return -1
+	}
+	low := 0
+	high := int(sParserLookaheadColumnCount) - 1
+	for low <= high {
+		mid := low + (high-low)/2
+		midCode := sParserLookaheadCode[mid]
+		if midCode == code {
+			return sParserLookaheadColumn[mid]
+		}
+		if midCode < code {
+			low = mid + 1
+		} else {
+			if mid == 0 {
+				break
+			}
+			high = mid - 1
+		}
+	}
+	return -1
+}
+
+// lookupWindowAction 两层查表：先按 k 元组展望符查归约列，再按窗口首个 Token 查移进。
+func (p *Parser) lookupWindowAction(state int32, head int32) int32 {
+	if sParserLookaheadK <= 1 {
+		return sParserAction[state][head]
+	}
+	column := p.findLookaheadColumn(p.lookaheadCodeLong(head))
+	if column >= 0 {
+		if reduced := sParserReduce[state][column]; reduced != 0 {
+			return reduced
+		}
+	}
+	return sParserAction[state][head]
+}
+
+func (p *Parser) lrCanShiftSyncToken(state int32) bool {
+	for _, kind := range sParserSyncTokens {
+		if sParserAction[state][kind] > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// lrRecover 语法错误恢复：`error` 产生式优先，`%sync` 兜底。
+func (p *Parser) lrRecover(treeMode bool) int32 {
+	// ① 已经在错误状态里：先丢掉当前 lookahead 再试
+	if p.errorState > 0 {
+		for p.current.Type != TOKEN_END {
+			if p.advanceWindow() != StatusOK {
+				return StatusErrLexer
+			}
+			kind := p.current.Type
+			if kind >= 0 && kind < int32(sParserTerminalCount) &&
+				p.lookupWindowAction(p.states[p.top-1], kind) != 0 {
+				p.errorState = sParserErrorRecoveryTokens
+				return StatusOK
+			}
+		}
+		return StatusErrSyntax
+	}
+	// ② error 产生式：弹栈到能移进 error 的状态
+	if sParserHasErrorToken {
+		for p.top > 0 {
+			action := sParserAction[p.states[p.top-1]][sParserErrorTokenID]
+			if action > 0 {
+				var zero {{ value_type }}
+				if p.lrPush(action-1, sParserErrorTokenID, zero, "error", nil) != StatusOK {
+					return StatusErrStack
+				}
+				p.errorState = sParserErrorRecoveryTokens
+				return StatusOK
+			}
+			p.lrDiscardTop()
+		}
+	}
+	// ③ %sync panic mode：弹栈到能移进某个同步 Token 的状态，再丢输入到它
+	if len(sParserSyncTokens) != 0 {
+		reduceBudget := 256
+		for p.top > 0 {
+			state := p.states[p.top-1]
+			if p.lrCanShiftSyncToken(state) {
+				for p.current.Type != TOKEN_END && !sParserIsSyncToken(p.current.Type) {
+					if p.advanceWindow() != StatusOK {
+						return StatusErrLexer
+					}
+				}
+				if p.current.Type == TOKEN_END {
+					return StatusErrSyntax
+				}
+				action := sParserAction[state][p.current.Type]
+				if action > 0 {
+					if p.lrShift(action-1, treeMode) != StatusOK {
+						return StatusErrStack
+					}
+					if p.advanceWindow() != StatusOK {
+						return StatusErrLexer
+					}
+					p.errorState = sParserErrorRecoveryTokens
+					return StatusOK
+				}
+			} else if reduceBudget > 0 && p.lrPanicReduce(state, treeMode) == StatusOK {
+				reduceBudget--
+				if sParserLookaheadK > 1 {
+					if p.lookupWindowAction(p.states[p.top-1], p.current.Type) != 0 {
+						p.errorState = sParserErrorRecoveryTokens
+						return StatusOK
+					}
+				}
+				continue
+			}
+			p.lrDiscardTop()
+		}
+	}
+	return StatusErrSyntax
+}
+
+// runLRLoop LR 主循环：移进 / 归约 / 接受。
+func (p *Parser) runLRLoop(treeMode bool) int32 {
+	sParserResetStates(p)
+	for {
+		state := p.states[p.top-1]
+		kind := p.current.Type
+		if state >= int32(sParserStateCount) || kind < 0 ||
+			kind >= int32(sParserTerminalCount) {
+			p.setError(StatusErrSyntax, p.current.Line, p.current.Column, "状态或 Token 越界")
+			return StatusErrSyntax
+		}
+		action := p.lookupWindowAction(state, kind)
+		if action == sParserAcceptAction {
+			p.resultValue = p.values[p.top-1]
+			if treeMode {
+				p.treeRoot = p.nodes[p.top-1]
+				p.nodes[p.top-1] = nil
+			}
+			return StatusOK
+		}
+		if action > 0 {
+			if p.lrShift(action-1, treeMode) != StatusOK {
+				p.setError(StatusErrStack, p.current.Line, p.current.Column, "分析栈已满")
+				return StatusErrStack
+			}
+			if p.advanceWindow() != StatusOK {
+				return StatusErrLexer
+			}
+			if p.errorState > 0 {
+				p.errorState--
+			}
+			continue
+		}
+		if action < 0 {
+			if p.lrReduce(-action-1, treeMode) != StatusOK {
+				return StatusErrSyntax
+			}
+			continue
+		}
+		if p.errorState == 0 {
+			p.setSyntaxError(state, sParserExpected[state])
+			if len(p.errors) >= sParserMaxErrors {
+				return StatusErrSyntax
+			}
+		}
+		if p.lrRecover(treeMode) != StatusOK {
+			return StatusErrSyntax
+		}
+	}
+}

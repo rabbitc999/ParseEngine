@@ -1,0 +1,12 @@
+{# 文法自动机那张图下面的说明（Mermaid::grammarDiagrams 的 note）。
+   变量：state_count / edge_count（整数）、mode_label（模式标签，已 HTML 转义）、
+   start_state（初态编号文本）。虚拟起始符号那一段是另一份模板
+   （mermaid_note_virtual_start.html）。**末尾不带换行**。 #}
+<p class="note">本图共 {{ state_count }} 个状态、{{ edge_count }} 条转移。节点是 {{ mode_label }} 自动机的状态（框里逐项列出 LR 项集，`lalr` / `lr1` / `ielr` 按教材写法把展望符一起写出来），边是 GOTO 转移：<code>开始</code> 指向初态 I{{ start_state }}，终结符上标注的是移进、非终结符上另外标 <code>GOTO</code>；状态跑到 <code>接受</code> 说明该状态里有 <code>S' -&gt; S .</code>。每个状态框最后一行“动作：…”就是 ACTION 表里能填出的动作，和颜色一一对应：</p>
+<ul class="legend">
+<li><span class="sw shiftState"></span>蓝：有移进动作</li>
+<li><span class="sw reduceState"></span>黄：有归约动作（含完整项）</li>
+<li><span class="sw acceptState"></span>绿：接受状态</li>
+<li><span class="sw conflictState"></span>红：有未消解冲突（表项按移进优先写，冲突清单见分析报告的 <code>[未消解冲突]</code>）</li>
+<li><span class="sw plainState"></span>灰：只有 GOTO 转移</li>
+</ul>

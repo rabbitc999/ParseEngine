@@ -1,0 +1,14 @@
+%mode glr
+%value_type int
+%start e
+%define PLUS "+"
+%define STAR "*"
+%code
+extern int actionCalls;
+extern int semanticBias;
+extern void recordAction();
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+%endcode
+e := e PLUS e { recordAction(); $$ = $1 + $3; }
+   | e STAR e { recordAction(); $$ = $1 * $3; }
+   | NUMBER { recordAction(); $$ = $1 + semanticBias; };

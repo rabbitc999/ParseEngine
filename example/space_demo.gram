@@ -1,0 +1,46 @@
+/* ============================================================
+ * 空白 / 换行当 Token：%space 与 \b 空白通配
+ *
+ * 词法器取 Token 前默认跳过空白（空格 / \t / \n / \v / \f / \r），所以
+ * 「换行符」这种空白平时根本到不了语法层。这份示例演示三个指令的分工：
+ *
+ *   %token NL "\n"     换行是**真实 Token**：声明之后 \n 不再被跳过，
+ *                      可以在产生式里写 NL（行结构文法就这么写）
+ *   %token SP "\b"     \b 是「一个空白字符」的通配：空格 / \t / \n / \v /
+ *                      \f / \r 中任意一个都能命中，写进产生式 = 强制一个
+ *                      空白（同一段输入里 1 个空格可以、1 个制表也可以，
+ *                      2 个空格不行）
+ *   %space " \t"       取 Token 前只跳过空格与制表；换行交给 NL
+ *
+ * 三种写法可以只用一种，也可以组合：
+ *   - 只想要「换行是 Token」：%token NL "\n"（%space 不写，其余空白照旧跳过）
+ *   - 只想要「空白是 Token」：%token SP "\b"（默认跳过集合不动，命中就用它）
+ *   - 想要「某些空白不许出现」：%space " " 之类，把不想跳过的空白留给 Token，
+ *     没有 Token 覆盖时词法器直接报「词法解析失败」
+ *   - %space ""：一个空白都不跳过（全部空白都要有 Token 覆盖）
+ *
+ * 试一下（内建 demo main 只喂一行，所以单行也能解析）：
+ *   printf 'a b'    | ./parser_demo     -> 解析成功（SP 命中空格）
+ *   printf 'ab'     | ./parser_demo     -> 解析成功
+ *   printf 'a  b'   | ./parser_demo     -> 解析失败（SP 只吃一个空白）
+ *
+ * 想看 NL 命中得喂多行文本，内建 demo main 只读一行，用 API 最直接：
+ *   python3 -c "import parser;p=parser.Parser();print(p.run_text('a\nb c\n'))"
+ *   （C：Parser_ParseTreeText("a\nb c\n")；C++17：engine.parseTree("a\nb c\n")）
+ * ============================================================ */
+
+%tree
+
+%token regex WORD "[a-z]+"
+%token NL "\n"
+%token SP "\b"
+
+/* 取 Token 前只跳过空格与制表；换行归 NL，其余空白（\v / \f / \r）也不跳过 */
+%space " \t"
+
+%start start
+
+start := LINES ;
+LINES := LINES LINE | LINE ;
+LINE  := PAIR NL | PAIR | WORD NL | WORD ;
+PAIR  := WORD SP WORD ;

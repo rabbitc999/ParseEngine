@@ -1,0 +1,22 @@
+{# LR 家族的分析表（CodeGenRust 的 rustLrTables）。
+   变量：
+     action / goto / reduce        —— 二维整数表（已渲染好的 `&[...]` 字面量，
+                                      含换行、不带行尾换行）
+     lookahead_code / lookahead_column / production_length / production_lhs
+                                   —— 一维整数表正文（不带方括号）
+     has_reduce                    —— 有没有 LR(k) 第二层（k > 1）
+   本模板自带行尾换行。 #}
+/// ACTION：0 出错，>0 移进到 action-1，<0 归约 -action-1；
+/// GOTO：INVALID_STATE 出错。
+static _ACTION: &[&[i32]] = {{ action }};
+static _GOTO: &[&[i32]] = {{ goto }};
+{% if has_reduce %}/// LR(k) / LALR(k) 的第二层 ACTION（按 k 元组展望符建列）。
+static _REDUCE: &[&[i32]] = {{ reduce }};
+static _LOOKAHEAD_CODE: &[i64] = &[{{ lookahead_code }}];
+static _LOOKAHEAD_COLUMN: &[i32] = &[{{ lookahead_column }}];
+{% else %}/// k = 1：没有第二层（占位让常量始终存在）。
+static _REDUCE: &[&[i32]] = &[];
+static _LOOKAHEAD_CODE: &[i64] = &[];
+static _LOOKAHEAD_COLUMN: &[i32] = &[];
+{% endif %}static _PRODUCTION_LENGTH: &[i32] = &[{{ production_length }}];
+static _PRODUCTION_LHS: &[i32] = &[{{ production_lhs }}];

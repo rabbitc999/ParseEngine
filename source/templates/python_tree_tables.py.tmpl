@@ -1,0 +1,12 @@
+{# 语法树元数据（LL 建树用）。模板第一行是空行——它与上一节的分析表之间的分隔空行；
+   上面那行注释会被引擎丢掉，不产出字节。 #}
+
+# ---------- 语法树表 ----------
+# 语法树元数据：右部符号表（终结符用下标，非终结符用
+# TERMINAL_COUNT + 下标）。
+_TREE_PROD_START = [
+            {{ prod_start }}]
+_TREE_PROD_LENGTH = [
+            {{ prod_length }}]
+_TREE_PROD_SYMBOLS = [
+            {{ prod_symbols }}]

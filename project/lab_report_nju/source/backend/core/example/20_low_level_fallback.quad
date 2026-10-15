@@ -1,0 +1,29 @@
+﻿# 名称: 机器没有乘除法时用低级指令代替（常量展开 + 变操作数循环）
+# 配置: example/no_muldiv.ini
+# 输入: 7
+# 期望: 30 1 2 42 2 1
+# 说明: no_muldiv.ini 只有加减 / 移位 / 按位；x*5 展开成 (x<<2)+x，
+#       无符号 x/4 展开成逻辑右移，x%4 展开成按位与掩码；
+#       变操作数 y*6 与 y/3 用"移位加"和"移位减"循环代替。
+0: (decl, u16, global, x)
+1: (decl, u16, global, q)
+2: (decl, u16, global, r)
+3: (decl, u16, global, y)
+4: (decl, u16, global, t2)
+5: (decl, u16, global, q2)
+6: (decl, u16, global, r2)
+7: (:=, 6, _, x)
+8: (*:u16, x, 5, t)
+9: (write, t, _, _)
+10: (/:u16, x, 4, q)
+11: (write, q, _, _)
+12: (%:u16, x, 4, r)
+13: (write, r, _, _)
+14: (read, _, _, y)
+15: (*:u16, y, 6, t2)
+16: (write, t2, _, _)
+17: (/:u16, y, 3, q2)
+18: (write, q2, _, _)
+19: (%:u16, y, 3, r2)
+20: (write, r2, _, _)
+21: (halt, _, _, _)

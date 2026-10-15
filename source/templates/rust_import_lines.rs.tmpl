@@ -1,0 +1,6 @@
+{# `%import` 展开成的 `use` 行（CodeGenRust 的 rustImportLines）。
+   变量：imports —— 名字数组；列表为空时调用方直接给空串。
+   本模板自带行尾换行，而且**多一个空行**（原来那串替换的结尾就带一个）。 #}
+{% for i in imports %}use {{ i }};
+{% endfor %}
+

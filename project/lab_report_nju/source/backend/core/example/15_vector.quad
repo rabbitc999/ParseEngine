@@ -1,0 +1,23 @@
+# 名称: 向量指令（地址 + 长度，元素位数由类型后缀给出）
+# 期望: 30 3 33 30 0
+# 说明: 数组元素地址是"基名.下标"，元素位数写在指令后缀里（这里是 i32）；
+#       vfill/vcopy/vsum/vmax 的第二个操作数是长度。
+0: (decl, i32, global, v)
+1: (decl, i32, global, w)
+2: (decl, i32, global, x)
+3: (decl, i32, global, s)
+4: (vfill:i32, v, 4, 0)
+5: (vstore:i32, v, 2, 30)
+6: (vload:i32, v, 2, x)
+7: (write, x, _, _)
+8: (vstore:i32, v, 1, 3)
+9: (vload:i32, v, 1, x)
+10: (write, x, _, _)
+11: (vsum:i32, v, 4, s)
+12: (write, s, _, _)
+13: (vcopy:i32, v, 4, w)
+14: (vmax:i32, w, 4, s)
+15: (write, s, _, _)
+16: (vload:i32, w, 3, x)
+17: (write, x, _, _)
+18: (halt, _, _, _)

@@ -1,0 +1,80 @@
+    # ---------- Earley / CYK 图表判定 ----------
+
+    def _chart_precheck(self):
+        text_mode = self._text_mode
+        source = self._input if text_mode else self._tokens
+        tokens = []
+        while self._current.type != TOKEN_END:
+            tokens.append(self._current.type)
+            status = self._advance()
+            if status != STATUS_OK:
+                return status
+        status = (self._prepare_text(source) if text_mode
+                  else self._prepare_tokens(source))
+        if status != STATUS_OK:
+            return status
+        accepted = (self._earley_accept(tokens) if {% if earley %}True{% else %}False{% endif %}
+                    else self._cyk_accept(tokens))
+        if not accepted:
+            self._set_error(STATUS_ERR_SYNTAX, self._current.line,
+                            self._current.column, "没有可接受的解析路径")
+            return STATUS_ERR_SYNTAX
+        return STATUS_OK
+
+    def _earley_accept(self, tokens):
+        count = len(tokens)
+        chart = [set() for _ in range(count + 1)]
+        for production in range(_CHART_PRODUCTION_COUNT):
+            if _CHART_LHS[production] == _CHART_START:
+                chart[0].add((production, 0, 0))
+        for position in range(count + 1):
+            changed = True
+            while changed:
+                changed = False
+                for production, dot, origin in tuple(chart[position]):
+                    length = _CHART_RHS_LENGTH[production]
+                    if dot == length:
+                        completed = _TERMINAL_COUNT + _CHART_LHS[production]
+                        for parent, parent_dot, parent_origin in tuple(chart[origin]):
+                            base = _CHART_RHS_START[parent]
+                            if (parent_dot < _CHART_RHS_LENGTH[parent] and
+                                    _CHART_RHS_SYMBOLS[base + parent_dot] == completed):
+                                item = (parent, parent_dot + 1, parent_origin)
+                                if item not in chart[position]:
+                                    chart[position].add(item)
+                                    changed = True
+                        continue
+                    symbol = _CHART_RHS_SYMBOLS[_CHART_RHS_START[production] + dot]
+                    if symbol >= _TERMINAL_COUNT:
+                        nonterm = symbol - _TERMINAL_COUNT
+                        for next_prod in range(_CHART_PRODUCTION_COUNT):
+                            if _CHART_LHS[next_prod] == nonterm:
+                                item = (next_prod, 0, position)
+                                if item not in chart[position]:
+                                    chart[position].add(item)
+                                    changed = True
+                    elif position < count and symbol == tokens[position]:
+                        chart[position + 1].add((production, dot + 1, origin))
+        return any(_CHART_LHS[p] == _CHART_START and origin == 0 and
+                   dot == _CHART_RHS_LENGTH[p] for p, dot, origin in chart[count])
+
+    def _cyk_accept(self, tokens):
+        count = len(tokens)
+        if count == 0:
+            return _CHART_ACCEPTS_EMPTY
+        cells = [[set() for _ in range(count + 1)] for _ in range(count)]
+        for index, token in enumerate(tokens):
+            for rule in range(_CHART_UNARY_COUNT):
+                if _CHART_UNARY_TOKEN[rule] == token:
+                    cells[index][index + 1].add(_CHART_UNARY_LHS[rule])
+        for length in range(2, count + 1):
+            for begin in range(count - length + 1):
+                end = begin + length
+                for middle in range(begin + 1, end):
+                    left = cells[begin][middle]
+                    right = cells[middle][end]
+                    for rule in range(_CHART_BINARY_COUNT):
+                        if (_CHART_BINARY_LEFT[rule] in left and
+                                _CHART_BINARY_RIGHT[rule] in right):
+                            cells[begin][end].add(_CHART_BINARY_LHS[rule])
+        return _CHART_START in cells[0][count]

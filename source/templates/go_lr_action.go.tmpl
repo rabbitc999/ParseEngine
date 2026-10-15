@@ -1,0 +1,12 @@
+{# 语义动作的执行函数（CodeGenGo 的 goActionCases 调用点）。
+   变量：lr_action_cases —— 生成期算好的分支；value_type —— 语义值类型名。
+   本模板自带行尾换行。 #}
+// applyAction 执行一个产生式的语义动作。
+//
+//   - production：产生式编号；
+//   - values：右部语义值切片（`$1` 就是 values[0]）；
+//   - result：语义结果（动作写它的 value 字段）。
+func (p *Parser) applyAction(production int32, values []{{ value_type }}, result *sHolder) int32 {
+{{ lr_action_cases }}
+	return StatusErrSyntax
+}

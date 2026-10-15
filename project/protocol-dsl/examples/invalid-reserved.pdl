@@ -1,0 +1,6 @@
+protocol Reserved;
+endian little;
+
+packet Frame {
+    u8 encode;
+};

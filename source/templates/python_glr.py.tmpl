@@ -1,0 +1,429 @@
+    # ---------- GLR（图结构栈）分析驱动 ----------
+
+    def set_ambiguity_resolver(self, resolver):
+        """注册歧义解决回调。
+
+        :param resolver: ``resolver(existing, candidate) -> bool``；返回 ``True``
+            采用新结果，返回 ``False`` 保留已有结果。传 ``None`` 恢复默认策略
+            （保留全部被接受路径的结果）。
+        """
+        self._glr_resolver = resolver
+
+    def _glr_clear_results(self):
+        """清空结果表。"""
+        self._glr_results = []
+        self._glr_trees = []
+
+    def _glr_clear(self):
+        """清掉上一次解析留下的图与结果（每次解析开始时调用）。"""
+        self._glr_clear_results()
+        self._glr_nodes = []
+        self._glr_edges = []
+        for index in (0, 1):
+            self._glr_node_ids[index] = []
+            self._glr_node_of[index] = {}
+        self._glr_work = []
+        self._glr_queued = []
+        self._glr_names = []
+        self._glr_path_visits = 0
+        self._glr_path_edges = [_INVALID_INDEX] * _MAX_PATH_DEPTH
+
+    def _glr_node_for(self, pos, state):
+        """在指定输入位置取（或新建）状态对应的节点。"""
+        found = self._glr_node_of[pos].get(state)
+        if found is not None:
+            return found
+        index = len(self._glr_nodes)
+        if index >= _INVALID_INDEX:
+            return _INVALID_INDEX
+        self._glr_nodes.append(_GlrNode(state))
+        self._glr_queued.append(False)
+        self._glr_node_of[pos][state] = index
+        self._glr_node_ids[pos].append(index)
+        return index
+
+    def _glr_tree_equal(self, left, right):
+        """两棵树是否结构相同（用于树模式下的 GSS 边去重）。"""
+        if left is None or right is None:
+            return left is right
+        return left.to_string() == right.to_string()
+
+    def _glr_edge_exists(self, target, from_node, symbol, production,
+                         tree=None, compare_tree=False):
+        """目标节点上是否已经有这条归约边（路径合并的判定）。"""
+        for edge_id in self._glr_nodes[target].edges:
+            edge = self._glr_edges[edge_id]
+            if ((edge.from_node == from_node) and (edge.symbol == symbol) and
+                    (edge.production == production) and
+                    ((not compare_tree) or
+                     self._glr_tree_equal(edge.tree, tree))):
+                return True
+        return False
+
+    def _glr_add_edge(self, target, from_node, symbol, production, name_slot,
+                      value, tree, merge_existing=True, compare_tree=False):
+        """往目标节点加一条边；相同 (from_node, symbol, production) 不重复加。
+
+        :return: 1 表示新增，0 表示已存在，-1 表示容量不足。
+        """
+        if merge_existing and self._glr_edge_exists(target, from_node, symbol,
+                                                    production, tree,
+                                                    compare_tree):
+            return 0
+        if len(self._glr_edges) >= _INVALID_INDEX:
+            return -1
+        edge = _GlrEdge()
+        edge.from_node = from_node
+        edge.symbol = symbol
+        edge.production = production
+        edge.name_slot = name_slot
+        edge.value = value
+        edge.tree = tree
+        self._glr_edges.append(edge)
+        self._glr_nodes[target].edges.append(len(self._glr_edges) - 1)
+        return 1
+
+    def _glr_queue(self, node):
+        """把节点加入归约工作表（同一节点不会重复入表）。"""
+        if self._glr_queued[node]:
+            return
+        self._glr_queued[node] = True
+        self._glr_work.append(node)
+
+    def _glr_dequeue(self):
+        """从工作表取出一个节点。"""
+        node = self._glr_work.pop(0)
+        self._glr_queued[node] = False
+        return node
+
+    def _glr_store_name(self, name):
+        """把 Token 变量名拷进名字池，返回下标。"""
+        if (not name) or (len(self._glr_names) >= _INVALID_INDEX):
+            return _INVALID_INDEX
+        self._glr_names.append(name)
+        return len(self._glr_names) - 1
+
+    def _glr_record_result(self, value, tree):
+        """记录一条被接受的路径（有歧义解决回调时按回调取舍）。"""
+        if self._glr_resolver is not None:
+            if self._glr_results:
+                if not self._glr_resolver(self._glr_results[0], value):
+                    return
+                self._glr_clear_results()
+        self._glr_results.append(value)
+        if tree is not None:
+            self._glr_trees.append(tree.clone())
+
+    def _glr_reduce_apply(self, pos, start_node, production, tree_mode):
+        """用一条路径上的语义值执行一次归约，并按 GOTO 建一条边。"""
+        length = _PRODUCTION_LENGTH[production]
+        lhs = _PRODUCTION_LHS[production]
+        target = _GOTO[self._glr_nodes[start_node].state][lhs]
+        if target == _INVALID_STATE:
+            return STATUS_OK
+        node = self._glr_node_for(pos, target)
+        if node == _INVALID_INDEX:
+            return STATUS_ERR_STACK
+        symbol = _TERMINAL_COUNT + lhs
+        # 路径合并：同一条归约边已存在时不重复执行语义动作
+        if (not tree_mode) and self._glr_edge_exists(node, start_node, symbol,
+                                                     production):
+            return STATUS_OK
+        node_tree = None
+        if tree_mode:
+            nodes = []
+            for index in range(length):
+                edge = self._glr_edges[self._glr_path_edges[index]]
+                nodes.append(edge.tree.clone() if edge.tree is not None
+                             else None)
+            node_tree = _make_branch(nodes, _tree_name(lhs), 0, length)
+            result_value = None
+        else:
+            values = []
+            for index in range(length):
+                values.append(
+                    self._glr_edges[self._glr_path_edges[index]].value)
+            result = _Holder()
+            if self._apply_action(production, values, result) != STATUS_OK:
+                return STATUS_ERR_SYNTAX
+            result_value = result.value
+        added = self._glr_add_edge(node, start_node, symbol, production,
+                                   _INVALID_INDEX, result_value, node_tree,
+                                   True, tree_mode)
+        if added < 0:
+            return STATUS_ERR_STACK
+        if added > 0:
+            self._glr_queue(node)
+        return STATUS_OK
+
+    def _glr_reduce_walk(self, pos, node, depth, length, production,
+                         tree_mode):
+        """深度优先枚举长度为 length 的归约路径（path_edges 按右部顺序回填）。"""
+        if depth == length:
+            return self._glr_reduce_apply(pos, node, production, tree_mode)
+        self._glr_path_visits += 1
+        if self._glr_path_visits > _MAX_PATH_VISITS:
+            return STATUS_ERR_STACK
+        if (length - 1 - depth) >= _MAX_PATH_DEPTH:
+            return STATUS_ERR_STACK
+        # 归约过程中可能往本节点加边，所以按快照长度按下标遍历；倒序走是为了
+        # 和 C 目标一致——那边的边是单链表，新边插在表头
+        edges = self._glr_nodes[node].edges
+        for index in range(len(edges) - 1, -1, -1):
+            edge_id = edges[index]
+            self._glr_path_edges[length - 1 - depth] = edge_id
+            status = self._glr_reduce_walk(pos, self._glr_edges[edge_id].from_node,
+                                           depth + 1, length, production,
+                                           tree_mode)
+            if status != STATUS_OK:
+                return status
+        return STATUS_OK
+
+    def _glr_apply_action(self, pos, node, action, tree_mode):
+        """在一个节点上执行一个候选动作（只处理归约）。"""
+        if action >= 0:
+            return STATUS_OK
+        production = -action - 1
+        length = _PRODUCTION_LENGTH[production]
+        if length > _MAX_PATH_DEPTH:
+            return STATUS_ERR_STACK
+        return self._glr_reduce_walk(pos, node, 0, length, production,
+                                     tree_mode)
+
+    def _glr_reduce_node(self, pos, node, token, tree_mode):
+        """执行一个节点在当前 Token 上的全部归约动作（主动作 + 冲突候选）。"""
+        state = self._glr_nodes[node].state
+        if (state >= _STATE_COUNT) or (token >= _TERMINAL_COUNT):
+            return STATUS_ERR_SYNTAX
+        status = self._glr_apply_action(pos, node, _ACTION[state][token],
+                                        tree_mode)
+        if status != STATUS_OK:
+            return status
+        count = _GLR_EXTRA_COUNT[state][token]
+        if count == 0:
+            return STATUS_OK
+        start = _GLR_EXTRA_START[state][token]
+        for index in range(count):
+            status = self._glr_apply_action(
+                pos, node, _GLR_EXTRA_DATA[start + index], tree_mode)
+            if status != STATUS_OK:
+                return status
+        return STATUS_OK
+
+    def _glr_shift_round(self, cur, nxt, token, tree_mode):
+        """把本轮所有活跃节点在 Token 上移进，生成下一轮节点。"""
+        node_ids = list(self._glr_node_ids[cur])
+        for node in node_ids:
+            state = self._glr_nodes[node].state
+            if state >= _STATE_COUNT:
+                continue
+            count = _GLR_EXTRA_COUNT[state][token]
+            for cursor in range(count + 1):
+                if cursor == 0:
+                    action = _ACTION[state][token]
+                else:
+                    action = _GLR_EXTRA_DATA[
+                        _GLR_EXTRA_START[state][token] + (cursor - 1)]
+                if action <= 0:
+                    continue
+                target = action - 1
+                value = self._current.value
+                name_slot = self._glr_store_name(self._current.text)
+                leaf = _make_leaf(self._current) if tree_mode else None
+                created = self._glr_node_for(nxt, target)
+                if created == _INVALID_INDEX:
+                    return STATUS_ERR_STACK
+                if self._glr_add_edge(created, node, token, _INVALID_INDEX,
+                                      name_slot, value, leaf) < 0:
+                    return STATUS_ERR_STACK
+        return STATUS_OK
+
+    def _glr_accept_node(self, node):
+        """在指定节点上检查接受动作，收集所有被接受路径的结果。"""
+        state = self._glr_nodes[node].state
+        if state >= _STATE_COUNT:
+            return STATUS_OK
+        if _ACTION[state][TOKEN_END] != _ACCEPT_ACTION:
+            return STATUS_OK
+        # 倒序遍历（C 目标的边是单链表，新边在表头）：结果顺序才与 C 一致
+        edges = self._glr_nodes[node].edges
+        for index in range(len(edges) - 1, -1, -1):
+            edge = self._glr_edges[edges[index]]
+            if edge.symbol != _GLR_START_SYMBOL:
+                continue
+            self._glr_record_result(edge.value, edge.tree)
+        return STATUS_OK
+
+    def _glr_expected_tokens(self, pos):
+        """拼一句「这个位置期望哪些 Token」的说明（最多列 4 个，用于报错）。"""
+        listed = ""
+        count = 0
+        for node in self._glr_node_ids[pos]:
+            if count >= 4:
+                break
+            state = self._glr_nodes[node].state
+            if state >= _STATE_COUNT:
+                continue
+            for token in range(_TERMINAL_COUNT):
+                if count >= 4:
+                    break
+                if _ACTION[state][token] == 0:
+                    continue
+                name = token_name(token)
+                if name is None:
+                    continue
+                if listed and (name in listed):
+                    continue
+                if listed:
+                    listed += " / "
+                listed += name
+                count += 1
+        return listed if listed else "（未知）"
+
+    def _run_glr_loop(self, tree_mode):
+        """GLR 主循环：按输入位置逐轮并行推进所有可能路径。"""
+{% if chart %}        chart_status = self._chart_precheck()
+        if chart_status != STATUS_OK:
+            return chart_status
+{% endif %}
+        cur = 0
+        nxt = 1
+        deleted = 0
+        recovering = False
+        self._glr_clear()
+        start_node = self._glr_node_for(cur, 0)
+        if start_node == _INVALID_INDEX:
+            self._set_error(STATUS_ERR_STACK, self._current.line,
+                            self._current.column, "{{ lr_name }} GSS 图容量不足")
+            return STATUS_ERR_STACK
+        self._glr_queue(start_node)
+        while True:
+            token = self._current.type
+            while self._glr_work:
+                node = self._glr_dequeue()
+                status = self._glr_reduce_node(cur, node, token, tree_mode)
+                if status != STATUS_OK:
+                    self._set_error(status, self._current.line,
+                                    self._current.column,
+                                    "{{ lr_name }} GLR 归约失败")
+                    self._glr_clear_results()
+                    return status
+            if self._current.type == TOKEN_END:
+                for node in list(self._glr_node_ids[cur]):
+                    status = self._glr_accept_node(node)
+                    if status != STATUS_OK:
+                        self._set_error(status, self._current.line,
+                                        self._current.column,
+                                        "{{ lr_name }} GLR 接受阶段失败")
+                        self._glr_clear_results()
+                        return status
+                break
+            self._glr_node_ids[nxt] = []
+            self._glr_node_of[nxt] = {}
+            status = self._glr_shift_round(cur, nxt, token, tree_mode)
+            if status != STATUS_OK:
+                self._set_error(status, self._current.line,
+                                self._current.column,
+                                "{{ lr_name }} GLR 移进失败")
+                self._glr_clear_results()
+                return status
+            if not self._glr_node_ids[nxt]:
+                # 死路：所有活跃路径都接不上这个 Token。不立刻杀——报一条错后
+                # 进入恢复模式，把活的那些路径原样留在图里，靠吞 Token 找下一个
+                # 能接上的位置（其它路径继续活着，这就是 GLR 的 panic mode）。
+                # 恢复期间不重复报错，一次恢复只报一条。
+                if not recovering:
+                    self._set_error(
+                        STATUS_ERR_SYNTAX, self._current.line,
+                        self._current.column,
+                        "{{ lr_name }} 语法错误：遇到 " + _token_type_text(
+                            self._current.type) + "，" +
+                        str(len(self._glr_node_ids[cur])) +
+                        " 条活跃路径都没有匹配动作（期望 " +
+                        self._glr_expected_tokens(cur) + "）")
+                    if len(self._errors) >= self.max_errors:
+                        # 错误表满了：不再恢复（与 LR / LL 的约定一致）
+                        self._glr_clear_results()
+                        return STATUS_ERR_SYNTAX
+                    recovering = True
+                    deleted = 0
+                if self._current.type == TOKEN_END:
+                    # 已经到输入末尾还是接不上：没得吞了，放弃
+                    self._glr_clear_results()
+                    return STATUS_ERR_SYNTAX
+                if _HAS_SYNC_TOKENS and (self._current.type in _SYNC_TOKENS):
+                    # 吞到 %sync 锚点了：连锚点一起吞掉，本轮恢复到此为止，
+                    # 从锚点之后按正常模式重新开始（免得一路吞过语句边界）
+                    if self._advance() != STATUS_OK:
+                        self._glr_clear_results()
+                        return STATUS_ERR_LEXER
+                    recovering = False
+                    deleted = 0
+                else:
+                    if self._advance() != STATUS_OK:
+                        self._glr_clear_results()
+                        return STATUS_ERR_LEXER
+                    deleted += 1
+                    if deleted > _GLR_MAX_RECOVERY_DELETES:
+                        self._glr_clear_results()
+                        return STATUS_ERR_SYNTAX
+                # 活跃集合没动，只是输入前进了一个 Token：用新 Token 重跑归约，
+                # 下一轮再试着移进。
+                for node in list(self._glr_node_ids[cur]):
+                    self._glr_queue(node)
+                continue
+            cur, nxt = nxt, cur
+            recovering = False
+            deleted = 0
+            for node in list(self._glr_node_ids[cur]):
+                self._glr_queue(node)
+            if self._advance() != STATUS_OK:
+                self._glr_clear_results()
+                return STATUS_ERR_LEXER
+        if not self._glr_results:
+            self._set_error(STATUS_ERR_SYNTAX, self._current.line,
+                            self._current.column, "没有可接受的解析路径")
+            return STATUS_ERR_SYNTAX
+        # 把第 0 个结果写进公开字段（与 LR / LL 的收尾一致）。
+        if self._glr_results:
+            self.result = self._glr_results[0]
+            if tree_mode and self._glr_trees:
+                self._tree_root = self._glr_trees[0].clone()
+        return STATUS_OK
+
+    def run_glr(self, text):
+        """GLR 解析（文本入口）：按输入位置并行推进所有候选路径。
+
+        :param text: 输入文本。
+        :return: ``STATUS_OK`` 表示至少有一条路径被接受；结果用
+            ``glr_result_count()`` 与 ``glr_result(i)`` 取。
+        """
+        if self._prepare_text(text) != STATUS_OK:
+            return STATUS_ERR_LEXER
+        return self._run_glr_loop(False)
+
+    def run_glr_tree(self, text):
+        """GLR 解析并构建语法树（``%tree`` 文法）。
+
+        :param text: 输入文本。
+        :return: ``STATUS_OK`` 表示成功；结果用 ``glr_tree(i)`` 取。
+        """
+        if self._prepare_text(text) != STATUS_OK:
+            return STATUS_ERR_LEXER
+        return self._run_glr_loop(True)
+
+    def glr_result_count(self):
+        """本次 GLR 解析保留的结果个数。"""
+        return len(self._glr_results)
+
+    def glr_result(self, index):
+        """取第 index 个结果；越界返回 ``None``。"""
+        if (index < 0) or (index >= len(self._glr_results)):
+            return None
+        return self._glr_results[index]
+
+    def glr_tree(self, index):
+        """取第 index 棵语法树；越界返回 ``None``。"""
+        if (index < 0) or (index >= len(self._glr_trees)):
+            return None
+        return self._glr_trees[index]

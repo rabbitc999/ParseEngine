@@ -1,0 +1,262 @@
+{# 递归下降（DD）分析驱动（CodeGenCsharp 的 parserCs 里那一支）。
+   变量：value_type —— 语义值类型名。本模板自带行尾换行。 #}
+    // ---------- 递归下降（DD，带回溯） ----------
+
+    /** 递归下降的语义槽：%tree 时装语法树节点，否则装一个语义值
+     *  （第 0 个槽位恒为空，与 LL 的语义帧同一个约定）。 */
+    private class _DdSlot
+    {
+        public bool isTree;
+        public {{ value_type }} value;
+        public Tree node;
+    }
+
+    /** 一次解析最多往后跳几次同步 Token 再重试（%sync 的 panic mode）。 */
+    private const int _DD_MAX_RECOVERY_SKIPS = 64;
+
+    /** 复位「最远失败点」与递归深度。 */
+    private void _ddReset()
+    {
+        _ddDepth = 0;
+        _ddFrameDepth = 0;
+        _ddFarthestDepth = -1;
+        _ddFarthestTypes.Clear();
+        _ddFarthestTokenType = _current.type;
+        _ddFarthestTokenText = _current.text;
+        _ddFarthestLine = _current.line;
+        _ddFarthestColumn = _current.column;
+    }
+
+    /** 记一次「在最远处期望某个 Token」（回溯不清这条记录）。 */
+    private void _ddRecordFail(int expected)
+    {
+        if (_ddDepth > _ddFarthestDepth)
+        {
+            _ddFarthestDepth = _ddDepth;
+            _ddFarthestTokenType = _current.type;
+            _ddFarthestTokenText = _current.text;
+            _ddFarthestLine = _current.line;
+            _ddFarthestColumn = _current.column;
+            _ddFarthestTypes.Clear();
+            _ddFarthestTypes.Add(expected);
+            return;
+        }
+        if (_ddDepth != _ddFarthestDepth)
+        {
+            return;
+        }
+        if (!_ddFarthestTypes.Contains(expected))
+        {
+            _ddFarthestTypes.Add(expected);
+        }
+    }
+
+    /** 解析一个非终结符：**按产生式声明顺序逐条试**，失败就回退输入位置。
+     *
+     *  这是递归下降的全部驱动逻辑，每个非终结符共用它——「一个非终结符一个
+     *  解析函数」由 _DD_PROD_START / _DD_PROD_COUNT 两张表表达。
+     *  @param nonterm 非终结符编号。
+     *  @param treeMode 是否构建语法树。
+     *  @param requireEnd 要求匹配完右部后当前 Token 已经是 END（只有起始符号那一次为真）。
+     *  @return 成功时把结果写进 outSlot 并返回 true。 */
+    private bool _ddParse(int nonterm, bool treeMode, bool requireEnd,
+                          _DdSlot outSlot)
+    {
+        if (_ddFrameDepth >= MAX_STACK_DEPTH)
+        {
+            _setError(STATUS_ERR_STACK, _current.line, _current.column,
+                      "递归太深（超过 max_stack_depth）");
+            return false;
+        }
+        _ddFrameDepth++;
+        int markTextPos = _textPos;
+        int markTokenPos = _tokenPos;
+        int markLine = _line;
+        int markColumn = _column;
+        int markBytePos = _bytePos;
+        bool markPairPending = _bytePosPairPending;
+        Token markToken = _current;
+        int markDepth = _ddDepth;
+        int start = _DD_PROD_START[nonterm];
+        int count = _DD_PROD_COUNT[nonterm];
+        _DdSlot[] slots = new _DdSlot[_DD_PROD_SLOTS[nonterm]];
+        for (int offset = 0; offset < count; offset++)
+        {
+            int production = start + offset;
+            _textPos = markTextPos;
+            _tokenPos = markTokenPos;
+            _line = markLine;
+            _column = markColumn;
+            _bytePos = markBytePos;
+            _bytePosPairPending = markPairPending;
+            _current = markToken;
+            _ddDepth = markDepth;
+            for (int at = 0; at < slots.Length; at++)
+            {
+                slots[at] = new _DdSlot();
+            }
+            if (!_ddMatch(production, treeMode, slots))
+            {
+                continue;
+            }
+            if (requireEnd && (_current.type != TOKEN_END))
+            {
+                // 右部走完了但输入还有剩：按「这里该结束了」记一次最远失败，
+                // 然后试本非终结符的下一条产生式
+                _ddRecordFail(TOKEN_END);
+                continue;
+            }
+            _ddBuild(production, nonterm, treeMode, slots, outSlot);
+            _ddFrameDepth--;
+            return true;
+        }
+        _textPos = markTextPos;
+        _tokenPos = markTokenPos;
+        _line = markLine;
+        _column = markColumn;
+        _bytePos = markBytePos;
+        _bytePosPairPending = markPairPending;
+        _current = markToken;
+        _ddDepth = markDepth;
+        _ddFrameDepth--;
+        return false;
+    }
+
+    /** 沿一条产生式的右部逐符号匹配。
+     *
+     *  终结符比对当前 Token（不等就记一次最远失败并返回 false），非终结符递归调用
+     *  _ddParse。匹配成功的语义值写进 slots[1..n]（第 0 个槽位留空，动作里的
+     *  `$n` 就是 slots[n]）。 */
+    private bool _ddMatch(int production, bool treeMode, _DdSlot[] slots)
+    {
+        int baseIndex = _TREE_PROD_START[production];
+        int length = _TREE_PROD_LENGTH[production];
+        for (int index = 0; index < length; index++)
+        {
+            int symbol = _TREE_PROD_SYMBOLS[baseIndex + index];
+            int slot = index + 1;
+            if (symbol < _TERMINAL_COUNT)
+            {
+                if (_current.type != symbol)
+                {
+                    _ddRecordFail(symbol);
+                    return false;
+                }
+                if (treeMode)
+                {
+                    slots[slot].isTree = true;
+                    slots[slot].node = _makeLeaf(_current);
+                }
+                else
+                {
+                    slots[slot].value = _current.value;
+                }
+                _ddDepth++;
+                if (_advance() != STATUS_OK)
+                {
+                    return false;
+                }
+                continue;
+            }
+            _DdSlot child = new _DdSlot();
+            if (!_ddParse(symbol - _TERMINAL_COUNT, treeMode, false, child))
+            {
+                return false;
+            }
+            slots[slot] = child;
+        }
+        return true;
+    }
+
+    /** 右部匹配完了：%tree 建分支节点，否则跑语义动作。 */
+    private void _ddBuild(int production, int nonterm, bool treeMode,
+                          _DdSlot[] slots, _DdSlot outSlot)
+    {
+        if (treeMode)
+        {
+            Tree[] nodes = new Tree[slots.Length];
+            for (int index = 1; index < slots.Length; index++)
+            {
+                if (slots[index].isTree && (slots[index].node != null))
+                {
+                    nodes[index] = slots[index].node;
+                    slots[index].node = null;
+                }
+            }
+            outSlot.isTree = true;
+            outSlot.node = _makeBranch(nodes, _treeName(nonterm), 1,
+                                       _TREE_PROD_LENGTH[production]);
+            return;
+        }
+        {{ value_type }}[] plain = new {{ value_type }}[slots.Length];
+        for (int index = 0; index < slots.Length; index++)
+        {
+            plain[index] = slots[index].value;
+        }
+        _Holder result = new _Holder();
+        if (_applyAction(production, plain, result) != STATUS_OK)
+        {
+            return;
+        }
+        outSlot.value = result.value;
+    }
+
+    /** 递归下降主循环：从起始符号开始解析，要求把输入吃到 END。
+     *
+     *  解析失败时按「最远失败点」报一条错；文法写了 %sync 的话，再跳到下一个
+     *  同步 Token 之后重试一段（panic mode），直到错误条数或跳过次数用完。 */
+    private int _runDdLoop(bool treeMode)
+    {
+        int budget = _DD_MAX_RECOVERY_SKIPS;
+        while (true)
+        {
+            _ddReset();
+            _DdSlot built = new _DdSlot();
+            if (_ddParse(_START_ID, treeMode, true, built))
+            {
+                if (treeMode)
+                {
+                    _treeRoot = built.node;
+                }
+                else
+                {
+                    _result = built.value;
+                }
+                return STATUS_OK;
+            }
+            // 失败：把「最远失败的那个 Token」摆到 current 上报错，报完再放回去
+            Token savedToken = _current;
+            _current = new Token(_ddFarthestTokenType,
+                                 _ddFarthestTokenText, _ddFarthestLine,
+                                 _ddFarthestColumn);
+            _setSyntaxError(0, _ddFarthestTypes.ToArray());
+            _current = savedToken;
+            if ((budget <= 0) || (_errors.Count >= MAX_ERRORS))
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            // panic mode：往前找下一个同步 Token，吃掉它再试一段
+            bool found = false;
+            while (_current.type != TOKEN_END)
+            {
+                if (_isSyncToken(_current.type))
+                {
+                    found = true;
+                    break;
+                }
+                if (_advance() != STATUS_OK)
+                {
+                    return STATUS_ERR_LEXER;
+                }
+            }
+            if (!found)
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            if (_advance() != STATUS_OK)
+            {
+                return STATUS_ERR_LEXER;
+            }
+            budget--;
+        }
+    }

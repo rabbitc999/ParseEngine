@@ -1,0 +1,26 @@
+# .gitattributes —— 语言统计（GitHub 走 Linguist）与行尾
+#
+# 语言统计这一件事：默认这些后缀**不进**语言统计（识别器不认它们），下面三行
+# 直接按**本项目自己的名字**声明，不再借 `Yacc` / `Jinja` 这类近似名：
+#
+#   .mgl  → Magel              历史：Magel 已经拆分为独立仓库（https://gitee.com/rabbitc999/magel），
+#                              父仓库不再有 .mgl 源码；这一行留作这段历史的记号，
+#                              新仓库里另有一份自己的 .gitattributes。
+#   .gram → ParseEngine        本仓库的文法文件（`.gram` 是权威语法定义，DSL 见 README）
+#   .tmpl → ParseEngineTemplate 生成器的产物模板（`{{ 变量 }}` / `{% for %}` 那套 DSL）
+#
+# 这三个都是**自造语言名**：GitHub 的 Linguist 只认它自带 `languages.yml` 里的名字，
+# 自造名会被静默忽略（那时这些文件就不计入任何语言）。要让它们成为正式语言名，得给
+# Linguist 提 PR 把语言加进 `languages.yml`；在那之前，认 `.gitattributes` 里
+# `linguist-language=` 声明的平台 / 工具（以及本地统计）会按上面的名字显示。
+#
+# 行尾大部分不在这里管：本仓库靠 `core.autocrlf`（源码在 git 里是 LF、Windows 工作区
+# 是 CRLF），`source/templates/*.tmpl` 在磁盘上保持 LF，别加 `* text=auto`。
+# 例外是 shell 脚本：工作区一旦转成 CRLF，非 Git-Bash 的 sh（WSL / Linux / 老
+# MSYS）会把 `\r` 当成命令的一部分，报 `/bin/sh^M: bad interpreter` 或
+# `$'\r': command not found`，脚本直接跑不起来。所以 `*.sh` 钉死 LF。
+
+*.mgl linguist-language=Magel
+*.gram linguist-language=ParseEngine
+*.tmpl linguist-language=ParseEngineTemplate
+*.sh text eol=lf

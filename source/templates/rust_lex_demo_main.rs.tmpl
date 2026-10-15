@@ -1,0 +1,39 @@
+/// 把标准输入整个读进来（读到 EOF）。
+fn read_all() -> String
+{
+    let mut text = String::new();
+    let _ = std::io::Read::read_to_string(&mut std::io::stdin(), &mut text);
+    text
+}
+
+/// 读标准输入到 EOF，逐个打印 Token 的类型与词素。
+fn main()
+{
+    let text = read_all();
+    let mut lexer = Parser::new();
+    let (status, tokens) = lexer.tokenize(&text);
+    for item in &tokens
+    {
+        println!(
+            "{:<12} {:<12} {}:{}",
+            Token::token_name(item.kind),
+            format!("\"{}\"", item.text),
+            item.line,
+            item.column
+        );
+    }
+    if status != parser::STATUS_OK
+    {
+        match lexer.last_error()
+        {
+            Some(error) => println!(
+                "词法错误: code={} line={} column={} message={}",
+                error.code, error.line, error.column, error.message
+            ),
+            None => println!("词法错误: {}", parser::status_name(status)),
+        }
+        std::process::exit(1);
+    }
+    println!("共 {} 个 Token", tokens.len() - 1);
+    std::process::exit(0);
+}

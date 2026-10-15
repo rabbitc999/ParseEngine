@@ -1,0 +1,7 @@
+protocol InvalidLength;
+endian big;
+
+packet Frame {
+    bytes payload[length];
+    u16 length;
+};

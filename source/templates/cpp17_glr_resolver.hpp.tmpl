@@ -1,0 +1,11 @@
+{# Engine 类里的歧义解决回调声明（GLR 才有）。
+   变量：value_type —— ParserValue_T（产物里的语义值类型名）。 #}
+    /**
+     * @brief GLR 歧义解决回调。
+     *
+     * 出现新的接受结果时调用：返回 true 采用新结果，返回 false 保留已有结果。
+     * 不注册回调时默认保留**全部**被接受路径的结果。
+     */
+    using AmbiguityResolver =
+        ParserMemory::Function<bool(const {{ value_type }} &existing,
+                           const {{ value_type }} &candidate)>;

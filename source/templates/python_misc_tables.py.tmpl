@@ -1,0 +1,11 @@
+{# `%sync` 同步 Token / error 伪终结符 + 非终结符名表（`%tree` 建内部分支节点用）。 #}
+# %sync 声明的同步 Token / error 伪终结符。
+_SYNC_TOKENS = frozenset(({% for t in sync_tokens %}TOKEN_{{ t }}, {% endfor %}))
+_HAS_SYNC_TOKENS = {% if has_sync %}True{% else %}False{% endif %}
+_HAS_ERROR_TOKEN = {% if has_error %}True{% else %}False{% endif %}
+_ERROR_TOKEN_ID = {{ error_token_id }}
+
+# 非终结符名表（%tree 建内部分支节点用）。
+_TREE_NONTERM_NAMES = [
+{% for n in nonterm_names %}    {{ n }},
+{% endfor %}]

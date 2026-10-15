@@ -1,0 +1,34 @@
+		// 内建双引号字符串：词法阶段完成反转义，结果就是语义值。
+		if p.peekRune(0) == '"' {
+			p.lexeme = ""
+			p.readChar()
+			for p.peekRune(0) >= 0 && p.peekRune(0) != '"' {
+				ch := p.readChar()
+				if ch == '\\' {
+					escaped := p.readChar()
+					switch escaped {
+					case 'n':
+						ch = '\n'
+					case 'r':
+						ch = '\r'
+					case 't':
+						ch = '\t'
+					case '\\':
+						ch = '\\'
+					case '"':
+						ch = '"'
+					default:
+						return StatusErrLexer
+					}
+				}
+				p.lexeme += string(ch)
+			}
+			if p.peekRune(0) != '"' {
+				return StatusErrLexUnterminated
+			}
+			p.readChar()
+			item.Type = TOKEN_STRING
+			item.Text = p.lexeme
+			item.Value = valueFromText(TOKEN_STRING, p.lexeme)
+			return StatusOK
+		}

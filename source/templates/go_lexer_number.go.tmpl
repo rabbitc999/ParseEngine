@@ -1,0 +1,93 @@
+		// 小数点和指数决定浮点，后缀 d 决定 double；后缀 u 只用于整数。
+		if sParserIsDigit(p.peekRune(0)) ||
+			(p.peekRune(0) == '.' && sParserIsDigit(p.peekRune(1))) {
+			numberStart := p.textPos
+			hasDot := false
+			hasExponent := false
+			suffix := rune(0)
+			for sParserIsDigit(p.peekRune(0)) {
+				p.readChar()
+			}
+			if p.peekRune(0) == '.' {
+				hasDot = true
+				p.readChar()
+				for sParserIsDigit(p.peekRune(0)) {
+					p.readChar()
+				}
+			}
+			if p.peekRune(0) == 'e' || p.peekRune(0) == 'E' {
+				hasExponent = true
+				p.readChar()
+				if p.peekRune(0) == '+' || p.peekRune(0) == '-' {
+					p.readChar()
+				}
+				if !sParserIsDigit(p.peekRune(0)) {
+					return StatusErrLexer
+				}
+				for sParserIsDigit(p.peekRune(0)) {
+					p.readChar()
+				}
+			}
+			if sParserIsAlpha(p.peekRune(0)) {
+				suffix = p.readChar()
+			}
+			if sParserIsAlpha(p.peekRune(0)) {
+				return StatusErrLexer
+			}
+			lexeme := string(p.input[numberStart:p.textPos])
+			if suffix != rune(0) {
+				lexeme = lexeme[:len(lexeme)-1]
+			}
+			var numberLong int64
+			var numberDouble float64
+			isFloat := false
+			ok := false
+			switch {
+			case suffix == 'u' || suffix == 'U':
+				if hasDot || hasExponent {
+					return StatusErrLexer
+				}
+				if value, err := strconv.ParseInt(lexeme, 10, 64); err == nil {
+					if value >= 0 && value <= 0xFFFFFFFF {
+						numberLong = value
+						ok = true
+					}
+				}
+			case suffix == 'd' || suffix == 'D':
+				if !hasDot && !hasExponent {
+					return StatusErrLexer
+				}
+				if value, err := strconv.ParseFloat(lexeme, 64); err == nil {
+					numberDouble = value
+					isFloat = true
+					ok = true
+				}
+			case suffix != rune(0):
+				return StatusErrLexer
+			case hasDot || hasExponent:
+				if value, err := strconv.ParseFloat(lexeme, 64); err == nil {
+					numberDouble = value
+					isFloat = true
+					ok = true
+				}
+			default:
+				if value, err := strconv.ParseInt(lexeme, 10, 64); err == nil {
+					if value >= -2147483648 && value <= 2147483647 {
+						numberLong = value
+						ok = true
+					}
+				}
+			}
+			if !ok {
+				return StatusErrLexer
+			}
+			p.lexeme = lexeme
+			item.Type = TOKEN_NUMBER
+			item.Text = lexeme
+			number := float64(numberLong)
+			if isFloat {
+				number = numberDouble
+			}
+			item.Value = valueFromNumber(number, isFloat)
+			return StatusOK
+		}

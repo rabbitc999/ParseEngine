@@ -1,0 +1,128 @@
+/* ============ 兼容层：C 产物 API 的同名入口（给 %main / %epilogue 用） ============ */
+
+/**
+ * @brief 兼容层：`%main` / `%epilogue` 里照 C 产物的名字调生成器函数。
+ *
+ * C++17 产物本身是 `Engine`（Qt 风格 d-pointer），但同一份文法里的
+ * `%main` / `%epilogue` 常常是照 C 产物写的（`Parser_RunText` / `PARSER_OK`）。
+ * 这一段把那些名字原样提供出来，底下包着一个进程内共享的 Engine：
+ *   - `ParserValue_T` 就是上面的语义值类型，写法与 C 一致；
+ *   - `Parser_RunText` / `Parser_Run` 用共享引擎解析，**非线程安全**；
+ *   - `Parser_GetLastError` / `Parser_GetErrorCount` / `Parser_GetError`
+ *     读共享引擎上一次解析的错误，结构与 C 产物的 `ParserError_T` 一致。
+ *
+ * 新代码建议直接用 `Engine`（`runText` / `run` / `errors` / `lastError`），
+ * 这一段只是让已有文法不用改就能编。
+ */
+
+/// 解析成功。
+inline constexpr std::int32_t PARSER_OK = 0;
+/// 分析栈 / 语义帧栈溢出。
+inline constexpr std::int32_t PARSER_ERR_STACK = -20;
+/// 语法错误。
+inline constexpr std::int32_t PARSER_ERR_SYNTAX = -21;
+/// 词法错误。
+inline constexpr std::int32_t PARSER_ERR_LEXER = -22;
+/// 重复定义（保留，与 C 产物一致）。
+inline constexpr std::int32_t PARSER_ERR_DUPLICATE = -23;
+/// 未定义符号（保留，与 C 产物一致）。
+inline constexpr std::int32_t PARSER_ERR_UNDEFINED = -24;
+/// 系统错误。
+inline constexpr std::int32_t PARSER_ERR_SYSTEM = -25;
+
+/// 分析栈最大深度（%max_stack_depth），与 C 产物的宏同名。
+inline constexpr std::size_t PARSER_MAX_STACK_DEPTH = kMaxStackDepth;
+/// 一次解析最多记多少条错误（%max_errors）。
+inline constexpr std::size_t PARSER_MAX_ERRORS = kMaxErrors;
+/// 恢复成功后要连续移进多少个真实 Token 才退出错误状态。
+inline constexpr std::size_t PARSER_ERROR_RECOVERY_TOKENS =
+    kErrorRecoveryTokens;
+
+/// 兼容 C 产物的错误结构（字段名与 `ParserError_T` 一致）。
+struct ParserError_T
+{
+    std::int32_t code = 0;         ///< 错误码
+    std::uint32_t line = 0u;       ///< 行号
+    std::uint32_t column = 0u;     ///< 列号
+    const char *message = nullptr; ///< 说明（指向共享引擎里的错误文本）
+};
+
+/// @return 兼容入口共用的引擎（**非线程安全**）。
+inline Engine &Parser_CompatEngine()
+{
+    static Engine engine;
+    return engine;
+}
+
+/**
+ * @brief 解析文本（兼容 C 的 `Parser_RunText`）。
+ * @param pText 输入文本；nullptr 当空串。
+ * @param pResult 输出语义值；可为 nullptr。
+ * @return PARSER_OK 表示成功。
+ */
+inline std::int32_t Parser_RunText(const char *pText, ParserValue_T *pResult)
+{
+    const std::string_view text =
+        (pText != nullptr) ? std::string_view(pText) : std::string_view();
+    return static_cast<std::int32_t>(Parser_CompatEngine().runText(text, pResult));
+}
+
+/**
+ * @brief 解析 Token 数组（兼容 C 的 `Parser_Run`）。
+ * @param tokens Token 数组。
+ * @param pResult 输出语义值；可为 nullptr。
+ * @return PARSER_OK 表示成功。
+ */
+inline std::int32_t Parser_Run(const ParserMemory::Vector<Token> &tokens,
+                              ParserValue_T *pResult)
+{
+    return static_cast<std::int32_t>(Parser_CompatEngine().run(tokens, pResult));
+}
+
+/**
+ * @brief 取最近一条错误（兼容 C 的 `Parser_GetLastError`）。
+ *
+ * 没有错误时返回一条全零记录（与 C 产物一致，不会返回 nullptr）。返回的
+ * 结构由本函数持有，下一次解析后内容会被覆盖。
+ * @return 只读错误结构。
+ */
+inline const ParserError_T *Parser_GetLastError()
+{
+    static ParserError_T entry;
+    const Error *error = Parser_CompatEngine().lastError();
+    entry = ParserError_T();
+    if (error != nullptr)
+    {
+        entry.code = error->code();
+        entry.line = error->line();
+        entry.column = error->column();
+        entry.message = error->message().c_str();
+    }
+    return &entry;
+}
+
+/// @return 本次解析累积的错误条数（兼容 C 的 `Parser_GetErrorCount`）。
+inline std::uint32_t Parser_GetErrorCount()
+{
+    return static_cast<std::uint32_t>(Parser_CompatEngine().errors().size());
+}
+
+/**
+ * @brief 取第 index 条错误（兼容 C 的 `Parser_GetError`）。
+ * @param index 下标（0 起）。
+ * @return 只读错误结构；越界返回 nullptr。
+ */
+inline const ParserError_T *Parser_GetError(std::uint32_t index)
+{
+    static ParserError_T entry;
+    const ParserMemory::Vector<Error> &errors = Parser_CompatEngine().errors();
+    if (index >= errors.size())
+    {
+        return nullptr;
+    }
+    entry.code = errors[index].code();
+    entry.line = errors[index].line();
+    entry.column = errors[index].column();
+    entry.message = errors[index].message().c_str();
+    return &entry;
+}

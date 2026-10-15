@@ -1,0 +1,19 @@
+# 名称: 无符号乘法 / 除法（双寄存器）
+# 期望: 1 4294967294 2147483647 1
+# 说明: u32 在 16 位机器上按机器字分片；mul/div 结果进固定寄存器对
+#       （高半 / 余数在 HI，低半 / 商在 LO）。
+0: (decl, u32, global, a)
+1: (decl, u32, global, b)
+2: (decl, u32, global, lo)
+3: (decl, u32, global, hi)
+4: (decl, u32, global, q)
+5: (decl, u32, global, r)
+6: (:=, 4294967295, _, a)
+7: (:=, 2, _, b)
+8: (mul:u32, a, a, lo, hi)
+9: (write:u32, lo, _, _)
+10: (write:u32, hi, _, _)
+11: (div:u32, a, b, q, r)
+12: (write:u32, q, _, _)
+13: (write:u32, r, _, _)
+14: (halt, _, _, _)

@@ -1,0 +1,11 @@
+{ and / or / not 与比较 }
+{ 期望: 1 2 }
+program bool_logic;
+  var a: int;
+  var b: int;
+begin
+  a := 3;
+  b := 5;
+  if (a < b) and not (a = b) then begin write(1) end else begin write(0) end;
+  if (a > b) or (b > 0) then begin write(2) end else begin write(0) end
+end.

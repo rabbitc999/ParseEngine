@@ -1,0 +1,151 @@
+/* ============================================================
+ * 词法示例 · 简单正则 Token + 标识符识别（%token regex / %identifier）
+ *
+ * 参考 lex.py 的思路：正则 → NFA → DFA → 最小化，在生成期算好 DFA 表，
+ * 生成的 C 运行期只查表。这里演示：
+ *   %token regex FLOAT  浮点数（注意：%token regex 定义的 Token 走在内建 NUMBER 之前，所以 1.5 会
+ *                 被 FLOAT 吃掉；数值请用内建 NUMBER，或者像本例这样在
+ *                 动作里自己给值）
+ *   %token regex DATE   形如 2024-09-10 的日期
+ *   %identifier   标识符正则，生成 Parser_TokenIsIdentifier /
+ *                 Parser_TokenIdentifierLength / Parser_TokenKeyword
+ *   %define BEGIN/END  关键字（关键字在固定字面量里，同长度时优先于正则，
+ *                      所以正则 Token 不会把 begin/end 吃掉）
+ *
+ * 运行时是 custom：语义值类型由 %value_type 声明（就是一个 double；
+ * VARIABLE 的语义值是它在变量表里的下标），变量表由 %code 提供——原来的 %var x +
+ * 运行时动态变量表换成 %code 里的定长数组。
+ *
+ * 试用输入（从标准输入喂进去）：
+ *   begin x := 1.5 end           -> 99.5   （FLOAT 正则命中）
+ *   begin 2024-09-10 end         -> 20240101（DATE 正则命中）
+ *   begin x := 42 end            -> 42     （内建 NUMBER）
+ *   begin 7; 8 end               -> 8      （; 分隔多条语句）
+ * ============================================================ */
+
+%mode lalr
+%value_type double
+
+%token regex FLOAT "[0-9]+[.][0-9]+"
+%token regex DATE  "[0-9]{4}-[0-9]{2}-[0-9]{2}"
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+%define SEMI   ";"
+%define ASSIGN ":="
+%define BEGIN  "begin"
+%define END    "end"
+
+%code
+/* ---------------------------------------------------------------
+ * custom 运行时：语义值类型与变量表全部由用户在 %code 里提供。
+ *
+ * 语义值 ParserValue_T 就是一个 double（由上面的 %value_type 声明）：
+ *   - NUMBER 的语义值是数字本身；
+ *   - VARIABLE 的语义值是它在下面变量表里的下标；
+ *   - FLOAT / DATE 这类正则 Token 在动作里直接给值（见文件末尾的规则）。
+ *
+ * 变量表替代了原来的 %var x + 运行时动态变量表：一张定长数组加线性
+ * 查找，读变量写 Lex_Load($n)，写变量写 Lex_Store($n, $m)。
+ * --------------------------------------------------------------- */
+#include <stdio.h>
+#include <string.h>
+
+#define LEX_NAME_MAX 32
+#define LEX_VAR_MAX  8
+
+typedef struct Lex_VarSlot_T
+{
+    char   name[LEX_NAME_MAX];
+    double value;
+} Lex_VarSlot_T;
+
+typedef struct Lex_Vars_T
+{
+    Lex_VarSlot_T slots[LEX_VAR_MAX];
+    int           count;
+} Lex_Vars_T;
+
+/* 变量表本体：进程内一张表，文法规模很小，线性查找足够 */
+static inline Lex_Vars_T *Lex_Vars(void)
+{
+    static Lex_Vars_T s_Vars;
+    return &s_Vars;
+}
+
+/* 变量名 -> 下标；第一次见到就新建，表满返回 -1 */
+static inline int Lex_Intern(const char *pName)
+{
+    Lex_Vars_T *pVars = Lex_Vars();
+    int index = 0;
+    if ((pName == NULL) || (pName[0] == '\0'))
+    {
+        return -1;
+    }
+    for (index = 0; index < pVars->count; index++)
+    {
+        if (strcmp(pVars->slots[index].name, pName) == 0)
+        {
+            return index;
+        }
+    }
+    if (pVars->count >= LEX_VAR_MAX)
+    {
+        return -1;
+    }
+    index = pVars->count++;
+    snprintf(pVars->slots[index].name, sizeof(pVars->slots[index].name), "%s",
+             pName);
+    pVars->slots[index].value = 0.0;
+    return index;
+}
+
+/* 读变量：x 出现在表达式里 */
+static inline double Lex_Load(double nameIndex)
+{
+    const Lex_Vars_T *pVars = Lex_Vars();
+    const int index = (int)nameIndex;
+    if ((index < 0) || (index >= pVars->count))
+    {
+        return 0.0;
+    }
+    return pVars->slots[index].value;
+}
+
+/* 写变量：x := 表达式 */
+static inline double Lex_Store(double nameIndex, double value)
+{
+    Lex_Vars_T *pVars = Lex_Vars();
+    const int index = (int)nameIndex;
+    if ((index >= 0) && (index < pVars->count))
+    {
+        pVars->slots[index].value = value;
+    }
+    return value;
+}
+
+/* Token -> 语义值。数字 Token 用词法器解析好的 pToken->value；VARIABLE 把
+ * 名字登记进变量表，语义值就是下标；其余 Token 用不到语义值。 */
+#define PARSER_USER_TOKEN_VALUE(pToken) \
+    (((pToken)->type == TOKEN_NUMBER) \
+         ? (ParserValue_T)((pToken)->value) \
+         : (((pToken)->type == TOKEN_VARIABLE) \
+                ? (ParserValue_T)Lex_Intern((pToken)->pName) \
+                : (ParserValue_T)0))
+
+/* 演示程序（main.c）打印解析结果：%.10g 让 20240101 这种整数不带指数 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%.10g", *(pValue))
+%endcode
+
+%start program
+
+program := BEGIN stmt_list END { $$ = $2; }
+
+stmt_list := stmt_list SEMI stmt { $$ = $3; }
+stmt_list := stmt { $$ = $1; }
+
+stmt := VARIABLE ASSIGN value { $$ = Lex_Store($1, $3); }
+stmt := value { $$ = $1; }
+
+value := NUMBER { $$ = $1; }
+value := FLOAT { $$ = 99.5; }
+value := DATE { $$ = 20240101; }

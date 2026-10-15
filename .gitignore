@@ -1,0 +1,126 @@
+# ---- 生成产物：由 ./ParseEngine 生成，可随时重新生成 ----
+out/
+*_out/
+parser.c
+parser.h
+parser_config.h
+parser_token.c
+parser_token.h
+parser_table.c
+variable_runtime.c
+variable_runtime.h
+main.c
+RESULT.md
+
+# ---- 生成器的构建产物 ----
+/build/
+/ParseEngine
+source/src/*.o
+source/src/*.d
+
+# ctest 在仓库根跑时留下的临时目录
+/Testing/
+
+# 重构 / 比对用的临时产物目录（tools/gen_all.sh 的输出）
+/tmp/
+# 各工程里的临时目录（check.sh 的 mktemp、手工试样例都往里放）
+project/*/tmp/
+# ---- 编译产物 ----
+*.exe
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.dylib
+*.out
+*.gcda
+*.gcno
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.vs/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ---- AI 协作工具的本地状态（会话记忆等），不进版本库 ----
+.workbuddy/
+
+# ---- 备份 / 临时文件 ----
+* - 副本.*
+*-copy.*
+*.bak
+*.tmp
+*.log
+
+
+# VS Code 插件的 F5 调试配置要进仓库（上面的 .vscode/ 规则会忽略它们）
+!/.vscode/
+!/.vscode/launch.json
+!/vscode/.vscode/
+!/vscode/.vscode/launch.json
+
+# VS Code 插件的打包产物
+/vscode/dist/
+
+# Rust 构建产物：`library/transfer-rust/target/` 是「从仓库根跑 cargo」时的落点；
+# 在 crate 目录里跑时按它的 .cargo/config.toml 落到 /build/transfer/rust（/build/ 已忽略）
+/library/transfer-rust/target/
+# 同上，JSON 库的 Rust 版：落点 build/json/rust 与 C++ 版同在一个 build/json/ 下
+/library/json-rust/target/
+
+# 同上：模板引擎的 Rust 版（library/template-rust）
+/library/template-rust/target/
+
+# 同上：`library/big_number-rust`（big_number 的 Rust 版）—— 在 crate 目录里跑时
+# 落到 /build/big_number/rust
+/library/big_number-rust/target/
+
+# 同上：`library/preprocess-rust`（preprocess 的 Rust 版）—— 在 crate 目录里跑时
+# 落到 /build/preprocess/rust（与 C++ 版的 build/preprocess/ 同在一个目录下）
+/library/preprocess-rust/target/
+
+# 独立 Rust 移植库的 Cargo 产物与手工演示输出
+/library/stackvm-rust/target/
+/library/simple_ast-rust/target/
+/library/simple_ast-rust/tmp/
+
+
+# 发布打包产物（tools/release.sh 的输出）
+/dist/
+
+# metro-lang 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
+# 父仓库不再跟踪它的文件，只在本地保留目录；要改 MetroLang 请进 metro-lang/ 用那份
+# 仓库提交（远端 https://gitee.com/rabbitc999/metro-lang.git）。
+/metro-lang/
+
+# magel 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
+# 父仓库不再跟踪它的文件，只在本地保留目录，构建与测试照常；要改 Magel 请进 magel/ 用那份
+# 仓库提交（远端 https://gitee.com/rabbitc999/magel.git）。
+/magel/
+
+# hydra-86 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
+# 父仓库不再跟踪它的文件，只在本地保留目录；要改 Hydra86 请进 hydra-86/ 用那份
+# 仓库提交（远端 https://gitee.com/rabbitc999/hydra-86.git）。
+/hydra-86/
+
+# rust-view 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
+# 父仓库不再跟踪它的文件，只在本地保留目录；要改 RustView 请进 rust-view/ 用那份
+# 仓库提交（远端 https://gitee.com/rabbitc999/rust-view.git）。
+/rust-view/
+
+# cas 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
+# 父仓库不再跟踪它的文件，只在本地保留目录；要改 CAS 请进 cas/ 用那份
+# 仓库提交（远端 https://gitee.com/rabbitc999/cas.git）。
+/cas/

@@ -1,0 +1,12 @@
+{# `%union` 的成员结构体（CodeGenGo 的 goValueTypeDecl）。
+   变量：members —— Go 字段写法（如 `ival int32`），原样贴进结构体。
+   本模板自带行尾换行。 #}
+// ParserValue `%union` 的成员：Go 没有联合体，改成一个带成员字段的结构体。
+//
+// 成员声明按 `类型 成员名` 写（`int32 ival;` / `float64 dval;`），生成器拼成
+// Go 的字段写法 `ival int32`；语义动作里的 `$n` / `$$` 会展开成
+// `values[i].<成员>` / `result.value.<成员>`。语义值按值拷贝（结构体），
+// 所以成员类型要能零值初始化。
+type ParserValue struct {
+{% for m in members %}	{{ m }}
+{% endfor %}}

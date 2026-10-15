@@ -1,0 +1,28 @@
+<!--
+  parser.csproj —— C# 构建脚本（只依赖 .NET SDK，没有第三方包）。
+
+     dotnet build          # 编译
+     dotnet run            # 编译并跑演示（从标准输入读一行）
+
+  只当解析库用时：把 <OutputType> 改成 Library，或者直接把 Parser.cs / Token.cs
+  加进你自己的工程。
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>parser_demo</AssemblyName>
+    <RootNamespace>ParseEngine.Generated</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!--
+      生成的代码里总有「这个模式用不到的那部分」（比如没有 %identifier 时的
+      DFA 占位），它们的未使用警告没有意义，这里
+      统一压掉，让 dotnet build 的输出保持干净。
+    -->
+    <NoWarn>$(NoWarn);CS0162;CS0169;CS0414;CS0649;CS8981</NoWarn>
+  </PropertyGroup>
+</Project>

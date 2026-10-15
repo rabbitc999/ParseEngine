@@ -1,0 +1,13 @@
+%mode lex
+
+// Token 别名：无字面量、固定字面量和正则 Token。
+%token A alias "字母A"
+%token B "b" alias "字母B"
+%token regex WORD "[a-z]+" alias "单词"
+
+// 标识符别名对应生成器内建的 VARIABLE 显示名。
+%identifier "[a-zA-Z_][a-zA-Z0-9_]*" alias "标识符"
+
+// commit 收集片段；trivia 匹配后丢弃，但仍保留类型别名表。
+%commit block "/\\*[^*]*\\*/" alias "块注释"
+%trivia "#[^\\n]*" alias "行注释"

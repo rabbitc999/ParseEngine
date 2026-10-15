@@ -1,0 +1,17 @@
+{# 演示 main 里的 `%commit` + location 打印片段（CodeGenRust）。
+   一个变量都没有；文法里没写 %commit 时调用方直接给空串。
+   本模板自带行尾换行。 #}
+    // %commit：打印收集到的片段（行号 + 类型 + 原文）与当前位置
+    println!("commits: {}", engine.commits().len());
+    for (index, entry) in engine.commits().iter().enumerate()
+    {
+        println!(
+            "  [{}] line={} type={} text={}",
+            index, entry.line, entry.kind, entry.text
+        );
+    }
+    let location = engine.current_location();
+    println!(
+        "location: line={} column={} offset={}",
+        location.line, location.column, location.offset
+    );

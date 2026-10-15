@@ -1,0 +1,64 @@
+{{ lex_skip_helpers }}
+/** 
+ * @brief 从脚本文本产生 Token。 
+ * @param pCtx 上下文。 
+ * @param pToken 输出 Token。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_LexNext(ParserCtx_T *pCtx, ParserToken_T *pToken)
+{
+    const char *pStart = NULL;
+    uint32_t length = 0u;
+    uint32_t index = 0u;
+
+    /* %commit 命中时是「吃掉这段原文（收进容器或丢掉）再继续取 Token」，
+     * 不是 Token，所以整段套一个循环。 */
+    for (;;) {
+{{ lex_skip_loop }}
+    PARSER_MEMSET(pToken, 0, sizeof(*pToken));
+    pToken->line = pCtx->line;
+    pToken->column = pCtx->column;
+    pToken->offset = pCtx->textPosition;
+    pStart = &pCtx->pText[pCtx->textPosition];
+    if (*pStart == '\0') { pToken->type = TOKEN_END; return PARSER_OK; }
+
+    {{ lex_string_block }}
+    {{ lex_regex_block }}
+    {{ lex_number_block }}
+    {{ lex_fixed_block }}
+    {{ lex_identifier_block }}
+    /* 一条规则都没命中：认不出来的字符（细分码） */
+    return PARSER_ERR_LEX_CHAR;
+    }
+}
+
+/** 
+ * @brief 前移 Token。 
+ * @param pCtx 上下文。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_Advance(ParserCtx_T *pCtx)
+{
+    int32_t ret = PARSER_OK;
+    if (pCtx->textMode != 0u) {
+        ret = Parser_LexNext(pCtx, &pCtx->current);
+        if (ret != PARSER_OK) {
+            /* 按细分码给一句人话：未闭合字符串 / 认不出来的字符 / 其它 */
+            const char *pWhy = (ret == PARSER_ERR_LEX_UNTERMINATED)
+                                   ? "字符串没有闭合"
+                                   : ((ret == PARSER_ERR_LEX_CHAR)
+                                          ? "认不出来的字符"
+                                          : "词法解析失败");
+            Parser_SetError(ret, pCtx->current.line, pCtx->current.column,
+                            pWhy);
+            pCtx->current.type = TOKEN_INVALID;
+            return ret;
+        }
+    }{% if array_mode %} else if (pCtx->tokenPosition < pCtx->tokenCount) {
+        pCtx->current = pCtx->pTokens[pCtx->tokenPosition++];
+    } else {
+        PARSER_MEMSET(&pCtx->current, 0, sizeof(pCtx->current));
+        pCtx->current.type = TOKEN_END;
+    }{% endif %}
+    return PARSER_OK;
+}

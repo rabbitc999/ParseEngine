@@ -1,0 +1,53 @@
+{# Engine 类里的 GLR 公开声明。 #}
+    /**
+     * @brief 注册歧义解决回调。
+     * @param resolver 回调；传空（默认构造的 std::function）恢复默认策略。
+     */
+    void setAmbiguityResolver(AmbiguityResolver resolver);
+
+    /**
+     * @brief GLR 解析（文本入口）：按输入位置并行推进所有候选路径。
+     * @param text 输入文本。
+     * @return Status::Ok 表示至少有一条路径被接受；结果用 glrResultCount()
+     *         与 glrResult() 取。
+     */
+    Status runGlr(std::string_view text);
+
+    /**
+     * @brief GLR 增量实验入口（文本入口）。
+     *
+     * 默认完整执行语义动作；cache.semanticReuse = GlrSemanticReusePolicy::Pure
+     * 才允许同文本、同 semanticRevision、非 tree 模式复用成功结果。
+     * 有歧义解决回调时禁用复用。文本变化时传递失效并局部修补共享 forest，GSS 仍重跑。
+     * 动作依赖的外部环境变化时递增 semanticRevision 或 clear()；Pure 由调用方保证。
+     * @param text 输入文本。
+     * @param cache 调用方持有的 GLR 增量实验缓存。
+     * @return Status::Ok 表示至少有一条路径被接受。
+     */
+    Status runGlrIncremental(std::string_view text, GlrIncrementalCache &cache);
+
+    /**
+     * @brief GLR 解析并构建语法树（`%tree` 文法）。
+     * @param text 输入文本。
+     * @return Status::Ok 表示成功；结果用 glrTree() 取。
+     */
+    Status runGlrTree(std::string_view text);
+
+    /**
+     * @brief GLR tree 模式的增量实验入口。
+     *
+     * 修补共享 forest 的符号节点和归约候选，Tree 结果仍重新物化；CST 原位修补
+     * 与 GSS 增量调度留给后续方案。
+     * @param text 输入文本。
+     * @param cache 调用方持有的 GLR 增量实验缓存。
+     * @return Status::Ok 表示成功；结果用 glrTree() 取。
+     */
+    Status runGlrTreeIncremental(std::string_view text,
+                                 GlrIncrementalCache &cache);
+
+    /// @return 本次 GLR 解析保留的结果个数。
+    std::size_t glrResultCount() const noexcept;
+    /// @param index 下标。@return 第 index 个结果；越界返回 nullptr。
+    const {{ value_type }} *glrResult(std::size_t index) const noexcept;
+    /// @param index 下标。@return 第 index 棵语法树；越界返回 nullptr。
+    const Tree *glrTree(std::size_t index) const noexcept;

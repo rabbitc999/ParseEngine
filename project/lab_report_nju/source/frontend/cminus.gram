@@ -1,0 +1,140 @@
+/* Strict C-- frontend for the NJU compiler laboratories. */
+%mode lalr
+%namespace cminus
+%value_type int
+
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+%trivia "//[^\n]*"
+%trivia "/\\*[^*]*\\*+([^/*][^*]*\\*+)*/"
+
+%define INT_KW "int"
+%define FLOAT_KW "float"
+%define STRUCT "struct"
+%define RETURN "return"
+%define IF "if"
+%define ELSE "else"
+%define WHILE "while"
+%define SEMI ";"
+%define COMMA ","
+%define ASSIGN "="
+%define PLUS "+"
+%define MINUS "-"
+%define STAR "*"
+%define DIV "/"
+%define AND "&&"
+%define OR "\|\|"
+%define DOT "."
+%define NOT "!"
+%define LP "("
+%define RP ")"
+%define LB "["
+%define RB "]"
+%define LC "{"
+%define RC "}"
+%define LT "<"
+%define LE "<="
+%define GT ">"
+%define GE ">="
+%define EQ "=="
+%define NE "!="
+
+%token regex FLOAT_LITERAL "([0-9]+\\.[0-9]*|\\.[0-9]+)([eE][+-]?[0-9]+)?"
+%token regex INT_LITERAL "(0[xX][0-9A-Fa-f]+|0[0-7]*|[1-9][0-9]*)"
+
+%right ASSIGN
+%left OR
+%left AND
+%left LT LE GT GE EQ NE
+%left PLUS MINUS
+%left STAR DIV
+%right NOT UMINUS
+%left LP RP LB RB DOT
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
+
+%start Program
+
+Program := ExtDefList { $$ = Cminus_SetRoot(Cminus_Node1(C_PROGRAM, $1, $line)); } ;
+
+ExtDefList := %empty { $$ = Cminus_List(-1); }
+            | ExtDefList ExtDef { $$ = Cminus_Append($1, $2); } ;
+
+ExtDef := Specifier ExtDecList SEMI { $$ = Cminus_Node2(C_EXT_VARS, $1, $2, $line); }
+        | Specifier SEMI { $$ = $1; }
+        | Specifier FunDec CompSt { $$ = Cminus_Function($2, $1, $2, $3, $line); } ;
+
+ExtDecList := VarDec { $$ = Cminus_List($1); }
+              | ExtDecList COMMA VarDec { $$ = Cminus_Append($1, $3); } ;
+
+Specifier := INT_KW { $$ = Cminus_Type(C_TYPE_INT, $line); }
+             | FLOAT_KW { $$ = Cminus_Type(C_TYPE_FLOAT, $line); }
+             | StructSpecifier { $$ = $1; } ;
+
+StructSpecifier := STRUCT OptTag LC DefList RC { $$ = Cminus_Named(C_STRUCT_DEF, $2, $4, $line); }
+                   | STRUCT Tag { $$ = Cminus_Named(C_STRUCT_REF, $2, -1, $line); } ;
+
+OptTag := %empty { $$ = -1; } | VARIABLE { $$ = $1; } ;
+Tag := VARIABLE { $$ = $1; } ;
+
+VarDec := VARIABLE { $$ = Cminus_Named(C_VAR_DECL, $1, -1, $line); }
+          | VarDec LB INT_LITERAL RB { $$ = Cminus_ArrayDecl($1, $3, $line); } ;
+
+FunDec := VARIABLE LP VarList RP { $$ = Cminus_Named(C_LIST, $1, $3, $line); }
+          | VARIABLE LP RP { $$ = Cminus_Named(C_LIST, $1, Cminus_List(-1), $line); } ;
+
+VarList := ParamDec { $$ = Cminus_List($1); }
+           | VarList COMMA ParamDec { $$ = Cminus_Append($1, $3); } ;
+
+ParamDec := Specifier VarDec { $$ = Cminus_Node2(C_PARAM, $1, $2, $line); } ;
+
+CompSt := LC DefList StmtList RC { $$ = Cminus_Node2(C_BLOCK, $2, $3, $line); } ;
+
+StmtList := %empty { $$ = Cminus_List(-1); }
+            | StmtList Stmt { $$ = Cminus_Append($1, $2); } ;
+
+Stmt := Exp SEMI { $$ = Cminus_Node1(C_EXPR_STMT, $1, $line); }
+        | CompSt { $$ = $1; }
+        | RETURN Exp SEMI { $$ = Cminus_Node1(C_RETURN, $2, $line); }
+        | IF LP Exp RP Stmt %prec LOWER_THAN_ELSE { $$ = Cminus_Node3(C_IF, $3, $5, -1, $line); }
+        | IF LP Exp RP Stmt ELSE Stmt { $$ = Cminus_Node3(C_IF, $3, $5, $7, $line); }
+        | WHILE LP Exp RP Stmt { $$ = Cminus_Node2(C_WHILE, $3, $5, $line); } ;
+
+DefList := %empty { $$ = Cminus_List(-1); }
+           | DefList Def { $$ = Cminus_Append($1, $2); } ;
+
+Def := Specifier DecList SEMI { $$ = Cminus_Node2(C_DEF, $1, $2, $line); } ;
+DecList := Dec { $$ = Cminus_List($1); }
+           | DecList COMMA Dec { $$ = Cminus_Append($1, $3); } ;
+Dec := VarDec { $$ = $1; }
+       | VarDec ASSIGN Exp { $$ = Cminus_Node2(C_INIT, $1, $3, $line); } ;
+
+Exp := Exp ASSIGN Exp { $$ = Cminus_Binary(CM_ASSIGN, $1, $3, $line); }
+       | Exp AND Exp { $$ = Cminus_Binary(CM_AND, $1, $3, $line); }
+       | Exp OR Exp { $$ = Cminus_Binary(CM_OR, $1, $3, $line); }
+       | Exp LT Exp { $$ = Cminus_Binary(CM_LT, $1, $3, $line); }
+       | Exp LE Exp { $$ = Cminus_Binary(CM_LE, $1, $3, $line); }
+       | Exp GT Exp { $$ = Cminus_Binary(CM_GT, $1, $3, $line); }
+       | Exp GE Exp { $$ = Cminus_Binary(CM_GE, $1, $3, $line); }
+       | Exp EQ Exp { $$ = Cminus_Binary(CM_EQ, $1, $3, $line); }
+       | Exp NE Exp { $$ = Cminus_Binary(CM_NE, $1, $3, $line); }
+       | Exp PLUS Exp { $$ = Cminus_Binary(CM_ADD, $1, $3, $line); }
+       | Exp MINUS Exp { $$ = Cminus_Binary(CM_SUB, $1, $3, $line); }
+       | Exp STAR Exp { $$ = Cminus_Binary(CM_MUL, $1, $3, $line); }
+       | Exp DIV Exp { $$ = Cminus_Binary(CM_DIV, $1, $3, $line); }
+       | LP Exp RP { $$ = $2; }
+       | MINUS Exp %prec UMINUS { $$ = Cminus_Unary(CM_NEG, $2, $line); }
+       | NOT Exp { $$ = Cminus_Unary(CM_NOT, $2, $line); }
+       | VARIABLE LP Args RP { $$ = Cminus_Named(C_CALL, $1, $3, $line); }
+       | VARIABLE LP RP { $$ = Cminus_Named(C_CALL, $1, Cminus_List(-1), $line); }
+       | Exp LB Exp RB { $$ = Cminus_Node2(C_INDEX, $1, $3, $line); }
+       | Exp DOT VARIABLE { $$ = Cminus_Named(C_MEMBER, $3, $1, $line); }
+       | VARIABLE { $$ = Cminus_Named(C_VAR, $1, -1, $line); }
+       | INT_LITERAL { $$ = Cminus_Named(C_INT_LITERAL, $1, -1, $line); }
+       | FLOAT_LITERAL { $$ = Cminus_Named(C_FLOAT_LITERAL, $1, -1, $line); } ;
+
+Args := Exp { $$ = Cminus_List($1); }
+        | Args COMMA Exp { $$ = Cminus_Append($1, $3); } ;
+
+%code include "cminus_types.h"
+%epilogue include "cminus_epilogue.inc"
+%main include "cminus_driver.inc"

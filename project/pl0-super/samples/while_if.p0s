@@ -1,0 +1,18 @@
+{ while / if / goto / label：1 加到 10，再用 goto 跳过一段 }
+{ 期望: 55 100 }
+program while_if;
+  var i: int;
+  var sum: int;
+begin
+  i := 0;
+  sum := 0;
+  while i < 10 do begin
+    i := i + 1;
+    sum := sum + i
+  end;
+  write(sum);
+  goto done;
+  sum := 0;              { goto 跳过去，不会执行 }
+  label done;
+  if sum > 0 then begin write(sum + 45) end else begin write(-1) end
+end.

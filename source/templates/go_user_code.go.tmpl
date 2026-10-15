@@ -1,0 +1,6 @@
+{# `%code … %endcode` 用户代码块拼在一起
+   （CodeGenGo 的 goUserCode）。
+   变量：blocks —— 每块正文（已各自插好出处行标记）；块与块之间空一行。
+   本模板当值用，取的时候走 renderValueTemplate 收掉结尾换行。 #}
+{% for b in blocks %}{% if loop_first %}{% else %}
+{% endif %}{{ b }}{% endfor %}

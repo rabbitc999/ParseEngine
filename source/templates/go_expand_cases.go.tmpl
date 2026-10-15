@@ -1,0 +1,12 @@
+{# LL 的产生式展开分支（CodeGenGo 的 goExpandCases）。
+   变量：prods —— 字段 id / steps；steps 每项字段 is_comment / kind /
+                  symbol / slot。
+   本模板自带行尾换行。 #}
+{% for p in prods %}	if production == {{ p.id }} {
+{% for s in p.steps %}{% if s.is_comment %}		// 空尾规则由 LeftLoop 直接完成
+{% else %}		if !p.llPush({{ s.kind }}, {{ s.symbol }}, frameIndex, {{ s.slot }}, sParserInvalidIndex) {
+			return StatusErrStack
+		}
+{% endif %}{% endfor %}		return StatusOK
+	}
+{% endfor %}

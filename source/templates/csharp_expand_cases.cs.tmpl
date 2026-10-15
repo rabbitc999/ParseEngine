@@ -1,0 +1,11 @@
+{# LL 的产生式展开分支（`_llExpand`）。
+   变量：cases —— 每个产生式一项，字段 id / pushes；
+                pushes 是这一段要做的 `if (!_llPush…)` 串（结尾的换行已收掉，
+                这里独占一行输出，由模板补那一个换行）。
+   `{% endfor %}` 独占一行，所以返回值末尾不会多出换行。 #}
+{% for c in cases %}        if (production == {{ c.id }})
+        {
+{{ c.pushes }}
+            return STATUS_OK;
+        }
+{% endfor %}

@@ -1,0 +1,34 @@
+解析输入: if cond then if cond then other else other
+解析成功，共 2 个结果（歧义路径数）
+结果[0] 语法树:
+stmt
+  IF(if)
+  expr
+    COND(cond)
+  THEN(then)
+  stmt
+    IF(if)
+    expr
+      COND(cond)
+    THEN(then)
+    stmt
+      OTHER(other)
+    ELSE(else)
+    stmt
+      OTHER(other)
+结果[1] 语法树:
+stmt
+  IF(if)
+  expr
+    COND(cond)
+  THEN(then)
+  stmt
+    IF(if)
+    expr
+      COND(cond)
+    THEN(then)
+    stmt
+      OTHER(other)
+  ELSE(else)
+  stmt
+    OTHER(other)

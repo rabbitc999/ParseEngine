@@ -1,0 +1,4 @@
+# 一份普通日志：时间戳 + 级别 + 若干 key=value
+2024-09-10T12:00:01 INFO  user=alice action=login   ip=10.0.0.1   # 登录成功
+2024-09-10T12:00:03 WARN  user=bob   action=retry   count=3      # 会话重试
+2024-09-10T12:00:05 ERROR user=carol action=upload  code=500     # 上传失败

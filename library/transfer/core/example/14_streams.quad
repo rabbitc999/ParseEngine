@@ -1,0 +1,23 @@
+# 名称: 流指令（STDIN / STDOUT / STDERR，流获取与流写入）
+# 输入: 42 hello
+# 期望: 42
+# 期望文本: out=hello
+# 期望错误流: err=42
+# 说明: stream 取得流句柄（句柄就是流名），sread/swrite 按流读写；
+#       STDIN/STDOUT/STDERR 是预定义流名，也可以自定义。
+0: (decl, i32, global, n)
+1: (decl, str, global, line)
+2: (decl, str, global, in)
+3: (decl, str, global, out)
+4: (decl, str, global, err)
+5: (stream, STDIN, _, in)
+6: (stream, STDOUT, _, out)
+7: (stream, STDERR, _, err)
+8: (sread, in, _, n)
+9: (swrite, out, "out=", _)
+10: (sread, in, _, line)
+11: (swrite, out, line, _)
+12: (swrite, err, "err=", _)
+13: (swrite, err, n, _)
+14: (write, n, _, _)
+15: (halt, _, _, _)

@@ -1,0 +1,27 @@
+    /**
+     * @brief 解析一段文本。
+     * @param text 输入文本。
+     * @param result 输出语义值（成功时写入）；可为 nullptr。
+     * @return Status::Ok 表示成功。
+     */
+    Status runText(std::string_view text, ParserValue_T *result);
+
+{% if incremental %}    /**
+     * @brief LL / DD / LR 模式的增量文本解析。
+     * @param text 输入文本。
+     * @param result 输出语义值（成功时写入；缓存命中时直接复用）；可为 nullptr。
+     * @param cache 调用方持有的增量缓存。
+     * @return Status::Ok 表示成功。
+     */
+    Status runTextIncremental(std::string_view text, ParserValue_T *result,
+                              IncrementalCache &cache);
+
+{% endif %}
+    /**
+     * @brief 解析已经切好的 Token 序列。
+     * @param tokens Token 序列。
+     * @param result 输出语义值（成功时写入）；可为 nullptr。
+     * @return Status::Ok 表示成功。
+     */
+    Status run(const ParserMemory::Vector<Token> &tokens, ParserValue_T *result);
+

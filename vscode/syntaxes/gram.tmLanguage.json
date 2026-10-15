@@ -1,0 +1,264 @@
+{
+  "name": "ParseEngine Grammar",
+  "scopeName": "source.gram",
+  "fileTypes": [
+    ".gram"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#include-markers"
+    },
+    {
+      "include": "#inline-keywords"
+    },
+    {
+      "include": "#code-sections"
+    },
+    {
+      "include": "#action-bodies"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#directives"
+    },
+    {
+      "include": "#semantic-markers"
+    },
+    {
+      "include": "#symbols"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "include-markers": {
+      "patterns": [
+        {
+          "comment": "段标记的 include 写法：%code include \"user.h\" 等 —— 正文在外部文件里，整行只高亮标记 + include + 路径",
+          "name": "meta.section.include.gram",
+          "match": "^(\\s*)(%(?:code|class_body|epilogue|main))\\s+(include)\\s*=?\\s*(\"[^\"]*\"|'[^']*')",
+          "captures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            },
+            "3": {
+              "name": "keyword.control.include.gram"
+            },
+            "4": {
+              "name": "string.quoted.gram"
+            }
+          }
+        }
+      ]
+    },
+    "inline-keywords": {
+      "patterns": [
+        {
+          "comment": "%token 的行内关键字。`include \"表.csv\"` 从 CSV 追加字面量别名（不是 Token 名，后面跟的字符串是表路径）；`alias \"显示名\"` 给 Token 一个显示名。两者都必须紧跟一个字符串，所以用前瞻限制，免得把规则里同名的非终结符也涂成关键字。",
+          "name": "keyword.control.include.gram",
+          "match": "\\binclude\\b(?=\\s*=?\\s*[\"'])"
+        },
+        {
+          "name": "keyword.control.alias.gram",
+          "match": "\\balias\\b(?=\\s*[\"'])"
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.gram",
+          "begin": "/\\*",
+          "end": "\\*/"
+        },
+        {
+          "name": "comment.line.double-slash.gram",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "code-sections": {
+      "patterns": [
+        {
+          "name": "meta.section.c-block.gram",
+          "begin": "^(\\s*)(%\\{\\{)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "end": "(%\\}\\}%)",
+          "endCaptures": {
+            "1": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "contentName": "meta.embedded.block.gram-code"
+        },
+        {
+          "name": "meta.section.code.gram",
+          "begin": "^(\\s*)(%code)\\b",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "end": "^(\\s*)(%endcode)\\b",
+          "endCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "contentName": "meta.embedded.block.gram-code"
+        },
+        {
+          "name": "meta.section.class-body.gram",
+          "begin": "^(\\s*)(%class_body)\\b",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "end": "^(\\s*)(%endbody)\\b",
+          "endCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "contentName": "meta.embedded.block.gram-code"
+        },
+        {
+          "name": "meta.section.epilogue.gram",
+          "comment": "%epilogue：正文到下一个段标记（%main / %epilogue / %code / %class_body）为止",
+          "begin": "^(\\s*)(%epilogue)\\b",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "end": "^(\\s*)(%(?:epilogue|main|code|class_body))\\b",
+          "endCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "contentName": "meta.embedded.block.gram-code"
+        },
+        {
+          "name": "meta.section.main.gram",
+          "comment": "%main：正文到下一个段标记为止（可以写多段，配合 %if）",
+          "begin": "^(\\s*)(%main)\\b",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "end": "^(\\s*)(%(?:epilogue|main|code|class_body))\\b",
+          "endCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "contentName": "meta.embedded.block.gram-code"
+        }
+      ]
+    },
+    "action-bodies": {
+      "patterns": [
+        {
+          "name": "meta.action.gram",
+          "begin": "\\{",
+          "end": "\\}",
+          "contentName": "meta.embedded.action.gram-code"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.gram",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.gram",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "directives": {
+      "patterns": [
+        {
+          "match": "^(\\s*)(%mode)(\\s+)(ll1|ll0|llk|lr0|slr|slrk|lalr|lalrk|lr1|lrk|ielr|glr|earley|cyk|dd|lex)\\b",
+          "captures": {
+            "2": { "name": "keyword.control.directive.gram" },
+            "4": { "name": "constant.language.mode.gram" }
+          }
+        },
+        {
+          "name": "keyword.control.directive.gram",
+          "match": "%[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "semantic-markers": {
+      "patterns": [
+        {
+          "name": "variable.language.semantic.gram",
+          "match": "\\$\\$|\\$[0-9]+|\\$[A-Za-z_][A-Za-z0-9_]*"
+        },
+        {
+          "name": "entity.name.type.member.gram",
+          "match": "<[A-Za-z_][A-Za-z0-9_]*>"
+        }
+      ]
+    },
+    "symbols": {
+      "patterns": [
+        {
+          "name": "constant.other.token.gram",
+          "match": "\\b[A-Z][A-Z0-9_]*\\b"
+        },
+        {
+          "name": "entity.name.function.gram",
+          "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.gram",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "keyword.operator.definition.gram",
+          "match": "::=|:="
+        },
+        {
+          "name": "punctuation.separator.alternative.gram",
+          "match": "\\|"
+        },
+        {
+          "name": "punctuation.terminator.gram",
+          "match": ";"
+        }
+      ]
+    }
+  }
+}

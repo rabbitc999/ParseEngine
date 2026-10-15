@@ -1,0 +1,416 @@
+    # ---------- LL(1) 分析驱动 ----------
+
+    def _ll_push(self, kind, symbol, frame_index, value_index, seed_frame=None):
+        """压入分析栈项目；栈满返回 ``False``。"""
+        if len(self._ll_stack) >= self.max_stack_depth:
+            return False
+        self._ll_stack.append((kind, symbol, frame_index, value_index,
+                               seed_frame if seed_frame is not None
+                               else _INVALID_INDEX))
+        return True
+
+    def _ll_pop(self):
+        """弹出分析栈项目。"""
+        return self._ll_stack.pop()
+
+    def _ll_expand(self, production, frame_index):
+        """按产生式展开语义帧（生成期算好的分支各推一条右部）。
+
+        :param production: 产生式编号。
+        :param frame_index: 本产生式所属的语义帧下标。
+        """
+{{ ll_expand_cases }}
+        return STATUS_ERR_SYNTAX
+
+    def _ll_execute(self, production, frame_index):
+        """执行一个产生式的语义动作（`$n` 读 values，`$$` 写 result.value）。"""
+        frame = self._ll_frames[frame_index]
+        result = _Holder()
+        result.value = frame.result_value
+        status = self._apply_action(production, frame.values, result)
+        if status != STATUS_OK:
+            return status
+        frame.result_value = result.value
+        return STATUS_OK
+
+    def _ll_forward(self, frame, value_index):
+        """转发语义槽：把 `$n` 直接当作本产生式的结果值。"""
+        frame.result_value = frame.values[value_index]
+
+    def _ll_complete(self, frame_index):
+        """完成语义帧：把结果交给父帧，或作为根结果。"""
+        # 错误恢复丢掉的帧还留在栈顶（标了 discarded）：先退掉它们，否则后面
+        # 的完成动作会看到「自己的帧不在栈顶」而误报栈错误
+        while ((len(self._ll_frames) > (frame_index + 1)) and
+               self._ll_frames[-1].discarded):
+            self._ll_frames.pop()
+        if (not self._ll_frames) or (frame_index != (len(self._ll_frames) - 1)):
+            return STATUS_ERR_STACK
+        frame = self._ll_frames[frame_index]
+        if frame.parent_frame == _INVALID_INDEX:
+            self._root_result = frame.result_value
+        else:
+            parent = self._ll_frames[frame.parent_frame]
+            parent.values[frame.parent_value] = frame.result_value
+        self._ll_frames.pop()
+        return STATUS_OK
+
+    def _ll_capture(self, frame_index, value_index):
+        """捕获终结符：记下词素，并把 Token 语义值写进槽位。"""
+        if value_index >= self.value_slots:
+            return STATUS_ERR_STACK
+        frame = self._ll_frames[frame_index]
+        frame.names[value_index] = self._current.text
+        frame.values[value_index] = self._current.value
+        return STATUS_OK
+
+    def _ll_table_column(self):
+        """取预测分析表的列号。
+
+        LL(0) 恒为 0（不看 lookahead），LL(1) 用 Token 号，LL(k) 按窗口的 k 元组
+        二分查列；LL(k) 找不到对应的 k 元组时返回 -1。
+        """
+        if _LOOKAHEAD_K == 0:
+            return 0
+        if _LOOKAHEAD_K == 1:
+            return self._current.type
+        code = self._current.type
+        scale = _TERMINAL_COUNT
+        for index in range(1, _LOOKAHEAD_K):
+            code += self._lookahead[index - 1].type * scale
+            scale *= _TERMINAL_COUNT
+        low = 0
+        high = _LOOKAHEAD_COLUMN_COUNT - 1
+        while low <= high:
+            mid = low + (high - low) // 2
+            mid_code = _LOOKAHEAD_CODE[mid]
+            if mid_code == code:
+                return _LOOKAHEAD_COLUMN[mid]
+            if mid_code < code:
+                low = mid + 1
+            else:
+                high = mid - 1
+        return -1
+
+    def _ll_item_takes(self, index, column, head):
+        """栈上第 ``index`` 项能不能**取**当前 Token（主循环能接着走）。
+
+        终结符要相等；非终结符看预测表**这一列**上有没有条目（FIRST，或者可空
+        非终结符的 FOLLOW——ε 产生式的那些列）。
+        """
+        item = self._ll_stack[index]
+        kind = item[0]
+        if kind == _ITEM_TERMINAL:
+            return item[1] == head
+        if (kind == _ITEM_NONTERM) or (kind == _ITEM_LEFT_LOOP):
+            if item[1] >= _NONTERM_COUNT:
+                return False
+            return (column >= 0) and (_LL_TABLE[item[1]][column] >= 0)
+        return False
+
+    def _ll_item_in_follow(self, index, head):
+        """栈上第 ``index`` 项是不是「当前 Token 在它的 FOLLOW 里」。
+
+        非可空非终结符的 FOLLOW 不在预测表里：这个 Token 说明**这一层该结束了**，
+        恢复时应当放弃这一层（弹掉它），而不是把 Token 丢掉。
+        """
+        item = self._ll_stack[index]
+        kind = item[0]
+        if (kind != _ITEM_NONTERM) and (kind != _ITEM_LEFT_LOOP):
+            return False
+        if (item[1] >= _NONTERM_COUNT) or (head >= _TERMINAL_COUNT):
+            return False
+        if not _LL_FOLLOW:
+            return False
+        return head in _LL_FOLLOW[item[1]]
+
+    def _ll_stack_takes(self, column, head):
+        """栈顶能不能取当前 Token。"""
+        if not self._ll_stack:
+            return False
+        return self._ll_item_takes(len(self._ll_stack) - 1, column, head)
+
+    def _ll_stack_in_follow(self, head):
+        """栈顶那一项是不是「当前 Token 在它的 FOLLOW 里」。"""
+        if not self._ll_stack:
+            return False
+        return self._ll_item_in_follow(len(self._ll_stack) - 1, head)
+
+    def _ll_deeper_takes(self, column, head):
+        """栈顶**之下**还有没有哪一项能取当前 Token（FOLLOW 集恢复用）。"""
+        index = len(self._ll_stack) - 1
+        while index > 0:
+            index -= 1
+            if self._ll_item_takes(index, column, head):
+                return True
+        return False
+
+    def _ll_discard_frame(self, frame):
+        """丢弃一个语义帧里还活着的语义值，并把它标成「已丢弃」。"""
+        if frame.discarded:
+            return
+        frame.discarded = True
+
+    def _ll_unwind_frames(self):
+        """把帧栈顶这些「已丢弃」的帧一起退掉（帧栈是严格 LIFO）。"""
+        while self._ll_frames and self._ll_frames[-1].discarded:
+            self._ll_frames.pop()
+
+    def _ll_discard_frames_from(self, frame_index):
+        """放弃「第 frame_index 个语义帧以及它里面已经展开的内层帧」。
+
+        错误恢复丢掉一个构造时用它：不能只清一项所属的帧，否则内层帧会留在帧栈
+        上，后面外层的 complete 会因为「自己的帧不在栈顶」误报栈错误。
+        """
+        index = frame_index
+        while index < len(self._ll_frames):
+            self._ll_discard_frame(self._ll_frames[index])
+            index += 1
+        self._ll_unwind_frames()
+
+    def _ll_discard_top(self):
+        """弹掉栈顶一项，并丢弃它对应语义帧里的语义值。"""
+        if not self._ll_stack:
+            return
+        item = self._ll_pop()
+        frame_index = item[2]
+        # 帧可能已经随着更内层的帧一起退掉了（帧栈是 LIFO，退掉就没得清）：
+        # C 目标那边读到的是被清零的帧，这里对应「越界就当没有」。
+        if (frame_index == _INVALID_INDEX) or \
+                (frame_index >= len(self._ll_frames)):
+            return
+        self._ll_discard_frame(self._ll_frames[frame_index])
+        self._ll_unwind_frames()
+
+    def _ll_synchronize(self, failed_item):
+        """LL 的错误恢复（panic mode）：对齐到「栈上某一项能接受当前 Token」。
+
+        每一步按这个顺序试：
+          ① 栈顶能取它（预测表这一列有产生式）→ 对齐完成，主循环继续；
+          ② 当前 Token 是 %sync 锚点 → 弹栈到能接受它的位置（写了 %sync 才有）；
+          ③ 栈顶那一项「该结束了」（当前 Token 在它的 FOLLOW 里），或者栈里更深处
+             有项能取它 → **放弃栈顶那一项所属的构造**（连它里面已展开的内层构造
+             一起弹掉，这就是 FOLLOW 集恢复）；
+          ④ 谁都不认它 → 丢掉这个 Token，接着看下一个。
+        弹栈与丢输入共用一份预算（256 步），病态输入也不会把解析拖死。
+
+        :param failed_item: 刚才出错、被主循环弹掉的那一项（先放回栈上再恢复：
+            「丢掉它」还是「丢掉 Token 后重试它」由下面几步自己决定）。
+        :return: ``STATUS_OK`` 表示已经对齐（主循环继续）。
+        """
+        if _LOOKAHEAD_K == 0:
+            # LL(0)：预测表只有 ε 一列，没有「当前 Token 属于谁」的信息，
+            # FOLLOW 恢复无从判起 → 保持「一错即停」
+            return STATUS_ERR_SYNTAX
+        # 出错的那一项是主循环弹出来的：放回去，让恢复逻辑统一处理
+        self._ll_stack.append(failed_item)
+        budget = 256
+        while budget > 0:
+            column = self._ll_table_column()
+            head = self._current.type
+            # ① 栈顶能取它 → 对齐完成（主循环能接着推进）
+            if self._ll_stack_takes(column, head):
+                return STATUS_OK
+            # ② %sync 锚点：弹栈到能接受它的位置
+            if (_HAS_SYNC_TOKENS) and (self._current.type != TOKEN_END) and \
+                    (self._current.type in _SYNC_TOKENS):
+                while (budget > 0) and self._ll_stack and \
+                        (not self._ll_stack_takes(column, head)):
+                    self._ll_discard_top()
+                    budget -= 1
+                return STATUS_OK if self._ll_stack else STATUS_ERR_SYNTAX
+            # ③ FOLLOW 集恢复：栈顶那一项「该结束了」，或者更深处有项能取当前
+            #    Token → 放弃「栈顶那一项所属的构造」（连同它里面已经展开的内层
+            #    构造），把当前 Token 交给外层
+            if self._ll_stack and \
+                    (self._ll_stack_in_follow(head) or
+                     self._ll_deeper_takes(column, head)):
+                frame = self._ll_stack[-1][2]
+                if frame == _INVALID_INDEX:
+                    self._ll_discard_top()
+                    budget -= 1
+                    continue
+                self._ll_discard_frames_from(frame)
+                while (budget > 0) and self._ll_stack and \
+                        (self._ll_stack[-1][2] >= frame):
+                    self._ll_discard_top()
+                    budget -= 1
+                continue
+            # ④ 没人能接受它：丢掉这个 Token
+            if self._current.type == TOKEN_END:
+                return STATUS_ERR_SYNTAX
+            if self._advance_window() != STATUS_OK:
+                return STATUS_ERR_LEXER
+            budget -= 1
+        return STATUS_ERR_SYNTAX
+
+    def _run_ll_loop(self, tree_mode):
+        """非递归预测分析主循环（``%tree`` 时只建树、不跑语义动作）。"""
+        self._ll_stack = []
+        self._ll_frames = []
+        self._root_result = None
+        if tree_mode:
+            self._tree_root = None
+            self._tree_path = []
+            return self._run_ll_tree_loop()
+        if not self._ll_push(_ITEM_NONTERM, _START_ID, _INVALID_INDEX, 0):
+            return STATUS_ERR_STACK
+        while self._ll_stack:
+            item = self._ll_pop()
+            kind = item[0]
+            if kind == _ITEM_TERMINAL:
+                if self._current.type != item[1]:
+                    self._set_expected_one_error(item[1])
+                    if self._ll_synchronize(item) != STATUS_OK:
+                        return STATUS_ERR_SYNTAX
+                    continue
+                if self._ll_capture(item[2], item[3]) != STATUS_OK:
+                    return STATUS_ERR_STACK
+                if self._advance_window() != STATUS_OK:
+                    return STATUS_ERR_LEXER
+                continue
+            if kind == _ITEM_NONTERM:
+                column = self._ll_table_column()
+                if ((self._current.type >= _TERMINAL_COUNT) or
+                        (item[1] >= _NONTERM_COUNT) or (column < 0)):
+                    self._set_syntax_error(
+                        item[1],
+                        _EXPECTED[item[1]] if item[1] < _NONTERM_COUNT else [])
+                    if self._ll_synchronize(item) != STATUS_OK:
+                        return STATUS_ERR_SYNTAX
+                    continue
+                production = _LL_TABLE[item[1]][column]
+                if production < 0:
+                    self._set_syntax_error(item[1], _EXPECTED[item[1]])
+                    if self._ll_synchronize(item) != STATUS_OK:
+                        return STATUS_ERR_SYNTAX
+                    continue
+                if len(self._ll_frames) >= self.max_stack_depth:
+                    self._set_error(STATUS_ERR_STACK, self._current.line,
+                                    self._current.column, "语义帧栈已满")
+                    return STATUS_ERR_STACK
+                frame_index = len(self._ll_frames)
+                frame = _LlFrame()
+                frame.parent_frame = item[2]
+                frame.parent_value = item[3]
+                if item[4] != _INVALID_INDEX:
+                    frame.values[1] = self._ll_frames[item[4]].result_value
+                self._ll_frames.append(frame)
+                if self._ll_expand(production, frame_index) != STATUS_OK:
+                    self._set_error(STATUS_ERR_STACK, self._current.line,
+                                    self._current.column, "分析栈已满")
+                    return STATUS_ERR_STACK
+                continue
+            if kind == _ITEM_LEFT_LOOP:
+                frame = self._ll_frames[item[2]]
+                column = self._ll_table_column()
+                if ((self._current.type >= _TERMINAL_COUNT) or
+                        (item[1] >= _NONTERM_COUNT) or (column < 0)):
+                    self._set_syntax_error(item[1], _EXPECTED[item[1]] if item[1] < _NONTERM_COUNT else [])
+                    if self._ll_synchronize(item) != STATUS_OK:
+                        return STATUS_ERR_SYNTAX
+                    continue
+                production = _LL_TABLE[item[1]][column]
+                if production < 0:
+                    self._set_syntax_error(item[1], _EXPECTED[item[1]] if item[1] < _NONTERM_COUNT else [])
+                    if self._ll_synchronize(item) != STATUS_OK:
+                        return STATUS_ERR_SYNTAX
+                    continue
+                if _PRODUCTION_IS_LEFT_EMPTY[production]:
+                    if self._ll_complete(item[2]) != STATUS_OK:
+                        return STATUS_ERR_STACK
+                else:
+                    frame.values[1] = frame.result_value
+                    if self._ll_expand(production, item[2]) != STATUS_OK:
+                        self._set_error(STATUS_ERR_STACK, self._current.line,
+                                        self._current.column, "分析栈已满")
+                        return STATUS_ERR_STACK
+                continue
+            # Action / ActionKeep / Forward：先跑动作，再看要不要收尾
+            if kind == _ITEM_FORWARD:
+                self._ll_forward(self._ll_frames[item[2]], item[3])
+            elif self._ll_execute(item[1], item[2]) != STATUS_OK:
+                return STATUS_ERR_SYNTAX
+            if (kind != _ITEM_ACTION_KEEP) and (
+                    self._ll_complete(item[2]) != STATUS_OK):
+                return STATUS_ERR_STACK
+        if self._current.type != TOKEN_END:
+            self._set_error(STATUS_ERR_SYNTAX, self._current.line,
+                            self._current.column, "输入尚未完全消费")
+            return STATUS_ERR_SYNTAX
+        self.result = self._root_result
+        return STATUS_OK
+
+    def _run_ll_tree_loop(self):
+        """语法树解析主循环（``%tree``）：只按预测表建树，不跑语义动作。"""
+        if not self._ll_push(_ITEM_NONTERM, _START_ID, _INVALID_INDEX, 0):
+            return STATUS_ERR_STACK
+        while self._ll_stack:
+            item = self._ll_pop()
+            kind = item[0]
+            if kind == _ITEM_TERMINAL:
+                if self._current.type != item[1]:
+                    self._set_expected_one_error(item[1])
+                    return STATUS_ERR_SYNTAX
+                if not self._tree_path:
+                    return STATUS_ERR_SYNTAX
+                self._tree_path[-1].add_child(_make_leaf(self._current))
+                if self._advance_window() != STATUS_OK:
+                    return STATUS_ERR_LEXER
+                continue
+            if kind == _ITEM_NONTERM:
+                column = self._ll_table_column()
+                if ((self._current.type >= _TERMINAL_COUNT) or
+                        (item[1] >= _NONTERM_COUNT) or (column < 0)):
+                    self._set_syntax_error(
+                        item[1],
+                        _EXPECTED[item[1]] if item[1] < _NONTERM_COUNT else [])
+                    return STATUS_ERR_SYNTAX
+                production = _LL_TABLE[item[1]][column]
+                if production < 0:
+                    self._set_syntax_error(item[1], _EXPECTED[item[1]])
+                    return STATUS_ERR_SYNTAX
+                if len(self._tree_path) >= self.max_stack_depth:
+                    self._set_error(STATUS_ERR_STACK, self._current.line,
+                                    self._current.column, "语法树节点栈已满")
+                    return STATUS_ERR_STACK
+                node = Tree(_tree_name(item[1]))
+                if not self._tree_path:
+                    self._tree_root = node
+                else:
+                    self._tree_path[-1].add_child(node)
+                if not self._ll_push(_ITEM_TREE_END, 0, _INVALID_INDEX, 0):
+                    self._set_error(STATUS_ERR_STACK, self._current.line,
+                                    self._current.column, "分析栈已满")
+                    return STATUS_ERR_STACK
+                self._tree_path.append(node)
+                rhs_start = _TREE_PROD_START[production]
+                rhs_length = _TREE_PROD_LENGTH[production]
+                for index in range(rhs_length, 0, -1):
+                    symbol = _TREE_PROD_SYMBOLS[rhs_start + index - 1]
+                    terminal = symbol < _TERMINAL_COUNT
+                    symbol_id = symbol if terminal else (symbol -
+                                                         _TERMINAL_COUNT)
+                    if not self._ll_push(
+                            _ITEM_TERMINAL if terminal else _ITEM_NONTERM,
+                            symbol_id, _INVALID_INDEX, 0):
+                        self._set_error(STATUS_ERR_STACK, self._current.line,
+                                        self._current.column, "分析栈已满")
+                        return STATUS_ERR_STACK
+                continue
+            if kind == _ITEM_TREE_END:
+                if not self._tree_path:
+                    self._set_error(STATUS_ERR_SYNTAX, self._current.line,
+                                    self._current.column, "语法树闭合失败")
+                    return STATUS_ERR_SYNTAX
+                self._tree_path.pop()
+                continue
+            self._set_error(STATUS_ERR_SYNTAX, self._current.line,
+                            self._current.column, "语法树分析出现未知项目")
+            return STATUS_ERR_SYNTAX
+        if ((self._tree_root is None) or self._tree_path or
+                (self._current.type != TOKEN_END)):
+            self._set_error(STATUS_ERR_SYNTAX, self._current.line,
+                            self._current.column, "输入尚未完全消费")
+            return STATUS_ERR_SYNTAX
+        return STATUS_OK

@@ -1,0 +1,17 @@
+    /* %commit：打印收集到的片段（行号 + 类型 + 原文）与当前位置 */
+    {
+        const ParserMemory::Vector<ParserCommit> &commits = engine.commits();
+        std::printf("commits: %u\n",
+                    static_cast<unsigned>(commits.size()));
+        for (std::size_t index = 0u; index < commits.size(); ++index)
+        {
+            const ParserCommit &entry = commits[index];
+            std::printf("  [%u] line=%d type=%s text=%s\n",
+                        static_cast<unsigned>(index), entry.line,
+                        entry.type.c_str(), entry.text.c_str());
+        }
+        const ParserLocation location = engine.currentLocation();
+        std::printf("location: line=%d column=%d offset=%d\n",
+                    location.line, location.column,
+                    location.offset);
+    }

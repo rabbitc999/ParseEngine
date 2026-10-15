@@ -1,0 +1,70 @@
+// token.go —— Token 类型与词法单元（Go 产物）
+//
+// 由 ParseEngine 自动生成，请勿手工修改。
+//
+// 目标语言是 Go（只用标准库，没有第三方依赖）：
+//   - Token 类型是一组 `int32` 常量（`TOKEN_<名字>`），`TOKEN_NAMES` 是名字表；
+//   - `Value` 的类型由文法的 `%value_type` / `%union` 决定；两者都没写时是
+//     `int64`（数字 Token 给整数，其它 Token 给零值）；
+//   - 与 C++17 / Python / C# / Rust 产物逐项对齐：类型名与字段名用导出的 Go
+//     写法（`Token` / `Type` / `Text` / `Value` / `Line` / `Column` / `Offset`）。
+{{ package_comment }}
+package main
+
+{{ token_types }}
+
+// Token 词法单元：类型 + 词素 + 语义值 + 行列号。
+type Token struct {
+	// Type Token 类型（`TOKEN_*` 常量）。
+	Type int32
+	// Text Token 词素。
+	Text string
+	// Value Token 语义值（`%value_type` / `%union` 决定类型；没写时是 `int64`）。
+	Value {{ value_type }}
+	// Line 词素起始行号（1 起）。
+	Line int32
+	// Column 词素起始列号（1 起）。
+	Column int32
+	// Offset 词素起点的 UTF-8 字节偏移（0 起）。
+	Offset int32
+}
+
+// NewToken 建一个空 Token（类型 TOKEN_INVALID、词素空串、位置 1:1）。
+func NewToken() Token {
+	return Token{Type: TOKEN_INVALID, Text: "", Line: 1, Column: 1}
+}
+
+// NewTokenWithKind 建一个只带类型的 Token。
+func NewTokenWithKind(kind int32) Token {
+	item := NewToken()
+	item.Type = kind
+	return item
+}
+
+// NewTokenAt 建一个带类型 / 词素 / 位置的 Token。
+func NewTokenAt(kind int32, text string, line int32, column int32) Token {
+	return Token{Type: kind, Text: text, Line: line, Column: column}
+}
+
+// TokenName 取 Token 类型名；越界返回 "INVALID"。
+func TokenName(kind int32) string {
+	if kind < 0 || int(kind) >= len(TOKEN_NAMES) {
+		return "INVALID"
+	}
+	name := TOKEN_NAMES[kind]
+	if alias, ok := TOKEN_ALIASES[name]; ok && alias != "" {
+		return name + "(" + alias + ")"
+	}
+	return name
+}
+
+// TokenText 取 Token 的显示文本：优先词素，没有词素时退回类型名。
+func TokenText(item *Token) string {
+	if item == nil {
+		return ""
+	}
+	if item.Text != "" {
+		return item.Text
+	}
+	return TokenName(item.Type)
+}

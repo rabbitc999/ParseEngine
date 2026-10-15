@@ -1,0 +1,31 @@
+{# 静态文案：整段贴进 RESULT.md。里面的花括号对是文法写法不是模板标签，所以每处都包了 raw #}
+## 自定义运行时
+
+语义值类型 `ParserValue_T`、栈操作与内存管理全部由 `parser_user.h`
+（即 `%code … %endcode`）提供。生成器只把语义动作按普通 C 表达式翻译。
+
+- 语义值：`ParserValue_T` 由你定义；没写 `%code … %endcode` 时生成器补
+  `typedef int ParserValue_T;`。按值拷贝，运行时不管释放。
+- 语法树（`%tree`）：节点是 `ParserTree_T`，树的分配走 `malloc` /
+  `realloc` / `free`，用 `Parser_TreeFree()` 释放整棵树。
+- 语义值内存：由你的 `%code … %endcode` 负责（例如在动作里 malloc 的缓冲区）。
+- 清零 / 拷贝：生成代码里的每一处都走 `PARSER_MEMSET` / `PARSER_MEMCPY`
+  两个宏，缺省兜底成 `<string.h>` 的 `memset` / `memcpy`；在 `%code … %endcode`
+  里先 `#define` 同名宏（或编译期 `-D`）就能换成自己的实现。
+
+建议在 `%code … %endcode` 中提供（都是可选的，按需选用）：
+
+```c
+typedef int ParserValue_T;                     /* 语义值类型（缺省 int） */
+
+/* 可选：把 Token 转成语义值，缺省返回零值 */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+
+/* 可选：换掉生成代码里的 memset / memcpy */
+#define PARSER_MEMSET(pDst, value, size) My_Memset((pDst), (value), (size))
+#define PARSER_MEMCPY(pDst, pSrc, size)  My_Memcpy((pDst), (pSrc), (size))
+```
+
+数值 Token 的解析结果在 `pToken->value`，文本在 `pToken->name` /
+`pToken->pName`。
+

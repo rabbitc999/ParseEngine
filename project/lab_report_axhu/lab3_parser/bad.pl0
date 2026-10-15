@@ -1,0 +1,7 @@
+var x, y, m, t, z-;
+procedure mod;
+begin
+    t := x / y;
+    t := t * ;
+    2 * m := x - t;
+end.

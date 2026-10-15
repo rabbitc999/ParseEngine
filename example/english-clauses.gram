@@ -1,0 +1,96 @@
+/* english-clauses.gram —— 英语句法的歧义可视化（GLR，含从句）
+ *
+ * 从介词短语附着（PP attachment）扩展到从句，
+ * 让歧义从「加」变成「乘」：
+ *
+ *   the man saw the girl with the telescope
+ *     ├─ with 挂 the girl（低挂）：女孩有望远镜
+ *     └─ with 挂 saw（高挂）    ：男人用望远镜看
+ *
+ *   the man who saw the girl with the telescope liked the book
+ *     ├─ with 挂 the girl（关系从句内，低挂）
+ *     ├─ with 挂 saw     （关系从句内，高挂）
+ *     └─ with 挂 the man （关系从句外，挂主句主语）
+ *
+ *   Tom thinks that the man saw the girl with the telescope
+ *     └─ 从句内的 PP 歧义照样活下来
+ *
+ * 每加一个 PP、一个从句、一个 and，解释数就翻一倍甚至更多 ——
+ * 这就是 GLR 存在的意义：它不挑一条，它把每条都走完。
+ *
+ * 跑（Python 档免编译，能画图）：
+ *   ./build/bin/ParseEngine example/english-clauses.gram \
+ *       --out-dir /tmp/eng --lang python
+ *   printf 'the man saw the girl with the telescope' \
+ *       | python3 /tmp/eng/main.py
+ *   python3 /tmp/eng/main.py --svg graph.svg --dot graph.dot
+ *
+ * GLR 只在 C++17 / Python / Rust / Go 四档可用；--lang c / --lang csharp
+ * 会在生成期直接报错（不静默降级）。
+ */
+
+%mode glr
+%tree
+%start sentence
+
+/* ---------- 词表 ----------
+ * 固定字面量，不写 %token regex：这样 the / this 谁先匹配由
+ * 「最长匹配 + 关键字边界」决定，不依赖各档正则引擎对 \b 的方言差异。
+ */
+
+%token DET    "the|a|an|this|these|those|my|his|her|its|our|their"
+%token PROPER "Tom|Mary|Alice|Bob|John|Lucy|Sam"
+%token PRON   "he|she|it|they|we"
+%token NOUN   "man|woman|girl|boy|child|student|teacher|telescope|park|dog|cat|house|stick|book|garden|letter|story|idea|friend|school|window|guitar"
+%token VERB   "saw|hit|liked|chased|wrote|read|found|watched|knows|thinks|believes|wants|sees|told|loves|helped"
+%token PREP   "with|in|on|at|by|near|under|behind|from|about|for"
+%token ADJ    "tall|small|old|young|red|quick|happy|quiet|clever|tired|angry|busy"
+%token ADV    "quickly|slowly|yesterday|today|here|there|always|never|again|already"
+%token CONJ   "and|or|but"
+%token SUB    "when|if|because|although|while|after|before|since|unless"
+%token REL    "who|which"
+%token COMP   "that"
+%token TO     "to"
+
+/* ---------- 句子与从句 ---------- */
+
+sentence := clause ;
+
+clause := np vp                     /* 主句 / 从句共用同一套结构 */
+        | SUB clause                /* 状语从句打头：when he left … */
+        | clause SUB clause         /* 状语从句挂在前面那 clause 上 */
+        | clause CONJ clause ;      /* 并列：左结合 / 右结合都能构造出来 */
+
+/* ---------- 名词短语 ---------- */
+
+np := DET nbar
+    | PROPER
+    | PRON
+    | np CONJ np ;                  /* 并列：the man and the woman and … */
+
+/* nbar 是「名词 + 它的所有修饰」，pp 与 rel_clause 都能往上接 */
+nbar := ADJ nbar
+      | NOUN
+      | nbar pp                     /* ★ PP 挂名词（低挂） */
+      | nbar rel_clause ;           /* ★ 关系从句挂名词 */
+
+rel_clause := REL vp ;              /* who / which + 一个动词短语 */
+
+/* ---------- 介词短语 ---------- */
+
+pp := PREP np ;
+
+/* ---------- 动词短语 ---------- */
+
+vp := VERB
+    | VERB np                       /* 及物：saw the girl */
+    | VERB pp                       /* 动词直接接 PP：went to the park */
+    | VERB clause                   /* ★ 补语从句、省略 that：I think he left */
+    | VERB COMP clause              /* ★ 补语从句带 that：I think that he left */
+    | VERB to_vp                    /* 不定式：wants to see the girl */
+    | vp pp                         /* ★ PP 挂动词（高挂） —— 歧义的源头之一 */
+    | vp ADV
+    | vp CONJ vp ;                  /* 并列动词短语 */
+
+to_vp := TO VERB
+       | TO VERB np ;

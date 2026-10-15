@@ -1,0 +1,10 @@
+/**
+ * {% if main_from_grammar %}main.c —— 入口来自文法里的 %main 段{% else %}main.c —— custom 运行时演示 main：读标准输入一行后解析{% endif %}
+ * 由 ParseEngine 自动生成（{{ mode_name }}）。
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "parser.h"{{ demo_main }}

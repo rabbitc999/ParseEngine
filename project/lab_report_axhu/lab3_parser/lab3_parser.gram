@@ -1,0 +1,187 @@
+/* ============================================================
+ * 实验三 · PL/0 语法分析程序
+ *
+ * 文法与实验报告里给出的 LALR(1) 文法一致（把 RELOP / ASSIGNOP 展开成
+ * 各自的运算符 Token，便于生成期按优先级消解冲突）：
+ *
+ *   Program  -> StmtList DOT
+ *   StmtList -> Stmt | Stmt StmtList | CompSt StmtList | error StmtList
+ *   Stmt     -> VAR DecList SEMI | CONST ConstList SEMI | FunDec
+ *             | CALL ID SEMI | Exp SEMI
+ *             | IF Exp THEN CaseSt | WHILE Exp DO CaseSt
+ *             | READ LP ID RP SEMI | WRITE LP Exp RP SEMI
+ *             | error SEMI
+ *   CaseSt   -> Stmt | CompSt
+ *   CompSt   -> PBEGIN StmtList PEND
+ *   DecList  -> ID | ID ASSIGNOP NUMBER | ID COMMA DecList
+ *             | ID ASSIGNOP NUMBER COMMA DecList
+ *   ConstList-> ID ASSIGNOP NUMBER | ID ASSIGNOP NUMBER COMMA ConstList
+ *             （实验样例写的是 const b = 10，所以同时接受 `=`）
+ *   FunDec   -> PROCEDURE ID SEMI CompSt
+ *   Exp      -> Exp ASSIGNOP Exp | Exp RELOP Exp | Exp PLUS Exp
+ *             | Exp MINUS Exp | Exp STAR Exp | Exp SLASH Exp
+ *             | LP Exp RP | ODD Exp | ID | NUMBER
+ *
+ * 优先级（数字越小优先级越高，与实验报告的表一致）：
+ *   1 ODD   2 ( )   3 * /   4 + -   5 关系运算符   6 :=
+ * 在 %left / %right 里按「越靠下越高」写，所以从低到高依次是
+ *   ASSIGN < 关系 < 加减 < 乘除 < ODD。
+ *
+ * 生成与运行（%mode lalr + %tree，只出 CST；错误靠 error 产生式恢复）：
+ *   ParseEngine project/lab_report_axhu/lab3_parser/lab3_parser.gram --lang c \
+ *                 --out-dir out && make -C out
+ *   ./out/parser_demo < project/lab_report_axhu/lab3_parser/good.pl0
+ *   ./out/parser_demo < project/lab_report_axhu/lab3_parser/bad.pl0
+ * ============================================================ */
+
+%mode lalr
+%tree
+
+/* ---------- 关键字 ---------- */
+%define VAR       "var"
+%define CONST     "const"
+%define PROCEDURE "procedure"
+%define CALL      "call"
+%define IF        "if"
+%define THEN      "then"
+%define WHILE     "while"
+%define DO        "do"
+%define ODD       "odd"
+%define READ      "read"
+%define WRITE     "write"
+
+/* begin / end 对应实验文法里的 PBEGIN / PEND。END 是运行时「输入结束」
+ * 哨兵 Token 的保留名，用它当关键字会和文件末尾合并成一个 Token。 */
+%define PBEGIN    "begin"
+%define PEND      "end"
+
+/* ---------- 运算符与分隔符 ---------- */
+%define ASSIGNOP  ":="
+%define EQ        "="
+%define NE        "#"
+%define NE2       "<>"
+%define LE        "<="
+%define GE        ">="
+%define LT        "<"
+%define GT        ">"
+%define PLUS      "+"
+%define MINUS     "-"
+%define STAR      "*"
+%define SLASH     "/"
+%define LP        "("
+%define RP        ")"
+%define COMMA     ","
+%define SEMI      ";"
+%define DOT       "."
+
+/* ---------- 优先级与结合性：越靠下优先级越高 ---------- */
+%left ASSIGNOP
+%left EQ NE NE2 LE GE LT GT
+%left PLUS MINUS
+%left STAR SLASH
+%right ODD
+
+%start Program
+
+/* ---------- 程序与语句 ---------- */
+Program := StmtList DOT;
+
+StmtList := Stmt
+          | Stmt StmtList
+          | CompSt StmtList
+          | error StmtList;
+
+Stmt := VAR DecList SEMI
+      | CONST ConstList SEMI
+      | FunDec
+      | CALL VARIABLE SEMI
+      | Exp SEMI
+      | IF Exp THEN CaseSt
+      | WHILE Exp DO CaseSt
+      | READ LP VARIABLE RP SEMI
+      | WRITE LP Exp RP SEMI
+      | error SEMI;
+
+CaseSt := Stmt
+        | CompSt;
+
+CompSt := PBEGIN StmtList PEND;
+
+/* ---------- 声明 ---------- */
+DecList := VARIABLE
+         | VARIABLE ASSIGNOP NUMBER
+         | VARIABLE COMMA DecList
+         | VARIABLE ASSIGNOP NUMBER COMMA DecList;
+
+ConstList := VARIABLE ASSIGNOP NUMBER
+           | VARIABLE ASSIGNOP NUMBER COMMA ConstList
+           | VARIABLE EQ NUMBER
+           | VARIABLE EQ NUMBER COMMA ConstList;
+
+FunDec := PROCEDURE VARIABLE SEMI CompSt;
+
+/* ---------- 表达式（二义靠上面的优先级消解） ---------- */
+Exp := Exp ASSIGNOP Exp
+     | Exp EQ Exp | Exp NE Exp | Exp NE2 Exp | Exp LE Exp | Exp GE Exp
+     | Exp LT Exp | Exp GT Exp
+     | Exp PLUS Exp | Exp MINUS Exp
+     | Exp STAR Exp | Exp SLASH Exp
+     | LP Exp RP
+     | ODD Exp
+     | VARIABLE
+     | NUMBER;
+
+%main
+/* main.c —— 读入整段 PL/0 源程序，打印语法树与错误列表
+ * 由 ParseEngine 从 lab3_parser.gram 生成，请勿手工修改。
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "parser.h"
+
+int main(void)
+{
+    static char text[65536];
+    size_t used = 0u;
+    size_t got = 0u;
+    ParserTree_T *pTree = NULL;
+    uint32_t errorCount = 0u;
+    uint32_t index = 0u;
+
+    while ((got = fread(text + used, 1u, sizeof(text) - 1u - used, stdin)) > 0u)
+    {
+        used += got;
+    }
+    text[used] = '\0';
+
+    pTree = Parser_ParseTreeText(text);
+    errorCount = Parser_GetErrorCount();
+
+    printf("=============== 错误列表 ===============\n");
+    if (errorCount == 0u)
+    {
+        printf("（无）\n");
+    }
+    for (index = 0u; index < errorCount; index++)
+    {
+        const ParserError_T *pError = Parser_GetError(index);
+        printf("Error (Line %u): code=%d column=%u %s\n",
+               (unsigned int)pError->line, pError->code,
+               (unsigned int)pError->column, pError->message);
+    }
+
+    printf("=============== 语法树 ===============\n");
+    if (pTree == NULL)
+    {
+        printf("（没有可接受的语法树）\n");
+    }
+    else
+    {
+        Parser_TreePrint(pTree);
+    }
+    Parser_TreeFree(pTree);
+    return (errorCount == 0u) ? 0 : 1;
+}

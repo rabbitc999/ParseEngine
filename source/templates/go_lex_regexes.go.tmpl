@@ -1,0 +1,61 @@
+{# `%token regex` / `%identifier` / `%commit` 的正则表（CodeGenGo 的 goLexRegexes）。
+   产物里没有生成期算好的 DFA 表：模式原样交给 Go 标准库的 `regexp`（RE2），
+   包级变量初始化时各编译一遍。整份模板只在**有正则时**才渲染
+   （没有正则就不发，`regexp` 也就不会被 import）。
+   变量：
+     regexes             —— 每条 `%token regex`：pattern（带引号的 Go 字符串字面量）
+                            / type（整数）/ order（整数）
+     has_identifier      —— 有没有 %identifier
+     identifier_pattern  —— 标识符正则（带引号的字符串字面量）
+     has_commits         —— 有没有 %commit
+     commits             —— %commit 数组：pattern（带引号）/ type（带引号）/
+                            skip（真假）/ order（整数）
+     commit_aliases      —— 字段 type / alias（都已带引号）
+   本模板自带行尾换行。 #}
+// sParserRegexRes `%token regex` 声明的 Token 正则：与固定字面量一起做最长匹配，
+// 同长度时字面量优先（关键字不会被正则吃掉）。
+var sParserRegexRes = []*regexp.Regexp{
+{% for r in regexes %}	sParserLexCompileRegex({{ r.pattern }}),
+{% endfor %}}
+
+var sParserRegexTypes = []int32{
+{% for r in regexes %}	{{ r.type }},
+{% endfor %}}
+
+var sParserRegexOrders = []int32{
+{% for r in regexes %}	{{ r.order }},
+{% endfor %}}
+{% if has_identifier %}
+// sParserIdentifierRe `%identifier` 声明的标识符正则（命中关键字时换成关键字 Token）。
+var sParserIdentifierRe = sParserLexCompileRegex({{ identifier_pattern }})
+{% endif %}{% if has_commits %}
+// sParserCommitRes `%commit` 声明的片段正则：与 `%token` 一起做最长匹配；
+// 同长度时按声明序，先声明优先（skip 命中直接丢掉）。
+var sParserCommitRes = []*regexp.Regexp{
+{% for c in commits %}	sParserLexCompileRegex({{ c.pattern }}),
+{% endfor %}}
+
+// sParserCommitTypes `%commit` 的类型名（缺省 "default"）。
+var sParserCommitTypes = []string{
+{% for c in commits %}	{{ c.type }},
+{% endfor %}}
+
+// sParserCommitSkips 命中即丢的 `%commit`（`skip` / `%trivia`）。
+var sParserCommitSkips = []bool{
+{% for c in commits %}	{{ c.skip }},
+{% endfor %}}
+
+// sParserCommitOrders `%commit` 的词法声明序。
+var sParserCommitOrders = []int32{
+{% for c in commits %}	{{ c.order }},
+{% endfor %}}
+
+// commitAlias `%commit`/`%trivia` 类型到显示别名的映射；没有别名时返回空串。
+func commitAlias(kind string) string {
+	switch kind {
+{% for a in commit_aliases %}	case {{ a.type }}:
+		return {{ a.alias }}
+{% endfor %}	}
+	return ""
+}
+{% endif %}

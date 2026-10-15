@@ -1,0 +1,378 @@
+    // ---------- LR 分析栈 ----------
+
+    private int _lrPush(int state, int symbol, {{ value_type }} value, string name,
+                        Tree node)
+    {
+        if (_top >= MAX_STACK_DEPTH)
+        {
+            return STATUS_ERR_STACK;
+        }
+        _states[_top] = state;
+        _symbols[_top] = symbol;
+        _values[_top] = value;
+        _names[_top] = name;
+        _nodes[_top] = node;
+        _top++;
+        return STATUS_OK;
+    }
+
+    private void _lrPopTo(int newTop)
+    {
+        if (newTop >= _top)
+        {
+            return;
+        }
+        for (int index = newTop; index < _top; index++)
+        {
+            _names[index] = "";
+            _nodes[index] = null;
+        }
+        _top = newTop;
+    }
+
+    private void _lrDiscardTop()
+    {
+        if (_top > 0)
+        {
+            _lrPopTo(_top - 1);
+        }
+    }
+
+    /** 移进：把当前 Token 压栈；`%tree` 时顺带建一个叶子节点。 */
+    private int _lrShift(int state, bool treeMode)
+    {
+        Token item = _current;
+        Tree node = treeMode ? _makeLeaf(item) : null;
+        return _lrPush(state, item.type, item.value, item.text, node);
+    }
+
+    /** 归约：执行语义动作、弹出右部、按 GOTO 压回结果。 */
+    private int _lrReduce(int production, bool treeMode)
+    {
+        int length = _PRODUCTION_LENGTH[production];
+        int lhs = _PRODUCTION_LHS[production];
+        if (length > _top)
+        {
+            return STATUS_ERR_STACK;
+        }
+        int baseIndex = _top - length;
+        Tree node = null;
+        {{ value_type }} resultValue = _defaultValue();
+        if (treeMode)
+        {
+            node = _makeBranch(_nodes, _treeName(lhs), baseIndex, length);
+        }
+        else
+        {
+            for (int index = 0; index < length; index++)
+            {
+                _actionValues[index] = _values[baseIndex + index];
+            }
+            _Holder result = new _Holder();
+            if (_applyAction(production, _actionValues, result) != STATUS_OK)
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            resultValue = result.value;
+        }
+        _lrPopTo(baseIndex);
+        if (_top == 0)
+        {
+            _setError(STATUS_ERR_STACK, _current.line, _current.column,
+                      "归约后分析栈为空");
+            return STATUS_ERR_STACK;
+        }
+        int state = _GOTO[_states[_top - 1]][lhs];
+        if (state == INVALID_STATE)
+        {
+            _setError(STATUS_ERR_SYNTAX, _current.line, _current.column,
+                      "GOTO 表没有匹配项");
+            return STATUS_ERR_SYNTAX;
+        }
+        return _lrPush(state, lhs, resultValue, "", node);
+    }
+
+    /** panic reduce：`%sync` 恢复时先把栈顶状态上待归约的项做掉。 */
+    private int _lrPanicReduce(int state, bool treeMode)
+    {
+        if (_LOOKAHEAD_K > 1)
+        {
+            for (int column = 0; column < _LOOKAHEAD_COLUMN_COUNT; column++)
+            {
+                int action = _REDUCE[state][column];
+                if (action >= 0)
+                {
+                    continue;
+                }
+                int production = -action - 1;
+                int length = _PRODUCTION_LENGTH[production];
+                if (length == 0)
+                {
+                    continue;
+                }
+                if (length > _top)
+                {
+                    return STATUS_ERR_SYNTAX;
+                }
+                return _lrReduce(production, treeMode);
+            }
+            return STATUS_ERR_SYNTAX;
+        }
+        for (int terminal = 0; terminal < _TERMINAL_COUNT; terminal++)
+        {
+            int action = _ACTION[state][terminal];
+            if (action >= 0)
+            {
+                continue;
+            }
+            int production = -action - 1;
+            int length = _PRODUCTION_LENGTH[production];
+            if (length == 0)
+            {
+                continue;
+            }
+            if (length > _top)
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            return _lrReduce(production, treeMode);
+        }
+        return STATUS_ERR_SYNTAX;
+    }
+
+    private long _lookaheadCodeLong(int headType)
+    {
+        long code = headType;
+        long scale = _TERMINAL_COUNT;
+        for (int index = 1; index < _LOOKAHEAD_K; index++)
+        {
+            code += (long) _lookahead[index - 1].type * scale;
+            scale *= _TERMINAL_COUNT;
+        }
+        return code;
+    }
+
+    /** 二分查找窗口对应的归约列；没有这一列返回 -1。 */
+    private int _findLookaheadColumn(long code)
+    {
+        int low = 0;
+        int high = _LOOKAHEAD_COLUMN_COUNT - 1;
+        while (low <= high)
+        {
+            int mid = low + ((high - low) / 2);
+            long midCode = _LOOKAHEAD_CODE[mid];
+            if (midCode == code)
+            {
+                return _LOOKAHEAD_COLUMN[mid];
+            }
+            if (midCode < code)
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+        return -1;
+    }
+
+    /** 两层查表：先按 k 元组展望符查归约列，再按窗口首个 Token 查移进。 */
+    private int _lookupWindowAction(int state, int headType)
+    {
+        if (_LOOKAHEAD_K <= 1)
+        {
+            return _ACTION[state][headType];
+        }
+        int column = _findLookaheadColumn(_lookaheadCodeLong(headType));
+        if (column >= 0)
+        {
+            int reduced = _REDUCE[state][column];
+            if (reduced != 0)
+            {
+                return reduced;
+            }
+        }
+        return _ACTION[state][headType];
+    }
+
+    private int _lookupWindowAction(int state)
+    {
+        return _lookupWindowAction(state, _current.type);
+    }
+
+    private bool _lrCanShiftSyncToken(int state)
+    {
+        if (_SYNC_TOKENS.Length == 0)
+        {
+            return false;
+        }
+        for (int index = 0; index < _SYNC_TOKENS.Length; index++)
+        {
+            int tokenType = _SYNC_TOKENS[index];
+            if (_ACTION[state][tokenType] > 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 语法错误恢复：error 产生式优先，`%sync` 兜底。 */
+    private int _lrRecover(bool treeMode)
+    {
+        if (_errorStatus > 0)
+        {
+            while (_current.type != TOKEN_END)
+            {
+                if (_advanceWindow() != STATUS_OK)
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                int tokenType = _current.type;
+                if ((tokenType >= 0) && (tokenType < _TERMINAL_COUNT) &&
+                    (_lookupWindowAction(_states[_top - 1]) != 0))
+                {
+                    _errorStatus = ERROR_RECOVERY_TOKENS;
+                    return STATUS_OK;
+                }
+            }
+            return STATUS_ERR_SYNTAX;
+        }
+        if (_HAS_ERROR_TOKEN)
+        {
+            while (_top > 0)
+            {
+                int action = _ACTION[_states[_top - 1]][_ERROR_TOKEN_ID];
+                if (action > 0)
+                {
+                    if (_lrPush(action - 1, _ERROR_TOKEN_ID, _defaultValue(),
+                                "error", null) != STATUS_OK)
+                    {
+                        return STATUS_ERR_STACK;
+                    }
+                    _errorStatus = ERROR_RECOVERY_TOKENS;
+                    return STATUS_OK;
+                }
+                _lrDiscardTop();
+            }
+        }
+        if (_SYNC_TOKENS.Length > 0)
+        {
+            int reduceBudget = 256;
+            while (_top > 0)
+            {
+                int state = _states[_top - 1];
+                if (_lrCanShiftSyncToken(state))
+                {
+                    while ((_current.type != TOKEN_END) &&
+                           !_isSyncToken(_current.type))
+                    {
+                        if (_advanceWindow() != STATUS_OK)
+                        {
+                            return STATUS_ERR_LEXER;
+                        }
+                    }
+                    if (_current.type == TOKEN_END)
+                    {
+                        return STATUS_ERR_SYNTAX;
+                    }
+                    int action = _ACTION[state][_current.type];
+                    if (action > 0)
+                    {
+                        if (_lrShift(action - 1, treeMode) != STATUS_OK)
+                        {
+                            return STATUS_ERR_STACK;
+                        }
+                        if (_advanceWindow() != STATUS_OK)
+                        {
+                            return STATUS_ERR_LEXER;
+                        }
+                        _errorStatus = ERROR_RECOVERY_TOKENS;
+                        return STATUS_OK;
+                    }
+                }
+                else if ((reduceBudget > 0) &&
+                         (_lrPanicReduce(state, treeMode) == STATUS_OK))
+                {
+                    reduceBudget--;
+                    if (_LOOKAHEAD_K > 1)
+                    {
+                        if (_lookupWindowAction(_states[_top - 1]) != 0)
+                        {
+                            _errorStatus = ERROR_RECOVERY_TOKENS;
+                            return STATUS_OK;
+                        }
+                    }
+                    continue;
+                }
+                _lrDiscardTop();
+            }
+        }
+        return STATUS_ERR_SYNTAX;
+    }
+
+    /** LR 主循环：移进 / 归约 / 接受。 */
+    private int _runLrLoop(bool treeMode)
+    {
+        _resetStates();
+        while (true)
+        {
+            int state = _states[_top - 1];
+            int tokenType = _current.type;
+            if ((state >= _STATE_COUNT) || (tokenType >= _TERMINAL_COUNT))
+            {
+                _setError(STATUS_ERR_SYNTAX, _current.line, _current.column,
+                          "状态或 Token 越界");
+                return STATUS_ERR_SYNTAX;
+            }
+            int action = _lookupWindowAction(state);
+            if (action == ACCEPT_ACTION)
+            {
+                _result = _values[_top - 1];
+                if (treeMode)
+                {
+                    _treeRoot = _nodes[_top - 1];
+                }
+                return STATUS_OK;
+            }
+            if (action > 0)
+            {
+                if (_lrShift(action - 1, treeMode) != STATUS_OK)
+                {
+                    _setError(STATUS_ERR_STACK, _current.line, _current.column,
+                              "分析栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                if (_advanceWindow() != STATUS_OK)
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                if (_errorStatus > 0)
+                {
+                    _errorStatus--;
+                }
+                continue;
+            }
+            if (action < 0)
+            {
+                if (_lrReduce(-action - 1, treeMode) != STATUS_OK)
+                {
+                    return STATUS_ERR_SYNTAX;
+                }
+                continue;
+            }
+            if (_errorStatus == 0)
+            {
+                _setSyntaxError(state, _EXPECTED[state]);
+                if (_errors.Count >= MAX_ERRORS)
+                {
+                    return STATUS_ERR_SYNTAX;
+                }
+            }
+            if (_lrRecover(treeMode) != STATUS_OK)
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+        }
+    }

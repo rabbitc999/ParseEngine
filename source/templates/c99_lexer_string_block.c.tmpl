@@ -1,0 +1,38 @@
+    /* 双引号字符串在词法阶段完成反转义。 */
+    if (*pStart == '"') {
+        uint32_t outputIndex = 0u;
+        Parser_ReadChar(pCtx);
+        while ((pCtx->pText[pCtx->textPosition] != '\0') &&
+               (pCtx->pText[pCtx->textPosition] != '"')) {
+            char ch = Parser_ReadChar(pCtx);
+            if (ch == '\\') {
+                char escaped = Parser_ReadChar(pCtx);
+                switch (escaped) {
+                    case 'n': ch = '\n'; break;
+                    case 'r': ch = '\r'; break;
+                    case 't': ch = '\t'; break;
+                    case '0': return PARSER_ERR_LEXER;
+                    case '\\': ch = '\\'; break;
+                    case '"': ch = '"'; break;
+                    default: return PARSER_ERR_LEXER;
+                }
+            }
+            if (outputIndex + 1u >= sizeof(pCtx->lexeme)) {
+                return PARSER_ERR_LEXER;
+            }
+            pCtx->lexeme[outputIndex++] = ch;
+        }
+        if (pCtx->pText[pCtx->textPosition] != '"') {
+            /* 读到输入末尾还没等到收尾的引号：细分码 PARSER_ERR_LEX_UNTERMINATED */
+            return PARSER_ERR_LEX_UNTERMINATED;
+        }
+        Parser_ReadChar(pCtx);
+        pCtx->lexeme[outputIndex] = '\0';
+        pToken->type = TOKEN_STRING;
+        pToken->name = pCtx->lexeme;
+{% if string_member %}
+        pToken->value.{{ string_member }} = pCtx->lexeme;
+{% endif %}
+        return PARSER_OK;
+    }
+

@@ -1,0 +1,10 @@
+{# C99 Token 名称表的**行**（`generatorTokenNamesC` 的产物，整段当值插进
+   `c99_token_impl_custom.c.tmpl` 的 `{{ token_names }}`）。
+   变量：
+     names —— 每个 Token 的 C 字符串字面量（含引号，`Utils::varCString` 转义过）；
+              末尾那个是 "INVALID"
+   行之间用「行尾逗号 + 换行」分隔，**最后一行不带换行**（插入点那一行自己会补
+   换行，多一个就会在产物里多一个空行）——所以 `{% endfor %}` 故意收在末行行尾，
+   别把它挪到单独一行。 #}
+{% for row in names %}{% if loop_first %}{% else %},
+{% endif %}    { {{ row }}, NULL }{% endfor %}

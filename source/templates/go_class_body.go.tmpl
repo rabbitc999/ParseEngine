@@ -1,0 +1,9 @@
+{# `%class_body` 正文（CodeGenGo 的 goClassBody）：Go 没有 class 这一层，
+   正文原样贴在解析器代码之后（写成一组 `func (p *Parser) …` 方法）。
+   变量：body —— 已插好行标记的正文（自带结尾换行）。
+   本模板开头带一个空行，自带行尾换行。 #}
+
+// ---------- %class_body（用户正文）----------
+// Go 没有 class 这一层，正文原样贴在解析器代码之后；
+// 需要访问解析器状态时写成 `func (p *Parser) …` 方法。
+{{ body }}

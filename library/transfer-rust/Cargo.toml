@@ -1,0 +1,20 @@
+[package]
+name = "quad_transfer"
+version = "0.1.0"
+edition = "2021"
+default-run = "quad-transfer-example"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "quad-transfer-example"
+path = "src/main.rs"
+
+[[bin]]
+name = "quad-transfer-operators"
+path = "src/bin/operators.rs"
+
+[[bin]]
+name = "quad-transfer-suite"
+path = "src/bin/suite.rs"

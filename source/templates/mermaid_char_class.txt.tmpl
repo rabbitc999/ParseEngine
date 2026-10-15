@@ -1,0 +1,5 @@
+{# 一条字符类边标签（Mermaid::cellText）。
+   变量：empty（真假：字符集为空）、pieces（数组，元素是「a-z」这样的区段或
+   单个字符）、truncated（真假：是不是按区段截断了）、total（字符总数）。
+   **末尾不带换行**（调用方把它嵌进边标签里）。 #}
+{% if empty %}（空）{% else %}{% for piece in pieces %}{% if loop_first %}{% else %} {% endif %}{{ piece }}{% endfor %}{% if truncated %} …（共 {{ total }} 个字符）{% endif %}{% endif %}

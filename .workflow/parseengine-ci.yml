@@ -1,0 +1,30 @@
+# Gitee Go 流水线：ParseEngine 发布门禁。
+#
+# 注意：本文件按 Gitee Go「自定义构建步骤」（step: build@1）的写法给出，**未在
+# Gitee 上实测过**（本地没有 Gitee 运行时）。判据本身和本地完全一致——都是
+# `sh ci/run.sh`。若 Gitee Go 的 schema 有出入，改这里的 inputs 即可，脚本不用动。
+version: 1.0
+name: parseengine-ci
+displayName: ParseEngine 门禁
+
+triggers:
+  push:
+    branches:
+      include:
+        - master
+
+stages:
+  - stage:
+      name: gate
+      displayName: 构建与门禁
+      steps:
+        - step: build@1
+          name: parseengine
+          displayName: 构建 + 门禁 + 打包
+          inputs:
+            dockerImage: ubuntu:22.04
+            commands:
+              - apt-get update
+              - apt-get install -y --no-install-recommends g++ gcc make cmake python3
+              - sh ci/run.sh
+              - python tools/package_compiler.py ParseEngine

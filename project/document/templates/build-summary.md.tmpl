@@ -1,0 +1,19 @@
+构建入口是 `{{build_entry}}`，实际步骤由 `{{build_driver}}` 维护。Windows 下使用 Git Bash；Linux/macOS 使用 POSIX Shell。脚本构建 {{build_scope}}，{{test_policy}}；{{excluded_scope}}。
+
+```sh
+{{build_command}}                  # 全量构建
+{{list_command}}           # 检测环境并显示清单，不执行构建
+{{quiet_command}}               # 安静模式，完整输出仍写入日志
+{{clean_preview}}        # 预览清理范围
+{{clean_command}}                 # 清理构建产物
+```
+
+构建入口产生的文件统一位于仓库根目录 `{{build_root}}`。生成器在 `{{generator_dir}}`（release 在 `{{generator_release_dir}}`），Rust 在 `{{rust_dir}}`，示例工程在 `{{project_dir}}`，日志在 `{{log_dir}}`，全量示例产物在 `{{examples_dir}}`。Magel 在 `{{magic_dir}}` 的源码副本中生成和编译，依赖库在 `{{magic_dependencies}}`，其他库沿用根目录 `build/` 下的目录；Magel、MetroLang、Hydra86、RustView 与 CAS 已拆分为独立仓库，构建产物在各自仓库里。
+
+{{python_policy}}
+
+{{clean_policy}}
+
+上述路径适用于仓库统一构建入口。直接运行子工程的 Makefile、生成脚本或测试工具时，以该工程文档中的路径为准。
+
+维护这段说明时修改 [统一配置]({{repo}}project/document/documentation.json) 或 [构建说明模板]({{repo}}project/document/templates/build-summary.md.tmpl)，再运行文档生成器。模板使用方法见 [文档维护规范]({{repo}}project/document/README.md)。

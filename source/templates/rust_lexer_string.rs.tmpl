@@ -1,0 +1,33 @@
+        // 内建双引号字符串：词法阶段完成反转义，结果就是语义值。
+        if self.peek(0) == Some('"')
+        {
+            self.lexeme.clear();
+            self.read_char();
+            while (self.peek(0).is_some()) && (self.peek(0) != Some('"'))
+            {
+                let mut ch = self.read_char();
+                if ch == '\\'
+                {
+                    let escaped = self.read_char();
+                    ch = match escaped
+                    {
+                        'n' => '\n',
+                        'r' => '\r',
+                        't' => '\t',
+                        '\\' => '\\',
+                        '"' => '"',
+                        _ => return STATUS_ERR_LEXER,
+                    };
+                }
+                self.lexeme.push(ch);
+            }
+            if self.peek(0) != Some('"')
+            {
+                return STATUS_ERR_LEX_UNTERMINATED;
+            }
+            self.read_char();
+            item.kind = TOKEN_STRING;
+            item.text = self.lexeme.clone();
+            item.value = value_from_text(TOKEN_STRING, &self.lexeme);
+            return STATUS_OK;
+        }

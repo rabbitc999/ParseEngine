@@ -1,0 +1,267 @@
+/**
+ * lexer.c —— 词法模式（%mode lex）：把输入文本切成 Token
+ * 由 ParseEngine 自动生成（{{ mode_name }}）
+ *
+ * 只有词法器与错误记录：没有分析栈、没有分析表，也没有解析循环。语义值类型
+ * ParserValue_T 与 Token 取值方式由 %code … %endcode / %union 提供（写了 %token <成员>
+ * 时词法器会把词素写进那个成员）。
+ */
+
+#include <ctype.h>
+#include <errno.h>
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+{{ user_include }}
+#include "lexer.h"
+#include "parser_token.h"
+
+/* 词法模式的上下文与公开的 ParserLexer_T 是同一个布局：直接给个别名，
+   下面生成出来的词法器代码（按 ParserCtx_T 写）原样可用 */
+typedef ParserLexer_T ParserCtx_T;
+
+/* 固定字面量的匹配规则表（生成器填 {{ lex_rules }}） */
+typedef struct __ParserLexRule_T
+{
+    const char *pText;
+    uint32_t length;
+    ParserTokenType_T type;
+    uint8_t blankFirst;   /* 首字节是空白 / \b 通配：跳空白时要先看它能不能命中 */
+    uint8_t wildcard;     /* 含 \b 通配：命中后词素按输入抄一份 */
+    int32_t order;        /* 词法声明序（%commit 同长度比较用） */
+} ParserLexRule_T;
+
+/* 一次词法分析的错误（最多 PARSER_MAX_ERRORS 条）：GetLastError 返回最后
+ * 一条，GetErrorCount / GetError 用来遍历全部。 */
+static ParserError_T s_ParserErrors[PARSER_MAX_ERRORS];
+static uint32_t s_ParserErrorCount = 0u;
+/* %commit 收集到的片段：模块级单例（与错误表同一套口径，不放在调用方
+ * 提供的 ParserLexer_T 里——那个结构在 Parser_LexInit 之前可能是未初始化
+ * 的栈垃圾，放进去会在「初始化时先 free」那一步踩到野指针）。 */
+static ParserCommitList s_ParserLexCommits;
+
+/** 
+ * @brief 清空错误表（每次 Parser_LexInit 时调用）。 
+ * @retval 无。 
+ */
+static void Parser_ClearErrors(void)
+{
+    PARSER_MEMSET(s_ParserErrors, 0, sizeof(s_ParserErrors));
+    s_ParserErrorCount = 0u;
+}
+
+/**
+ * @brief 释放 %commit 容器的内存并清零（Parser_LexInit 与公开 API 共用）。
+ * @retval 无。
+ */
+static void Parser_LexResetCommits(void)
+{
+    int32_t index = 0;
+    if (s_ParserLexCommits.items != NULL) {
+        for (index = 0; index < s_ParserLexCommits.count; index++) {
+            free(s_ParserLexCommits.items[index].text);
+        }
+        free(s_ParserLexCommits.items);
+    }
+    s_ParserLexCommits.items = NULL;
+    s_ParserLexCommits.count = 0;
+    s_ParserLexCommits.capacity = 0;
+}
+
+void Parser_LexFreeCommits(ParserLexer_T *pLexer)
+{
+    (void)pLexer;
+    Parser_LexResetCommits();
+}
+
+const ParserCommitList *Parser_LexGetCommits(const ParserLexer_T *pLexer)
+{
+    (void)pLexer;
+    return &s_ParserLexCommits;
+}
+
+ParserLocation Parser_LexCurrentLocation(const ParserLexer_T *pLexer)
+{
+    ParserLocation location;
+    location.line = (pLexer != NULL) ? (int)pLexer->current.line : 0;
+    location.column = (pLexer != NULL) ? (int)pLexer->current.column : 0;
+    location.offset = (pLexer != NULL) ? (int)pLexer->current.offset : 0;
+    return location;
+}
+
+/**
+ * @brief 追加一条 %commit 片段（文本按 length 拷贝一份，堆分配）。
+ * @param pCtx 上下文。
+ * @param line 片段起始行号。
+ * @param pType 类型名（静态字符串，不拷贝）。
+ * @param pText 原文起点。
+ * @param length 原文长度（字节）。
+ * @retval 状态码；内存不够时返回 PARSER_ERR_LEXER。
+ */
+static int32_t Parser_CommitAppend(ParserCtx_T *pCtx, int32_t line,
+                                   const char *pType, const char *pText,
+                                   uint32_t length)
+{
+    char *pCopy = NULL;
+    ParserCommit *pItems = NULL;
+    int32_t capacity = 0;
+    (void)pCtx;
+    pCopy = (char *)malloc((size_t)length + 1u);
+    if (pCopy == NULL) { return PARSER_ERR_LEXER; }
+    PARSER_MEMCPY(pCopy, pText, length);
+    pCopy[length] = '\0';
+    if (s_ParserLexCommits.count >= s_ParserLexCommits.capacity) {
+        capacity = (s_ParserLexCommits.capacity == 0)
+                       ? 8 : (s_ParserLexCommits.capacity * 2);
+        pItems = (ParserCommit *)realloc(
+            s_ParserLexCommits.items, (size_t)capacity * sizeof(ParserCommit));
+        if (pItems == NULL) {
+            free(pCopy);
+            return PARSER_ERR_LEXER;
+        }
+        s_ParserLexCommits.items = pItems;
+        s_ParserLexCommits.capacity = capacity;
+    }
+    s_ParserLexCommits.items[s_ParserLexCommits.count].line = line;
+    s_ParserLexCommits.items[s_ParserLexCommits.count].type = pType;
+    s_ParserLexCommits.items[s_ParserLexCommits.count].text = pCopy;
+    s_ParserLexCommits.count++;
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 追加一条错误。 
+ * @param code 错误码。 
+ * @param line 行。 
+ * @param column 列。 
+ * @param pMessage 说明。 
+ * @retval 无。 
+ */
+static void Parser_SetError(int32_t code, uint32_t line, uint32_t column,
+                            const char *pMessage)
+{
+    ParserError_T *pEntry = NULL;
+    if (s_ParserErrorCount >= (uint32_t)PARSER_MAX_ERRORS)
+    {
+        return;
+    }
+    pEntry = &s_ParserErrors[s_ParserErrorCount++];
+    pEntry->code = code;
+    pEntry->line = line;
+    pEntry->column = column;
+    snprintf(pEntry->message, sizeof(pEntry->message),
+             "%.*s", (int)(sizeof(pEntry->message) - 1u),
+             (pMessage != NULL) ? pMessage : "词法错误");
+    pEntry->tokenType = 0u;
+    pEntry->state = 0u;
+    pEntry->expectedCount = 0u;
+    pEntry->expectedTotal = 0u;
+    pEntry->tokenText[0] = '\0';
+#ifdef PARSER_ERROR_CONTEXT
+    /* 词法模式不生成上下文行（%error_context 在 lex 模式下被忽略） */
+    pEntry->context[0] = '\0';
+#endif
+}
+
+/**
+ * @brief 取最近一条词法错误。
+ * @retval 只读错误结构。 
+ */
+const ParserError_T *Parser_GetLastError(void)
+{
+    if (s_ParserErrorCount == 0u)
+    {
+        return &s_ParserErrors[0];
+    }
+    return &s_ParserErrors[s_ParserErrorCount - 1u];
+}
+
+/** 
+ * @brief 取累积的错误条数。 
+ * @retval 错误条数。 
+ */
+uint32_t Parser_GetErrorCount(void)
+{
+    return s_ParserErrorCount;
+}
+
+/** 
+ * @brief 取第 index 条错误。 
+ * @param index 下标（0 起）。 
+ * @retval 只读错误结构；越界返回 NULL。 
+ */
+const ParserError_T *Parser_GetError(uint32_t index)
+{
+    if (index >= s_ParserErrorCount)
+    {
+        return NULL;
+    }
+    return &s_ParserErrors[index];
+}
+
+/** 
+ * @brief 读取字符并维护行列号。 
+ * @param pCtx 上下文。 
+ * @retval 当前字符。 
+ */
+static char Parser_ReadChar(ParserCtx_T *pCtx)
+{
+    char ch = pCtx->pText[pCtx->textPosition++];
+    if (ch == '\n') { pCtx->line++; pCtx->column = 1u; }
+    else { pCtx->column++; }
+    return ch;
+}
+
+static const ParserLexRule_T s_ParserLexRules[] =
+{
+{{ lex_rules }}
+};
+
+{{ lexer }}
+
+/**
+ * @brief 初始化词法器：挂上输入文本、清空错误表。
+ * @param pLexer 词法器。 
+ * @param pText 输入文本（以 '\0' 结束）。 
+ * @retval 无。 
+ */
+void Parser_LexInit(ParserLexer_T *pLexer, const char *pText)
+{
+    if (pLexer == NULL)
+    {
+        return;
+    }
+    /* 先把上一次的 %commit 内存还掉，再整体清零 */
+    Parser_LexResetCommits();
+    PARSER_MEMSET(pLexer, 0, sizeof(*pLexer));
+    Parser_ClearErrors();
+    pLexer->pText = (pText != NULL) ? pText : "";
+    pLexer->textMode = 1u;
+    pLexer->line = 1u;
+    pLexer->column = 1u;
+    pLexer->current.type = TOKEN_INVALID;
+}
+
+/**
+ * @brief 取下一个 Token。
+ * @param pLexer 词法器。 
+ * @param pToken 输出 Token。 
+ * @retval PARSER_OK 或负的错误码。 
+ */
+int32_t Parser_NextToken(ParserLexer_T *pLexer, ParserToken_T *pToken)
+{
+    int32_t status = PARSER_OK;
+    if ((pLexer == NULL) || (pToken == NULL) || (pLexer->pText == NULL))
+    {
+        return PARSER_ERR_SYNTAX;
+    }
+    status = Parser_Advance(pLexer);
+    if (status == PARSER_OK)
+    {
+        *pToken = pLexer->current;
+    }
+    return status;
+}

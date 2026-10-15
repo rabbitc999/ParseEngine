@@ -1,0 +1,334 @@
+    // ============================================================
+    // 状态码 / 容量常量（数值与 C / C++17 / Python 产物一致）
+    // ============================================================
+
+    public const int STATUS_OK = 0;
+    public const int STATUS_ERR_LEXER = -22;
+    public const int STATUS_ERR_LEX_UNTERMINATED = -28;
+    public const int STATUS_ERR_LEX_CHAR = -29;
+
+    /** 一次词法分析最多记录多少条错误（`%max_errors`）。 */
+    public const int MAX_ERRORS = {{ max_errors }};
+
+    private const int TOKEN_INVALID = Token.TOKEN_INVALID;
+    private const int TOKEN_END = Token.TOKEN_END;
+    private const int TOKEN_STRING = Token.TOKEN_STRING;
+    private const int TOKEN_NUMBER = Token.TOKEN_NUMBER;
+    private const int TOKEN_VARIABLE = Token.TOKEN_VARIABLE;
+    /** `_lexNextRaw` 的内部哨兵：%commit 命中（吃掉原文后继续取 Token）。 */
+    private const int _LEX_COMMIT_CONSUMED = 1;
+
+{{ constants }}
+
+{{ tables }}
+
+    /** `%commit` 收集到的一条片段：行号 + 类型 + 原文（不可变）。 */
+    public sealed class Commit
+    {
+        /** 片段起始行号（1 起）。 */
+        public int Line { get; }
+        /** `%commit` 的类型名（缺省 "default"；skip 不进容器）。 */
+        public string Type { get; }
+        /** 匹配到的原文（含字面量本身）。 */
+        public string Text { get; }
+
+        /** 建一条片段。 */
+        public Commit(int line, string type, string text)
+        {
+            Line = line;
+            Type = type;
+            Text = text;
+        }
+    }
+
+    /** 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起，值类型）。 */
+    public readonly struct Location
+    {
+        /** 行号（1 起）。 */
+        public int Line { get; }
+        /** 列号（1 起）。 */
+        public int Column { get; }
+        /** UTF-8 字节偏移（0 起）。 */
+        public int Offset { get; }
+
+        /** 建一个位置。 */
+        public Location(int line, int column, int offset)
+        {
+            Line = line;
+            Column = column;
+            Offset = offset;
+        }
+    }
+
+    /** 一条词法错误。 */
+    public class ParserError
+    {
+        public int code;
+        public int line;
+        public int column;
+        public string message;
+
+        public ParserError(int code, int line, int column, string message)
+        {
+            this.code = code;
+            this.line = line;
+            this.column = column;
+            this.message = message;
+        }
+
+        public override string ToString()
+        {
+            return "第 " + line + " 行第 " + column + " 列：" + message;
+        }
+    }
+
+    private readonly List<ParserError> _errors = new List<ParserError>();
+
+    private string _input = "";
+    private int _textPos = 0;
+    private int _line = 1;
+    private int _column = 1;
+    private int _bytePos = 0;
+    private bool _bytePosPairPending = false;
+    private string _lexeme = "";
+    /** `%commit` 收集到的片段（按出现顺序）。 */
+    private readonly List<Commit> _commits = new List<Commit>();
+
+    /** 建一个词法器。 */
+    public Parser()
+    {
+    }
+
+    /** 本次词法分析累积的错误。 */
+    public List<ParserError> errors()
+    {
+        return _errors;
+    }
+
+    /** 最近一条错误；没有错误时返回 null。 */
+    public ParserError lastError()
+    {
+        return (_errors.Count == 0) ? null : _errors[_errors.Count - 1];
+    }
+
+    /** `%commit` 收集到的片段（按出现顺序；没写 %commit 时恒为空）。 */
+    public IReadOnlyList<Commit> Commits
+    {
+        get { return _commits; }
+    }
+
+    /** 当前 lookahead 的位置（行 / 列 1 起，Offset 是 UTF-8 字节偏移）。 */
+    public Location CurrentLocation
+    {
+        get { return new Location(_line, _column, _bytePos); }
+    }
+
+    private void _setError(int code, int line, int column, string message)
+    {
+        if (_errors.Count >= MAX_ERRORS)
+        {
+            return;
+        }
+        _errors.Add(new ParserError(code, line, column, message));
+    }
+
+    /** 语义值的缺省值（值类型是 0，引用类型是 null）。 */
+    private static {{ value_type }} _defaultValue()
+    {
+        return default({{ value_type }});
+    }
+
+    /**
+     * 把 text 切成 Token 列表（末尾带一个 TOKEN_END）。
+     * @param text 输入文本；null 当空串。
+     * @param tokens 输出 Token 列表（先清空）。
+     * @return STATUS_OK 表示成功。
+     */
+    public int tokenize(string text, List<Token> tokens)
+    {
+        _errors.Clear();
+        _input = (text == null) ? "" : text;
+        _textPos = 0;
+        _line = 1;
+        _column = 1;
+        _bytePos = 0;
+        _bytePosPairPending = false;
+        _commits.Clear();
+        _lexeme = "";
+        if (tokens != null)
+        {
+            tokens.Clear();
+        }
+        while (true)
+        {
+            Token item = new Token(TOKEN_INVALID, "", _line, _column);
+            int status = _lexNext(item);
+            if (status != STATUS_OK)
+            {
+                string why = (status == STATUS_ERR_LEX_UNTERMINATED)
+                                 ? "字符串没有闭合"
+                                 : ((status == STATUS_ERR_LEX_CHAR)
+                                        ? "认不出来的字符"
+                                        : "词法解析失败");
+                _setError((status == STATUS_ERR_LEX_UNTERMINATED) ||
+                                  (status == STATUS_ERR_LEX_CHAR)
+                              ? status
+                              : STATUS_ERR_LEXER,
+                          item.line, item.column, why);
+                return status;
+            }
+            if (tokens != null)
+            {
+                tokens.Add(item);
+            }
+            if (item.type == TOKEN_END)
+            {
+                break;
+            }
+        }
+        return STATUS_OK;
+    }
+
+    private int _peekChar(int offset)
+    {
+        int index = _textPos + offset;
+        if ((index < 0) || (index >= _input.Length))
+        {
+            return -1;
+        }
+        return _input[index];
+    }
+
+    private char _readChar()
+    {
+        char ch = _input[_textPos];
+        _textPos++;
+        if (_bytePosPairPending)
+        {
+            _bytePosPairPending = false;
+        }
+        else if ((ch >= 0xD800) && (ch <= 0xDBFF) &&
+                 (_textPos < _input.Length) &&
+                 (_input[_textPos] >= 0xDC00) && (_input[_textPos] <= 0xDFFF))
+        {
+            _bytePos += 4;
+            _bytePosPairPending = true;
+        }
+        else if (ch < 0x80)
+        {
+            _bytePos += 1;
+        }
+        else if (ch < 0x800)
+        {
+            _bytePos += 2;
+        }
+        else
+        {
+            _bytePos += 3;
+        }
+        if (ch == '\n')
+        {
+            _line++;
+            _column = 1;
+        }
+        else
+        {
+            _column++;
+        }
+        return ch;
+    }
+
+    private static bool _isDigit(int ch)
+    {
+        return (ch >= '0') && (ch <= '9');
+    }
+
+    private static bool _isAlpha(int ch)
+    {
+        return ((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z'));
+    }
+
+    private static bool _isAlnum(int ch)
+    {
+        return _isAlpha(ch) || _isDigit(ch);
+    }
+
+    private static bool _isWord(int ch)
+    {
+        return _isAlnum(ch) || (ch == '_');
+    }
+
+    private static bool _isSpace(int ch)
+    {
+        return (ch == ' ') || (ch == '\t') || (ch == '\n') || (ch == '\v') ||
+               (ch == '\f') || (ch == '\r');
+    }
+
+    private const char _BLANK_WILDCARD = '\u001f';
+
+    private static bool _lexRuleHit(string rule, string text, int start)
+    {
+        for (int offset = 0; offset < rule.Length; offset++)
+        {
+            int code = ((start + offset) < text.Length)
+                           ? text[start + offset]
+                           : -1;
+            char ch = rule[offset];
+            if (ch == _BLANK_WILDCARD)
+            {
+                if (!_isSpace(code))
+                {
+                    return false;
+                }
+            }
+            else if (code != ch)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool _lexBlankRuleHit(string text, int start)
+    {
+        for (int index = 0; index < _LEX_RULES_TEXT.Length; index++)
+        {
+            if ((_LEX_RULES_BLANK[index] == 1) &&
+                _lexRuleHit(_LEX_RULES_TEXT[index], text, start))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool _lexIsSkipChar(int ch)
+    {
+        return (ch >= 0) && (_LEX_SKIP_CHARS.IndexOf((char) ch) >= 0);
+    }
+
+    /** 用 .NET 的 Regex 从 start 起匹配，返回匹配到的字符数（0 = 不匹配）。
+     *
+     * 与解析产物同一套实现：正则都在静态字段里只构造一次，贪婪匹配给出的就是最长
+     * 匹配；`Regex.Match(text, start)` 是从 start 往后找、不锚定，所以要确认
+     * `Match.Index == start`。
+     */
+    private static int _lexRegexMatch(Regex pattern, string text, int start)
+    {
+        if (pattern == null)
+        {
+            return 0;
+        }
+        Match match = pattern.Match(text, start);
+        if (!match.Success || (match.Index != start))
+        {
+            return 0;
+        }
+        return match.Length;
+    }
+
+{{ value_helpers }}
+
+{{ keyword_method }}
+
+{{ lexer }}

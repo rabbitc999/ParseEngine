@@ -1,0 +1,10 @@
+{# 语言说明（C++17 档）；整段静态文案，没有变量（C 档没有这一段） #}
+> 目标是 C++17：公开接口是一个 Qt 风格的类 `Engine`（解析入口是
+> `Engine::runText` / `Engine::run`，错误读 `Engine::errors`），
+> 语义值是 `ParserValue_T`，语法树是 `Tree`（`std::unique_ptr`
+> 持有）；产物只有 `parser.hpp` / `parser.cpp` / `main.cpp`
+> 三个文件（写了 `%code … %endcode` 时多一个 `parser_user.h`）。
+> `%main` / `%epilogue` 里照 C 产物写的 `Parser_RunText` /
+> `PARSER_OK` 也能用：命名空间里带了一层薄薄的兼容入口。
+> 内存全部由标准库管理，**不支持自定义分配器**。
+

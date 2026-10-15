@@ -1,0 +1,13 @@
+{# 语义动作分支（CodeGenRust 的 rustActionCases）。
+   变量：cases —— 每条产生式一项，字段 first（是不是第一条，决定写 if 还是
+                  else if）/ id / has_line / line / body（**按行**的动作正文，
+                  每一行的缩进由本模板加）/ file_name
+   本模板自带行尾换行。 #}
+{% for c in cases %}        {% if c.first %}if{% else %}else if{% endif %} production == {{ c.id }}
+        {
+{% if c.has_line %}        // 在 @@SE_GRAMMAR_FILE@@ 的第 {{ c.line }} 行
+{% endif %}{% if c.body %}{% for line in c.body %}            {{ line }}
+{% endfor %}{% endif %}{% if c.has_line %}            // 继续 {{ c.file_name }} 的正文
+{% endif %}            return STATUS_OK;
+        }
+{% endfor %}

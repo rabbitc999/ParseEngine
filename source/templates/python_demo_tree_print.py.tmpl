@@ -1,0 +1,5 @@
+{# 演示 main 里的 `%tree` 片段（没写 %tree 时不出现）。 #}
+    tree = engine.parse_tree(input_text)
+    if tree is not None:
+        print("语法树:")
+        tree.print()

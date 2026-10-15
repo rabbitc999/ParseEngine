@@ -1,0 +1,73 @@
+    # ---------- 词法器 ----------
+
+    def _lex_next(self):
+        """取下一个词法单元。
+
+        ``%commit`` 命中的片段不是 Token：吃掉原文（收进容器或丢掉）后继续
+        取，直到拿到真正的 Token 或词法错误。
+
+        :return: ``(状态码, Token)``。
+        """
+        while True:
+            status, token = self._lex_next_raw()
+            if status != _LEX_COMMIT_CONSUMED:
+                return status, token
+
+    def _lex_next_raw(self):
+        """取下一个词法单元（单趟；``%commit`` 命中时返回哨兵状态）。
+
+        顺序与 C 目标一致：双引号字符串（内建，或用户自己声明了 STRING 的
+        词法规则时跳过）→ %token regex 与固定字面量一起做最长匹配（字面量
+        优先）→ 数字 → 标识符（%identifier 的正则或默认的 C 风格标识符）。
+
+        :return: ``(状态码, Token)``；词法错误时状态码是 ``STATUS_ERR_LEXER``。
+        """
+{{ lex_skip_loop }}
+        token = Token(TOKEN_INVALID, "", None, self._line, self._column,
+                      self._byte_pos)
+        if self._peek_char() == "":
+            token.type = TOKEN_END
+            return STATUS_OK, token
+
+{{ lex_string_block }}
+{{ lex_match_block }}
+        {{ lex_number_block }}
+        {{ lex_identifier_block }}
+        # 一条规则都没命中：认不出来的字符（细分码，与 C / C++17 目标一致）
+        return STATUS_ERR_LEX_CHAR, token
+
+    def _parse_number(self, text, suffix, has_dot, has_exponent):
+        """把数字词素转成 Python 数值（范围与后缀规则和 C 目标一致）。
+
+        :param text: 去掉后缀的数字文本。
+        :param suffix: 后缀字符（空串表示没有后缀）。
+        :param has_dot: 是否出现小数点。
+        :param has_exponent: 是否出现指数部分。
+        :return: ``int`` / ``float``；超出范围或不合法时返回 ``None``。
+        """
+        try:
+            if suffix in ("u", "U"):
+                if has_dot or has_exponent:
+                    return None
+                value = int(text, 10)
+                if (value < 0) or (value > 0xFFFFFFFF):
+                    return None
+                return value
+            if suffix in ("d", "D"):
+                if (not has_dot) and (not has_exponent):
+                    return None
+                value = float(text)
+                if (value != value) or (value in (float("inf"),
+                                                  float("-inf"))):
+                    return None
+                return value
+            if suffix != "":
+                return None
+            if has_dot or has_exponent:
+                return float(text)
+            value = int(text, 10)
+            if (value < -2147483648) or (value > 2147483647):
+                return None
+            return value
+        except ValueError:
+            return None

@@ -1,0 +1,39 @@
+/* ============================================================
+ * LL(k) 示例：一份 LL(2) 而不是 LL(1) 的文法
+ *
+ *     S -> A X | A C
+ *     X -> B C | B D
+ *
+ * 输入是 `a b c` / `a b d` / `a c`。
+ *
+ *   --mode LL(1)    报「文法不是 LL(1)：M[S, A] 同时对应 S -> A X 和 S -> A C」
+ *   --mode LL(2)    通过：S 用两个 Token 就能分开（A B -> 第一条，A C -> 第二条），
+ *                   X 同理（B C / B D）
+ *   --mode LL(3)    也通过（LL(k) 单调：LL(2) 文法当然也是 LL(3)）
+ *   --mode LL(k)    等价于 LL(2)（k 不写就取缺省 2）
+ *
+ * 用法（模式名大小写随意，也可以把 k 写在括号里，省掉 --lookahead）：
+ *   ParseEngine --grammar-file example/llk_demo.gram --mode LL(2) \
+ *                 --report /tmp/ll2.txt --out-dir /tmp/ll2
+ *   printf 'a b c' | /tmp/ll2/parser_demo        # 解析成功
+ *   printf 'a b'   | /tmp/ll2/parser_demo        # 解析失败
+ *
+ * 对照：文法里**不**写 %mode，所以缺省（IELR(1)）也能正常生成产物，
+ * 想试 LL(k) 就在命令行上加 --mode。LL(k) 与 LR(k) 是两条不同的路线：
+ * 前者自顶向下、按 k 个 Token 选产生式，后者自底向上、按 k 元组展望符归约。
+ * ============================================================ */
+
+%tree
+
+%define A "a"
+%define B "b"
+%define C "c"
+%define D "d"
+
+S := A X
+   | A C
+   ;
+
+X := B C
+   | B D
+   ;

@@ -1,0 +1,7 @@
+# 生成物（随时可以用 make 重新生成）
+build/
+
+# 例外：根 .gitignore 的 `*.log` 是给临时日志用的，样例与出错样例要进版本库
+# （少了它们，新克隆下来 `make check` 会因为没有输入文件直接失败）。
+!samples/*.log
+!samples-error/*.log

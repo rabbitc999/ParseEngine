@@ -1,0 +1,11 @@
+; 循环示例：i 与 s 跨回边活跃，活跃区间长，最容易被溢出。
+label entry
+  mov i, 1
+  mov s, 0
+label L1
+  add s, s, i
+  add i, i, 1
+  jz i, L2
+  jmp L1
+label L2
+  store [result], s

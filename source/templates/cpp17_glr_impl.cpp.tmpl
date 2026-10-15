@@ -1,0 +1,41 @@
+void Engine::setAmbiguityResolver(AmbiguityResolver resolver)
+{
+    d->setAmbiguityResolver(std::move(resolver));
+}
+
+Status Engine::runGlr(std::string_view text)
+{
+    return d->runGlr(text, false);
+}
+
+Status Engine::runGlrIncremental(std::string_view text,
+                                 GlrIncrementalCache &cache)
+{
+    return d->runGlrIncremental(text, cache, false);
+}
+
+Status Engine::runGlrTree(std::string_view text)
+{
+    return d->runGlr(text, true);
+}
+
+Status Engine::runGlrTreeIncremental(std::string_view text,
+                                     GlrIncrementalCache &cache)
+{
+    return d->runGlrIncremental(text, cache, true);
+}
+
+std::size_t Engine::glrResultCount() const noexcept
+{
+    return d->m_glrResults.size();
+}
+
+const {{ value_type }} *Engine::glrResult(std::size_t index) const noexcept
+{
+    return (index < d->m_glrResults.size()) ? &d->m_glrResults[index] : nullptr;
+}
+
+const Tree *Engine::glrTree(std::size_t index) const noexcept
+{
+    return (index < d->m_glrTrees.size()) ? d->m_glrTrees[index].get() : nullptr;
+}

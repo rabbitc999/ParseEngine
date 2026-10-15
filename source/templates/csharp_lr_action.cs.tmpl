@@ -1,0 +1,14 @@
+    // ---------- 语义动作 ----------
+
+    /**
+     * 执行一个产生式的语义动作。
+     * @param production 产生式编号。
+     * @param values 右部语义值切片（`$1` 就是 values[0]）。
+     * @param result 语义结果（动作写它的 value）。
+     */
+    private int _applyAction(int production, {{ value_type }}[] values,
+                             _Holder result)
+    {
+{{ lr_action_cases }}
+        return STATUS_ERR_SYNTAX;
+    }

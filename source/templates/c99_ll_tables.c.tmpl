@@ -1,0 +1,42 @@
+{# C99 LL 分析表（预测分析表 / FOLLOW / 列编码 / 左递归空尾标记）。
+   变量：
+     nonterm_count / column_count / terminal_count
+     table        —— 预测分析表：数组，每项有 cells（一行的单元格文本数组）
+     has_lookahead / code_count / codes / columns —— LL(k) 的列编码与列号
+     has_follow / follow —— FOLLOW 集（同上，每项 cells）
+     expected_tables —— 「每一行期望哪些 Token」那几张表（生成器另外算好）
+     left_empty   —— 每个产生式是不是「左递归空尾」改写（"1u" / "0u"）
+   表的行与分隔符全部由 {% for %} 出（引擎没有 `{% if not %}`：非首项用
+   `{% if loop_first %}{% else %}, {% endif %}`，非末项用 loop_last 收在行尾）。
+   `{{ expected_tables }}` 紧贴在下一行内容前面：它的值自带尾换行，独立成行就会
+   在产物里多一个空行。 #}
+static const int16_t s_ParserTable[{{ nonterm_count }}][{{ column_count }}] =
+{
+{% for row in table %}
+    { {% for cell in row.cells %}{% if loop_first %}{% else %}, {% endif %}{{ cell }}{% endfor %} }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+{% if has_lookahead %}
+/* LL(k)：预测分析表的列编码（升序）与对应的列号 */
+static const int64_t s_ParserLookaheadCode[{{ code_count }}] =
+{
+    {% for v in codes %}{% if loop_first %}{% else %}, {% endif %}{{ v }}{% endfor %}
+};
+static const uint16_t s_ParserLookaheadColumn[{{ code_count }}] =
+{
+    {% for v in columns %}{% if loop_first %}{% else %}, {% endif %}{{ v }}{% endfor %}
+};
+{% endif %}
+{% if has_follow %}
+/* FOLLOW 集：1 表示这个终结符在该非终结符的 FOLLOW 里。
+ * 预测表里 ε 产生式的那些列就是 FOLLOW 的一部分，但**非可空**
+ * 非终结符的 FOLLOW 不在表里——LL 的错误恢复（放弃这一层）靠它。 */
+static const uint8_t s_ParserFollow[{{ nonterm_count }}][{{ terminal_count }}] =
+{
+{% for row in follow %}
+    { {% for cell in row.cells %}{% if loop_first %}{% else %}, {% endif %}{{ cell }}{% endfor %} }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+{% endif %}
+{{ expected_tables }}static const uint8_t s_ParserProductionIsLeftEmpty[] =
+{
+    {% for v in left_empty %}{% if loop_first %}{% else %}, {% endif %}{{ v }}{% endfor %}
+};

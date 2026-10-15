@@ -1,0 +1,79 @@
+# ParseEngine 冒烟测试清单（tools/smoke.sh 读这张表）
+#
+# 列（TAB 分隔）：
+#   name     example/<name>.gram
+#   langs    这份文法验证过的语言档，逗号分隔，取值：
+#            c / cpp17 / python / csharp / rust / go / java / js
+#   input    喂给演示程序的固定输入（单行；printf '%b' 解 \n 之类的转义）；
+#            留空 = 只做「生成 + 编译」，不跑输入（该文法的输出按语言不同）
+#
+# 期望输出：example/<name>.expected；需要按语言分开时写
+# example/<name>.<lang>.expected（脚本优先用它）。期望文件都是 LF，比对前
+# 会把两侧的 CRLF 归一化（C# / Rust 在 Windows 上是平台行尾）。
+#
+# 关于被排除的语言档（都是实测结论，不是猜的）：
+#   - python：%value_type / %union 的文法会被生成期直接拒绝；
+#   - csharp / rust：%code ... %endcode / %copy 里的用户代码是 C 的
+#     （calc / custom_tree 等），只有「语言中立」的文法才列；
+#   - union_demo 的 rust：%union 的成员在 Rust 产物里要写成 Rust 字段
+#     （`ival: i32`）而不是 C 的声明（`int ival;`），这份 C 文法不适用；
+#   - destructor_demo：csharp / rust 不支持 %destructor（前者靠 GC、
+#     后者按值拷贝由所有权回收）；
+#   - namespace_demo：%namespace 只对 cpp17 有效，c 会被生成期拒绝；
+#   - python_demo：%class 只对 python 有效，其余档会被生成期拒绝；
+#   - lexer_only 的 csharp / rust / go：**词法模式**的演示程序里
+#     END 词素的打印方式与 C / C++17 / Python 不同（既有显示差异），
+#     为了让一份期望文件覆盖多档，这里只列 c,cpp17,python。
+#   - go：%code ... %endcode / %copy 里的用户代码是 C 的（calc / custom_tree 等）与
+#     csharp / rust 同一处原因；union_demo 的 %union 成员写的是 C 的声明
+#     （Go 档要写成 `int64 ival;` 这种「类型 成员名」，且 `$$`/`$1` 展开成
+#     结构体字段，演示输出是 `{7}` 而不是 `7`）；destructor_demo 的
+#     %destructor 在 Go 下由生成期直接拒绝（语义值由 GC 回收）。
+#
+# name	langs	input
+c89_subset	c,cpp17,python,csharp,rust,go	int f(void) { return 1; }
+calc	c,cpp17	1+2*3
+prefix_demo	c	1
+calc_branch	c,cpp17	-2^2
+calc_prec	c,cpp17	2+3*4
+code_demo	c,cpp17	1+2*3
+commit_demo	c,cpp17,python,csharp,rust,go	/* c1 */ 1+2 0x1F @tag #tag // c2
+alias_demo	c,cpp17,python,csharp,rust,go	
+custom_tree	c,cpp17,python	a + b * c
+destructor_demo	c,cpp17	1+2; 3 4;
+dd_expr	c,cpp17,python,csharp,rust,go,java,js	1 + 2
+english-clauses	cpp17,python,csharp,rust,go	the man saw the girl with the telescope
+english-syntax	cpp17,python,csharp,rust	the teacher made the student happy
+chart_nullable	cpp17,python,csharp,rust,go,java,js	a b c b b
+chart_value_csharp	csharp	2 + 3 * 4
+epilogue_demo	c,cpp17	1+2*3
+include_demo	c,cpp17	1+2*3
+error_recovery	c,cpp17	1+2; 3;
+ielr_demo	c,cpp17	int a : int ,
+ielr_split	c,cpp17	a c d
+if_demo	c,cpp17	1+2*3
+ini	c,cpp17,python,csharp,rust,go	[server] host = localhost port = 8080
+glr_dangling_else	cpp17,python,csharp,rust,go	if cond then if cond then other else other
+glr_expr	cpp17	2 + 3 * 4
+glr_recovery	cpp17	1 + + 2 ; 3 ;
+json	c,cpp17,python,csharp,rust,go	{"a": [1,2]}
+lex_demo	c,cpp17	begin x := 1.5 end
+lexer_only	c,cpp17,python	a + 12 if 3.5 (x)
+line_demo	c,cpp17	1+2*3
+ll0_demo	c,cpp17,python,csharp,rust,go	a b
+llk_demo	c,cpp17,python,csharp,rust,go	a b c
+ll_follow_recovery	c,cpp17	1 + 2 ; 3 ;
+logic	c,cpp17	true && !false || 0
+lr0	c,cpp17	a b
+lrk_demo	c,cpp17,python,csharp,rust,go	a b c d
+main_demo	c,cpp17	1+2*3
+mini_lang	c,cpp17,python,csharp,rust,go	let a = 1 + 2 * 3; print a;
+namespace_demo	cpp17	1+2*3
+or_branch	c,cpp17	a or b
+pl0	c,cpp17,python,csharp,rust,go	x := 1 + 2 * 3 .
+pl0_ll1	c,cpp17,python,csharp,rust,go	x := 1 + 2 * 3 .
+python_demo	python	1+2*3
+space_demo	c,cpp17,python,csharp,rust,go	a b
+sync_recovery	c,cpp17	1 + + 2 ; 3
+token_dict_demo	c,cpp17	let num2 + num3 manual_b
+union_demo	c,cpp17	1 + 2 * 3

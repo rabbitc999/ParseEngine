@@ -1,0 +1,1108 @@
+    /* ---------- GLR（图结构栈）分析驱动 ---------- */
+
+{{ chart_driver }}
+
+    /// GSS 的一条边：从 fromNode 指向本边所属节点。
+    struct GlrEdge
+    {
+        std::uint16_t fromNode = kInvalidIndex;
+        std::uint16_t symbol = kInvalidIndex;
+        std::uint16_t production = kInvalidIndex;
+        std::uint16_t nameSlot = kInvalidIndex;
+        ParserValue_T value{};
+        ParserMemory::UniquePtr<Tree> tree; ///< %tree：这条边对应的子树
+        std::uint32_t startToken = 0u;
+        std::uint32_t endToken = 0u;
+        std::uint64_t forestNode = 0u;
+    };
+
+    /// GSS 的一个节点：状态 + 入边表。
+    struct GlrNode
+    {
+        std::uint16_t state = 0u;
+        ParserMemory::Vector<std::uint16_t> edges;
+    };
+
+    /// 一个输入位置上的活跃节点集合（状态 -> 节点）。
+    struct GlrPos
+    {
+        ParserMemory::UnorderedMap<std::uint16_t, std::uint16_t> map;
+        ParserMemory::Vector<std::uint16_t> nodes;
+
+        void clear()
+        {
+            map.clear();
+            nodes.clear();
+        }
+    };
+
+    /// 一次错误恢复最多吞掉几个 Token（吞到这个数还接不上就放弃）。
+    static constexpr std::uint32_t kGlrMaxRecoveryDeletes = 256u;
+
+    /// 注册歧义解决回调。
+    void setAmbiguityResolver(Engine::AmbiguityResolver resolver)
+    {
+        m_glrResolver = std::move(resolver);
+    }
+
+    /// 清空结果表。
+    void clearGlrResults()
+    {
+        m_glrResults.clear();
+        m_glrTrees.clear();
+        if (m_glrForestCache != nullptr) m_glrForestCache->forestRoots.clear();
+    }
+
+    /// 清掉上一次解析留下的图与结果（每次解析开始时调用）。
+    void clearModeResults()
+    {
+        clearGlrResults();
+        m_glrNodes.clear();
+        m_glrEdges.clear();
+        m_glrPos[0].clear();
+        m_glrPos[1].clear();
+        m_glrWork.clear();
+        m_glrQueued.clear();
+        m_glrNames.clear();
+        m_glrReduceEntries.clear();
+        m_glrTokenIndex = 0u;
+        m_glrPathVisits = 0u;
+        m_glrPathEdges.assign(kMaxPathDepth, kInvalidIndex);
+    }
+
+    /// 在指定输入位置取（或新建）状态对应的节点。
+    std::uint16_t glrNodeFor(GlrPos &pos, std::uint16_t state)
+    {
+        const auto found = pos.map.find(state);
+        if (found != pos.map.end())
+        {
+            return found->second;
+        }
+        const std::size_t index = m_glrNodes.size();
+        if (index >= kInvalidIndex)
+        {
+            return kInvalidIndex;
+        }
+        GlrNode node;
+        node.state = state;
+        m_glrNodes.push_back(std::move(node));
+        m_glrQueued.resize(m_glrNodes.size(), false);
+        pos.map.emplace(state, static_cast<std::uint16_t>(index));
+        pos.nodes.push_back(static_cast<std::uint16_t>(index));
+        return static_cast<std::uint16_t>(index);
+    }
+
+    /// 目标节点上是否已经有这条归约边（路径合并的判定）。
+    bool glrTreesEqual(const Tree *left, const Tree *right) const
+    {
+        if ((left == nullptr) || (right == nullptr))
+        {
+            return left == right;
+        }
+        return left->toString() == right->toString();
+    }
+
+    bool glrEdgeExists(std::uint16_t target, std::uint16_t fromNode,
+                       std::uint16_t symbol, std::uint16_t production,
+                       const Tree *tree = nullptr,
+                       bool compareTree = false) const
+    {
+        const ParserMemory::Vector<std::uint16_t> &edges = m_glrNodes[target].edges;
+        for (std::size_t index = 0u; index < edges.size(); ++index)
+        {
+            const GlrEdge &item = m_glrEdges[edges[index]];
+            if ((item.fromNode == fromNode) && (item.symbol == symbol) &&
+                (item.production == production) &&
+                (!compareTree || glrTreesEqual(item.tree.get(), tree)))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @brief 往目标节点加一条边；相同 (fromNode, symbol, production) 不重复加。
+     * @return 1 表示新增，0 表示已存在，-1 表示容量不足。
+     */
+    int glrAddEdge(std::uint16_t target, std::uint16_t fromNode,
+                   std::uint16_t symbol, std::uint16_t production,
+                   std::uint16_t nameSlot, ParserValue_T value,
+                   ParserMemory::UniquePtr<Tree> tree, bool mergeExisting = true,
+                   bool compareTree = false, std::uint32_t startToken = 0u,
+                   std::uint32_t endToken = 0u)
+    {
+        if (mergeExisting &&
+            glrEdgeExists(target, fromNode, symbol, production, tree.get(),
+                          compareTree))
+        {
+            return 0;
+        }
+        if (m_glrEdges.size() >= kInvalidIndex)
+        {
+            return -1;
+        }
+        GlrEdge edge;
+        edge.fromNode = fromNode;
+        edge.symbol = symbol;
+        edge.production = production;
+        edge.nameSlot = nameSlot;
+        edge.value = std::move(value);
+        edge.tree = std::move(tree);
+        edge.startToken = startToken;
+        edge.endToken = endToken;
+        if ((m_glrForestCache != nullptr) && (production == kInvalidIndex))
+            edge.forestNode = glrForestNode(symbol, startToken, endToken, true, m_current.text);
+        const std::uint16_t index =
+            static_cast<std::uint16_t>(m_glrEdges.size());
+        m_glrEdges.push_back(std::move(edge));
+        m_glrNodes[target].edges.push_back(index);
+        return 1;
+    }
+
+    /// 把节点加入归约工作表（同一节点不会重复入表）。
+    void glrQueue(std::uint16_t node)
+    {
+        if (m_glrQueued[node])
+        {
+            return;
+        }
+        m_glrQueued[node] = true;
+        m_glrWork.push_back(node);
+    }
+
+    /// 从工作表取出一个节点。
+    std::uint16_t glrDequeue()
+    {
+        const std::uint16_t node = m_glrWork.front();
+        m_glrWork.pop_front();
+        m_glrQueued[node] = false;
+        return node;
+    }
+
+    /// 把 Token 变量名拷进名字池，返回下标。
+    std::uint16_t glrStoreName(std::string_view name)
+    {
+        if (name.empty() || (m_glrNames.size() >= kInvalidIndex))
+        {
+            return kInvalidIndex;
+        }
+        m_glrNames.emplace_back(name);
+        return static_cast<std::uint16_t>(m_glrNames.size() - 1u);
+    }
+
+    /**
+     * @brief 记录一条被接受的路径。
+     * @param value 路径根语义值。
+     * @param tree 路径根语法树；非 %tree 时是 nullptr。
+     */
+    void glrRecordResult(const ParserValue_T &value, const Tree *tree, std::uint64_t forestNode)
+    {
+        if (m_glrResolver)
+        {
+            if (!m_glrResults.empty())
+            {
+                if (!m_glrResolver(m_glrResults.front(), value))
+                {
+                    return;
+                }
+                clearGlrResults();
+            }
+        }
+        m_glrResults.push_back(value);
+        if (m_glrForestCache != nullptr)
+            m_glrForestCache->forestRoots.push_back(forestNode);
+        if (tree != nullptr)
+        {
+            m_glrTrees.push_back(cloneTree(*tree));
+        }
+    }
+
+    /// 用一条路径上的语义值执行一次归约，并按 GOTO 建一条边。
+    Status glrReduceApply(GlrPos &pos, std::uint16_t startNode,
+                          std::uint16_t production, bool treeMode)
+    {
+        LrStack stack;
+        ParseResult result;
+        const std::uint32_t length = kProductionLength[production];
+        const std::uint16_t lhs = kProductionLhs[production];
+        const std::uint16_t target = kGoto[m_glrNodes[startNode].state][lhs];
+        if (target == kInvalidState)
+        {
+            return Status::Ok;
+        }
+        const std::uint16_t node = glrNodeFor(pos, target);
+        if (node == kInvalidIndex)
+        {
+            return Status::ErrStack;
+        }
+        const std::uint16_t symbol =
+            static_cast<std::uint16_t>(kTerminalCount + lhs);
+        const std::uint64_t forestNode = glrForestReduce(symbol, production, length);
+        // 路径合并：同一条归约边已存在时不重复执行语义动作
+        if (!treeMode && glrEdgeExists(node, startNode, symbol, production))
+        {
+            return Status::Ok;
+        }
+        std::uint32_t startToken = m_glrTokenIndex;
+        std::uint32_t endToken = m_glrTokenIndex;
+        stack.grow(length);
+        stack.top = length;
+        for (std::uint32_t index = 0u; index < length; ++index)
+        {
+            const GlrEdge &edge = m_glrEdges[m_glrPathEdges[index]];
+            if (index == 0u)
+            {
+                startToken = edge.startToken;
+            }
+            endToken = edge.endToken;
+            stack.symbols[index] = edge.symbol;
+            stack.values[index] = edge.value;
+            if (edge.nameSlot != kInvalidIndex)
+            {
+                stack.names[index] = m_glrNames[edge.nameSlot];
+            }
+            else
+            {
+                stack.names[index].clear();
+            }
+            if (treeMode && (edge.tree != nullptr))
+            {
+                stack.nodes[index] = cloneTree(*edge.tree);
+            }
+        }
+        ParserMemory::UniquePtr<Tree> nodeTree;
+        if (treeMode)
+        {
+            nodeTree = makeBranch(stack.nodes, treeTreeName(lhs), 0u, length);
+        }
+        else if (applyActionCode(production, &stack, result) != Status::Ok)
+        {
+            return Status::ErrSyntax;
+        }
+        const int added = glrAddEdge(node, startNode, symbol, production,
+                                     kInvalidIndex, result.value,
+                                     std::move(nodeTree), true, treeMode,
+                                     startToken, endToken);
+        if (added < 0)
+        {
+            return Status::ErrStack;
+        }
+        if (added > 0)
+        {
+            m_glrEdges.back().forestNode = forestNode;
+            GlrReduceEntry entry;
+            entry.production = production;
+            entry.startToken = startToken;
+            entry.endToken = endToken;
+            entry.fromNode = startNode;
+            entry.toNode = node;
+            entry.forestNode = forestNode;
+            m_glrReduceEntries.push_back(entry);
+            glrQueue(node);
+        }
+        return Status::Ok;
+    }
+
+    /// 深度优先枚举长度为 length 的归约路径（pathEdges 按右部顺序回填）。
+    Status glrReduceWalk(GlrPos &pos, std::uint16_t node, std::uint32_t depth,
+                         std::uint32_t length, std::uint16_t production,
+                         bool treeMode)
+    {
+        if (depth == length)
+        {
+            return glrReduceApply(pos, node, production, treeMode);
+        }
+        ++m_glrPathVisits;
+        if (m_glrPathVisits > kMaxPathVisits)
+        {
+            return Status::ErrStack;
+        }
+        if ((length - 1u - depth) >= kMaxPathDepth)
+        {
+            return Status::ErrStack;
+        }
+        // 归约过程中可能往本节点加边，所以按快照长度按下标遍历（不用迭代器）；
+        // 倒序走是为了和 C 目标一致——那边的边是单链表，新边插在表头。
+        const std::size_t count = m_glrNodes[node].edges.size();
+        for (std::size_t index = count; index-- > 0u;)
+        {
+            const std::uint16_t edge = m_glrNodes[node].edges[index];
+            m_glrPathEdges[length - 1u - depth] = edge;
+            const Status status = glrReduceWalk(
+                pos, m_glrEdges[edge].fromNode, depth + 1u, length, production,
+                treeMode);
+            if (status != Status::Ok)
+            {
+                return status;
+            }
+        }
+        return Status::Ok;
+    }
+
+    /// 在一个节点上执行一个候选动作（只处理归约）。
+    Status glrApplyAction(GlrPos &pos, std::uint16_t node, std::int32_t action,
+                          bool treeMode)
+    {
+        if (action >= 0)
+        {
+            return Status::Ok;
+        }
+        const std::uint16_t production =
+            static_cast<std::uint16_t>(-action - 1);
+        const std::uint32_t length = kProductionLength[production];
+        if (length > kMaxPathDepth)
+        {
+            return Status::ErrStack;
+        }
+        return glrReduceWalk(pos, node, 0u, length, production, treeMode);
+    }
+
+    /// 执行一个节点在当前 Token 上的全部归约动作（主动作 + 冲突候选）。
+    Status glrReduceNode(GlrPos &pos, std::uint16_t node, std::uint16_t token,
+                         bool treeMode)
+    {
+        const std::uint16_t state = m_glrNodes[node].state;
+        if ((state >= kStateCount) || (token >= kTerminalCount))
+        {
+            return Status::ErrSyntax;
+        }
+        Status status =
+            glrApplyAction(pos, node, kAction[state][token], treeMode);
+        if (status != Status::Ok)
+        {
+            return status;
+        }
+        const std::uint32_t count = kGlrExtraCount[state][token];
+        if (count == 0u)
+        {
+            return Status::Ok;
+        }
+        const std::uint32_t start = kGlrExtraStart[state][token];
+        for (std::uint32_t index = 0u; index < count; ++index)
+        {
+            status = glrApplyAction(pos, node, kGlrExtraData[start + index],
+                                    treeMode);
+            if (status != Status::Ok)
+            {
+                return status;
+            }
+        }
+        return Status::Ok;
+    }
+
+    /// 把本轮所有活跃节点在 Token 上移进，生成下一轮节点。
+    Status glrShiftRound(GlrPos &cur, GlrPos &next, std::uint16_t token,
+                         bool treeMode)
+    {
+        const std::size_t nodeCount = cur.nodes.size();
+        for (std::size_t index = 0u; index < nodeCount; ++index)
+        {
+            const std::uint16_t node = cur.nodes[index];
+            const std::uint16_t state = m_glrNodes[node].state;
+            if (state >= kStateCount)
+            {
+                continue;
+            }
+            const std::uint32_t count = kGlrExtraCount[state][token];
+            for (std::uint32_t cursor = 0u; cursor <= count; ++cursor)
+            {
+                const std::int32_t action =
+                    (cursor == 0u)
+                        ? kAction[state][token]
+                        : kGlrExtraData[kGlrExtraStart[state][token] +
+                                        (cursor - 1u)];
+                if (action <= 0)
+                {
+                    continue;
+                }
+                const std::uint16_t target =
+                    static_cast<std::uint16_t>(action - 1);
+                const ParserValue_T value = tokenValue(m_current);
+                const std::uint16_t nameSlot = glrStoreName(m_current.text);
+                ParserMemory::UniquePtr<Tree> leaf;
+                if (treeMode)
+                {
+                    leaf = makeLeaf(m_current);
+                }
+                const std::uint16_t created = glrNodeFor(next, target);
+                if (created == kInvalidIndex)
+                {
+                    return Status::ErrStack;
+                }
+                if (glrAddEdge(created, node, token, kInvalidIndex, nameSlot,
+                               value, std::move(leaf), true, false,
+                               m_glrTokenIndex, m_glrTokenIndex + 1u) < 0)
+                {
+                    return Status::ErrStack;
+                }
+            }
+        }
+        return Status::Ok;
+    }
+
+    /// 在指定节点上检查接受动作，收集所有被接受路径的结果。
+    Status glrAcceptNode(std::uint16_t node)
+    {
+        const std::uint16_t state = m_glrNodes[node].state;
+        if (state >= kStateCount)
+        {
+            return Status::Ok;
+        }
+        if (kAction[state][static_cast<std::uint16_t>(TokenType::TOKEN_END)] !=
+            kAcceptAction)
+        {
+            return Status::Ok;
+        }
+        // 倒序遍历（C 目标的边是单链表，新边在表头）：结果顺序才与 C 一致
+        const std::size_t count = m_glrNodes[node].edges.size();
+        for (std::size_t index = count; index-- > 0u;)
+        {
+            const GlrEdge &edge = m_glrEdges[m_glrNodes[node].edges[index]];
+            if (edge.symbol != kGlrStartSymbol)
+            {
+                continue;
+            }
+            glrRecordResult(edge.value, edge.tree.get(), edge.forestNode);
+        }
+        return Status::Ok;
+    }
+
+    /// 拼一句「这个位置期望哪些 Token」的说明（最多列 4 个，用于报错）。
+    ParserMemory::String glrExpectedTokens(const GlrPos &pos) const
+    {
+        ParserMemory::String listed;
+        std::uint32_t count = 0u;
+        const std::size_t nodeCount = pos.nodes.size();
+        for (std::size_t index = 0u; (index < nodeCount) && (count < 4u);
+             ++index)
+        {
+            const std::uint16_t state = m_glrNodes[pos.nodes[index]].state;
+            if (state >= kStateCount)
+            {
+                continue;
+            }
+            for (std::uint32_t token = 0u;
+                 (token < kTerminalCount) && (count < 4u); ++token)
+            {
+                if (kAction[state][token] == 0)
+                {
+                    continue;
+                }
+                const char *name = tokenName(static_cast<TokenType>(token));
+                if (name == nullptr)
+                {
+                    continue;
+                }
+                if (!listed.empty() && (listed.find(name) != ParserMemory::String::npos))
+                {
+                    continue;
+                }
+                if (!listed.empty())
+                {
+                    listed += " / ";
+                }
+                listed += name;
+                ++count;
+            }
+        }
+        return listed.empty() ? ParserMemory::String("（未知）") : listed;
+    }
+
+    /**
+     * @brief GLR 主循环：按输入位置逐轮并行推进所有可能路径。
+     * @param treeMode 是否构建语法树。
+     * @return Status::Ok 表示至少有一条路径被接受。
+     */
+    Status parseLoopGlr(bool treeMode)
+    {
+{% if chart %}        const Status chartStatus = chartPrecheck();
+        if (chartStatus != Status::Ok)
+        {
+            return chartStatus;
+        }
+{% endif %}
+        GlrPos *cur = &m_glrPos[0];
+        GlrPos *next = &m_glrPos[1];
+        std::uint32_t deleted = 0u;
+        bool recovering = false;
+        clearModeResults();
+        const std::uint16_t startNode = glrNodeFor(*cur, 0u);
+        if (startNode == kInvalidIndex)
+        {
+            setError(failCode(Status::ErrStack), m_current.line,
+                     m_current.column, "{{ lr_name }} GSS 图容量不足");
+            return Status::ErrStack;
+        }
+        glrQueue(startNode);
+        for (;;)
+        {
+            const std::uint16_t token =
+                static_cast<std::uint16_t>(m_current.type);
+            while (!m_glrWork.empty())
+            {
+                const std::uint16_t node = glrDequeue();
+                const Status status = glrReduceNode(*cur, node, token, treeMode);
+                if (status != Status::Ok)
+                {
+                    setError(failCode(status), m_current.line, m_current.column,
+                             "{{ lr_name }} GLR 归约失败");
+                    clearGlrResults();
+                    return status;
+                }
+            }
+            if (m_current.type == TokenType::TOKEN_END)
+            {
+                for (const std::uint16_t node : cur->nodes)
+                {
+                    const Status status = glrAcceptNode(node);
+                    if (status != Status::Ok)
+                    {
+                        setError(failCode(status), m_current.line,
+                                 m_current.column,
+                                 "{{ lr_name }} GLR 接受阶段失败");
+                        clearGlrResults();
+                        return status;
+                    }
+                }
+                break;
+            }
+            next->clear();
+            const Status status = glrShiftRound(*cur, *next, token, treeMode);
+            if (status != Status::Ok)
+            {
+                setError(failCode(status), m_current.line, m_current.column,
+                         "{{ lr_name }} GLR 移进失败");
+                clearGlrResults();
+                return status;
+            }
+            if (next->nodes.empty())
+            {
+                // 死路：所有活跃路径都接不上这个 Token。不立刻杀——报一条错后
+                // 进入恢复模式，把活的那些路径原样留在图里，靠吞 Token 找下一个
+                // 能接上的位置（其它路径继续活着，这就是 GLR 的 panic mode）。
+                // 恢复期间不重复报错，一次恢复只报一条。
+                if (!recovering)
+                {
+                    setError(failCode(Status::ErrSyntax), m_current.line,
+                             m_current.column,
+                             "语法错误：遇到 " +
+                                 tokenTypeText(m_current.type) + "，" +
+                                 ParserMemory::toString(cur->nodes.size()) +
+                                 " 条活跃路径都没有匹配动作（期望 " +
+                                 glrExpectedTokens(*cur) + "）");
+                    if (m_errors.size() >= kMaxErrors)
+                    {
+                        // 错误表满了：不再恢复（与 LR / LL 的约定一致）
+                        clearGlrResults();
+                        return Status::ErrSyntax;
+                    }
+                    recovering = true;
+                    deleted = 0u;
+                }
+                if (m_current.type == TokenType::TOKEN_END)
+                {
+                    // 已经到输入末尾还是接不上：没得吞了，放弃
+                    clearGlrResults();
+                    return Status::ErrSyntax;
+                }
+                if (kHasSyncTokens && isSyncToken(token))
+                {
+                    // 吞到 %sync 锚点了：连锚点一起吞掉，本轮恢复到此为止，
+                    // 从锚点之后按正常模式重新开始（免得一路吞过语句边界）
+                    if (advance() != Status::Ok)
+                    {
+                        clearGlrResults();
+                        return Status::ErrLexer;
+                    }
+                    recovering = false;
+                    deleted = 0u;
+                }
+                else
+                {
+                    if (advance() != Status::Ok)
+                    {
+                        clearGlrResults();
+                        return Status::ErrLexer;
+                    }
+                    ++deleted;
+                    if (deleted > kGlrMaxRecoveryDeletes)
+                    {
+                        clearGlrResults();
+                        return Status::ErrSyntax;
+                    }
+                }
+                ++m_glrTokenIndex;
+                // 活跃集合没动，只是输入前进了一个 Token：用新 Token 重跑归约，
+                // 下一轮再试着移进。
+                for (const std::uint16_t node : cur->nodes)
+                {
+                    glrQueue(node);
+                }
+                continue;
+            }
+            std::swap(cur, next);
+            recovering = false;
+            deleted = 0u;
+            for (const std::uint16_t node : cur->nodes)
+            {
+                glrQueue(node);
+            }
+            if (advance() != Status::Ok)
+            {
+                clearGlrResults();
+                return Status::ErrLexer;
+            }
+            ++m_glrTokenIndex;
+        }
+        if (m_glrResults.empty())
+        {
+            setError(failCode(Status::ErrSyntax), m_current.line,
+                     m_current.column, "没有可接受的解析路径");
+            return Status::ErrSyntax;
+        }
+        return Status::Ok;
+    }
+
+    /**
+     * @brief GLR 入口（文本模式）。
+     * @param text 输入文本。
+     * @param treeMode 是否构建语法树。
+     * @return Status::Ok 表示成功。
+     */
+    Status runGlr(std::string_view text, bool treeMode)
+    {
+        if (prepareText(text) != Status::Ok)
+        {
+            return Status::ErrLexer;
+        }
+        return parseLoopGlr(treeMode);
+    }
+
+    /// 为 GLR 增量实验采集 Token span，不预读 LR(k) lookahead 窗口。
+    Status prepareGlrIncrementalLex(std::string_view text)
+    {
+        m_input.assign(text);
+        m_text = m_input.c_str();
+        m_textPos = 0u;
+        m_tokenArray = nullptr;
+        m_tokenCount = 0u;
+        m_tokenPos = 0u;
+        m_textMode = true;
+        m_errors.clear();
+        m_commits.clear();
+        m_lexeme.clear();
+        m_errorStatus = 0;
+        m_line = 1u;
+        m_column = 1u;
+        m_current = Token();
+        m_lookahead.clear();
+        return Status::Ok;
+    }
+
+    Status collectGlrTokenSpans(std::string_view text,
+                                ParserMemory::Vector<GlrTokenSpan> &tokens)
+    {
+        tokens.clear();
+        const Status ready = prepareGlrIncrementalLex(text);
+        if (ready != Status::Ok)
+        {
+            return Status::ErrLexer;
+        }
+        for (;;)
+        {
+            const Status status = advance();
+            if (status != Status::Ok)
+            {
+                return status;
+            }
+            if (m_current.type == TokenType::TOKEN_END)
+            {
+                return Status::Ok;
+            }
+            GlrTokenSpan item;
+            item.type = m_current.type;
+            item.text.assign(m_current.text.data(), m_current.text.size());
+            item.line = m_current.line;
+            item.column = m_current.column;
+            item.offset = m_current.offset;
+            item.length = static_cast<std::uint32_t>(m_current.text.size());
+            tokens.push_back(std::move(item));
+        }
+    }
+
+    static bool sameGlrTokenSpan(const GlrTokenSpan &left,
+                                 const GlrTokenSpan &right)
+    {
+        return (left.type == right.type) && (left.text == right.text);
+    }
+
+    static GlrTokenChange diffGlrTokenSpans(
+        const ParserMemory::Vector<GlrTokenSpan> &oldTokens,
+        const ParserMemory::Vector<GlrTokenSpan> &newTokens)
+    {
+        GlrTokenChange change;
+        const std::size_t prefixLimit = std::min(oldTokens.size(), newTokens.size());
+        while ((change.oldBegin < prefixLimit) &&
+               sameGlrTokenSpan(oldTokens[change.oldBegin],
+                                newTokens[change.oldBegin]))
+        {
+            ++change.oldBegin;
+        }
+        change.newBegin = change.oldBegin;
+
+        std::size_t oldEnd = oldTokens.size();
+        std::size_t newEnd = newTokens.size();
+        while ((oldEnd > change.oldBegin) && (newEnd > change.newBegin) &&
+               sameGlrTokenSpan(oldTokens[oldEnd - 1u], newTokens[newEnd - 1u]))
+        {
+            --oldEnd;
+            --newEnd;
+        }
+        change.oldEnd = oldEnd;
+        change.newEnd = newEnd;
+        change.changed = (change.oldBegin != change.oldEnd) ||
+                         (change.newBegin != change.newEnd) ||
+                         (oldTokens.size() != newTokens.size());
+        return change;
+    }
+
+    static bool reduceEntryTouchesChange(const GlrReduceEntry &entry,
+                                         const GlrTokenChange &change)
+    {
+        if (!change.changed)
+        {
+            return false;
+        }
+        if (change.oldBegin == change.oldEnd)
+        {
+            return (entry.startToken <= change.oldBegin) &&
+                   (change.oldBegin <= entry.endToken);
+        }
+        return (entry.startToken < change.oldEnd) &&
+               (entry.endToken > change.oldBegin);
+    }
+
+    static ParserMemory::Vector<std::size_t> invalidatedGlrReduceEntries(
+        const ParserMemory::Vector<GlrReduceEntry> &entries,
+        const GlrTokenChange &change)
+    {
+        ParserMemory::Vector<std::size_t> invalidated;
+        for (std::size_t index = 0u; index < entries.size(); ++index)
+        {
+            if (reduceEntryTouchesChange(entries[index], change))
+            {
+                invalidated.push_back(index);
+            }
+        }
+        return invalidated;
+    }
+
+    std::uint64_t glrForestNode(std::uint32_t symbol, std::uint32_t start,
+                                std::uint32_t end, bool terminal,
+                                std::string_view text = {})
+    {
+        auto &cache = *m_glrForestCache;
+        const std::array<std::uint32_t, 3> key{symbol, start, end};
+        auto found = m_glrForestIndex.find(key);
+        if (found != m_glrForestIndex.end()) return cache.forest[found->second].id;
+        GlrForestNode node;
+        node.id = cache.nextForestId++;
+        node.symbol = symbol;
+        node.startToken = start;
+        node.endToken = end;
+        node.terminal = terminal;
+        node.text.assign(text.data(), text.size());
+        const auto index = cache.forest.size();
+        m_glrForestIndex.emplace(key, index);
+        m_glrForestIds.emplace(node.id, index);
+        cache.forest.push_back(std::move(node));
+        m_glrForestSeen.emplace_back();
+        return cache.forest.back().id;
+    }
+
+    std::uint64_t glrForestReduce(std::uint32_t symbol, std::uint16_t production,
+                                  std::uint32_t length)
+    {
+        if (m_glrForestCache == nullptr) return 0u;
+        ParserMemory::Vector<std::uint64_t> children;
+        for (std::uint32_t i = 0u; i < length; ++i)
+            children.push_back(m_glrEdges[m_glrPathEdges[i]].forestNode);
+        const auto start = length ? m_glrEdges[m_glrPathEdges[0]].startToken : m_glrTokenIndex;
+        const auto end = length ? m_glrEdges[m_glrPathEdges[length - 1u]].endToken : m_glrTokenIndex;
+        const auto id = glrForestNode(symbol, start, end, false);
+        const auto index = m_glrForestIds.at(id);
+        auto &alternatives = m_glrForestCache->forest[index].alternatives;
+        for (std::size_t i = 0u; i < alternatives.size(); ++i)
+        {
+            if ((alternatives[i].production == production) && (alternatives[i].children == children))
+            {
+                m_glrForestSeen[index][i] = true;
+                return id;
+            }
+        }
+        alternatives.push_back({production, std::move(children)});
+        m_glrForestSeen[index].push_back(true);
+        return id;
+    }
+
+    void prepareGlrForest(GlrIncrementalCache &cache, const GlrTokenChange &change,
+                          bool treeMode)
+    {
+        cache.invalidatedForestNodes.clear();
+        cache.invalidatedForestEdgeCount = 0u;
+        cache.reusedForestNodeCount = cache.rebuiltForestNodeCount = 0u;
+        m_glrForestFirstNewId = cache.nextForestId;
+        m_glrForestIds.clear();
+        for (std::size_t i = 0u; i < cache.forest.size(); ++i)
+            m_glrForestIds.emplace(cache.forest[i].id, i);
+        ParserMemory::Vector<bool> dirty(cache.forest.size(), false);
+        ParserMemory::Vector<std::size_t> work;
+        const bool reset = !cache.valid || (cache.status != Status::Ok) || !cache.errors.empty() ||
+            (cache.treeMode != treeMode) || (cache.cachedSemanticRevision != cache.semanticRevision) ||
+            static_cast<bool>(m_glrResolver);
+        cache.valid = false;
+        for (std::size_t i = 0u; i < cache.forest.size(); ++i)
+        {
+            const auto &node = cache.forest[i];
+            // Seed leaves and edit boundaries; ancestors are reached through reverse dependencies.
+            const bool empty = node.startToken == node.endToken;
+            const bool touched = change.changed &&
+                ((empty && (node.startToken >= change.oldBegin) && (node.startToken <= change.oldEnd)) ||
+                 (node.terminal && (node.startToken < change.oldEnd) && (node.endToken > change.oldBegin)) ||
+                 ((change.oldBegin == change.oldEnd) && (node.startToken < change.oldBegin) &&
+                  (node.endToken > change.oldBegin)));
+            if (reset || touched) { dirty[i] = true; work.push_back(i); }
+        }
+        for (std::size_t cursor = 0u; cursor < work.size(); ++cursor)
+        {
+            for (const auto parent : cache.forest[work[cursor]].parents)
+            {
+                const auto found = m_glrForestIds.find(parent);
+                if ((found != m_glrForestIds.end()) && !dirty[found->second])
+                { dirty[found->second] = true; work.push_back(found->second); }
+            }
+        }
+        ParserMemory::Vector<GlrForestNode> retained;
+        for (std::size_t i = 0u; i < cache.forest.size(); ++i)
+        {
+            auto &node = cache.forest[i];
+            if (dirty[i])
+            {
+                cache.invalidatedForestNodes.push_back(node.id);
+                for (const auto &alternative : node.alternatives)
+                    cache.invalidatedForestEdgeCount += alternative.children.size();
+                continue;
+            }
+            if (change.changed && (node.startToken >= change.oldEnd))
+            {
+                const auto delta = static_cast<std::int64_t>(change.newEnd) - static_cast<std::int64_t>(change.oldEnd);
+                node.startToken = static_cast<std::uint32_t>(node.startToken + delta);
+                node.endToken = static_cast<std::uint32_t>(node.endToken + delta);
+            }
+            retained.push_back(std::move(node));
+        }
+        cache.forest = std::move(retained);
+        cache.forestRoots.clear();
+        m_glrForestIndex.clear();
+        m_glrForestIds.clear();
+        m_glrForestSeen.clear();
+        for (std::size_t i = 0u; i < cache.forest.size(); ++i)
+        {
+            const auto &node = cache.forest[i];
+            m_glrForestIndex.emplace(std::array<std::uint32_t, 3>{node.symbol, node.startToken, node.endToken}, i);
+            m_glrForestIds.emplace(node.id, i);
+            m_glrForestSeen.emplace_back(node.alternatives.size(), false);
+        }
+    }
+
+    void finishGlrForest(GlrIncrementalCache &cache, Status status)
+    {
+        if (status != Status::Ok) cache.forestRoots.clear();
+        // Only retain alternatives witnessed by this parse and reachable from accepted roots.
+        for (std::size_t i = 0u; i < cache.forest.size(); ++i)
+        {
+            auto &node = cache.forest[i];
+            ParserMemory::Vector<GlrForestAlternative> alternatives;
+            for (std::size_t j = 0u; j < node.alternatives.size(); ++j)
+                if (m_glrForestSeen[i][j]) alternatives.push_back(std::move(node.alternatives[j]));
+            node.alternatives = std::move(alternatives);
+            node.parents.clear();
+        }
+        ParserMemory::Vector<bool> live(cache.forest.size(), false);
+        auto work = cache.forestRoots;
+        for (std::size_t cursor = 0u; cursor < work.size(); ++cursor)
+        {
+            const auto index = m_glrForestIds.at(work[cursor]);
+            if (live[index]) continue;
+            live[index] = true;
+            const auto &node = cache.forest[index];
+            for (const auto &alternative : node.alternatives)
+                for (const auto child : alternative.children)
+                {
+                    auto &parents = cache.forest[m_glrForestIds.at(child)].parents;
+                    if (std::find(parents.begin(), parents.end(), node.id) == parents.end()) parents.push_back(node.id);
+                    work.push_back(child);
+                }
+        }
+        ParserMemory::Vector<GlrForestNode> forest;
+        for (std::size_t i = 0u; i < cache.forest.size(); ++i)
+            if (live[i])
+            {
+                if (cache.forest[i].id < m_glrForestFirstNewId) ++cache.reusedForestNodeCount;
+                else ++cache.rebuiltForestNodeCount;
+                forest.push_back(std::move(cache.forest[i]));
+            }
+        cache.forest = std::move(forest);
+    }
+
+    void restoreGlrIncrementalCache(const GlrIncrementalCache &cache)
+    {
+        clearModeResults();
+        m_errors = cache.errors;
+        m_commits = cache.commits;
+        m_glrResults = cache.results;
+    }
+
+    void storeGlrIncrementalCache(std::string_view text,
+                                  bool treeMode,
+                                  Status status,
+                                  ParserMemory::Vector<GlrTokenSpan> tokens,
+                                  GlrTokenChange change,
+                                  ParserMemory::Vector<std::size_t> invalidated,
+                                  GlrIncrementalCache &cache)
+    {
+        cache.valid = true;
+        cache.treeMode = treeMode;
+        cache.text.assign(text.data(), text.size());
+        cache.status = status;
+        cache.errors = m_errors;
+        cache.commits = m_commits;
+        cache.tokens = std::move(tokens);
+        cache.tokenChange = change;
+        cache.semanticResultsReusable =
+            (cache.semanticReuse == GlrSemanticReusePolicy::Pure) &&
+            !treeMode && !m_glrResolver && (status == Status::Ok);
+        cache.cachedSemanticRevision = cache.semanticRevision;
+        cache.results = cache.semanticResultsReusable
+                            ? m_glrResults : ParserMemory::Vector<ParserValue_T>();
+        cache.reduceEntries = m_glrReduceEntries;
+        cache.invalidatedReduceEntries = std::move(invalidated);
+        cache.resultCount = m_glrResults.size();
+        cache.forestNodeCount = m_glrNodes.size();
+        cache.forestEdgeCount = m_glrEdges.size();
+        cache.reduceVisitCount = m_glrPathVisits;
+    }
+
+    /**
+     * @brief GLR 增量实验入口。
+     *
+     * 同文本 Pure 复用成功语义结果；文本变化时传递失效并局部修补 packed forest。
+     * GSS 控制流程与语义动作仍重跑，Tree 结果重新物化。
+     */
+    Status runGlrIncremental(std::string_view text,
+                             GlrIncrementalCache &cache,
+                             bool treeMode)
+    {
+        cache.reusedSemanticResults = false;
+        if ((cache.semanticReuse == GlrSemanticReusePolicy::Pure) &&
+            cache.semanticResultsReusable &&
+            (cache.cachedSemanticRevision == cache.semanticRevision) &&
+            !m_glrResolver && !treeMode && cache.valid && !cache.treeMode &&
+            (cache.status == Status::Ok) &&
+            (cache.text.size() == text.size()) &&
+            std::equal(cache.text.begin(), cache.text.end(), text.begin()))
+        {
+            restoreGlrIncrementalCache(cache);
+            cache.reusedSemanticResults = true;
+            cache.tokenChange = GlrTokenChange();
+            cache.invalidatedReduceEntries.clear();
+            cache.invalidatedForestEdgeCount = 0u;
+            cache.invalidatedForestNodes.clear();
+            cache.reusedForestNodeCount = cache.forest.size();
+            cache.rebuiltForestNodeCount = 0u;
+            return cache.status;
+        }
+
+        ParserMemory::Vector<GlrTokenSpan> tokens;
+        const Status lexStatus = collectGlrTokenSpans(text, tokens);
+        const GlrTokenChange change =
+            cache.valid ? diffGlrTokenSpans(cache.tokens, tokens)
+                        : GlrTokenChange();
+        ParserMemory::Vector<std::size_t> invalidated =
+            invalidatedGlrReduceEntries(cache.reduceEntries, change);
+        prepareGlrForest(cache, change, treeMode);
+        ParserMemory::UnorderedMap<std::uint64_t, bool> invalidIds;
+        for (const auto id : cache.invalidatedForestNodes) invalidIds.emplace(id, true);
+        ParserMemory::Vector<bool> invalidEntries(cache.reduceEntries.size(), false);
+        for (const auto index : invalidated) invalidEntries[index] = true;
+        for (std::size_t i = 0u; i < cache.reduceEntries.size(); ++i)
+            if (invalidIds.count(cache.reduceEntries[i].forestNode) && !invalidEntries[i]) invalidated.push_back(i);
+        m_glrForestCache = &cache;
+        struct ForestScope
+        {
+            GlrIncrementalCache *&active;
+            ~ForestScope() { active = nullptr; }
+        } scope{m_glrForestCache};
+        // Chart prechecks can return before the GLR loop clears its previous results.
+        clearModeResults();
+        if (lexStatus != Status::Ok)
+        {
+            finishGlrForest(cache, lexStatus);
+            storeGlrIncrementalCache(text, treeMode, lexStatus, std::move(tokens),
+                                     change, std::move(invalidated), cache);
+            return lexStatus;
+        }
+
+        const Status status = runGlr(text, treeMode);
+        finishGlrForest(cache, status);
+        storeGlrIncrementalCache(text, treeMode, status, std::move(tokens),
+                                 change, std::move(invalidated), cache);
+        return status;
+    }
+
+    /**
+     * @brief GLR 模式下的统一入口：把第 0 个结果写出去。
+     * @param out 输出语义值；可为 nullptr。
+     * @param outTree 输出语法树；treeMode 为 true 时使用。
+     * @param treeMode 是否构建语法树。
+     * @return Status::Ok 表示成功。
+     */
+    Status runLoop(ParserValue_T *out, ParserMemory::UniquePtr<Tree> *outTree,
+                   bool treeMode = false)
+    {
+        const Status status = parseLoopGlr(treeMode);
+        if (status != Status::Ok)
+        {
+            return status;
+        }
+        if (out != nullptr)
+        {
+            *out = m_glrResults.front();
+        }
+        if ((outTree != nullptr) && (!m_glrTrees.empty()))
+        {
+            *outTree = cloneTree(*m_glrTrees.front());
+        }
+        return Status::Ok;
+    }
+
+    /// GLR 状态：图、结果、名字池与歧义解决回调。
+    ParserMemory::Vector<GlrNode> m_glrNodes;
+    GlrIncrementalCache *m_glrForestCache = nullptr;
+    ParserMemory::Map<std::array<std::uint32_t, 3>, std::size_t> m_glrForestIndex;
+    ParserMemory::UnorderedMap<std::uint64_t, std::size_t> m_glrForestIds;
+    ParserMemory::Vector<ParserMemory::Vector<bool>> m_glrForestSeen;
+    std::uint64_t m_glrForestFirstNewId = 1u;
+    ParserMemory::Vector<GlrEdge> m_glrEdges;
+    GlrPos m_glrPos[2];
+    ParserMemory::Deque<std::uint16_t> m_glrWork;
+    ParserMemory::Vector<bool> m_glrQueued;
+    ParserMemory::Vector<ParserMemory::String> m_glrNames;
+    ParserMemory::Vector<ParserValue_T> m_glrResults;
+    ParserMemory::Vector<ParserMemory::UniquePtr<Tree>> m_glrTrees;
+    Engine::AmbiguityResolver m_glrResolver;
+    ParserMemory::Vector<std::uint16_t> m_glrPathEdges;
+    ParserMemory::Vector<GlrReduceEntry> m_glrReduceEntries;
+    std::uint32_t m_glrTokenIndex = 0u;
+    std::uint32_t m_glrPathVisits = 0u;

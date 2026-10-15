@@ -1,0 +1,6 @@
+{# 二维整数表（`&[&[...], ...]`）：每行一个内层数组、行末一个逗号；内层数组的
+   排版复用 rust_int_array 的规则（缩进 `indent` + 6 空格）。 #}
+&[
+{% for r in rows %}{{ indent }}    &[{% for v in r.items %}{% if v.br %},
+{{ indent }}      {% else %}{% if loop_first %}{% else %}, {% endif %}{% endif %}{{ v.value }}{% endfor %}],
+{% endfor %}{{ indent }}]

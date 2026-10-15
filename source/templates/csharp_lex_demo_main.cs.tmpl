@@ -1,0 +1,38 @@
+    /** 把标准输入整个读进来（读到 EOF）。 */
+    private static string _readAll()
+    {
+        System.Text.StringBuilder outText = new System.Text.StringBuilder();
+        string line;
+        while ((line = System.Console.In.ReadLine()) != null)
+        {
+            outText.Append(line).Append("\n");
+        }
+        return outText.ToString();
+    }
+
+    /** 读标准输入到 EOF，逐个打印 Token 的类型与词素。 */
+    public static void Main(string[] args)
+    {
+        string text = _readAll();
+        Parser lexer = new Parser();
+        List<Token> tokens = new List<Token>();
+        int status = lexer.tokenize(text, tokens);
+        for (int index = 0; index < tokens.Count; index++)
+        {
+            Token item = tokens[index];
+            System.Console.WriteLine(string.Format(
+                "{0,-12} {1,-12} {2}:{3}",
+                Token.tokenName(item.type), "\"" + item.text + "\"",
+                item.line, item.column));
+        }
+        if (status != Parser.STATUS_OK)
+        {
+            Parser.ParserError error = lexer.lastError();
+            System.Console.WriteLine("词法错误: code=" + error.code + " line=" +
+                                     error.line + " column=" + error.column +
+                                     " message=" + error.message);
+            System.Environment.Exit(1);
+        }
+        System.Console.WriteLine("共 " + (tokens.Count - 1) + " 个 Token");
+        System.Environment.Exit(0);
+    }

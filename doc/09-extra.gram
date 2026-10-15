@@ -1,0 +1,437 @@
+/* ==========================================================================
+ *  09 封存外传 —— 文法即钥匙
+ *
+ *  这份文件是《满级文法》正文里撤下段落的**封条**。它不是一段裸的密文：
+ *  本体是一门小语言的音节语料，能不能读出来，取决于你能不能写出
+ *  **符合下面这套文法的那句口令**。解析成功 -> seal_open() 才把语料解回来；
+ *  解析失败 -> 什么都不会发生。
+ *
+ *  语言的写法（音节的拼写规则）与"咒式"骨架都在文法和 %code 里，
+ *  想读被封住的段落，就按本仓库的老规矩：请出解析器生成器。
+ *
+ *  文法：咒头 "fu"、句读 "."、连接 "-"、收尾 ";qi"；子句可以带编号、可以嵌套。
+ * ========================================================================== */
+%lang cpp17
+%prefix Extra
+%value_type int
+%example "fu: <词>-<词>.<词>;qi"
+
+%token OPEN "fu"
+%token CLOSE "qi"
+%token DOT "."
+%token COMMA ","
+%token SEMI ";"
+%token COLON ":"
+%token DASH "-"
+%token STAR "*"
+%token LP "("
+%token RP ")"
+%token regex NUM "[0-9]+"
+%token regex WORD "[a-z][a-z0-9]*"
+%space " \t\r"
+%token NL "\n"
+
+%start seal
+
+seal := OPEN COLON clause_list SEMI CLOSE { seal_feed($1); seal_feed($2); seal_feed($4); seal_feed($5); seal_mark(1); seal_open(); $$ = 0; }
+
+clause_list := clause                     { seal_mark(2); $$ = 0; }
+clause_list := clause_list DOT clause     { seal_feed($2); seal_mark(3); $$ = 0; }
+
+clause := term_list                       { seal_mark(4); $$ = 0; }
+clause := term_list COMMA NUM             { seal_feed($2); seal_feed($3); seal_mark(5); $$ = 0; }
+clause := term_list LP clause_list RP     { seal_feed($2); seal_feed($4); seal_mark(6); $$ = 0; }
+clause := STAR term_list                  { seal_feed($1); seal_mark(7); $$ = 0; }
+
+term_list := term                         { seal_mark(8); $$ = 0; }
+term_list := term_list DASH term          { seal_feed($2); seal_mark(9); $$ = 0; }
+
+term := WORD                              { seal_feed($1); seal_mark(10); $$ = 0; }
+term := NUM                               { seal_feed($1); seal_mark(11); $$ = 0; }
+term := LP clause_list RP                 { seal_feed($1); seal_feed($3); seal_mark(12); $$ = 0; }
+
+%code
+/* ==========================================================================
+ *  封条（seal）——语义层
+ *
+ *  这份 .gram 不是"把密文塞进注释"的障眼法：封条本体是一段**用本语言的音节
+ *  逐字转写下来的语料**（下面的 kCorpus），而打开它的**密钥不在文件里**——
+ *  密钥是"输入的那句话"经过文法规约后得到的一条轨迹指纹。
+ *
+ *  也就是说：光看文件只能看到一门语言的音节表和一段读不通的语料；
+ *  想读到封存的中文段落，必须写出一句**符合文法**的话（口令），
+ *  解析成功的那一刻，seal_open() 才会把语料解回来。
+ *
+ *  音节的拼写规则见下（16 声母 × 16 韵母 = 256 个音节，一个音节一个字节）。
+ *  语料里音节之间的空格与换行只是排版，不携带信息。
+ * ========================================================================== */
+#include <cstdio>
+#include <cstdint>
+#include <cstring>
+#include <cstdlib>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace extra {
+
+/* ---------- 一、音节表：一个音节一个字节 ---------- */
+static const char *const kOnset[16] = {
+    "", "b", "p", "m", "f", "d", "t", "n", "l", "g", "k", "h", "z", "c", "s", "y"};
+static const char *const kRime[16] = {
+    "a", "e", "i", "o", "u", "ai", "ei", "ao", "ou", "an", "en", "in", "on", "ang", "eng", "ing"};
+
+/* ---------- 二、语料残篇（封条本体，逐音节转写） ---------- */
+static const char kCorpus[] =
+    "fon seng zing cou a cai ai mao ho lu cai kon su i lo neng fen yang ki yi "
+    "on ei dao ti yen do lang sen fu lai fei lon ti mao ye dou mou kin pe gu "
+    "ying po non gon kang lang fing tao yen pan fing ming dan hen so be kang "
+    "leng pe men sin mon yin zon a yin yao geng fi pon ho ni be si du he ai tin "
+    "bao bao ben ao ging ging mu da can ha la pi bao pe gei ba su fa in nin pou "
+    "zin ou fao bao lo lei ti eng dang tan nin bang mou cai yi ning min din gan "
+    "ton ne ken ding lin gang sei le la go cen king gai ne hei ting fa tao bon "
+    "mei kin ke fai non se min bo zao o hang cang pi so zao ging on ce mei sang "
+    "feng ke kou sa gen lao gin cu ao zu su pou len ken ang gang pon ceng ni "
+    "ying fen ti yao fou gon cao kan bon hang ko pi le yai pou zi fa hu dan fin "
+    "yao ga hou yao king zeng han na he nu hon bin si mao du du ken cang zi gou "
+    "ya zai bo hi ko ni ki kao ten te te min tan man ten ping eng fa ging yi he "
+    "tang kon de you feng yi yu len bu den sao sen co king peng ton fa dao heng "
+    "hin mon ge kan o lao in pang sin e zu tu kin bing yon ming ha mei cang me "
+    "do yi zang fe he ca ha fen on hai hing di ha keng ceng pou cing peng zeng "
+    "ba bai ming mo fon cang mou fou king con cen kan ze ya ba hen dou gan kai "
+    "gang mon o he cing bai yao yai pei dei a lin cou sao se man cou kin pen "
+    "son su bou fo bo hai gi dei fao zing ba kan zu pei cen zon te zi fin zu "
+    "ning lou hon sa sang nao kan hing san po lai ding se gai deng tai ga bin "
+    "fou hin zeng go len o fa yang sing hu fon tei king fi ei pin kon lou fon "
+    "fan hing kang zen bi ba zei bo deng yen mang sen gon co pan you en ga gao "
+    "teng fei ke king nen lu lei beng nan gu nan yen bo hai mao u lu si mai "
+    "ceng gin gou e yi ping yao tan fan in nang nu se zan ye mang ning fei nou "
+    "keng yin be ze bai gan fing ma lon an zin fon za e ging pan gin gei bu ga "
+    "ki zan non a dei ding zo bei can fen ya mao du la son ang din de mei lu "
+    "neng do za dai ting geng can sao ceng le yao fou ban ang dang fa tai con "
+    "lin han ou ken a pen ma bang men pu tai ing in pou ting nao zin yeng tei "
+    "nu mai gao ha pai da pin beng fe sa cai nu fo u mu le na seng so kon zan "
+    "gi pao lin hi ting hon ken sei zo mei la teng hai za ca mou gin ban ming "
+    "bin fon ho la lin pen ton ou dai zan pa yon gi yen fon non mi do ei din "
+    "lao lo ken gou zo fing mei lo bo sai la ling si ben hin ye zi hei hu sao "
+    "cin no deng den pang yin za nen fei cin cen fen mi meng i ga le gi man ge "
+    "te on king ti yen ben he za hing ke yen yu da hu mou zou ei neng mao bu "
+    "yin sin mu me gou mai nin ke con fei pei nin pi yen con zang la zeng hei "
+    "gou yu dan leng li nan zin ting cin dei dou keng ting po hang hi son keng "
+    "go yao yeng mei gen lu gang gu lei cu fei zai zin tao con dou ya o ge hei "
+    "da gen ding bang fa ei gin ze kin lu yon tan la gin son eng heng min zei "
+    "mon kon en yao yang nan bin su fa pan ze go za cao nin no zen pi fi heng "
+    "yon feng nan lang kei zang cen cou yen sei zu fo yao fei lon gon bei kin "
+    "tai zou no mi dou zen fou yo pou lai fao no ying ting you sou tu nao ho "
+    "mai mon ni kei keng fang bing mon cin deng zao dou sang lang ming be dao "
+    "cen ze eng lan fou gai kai lou fan hang pa nao li ci ba gao fing zing hu "
+    "men mon ni zang mou kou tao mi yon gi ming king lang sei dou ao bon ai fen "
+    "beng gang zei kei tang men nei ceng dei ko yang yeng pei man nao yei yin "
+    "te den gang kon fan cei fe cin zo co on geng mei u ning kon hon deng beng "
+    "ing sao o mo men me se seng din me ing a men mo zen ye nang kou sao gen du "
+    "ling nen yao ping da nan din dai ni pai to ha zao tu mang pang da ni san "
+    "sin bo ton lang dai ze ne ba sang gen ling he zu bin tai fao hu ze no sa "
+    "deng hang zou zei zai sen hon li dou yu pang dang o hing pu bi bo nang co "
+    "fa cing ca ma pin yai ke pen ci ci hu ce se nang ni cou cao li fou zeng "
+    "nao bang son bin gou ting dei fe min cei bai teng dou fang dang deng sao "
+    "pa mon dei fang zing hi za di dan yang bi zin hon nin deng ei yei na ki "
+    "yan dou ci ga din mei sing hao hao yin u su nang lao lei kang pen gang "
+    "zang pang dai gang po fai ni sang go ying fen ku zu ging tu cei yai ning "
+    "tou yang ying gu do hou lou gou teng bon meng mei zeng fou ce hei pin yo "
+    "co pon ci ba yen ca yeng dao tao ing cu dei ai sin tu ni no kin te den sen "
+    "lon zen yi kang cing yin leng sei ho ai fa ha pa kin ai yi bei hao ha nei "
+    "bei tou can so bei lai lon fe no hi din ha hon mao nu gang ei ting fen "
+    "feng da e ken yao on bou ha zang fao ga kao ken gen yei du sao bin man pin "
+    "sei mu fei keng zi fo sang fe ping mou bang geng neng za ye dai fan geng "
+    "kon ya fang fai fe za pa ben cao bing nin lin on seng fen keng can si zan "
+    "peng nai ze mi cao sai dao po hing di fao ling zang fon dang no kao ying "
+    "cing sen yi dan ba za tai co mao yon kin du kao te hang cei ma fa a ou yao "
+    "in ba meng bon fei pei cou se hei pa no kin hei tang lao ze tang pin mo ti "
+    "li be ka cen hei li hen pai mo sai fou zao kou bu tin gon nang hei bang u "
+    "fing ang ho fin be bi heng zeng son gon tu lo gin bon han mo gai men tan "
+    "da ten geng fin ling gi zin tan geng fu zin geng nang sou se ton gon eng "
+    "fa ki ta kei ao tai si ken sang pao kai hai co zo cai fao gou ying den zei "
+    "ken nin nan sen fan beng nin di fe ton nao u nao cing kao sai gi fang seng "
+    "ye ce cou gen ci ho lao yao ken bing su zo lu king ze tan sao bai ao lao "
+    "ko zou han dang yan hang ma pou u mai cu za te ying bou nin feng ou min bo "
+    "mei dao din yai bi hen sa pin fai sou o bai hing sao pan ei sing yen zai "
+    "sin hou ban yin zou zon pen to ting te leng teng di i mang bin lon can zai "
+    "peng ha ko te sou an mai ma ha tou ha fang mo dei ze dou teng cai do tin "
+    "hon sen he gang dai fi ta fang nei yu tang pao fing han sou ai ying ga lon "
+    "kai fe ding mu nen bao te nou king gai hao ao fi nin zei gen yao mo lai "
+    "sei kan zin dao ni ho din heng meng en mon hen yei dou bu ging ai se pai "
+    "fin min ao han kang yo mou e yan tai la gao li yao zan eng sei mang ang "
+    "cang zon yeng kin zo lin fei gu meng tei ying kao tin fao bu yi sin ben "
+    "fou mai mon o hen fing dan fo hing dao an beng ten lin fin man dan sei ce "
+    "lu pei nan nou sin hao leng be ki yei hou bu fon po tao ging su pao hou "
+    "beng mi cin su pu man ban le pe yeng ying nou fan beng nang nei ma ban "
+    "kang la lai fon cin deng yon eng sen mei hi din fing tei king ging geng "
+    "deng do fing neng neng kin yeng on bu son min on gei zin ling mei zei yon "
+    "ming po de tou len kan lei king tin ti mao men cao pei fe bei non yo lai "
+    "fan nang gou fin yang ga dang sao hi ang mai gin pin do ei ho a ne pe hai "
+    "ban fu ang kai min nan keng ko hou gan tang ken men nou an hu de cin gan "
+    "mao pan ku se be ce beng man yang pu pang keng lu den mou le lan su kon no "
+    "de e gin gon ye fi heng gi kan zon nai be yen ko ei fon ton bi te hao ga "
+    "zin en lao nang za mang tao ton dei gon yin pon ban pa zeng zao nao dou "
+    "fao gao bou zao fou tao a pu hei an ban an kou len ai ni zi li hon kon ou "
+    "ya zu lu zei lou pei neng tao yai zen ging fan ze ca yi dao pang zang cao "
+    "sang ban dang dan lou mao di ting feng pai zei ken gu mo gen gao nan fu co "
+    "ding no fao cin si zan yu fin gei nai din ko sen li pon de deng yan pan du "
+    "bai ten zan ha teng ling zo ku fin ging tao kan ne lin te man deng hei in "
+    "zin lei pao ben bao tin kang cen ping mang yai lo fo dei deng kou keng bao "
+    "ca deng cu ho san u le zao bi dei hi ceng hang fing fang yeng son zao di "
+    "lai gin gen sou lei na lang pan mon zang pen tou sei cing bang man di tei "
+    "con bei bai cang du mang mou po o tai sei sao tan beng ing fu za to ken "
+    "hao ai ci sang ben bin geng za gon meng kei yang lao nao bu ning hon ping "
+    "ai nei sei fang tin hai ni tei ho eng neng sen gei pen han fe fang nan eng "
+    "pin fe ti hu lo za seng u su han sen non min ten fe gai hon yon i ding san "
+    "yai mu han zo meng pei yang lon zi nen pou ya ping yen ku tu mi dao bu "
+    "gang pei tin ning ma nen lai ing su hou ca cei ming zou mei zu con teng "
+    "zai ci a hao pei fu fai kai sa tai ni bai pou den fu pe beng di fo fan "
+    "tang hang za nu bi to mi yo geng tao fo bing pan po ceng hin sang ze han "
+    "be nei ba nou hao sang heng dai ba hei gi fing fu pai na mo hon hao ning "
+    "sei lu hon zin pa zo lo bu fan fon gin ba dei hu cu le nai fin lang ni su "
+    "fu zeng tou he in hai gei zou ling tin be cang cei a pai sou fao yon feng "
+    "zan ceng dei cen en sen an lai e zu fao fo go da cing gi ce ou ceng to kei "
+    "dan lao gai se kei ki peng gang yang san san gao son bin ou ken ye nou "
+    "ning non mao gi ni fa a o so se hin mou dao ti fan ki gin pei con ding fou "
+    "pe di yo bao yi te teng fang zen men yi dei kin nu sa hen gi ming nu cin "
+    "mao kai fen ye zan bai hen yo mo nang hang fa bi ci hing za man pang nou "
+    "pou fi cei za nei ling ye deng fao no zeng ming fe pe cang ten keng ing yu "
+    "ben cin zon me ou nen yang yang ken kon ko gu dan keng kan dou sai cu yo "
+    "hei min cei gen ming lan meng mei sai cou ning u den ke lo gen men sin lao "
+    "zin fa mo sa zei de cu bo fin yon tu son ging yai zo me you yai ba ni hei "
+    "ni tang son dao mou kei mu ha bon peng zi ki yin nen cen lin dan tang da "
+    "tu gu zon ling ing he u gi fei zu non ni dou bei sing hei gu ma tin fa gin "
+    "zu nan sai gon neng fao on te la pao pin go pao yen gou gon an tou tai pi "
+    "lao san ao ging san mang ou hao hang in an ai sang ze mai nin ma ki kin to "
+    "fao ou feng yao da hang an ge go hon pon can ti pa eng kei sen lei hon be "
+    "man ming do zu mon tu din le cang nai yon ca yei tao gang fan zin don cang "
+    "ku ci tai mu san gei en tin la kon an pang yi ge cang zai cai hei pan bo "
+    "gen nan pang zon bing ma gu bon bei cen fin nin deng ten tin kan fon pou "
+    "ya hin ban la kei ta ma tu nang me ling po cei he mou yen zu yeng fang ma "
+    "ao me cou he ku ben pei mon nao dan zu yao lu lon sen fou lan he ao fe zou "
+    "tang ken bing zi zing neng nou ka teng fai cang lai bai cou lan zen hu su "
+    "ding ga meng sing gin me kai ga zen na be fi kon lou beng bao ben zin su "
+    "ting lo ping u tou sai ni le ao yu pen nei tao lin i zeng zon fao han gang "
+    "te bang lo kan ging nao an sing eng gon lan non yei ka lei ei ai fang pou "
+    "meng neng yao ya yeng peng lou feng ken beng gon pao son lou zou deng nan "
+    "kin si ta nin ding fou da cen he bou zai hou cei dei fei sai pon fo ti e "
+    "zing sai ding o nu beng dao me pin fe ten fao pon din ke to han i hou ken "
+    "kai ai la lan nou pen kang beng on ton pon zeng zao ki ning ne gei bei hi "
+    "su zing nu cai ping lai on sai cu si te gu den go tao mu nai gon pei neng "
+    "de mi hei dan mo fou pa dang geng son sen yei meng keng ba le na zao co "
+    "zin yan yi pin tang zing zan leng don nan ao gai ya zao gai seng son beng "
+    "yan dan ben kin zon pe yon nei yai hei fa bin dao dei na e non pon pa gu "
+    "cin fa ha pe a lan fi mai bon kin di nou an pen nan mou lu kao so nang len "
+    "lan hao dan do hang o men lu nao ten bao min you e yei ling bang ha cu "
+    "fing tang yo na pou fin dou ting ton mo fao nao ga bu peng nou fing nai "
+    "zei la hang on lin fin mi li mao cao ki fing ci cao in ying ou po king ku "
+    "e ing ca keng nin tang ming lu ma ya yu nan lei bon zing ding so geng dai "
+    "lou ce lan ce pou zu tin ton to po dei fan mon pen dou do sai hou tei ping "
+    "peng fing pei mang ton zou fao son zei pin leng ne ba be kin ye bo ga co "
+    "ou tai len gu lou can beng pang sen po dan ye san cai cai geng gan dei ke "
+    "zou lei yen zon dai you sing din fen bing bin ce ao sing kan ze zin zai "
+    "zou bei beng ha cei bon cou ao nou ken sao ca dei ton nang ou fi fen bing "
+    "dou nei gu fen ce fang zeng nou he kai mon so gao can ning zen leng cou "
+    "hen fan sang be kei dei cang pei ko ou beng yao gen zao e lin nou min man "
+    "hou hin mo ko ton bou gou gei hang ying nai bao so ming nai lan can deng "
+    "cou kang hen dei in pin zeng zi teng fei ya sen fin bou you pon cao ma "
+    "yang ceng mei ying ing tou tao si beng keng cen fan pin sei pin ling deng "
+    "fei han zeng hou lai ma cei li sou ma ko ha kao yin geng ding zang hai non "
+    "zi sin len yu be fe dang kon cai ging ling tang lou san fing ha fin hi yin "
+    "gin ne zang gang neng min tou gi ca hai dao ai pa gei hi han sei pou cei "
+    "teng lao kin nei ying ling seng lang han beng ing mu i leng se hei ti zao "
+    "fan peng cu he gao gei ha yu zan dan hei san cang ou hi hang hen cang be "
+    "gou zo hu yu co gai king sa ki zu zeng pan hang ei sao ke yang deng le "
+    "sing dai tao be bao nin pin go bang cing kang di dang cin sei cen ta hin "
+    "tei pou hi ding dan fan fi ba ho pe neng en yei hon nang li gei can lei "
+    "lang gan mai ou kon kou o pi zen yei zen gang meng ge mao u hin ting fa "
+    "gao seng sai nu yan mou fai bao pe geng mai dou ceng bon mei ying yon con "
+    "ben za feng zi lon beng dao gu li zan sin ping gang hai ne meng zao li mon "
+    "ko fang po neng se zan yao hu nei hou fen bu fo dai pen ting lan su feng "
+    "fing hu mang de tu ei yeng ho nin mi yon zou yi ni non co ta mao zo ai bin "
+    "pao bon nen nang ca yeng bi gen ping pu lang na ton ze hang fei pon lao "
+    "lou gou leng nan ton fon le nai en mon deng dei nai sai ko kai sa fen ko "
+    "mi tao ang nou bang bo mai nu hei gin a gon ho nai fu kan don cen yai neng "
+    "za ki ning pi cai cai ei yu cang tai ho ing so nai na san mi len pa zeng "
+    "gen da hang yen pou den ken ou ken on nang bai zang ya hing mai kin leng "
+    "deng cao hang ga nao hou fei nou feng beng ti na sei tao tou lon mi ni "
+    "lang geng hing fan pao se len hou cang pou gen ye be ken cou gi ai nen "
+    "yang mao tou gao fin i do tin fing nan ba gen yi pei pe ne li ba ta a ga "
+    "mao to fou yeng ko le tai u pi ten an eng lang can ma o zen nei zi cai gin "
+    "fin mai fing tei meng lang si pu di ta he ge nen zing ga ging i ya mu ha "
+    "king hen sei mang fao peng e hin mou mang fou peng te gon gu dei lan hai "
+    "tan yao cen gei yon fon cu lu peng seng hang bo gou ai mao ne ing zing zin "
+    "pen ye yao han tang bou lou sei cang man han ting ma dou zi lou za zen "
+    "lang nin ton gen deng hei a fa tin zan ping gin mi bei zai ho hen la za ei "
+    "ou zu kou on sei kao he cing zao se yon hu zu bei len zan ging pei lan "
+    "sang yan nu gan ge fei con dao min mo dan bei kei fo cu ke kan cei nu dai "
+    "tei sa bi san na teng ye si pou cou zon me fao zi lu si na ne gin a hang "
+    "on zo ti me zing on so nen ken zin tang zeng sa ang pa gi zu du lei ta "
+    "bing san fai mo ci dan en ka lang zan yeng sang gei fo lei zei zang na "
+    "meng a nai zan fang neng ang mon lai zou gei yang nen zo sao fan ping ou "
+    "fu fi ni ten bai you mang zu ma to co hang tin dei bon lu heng ceng a pan "
+    "bu hei mao tao cai fen ha fin lei yei an ni kai ye king da con nai fou con "
+    "na ning za ming hai ping bou fei zon yan bi gin zi lang sai pi zao sao ku "
+    "ca zei pan kang don le fei sao ci zon se dao hon ki me bai deng lu o deng "
+    "ging mou ting ci fen non zon ce kei zai eng an yin yao pao an dang sou si "
+    "ye zai den yao eng gu fa ka ao yao lang ging mao pou mao bei zao zeng len "
+    "gan gin ge gu leng nai bao gai zo bou gin hi pen cin ke gen fei kang feng "
+    "dang mou zeng sa fou hen yai dao neng li kao e gei gei hei pen lou hu ai "
+    "pan ten feng cing gao bei ying san dang cing nai pe gei sou con go no ko "
+    "la zen feng kin non son be pon mai hu si fen zei neng ying ou dao nen mei "
+    "peng dai fon ka ping san deng kon pao ke da kan lei yin cin fao no gou pen "
+    "ging pou ho u feng mou tin gin zou tu ou gu ha dou bi be bai nen pang kan "
+    "pang den ang teng bon fin ce tan peng tei do bang ha ce nin cao men tou ye "
+    "te li pi hin ton mang nou se fin hang neng ma nang zon pao ma hing yi gi "
+    "ning lan ga dai fing pao mao zang you sen so gao lang bing man si hang zin "
+    "ca dai da be can zou hou lan lai dan hai fin pai hai bing mai beng lan lai "
+    "go tao mi neng lao fing ni kao bon you zu tei zan men ceng zei cen pe seng "
+    "i pao yeng bao zin si kou bao lou sing ying le pin bai bu dei gao lao zang "
+    "king nin lou leng gou he do du lon hing cin tao lu hai ba ne fai bu hin "
+    "keng cen kon eng zai zang bi de ko dai ken ni sing ken pao zon ke o mao "
+    "hing fu zing lu kan fei bei eng yin pu hai leng bo zan fe nei ang bu hao "
+    "gang fai e he tan fo he hin nou fin a pang ye pin feng cu pou bing sao no "
+    "na yon can mai ton eng tao ko fei mai zon sen ton gou gu fon mon in zan "
+    "hang ceng gin nang king e nen pao te ying gon cai zang bin mo hai fi hang "
+    "pan kou tan ken no sang gao di dang yin hai hon gon fei cing kon hai bai "
+    "da fao le co cing sei cai kou ling tao di teng fi no te pe gang bao sen "
+    "yao king yao hen ceng cing kai bu deng ga con ki deng ting hu din pai mo "
+    "ding ku mei ning len pin du ing in se nou fang to pi sou lo bou su dei sen "
+    "cao co gin in tin man tan pu gin don dou cao bo zei den fu tin dou bou zin "
+    "yon cin ping fai ting ting co hin geng cang ming lon gao ka cen tou sao ha "
+    "bao ci ho fo bang he zin cai ten bu lo ing so ben so nu dang ning din yu "
+    "ca ke fai fei he deng sai nai tang han pang dang zu lao yen kao pu go pen "
+    "nan in ca ao fai zon pei mu yan nai mo ling con lon ka dao seng zao bao ao "
+    "so nan fing fon su yao mao man nang ceng kao bou yeng la le fon li de tu "
+    "fou neng yen beng na ka deng zai pao zon ai son ka fe pi can sen po o mao "
+    "so len zen tin se fou nai ka cao sai mu ";
+
+/* ---------- 三、口令轨迹 -> 密钥 ---------- */
+/* g_h 是"轨迹指纹"：每读到一个词(feed)或归约一条产生式(mark)就搅一次。
+ * 同一批词、不同文法结构 -> 不同的指纹，所以"句子对不对"是文法说了算。 */
+static uint64_t g_h = 0x243F6A8885A308D3ULL;
+static uint64_t g_n = 0;
+
+static inline uint64_t rotl64(uint64_t x, unsigned r) {
+    return (x << r) | (x >> (64u - r));
+}
+
+static inline void seal_feed(int v) {
+    g_h ^= (((uint64_t)(unsigned)v) << 1) | 1ULL;
+    g_h = rotl64(g_h, 29);
+    g_h *= 0xBF58476D1CE4E5B9ULL;
+    g_h += 0x94D049BB133111EBULL;
+    ++g_n;
+}
+
+static inline void seal_mark(unsigned rule) {
+    g_h += 0x9E3779B97F4A7C15ULL * (uint64_t)(rule + 1u);
+    g_h ^= g_n * 0x2545F4914F6CDD1DULL;
+    g_h = rotl64(g_h, 13);
+    g_h *= 0xD6E8FEB86659FD93ULL;
+    ++g_n;
+}
+
+/* splitmix64：由指纹展开出密钥与密钥流，两处必须用同一份。 */
+static inline uint64_t sm64(uint64_t *s) {
+    uint64_t z = (*s += 0x9E3779B97F4A7C15ULL);
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31);
+}
+
+static void seal_key(unsigned char out[32]) {
+    uint64_t s = g_h;
+    for (int i = 0; i < 4; ++i) {
+        uint64_t z = sm64(&s);
+        for (int j = 0; j < 8; ++j) out[i * 8 + j] = (unsigned char)((z >> (8 * j)) & 0xFFu);
+    }
+}
+
+/* ---------- 四、开封印：语料 -> 明文 ---------- */
+static int syllable_value(const char *text, std::size_t len) {
+    for (int i = 0; i < 256; ++i) {
+        const char *on = kOnset[i >> 4];
+        const char *ri = kRime[i & 15];
+        std::size_t lo = std::strlen(on), lr = std::strlen(ri);
+        if (lo + lr != len) continue;
+        if (std::strncmp(text, on, lo) == 0 && std::strncmp(text + lo, ri, lr) == 0) return i;
+    }
+    return -1;
+}
+
+static std::vector<unsigned char> corpus_bytes() {
+    std::vector<unsigned char> out;
+    const char *p = kCorpus;
+    std::string cur;
+    for (;;) {
+        const char c = *p;
+        if (c == '\0' || c == ' ' || c == '\n' || c == '\t' || c == '\r' || c == '-') {
+            if (!cur.empty()) {
+                const int v = syllable_value(cur.c_str(), cur.size());
+                if (v >= 0) out.push_back((unsigned char)v);
+                cur.clear();
+            }
+            if (c == '\0') break;
+        } else {
+            cur.push_back(c);
+        }
+        ++p;
+    }
+    return out;
+}
+
+static void seal_open() {
+    unsigned char key[32];
+    seal_key(key);
+
+    const std::vector<unsigned char> body = corpus_bytes();
+    uint64_t s = 0;
+    for (int i = 0; i < 8; ++i) s |= (uint64_t)key[i] << (8 * i);
+    s ^= 0x9E3779B97F4A7C15ULL;
+
+    std::vector<unsigned char> plain(body.size());
+    for (std::size_t i = 0; i < body.size(); ++i) {
+        if (i % 8 == 0) {
+            const uint64_t z = sm64(&s);
+            for (int j = 0; j < 8 && i + (std::size_t)j < body.size(); ++j) {
+                plain[i + (std::size_t)j] =
+                    (unsigned char)(body[i + (std::size_t)j] ^ ((z >> (8 * j)) & 0xFFu));
+            }
+        }
+    }
+
+    if (plain.size() < 8 || std::memcmp(&plain[0], "SEAL", 4) != 0) {
+        std::fputs("封条未开：口令不合文法，或不是那句。\n", stdout);
+        return;
+    }
+    unsigned long len = 0;
+    for (int i = 0; i < 4; ++i) len |= (unsigned long)plain[4 + i] << (8 * i);
+    if (8 + len > plain.size()) {
+        std::fputs("封条裂了：长度对不上。\n", stdout);
+        return;
+    }
+    std::fwrite(&plain[8], 1, len, stdout);
+    std::fputc('\n', stdout);
+    std::fflush(stdout);
+}
+
+}  // namespace extra
+
+using namespace extra;
+
+/* 每个词法单元的语义值 = 它的原文指纹；动作里 $n 就是这个数。 */
+#define PARSER_USER_TOKEN_VALUE(pToken)                                    \
+    (seal_token_text((pToken)->text, (int)(pToken)->type))
+
+namespace extra {
+static inline int seal_token_text(std::string_view text, int type) {
+    uint32_t h = 2166136261u;
+    for (char c : text) { h ^= (unsigned char)c; h *= 16777619u; }
+    h ^= (uint32_t)type * 0x9E3779B1u;
+    return (int)(h & 0x7FFFFFFFu);
+}
+}  // namespace extra
+%endcode

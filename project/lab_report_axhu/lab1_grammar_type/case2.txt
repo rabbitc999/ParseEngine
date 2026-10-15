@@ -1,0 +1,7 @@
+S->e|A
+A->aABC
+A->abC
+CB->BC
+bB->bb
+bC->bc
+cC->cc

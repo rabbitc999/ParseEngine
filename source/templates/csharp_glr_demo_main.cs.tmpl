@@ -1,0 +1,34 @@
+    private static string _readLine()
+    {
+        return System.Console.In.ReadLine() ?? "";
+    }
+
+    public static void Main(string[] args)
+    {
+        string inputText = _readLine();
+        System.Console.WriteLine("解析输入: " + inputText);
+        Parser engine = new Parser();
+        int status = {% if tree %}engine.runGlrTree(inputText){% else %}engine.runGlr(inputText){% endif %};
+        if (status != Parser.STATUS_OK)
+        {
+            Parser.ParserError error = engine.lastError();
+            if (error != null)
+                System.Console.WriteLine("解析失败: code=" + error.code +
+                    " line=" + error.line + " column=" + error.column +
+                    " message=" + error.message);
+            else
+                System.Console.WriteLine("解析失败: " + Parser.statusName(status));
+            System.Environment.Exit(1);
+        }
+        System.Console.WriteLine("解析成功，共 " + engine.glrResultCount() +
+                                 " 个结果（歧义路径数）");
+{{ demo_commits }}{% if tree %}        for (int index = 0; index < engine.glrResultCount(); index++)
+        {
+            System.Console.WriteLine("结果[" + index + "] 语法树:");
+            Parser.Tree tree = engine.glrTree(index);
+            if (tree != null) tree.print();
+        }
+{% else %}        for (int index = 0; index < engine.glrResultCount(); index++)
+            System.Console.WriteLine("结果[" + index + "]: " + engine.glrResult(index));
+{% endif %}        System.Environment.Exit(0);
+    }

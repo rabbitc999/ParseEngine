@@ -1,0 +1,4 @@
+{# 把若干张图拼成一份 .mmd（Mermaid::joinSources）。
+   变量：diagrams（数组，元素 {title, source}）。本模板自带行尾换行。 #}
+{% for diagram in diagrams %}%% ==== {{ diagram.title }} ====
+{{ diagram.source }}{% endfor %}

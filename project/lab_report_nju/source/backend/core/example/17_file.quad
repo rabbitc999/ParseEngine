@@ -1,0 +1,17 @@
+﻿# 名称: 外部文件 IO（fopen / fwrite / fread / feof / fclose）
+# 期望: 7 1
+# 说明: 真实的宿主文件读写，路径相对当前工作目录；示例写
+#       build/transfer/example_io.txt，再读回来并检查 EOF。
+0: (decl, i32, global, n)
+1: (decl, i32, global, e)
+2: (decl, str, global, f)
+3: (fopen, "../../build/transfer-one-thread/example_io.txt", "w", f)
+4: (fwrite, f, 7, _)
+5: (fclose, f, _, _)
+6: (fopen, "../../build/transfer-one-thread/example_io.txt", "r", f)
+7: (fread, f, _, n)
+8: (feof, f, _, e)
+9: (write, n, _, _)
+10: (write, e, _, _)
+11: (fclose, f, _, _)
+12: (halt, _, _, _)

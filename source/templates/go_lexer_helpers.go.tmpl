@@ -1,0 +1,91 @@
+{# 词法辅助函数（CodeGenGo 的 goLexerText 里那一块）。
+   变量：has_regex —— 有没有 `%token regex` / `%identifier` / `%commit`；
+         没有时**整段正则工具都不发**（`regexp` 也就不会被 import，否则 Go 会报
+         「imported and not used」）。
+   本模板自带行尾换行。 #}
+// sParserBlankWildcard 字面量里的 `\b` 占位符（生成期写成 0x1F）：
+// 命中任意一个空白字符。
+const sParserBlankWildcard rune = '\u001f'
+
+func sParserIsDigit(ch int32) bool {
+	return ch >= '0' && ch <= '9'
+}
+
+func sParserIsAlpha(ch int32) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+}
+
+func sParserIsAlnum(ch int32) bool {
+	return sParserIsAlpha(ch) || sParserIsDigit(ch)
+}
+
+func sParserIsWord(ch int32) bool {
+	return sParserIsAlnum(ch) || ch == '_'
+}
+
+func sParserIsSpace(ch int32) bool {
+	switch ch {
+	case ' ', '\t', '\n', '\v', '\f', '\r':
+		return true
+	}
+	return false
+}
+{% if has_regex %}
+// sParserLexCompileRegex 编译一条词法正则（`%token regex` / `%identifier` / `%commit`）。
+//
+// 文法里的正则生成期已经校验过一遍（没通过时是生成期警告），这里是**目标语言
+// 自己**的判断：真有问题就 panic 出来，省得对着「词法单元对不上」查半天。
+func sParserLexCompileRegex(pattern string) *regexp.Regexp {
+	return regexp.MustCompile(pattern)
+}
+
+// sParserLexRegexMatch 用标准库的 `regexp` 从 start（**UTF-8 字节偏移**）起匹配，
+// 返回匹配到的**字符数**（0 = 当前位置匹配不上）。
+//
+// `FindStringIndex` 是从 start 往后找、不锚定，所以要确认命中真的从 start 开始；
+// 最长前缀的语义靠表达式自己的贪婪量词，与 C99 的 DFA 表、C++17 的 `std::regex` /
+// Python 的 `re` / C# 的 `Regex` / Rust 的 `regex` 是同一套口径。
+func sParserLexRegexMatch(re *regexp.Regexp, text string, start int) int {
+	if (re == nil) || (start < 0) || (start > len(text)) {
+		return 0
+	}
+	loc := re.FindStringIndex(text[start:])
+	if loc == nil || loc[0] != 0 {
+		return 0
+	}
+	return len([]rune(text[start : start+loc[1]]))
+}
+{% endif %}
+// sParserLexRuleHit 固定字面量命中判断（规则里的 0x1F 是 `\b`）。
+func sParserLexRuleHit(rule []rune, text []rune, start int) bool {
+	for offset, ch := range rule {
+		code := int32(-1)
+		if (start + offset) < len(text) {
+			code = int32(text[start+offset])
+		}
+		if ch == sParserBlankWildcard {
+			if !sParserIsSpace(code) {
+				return false
+			}
+		} else if code != int32(ch) {
+			return false
+		}
+	}
+	return true
+}
+
+// sParserLexBlankRuleHit 当前位置能不能开始一个以空白 / `\b` 通配开头的固定字面量。
+func sParserLexBlankRuleHit(text []rune, start int) bool {
+	for index := 0; index < len(sParserLexRulesBlank); index++ {
+		if sParserLexRulesBlank[index] == 1 &&
+			sParserLexRuleHit([]rune(sParserLexRulesText[index]), text, start) {
+			return true
+		}
+	}
+	return false
+}
+
+// sParserLexIsSkipChar 这个字符在取 Token 前要不要跳过（`%space` 决定的空白集合）。
+func sParserLexIsSkipChar(ch int32) bool {
+	return ch >= 0 && strings.ContainsRune(sParserLexSkipChars, rune(ch))
+}

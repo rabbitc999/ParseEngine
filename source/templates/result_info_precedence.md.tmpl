@@ -1,0 +1,4 @@
+{# 「生成信息」表里的一整行：优先级指令。
+   变量：precedence（数组，元素是对象，字段 assoc = left/right/nonassoc、name = 符号名；
+   顺序由生成器按 (数值, 名字) 排好），空数组时这一格写「未使用」。 #}
+| 优先级指令 | {% if precedence %}{% for p in precedence %}{% if loop_first %}{% else %}；{% endif %}%{{ p.assoc }} {{ p.name }}{% endfor %}{% else %}未使用{% endif %} |

@@ -1,0 +1,58 @@
+{# C99 词法 DFA 的**声明段**（`generatorLexDfaC` 的 outDecls）。
+   变量：
+     has_dfa        —— 有没有 %token regex / %identifier / %commit（没有就只发壳）
+     has_regex      —— 有没有 %token regex（决定 PARSER_REGEX_COUNT 那三行）
+     has_identifier —— 有没有 %identifier
+     regex_count    —— %token regex 的条数
+     commit_count   —— %commit / %trivia 的条数
+     commit_slots   —— commit 表长度（没有 commit 时是 1，发一张占位表）
+   壳（首尾那两行 #ifndef / #endif）与关键字查表的声明是固定文案；
+   中间三段各自按条件出现。空行位置是照着产物摆的，别随手加空行。 #}
+#ifndef PARSER_LEX_DFA_DECLARED
+#define PARSER_LEX_DFA_DECLARED
+
+/* ============ 正则 Token 与标识符识别（由 %token regex / %identifier 生成） ============ */
+/** @brief 关键字查表。 @param pText 文本。
+ *  @retval 关键字对应的 Token；不是关键字时返回 TOKEN_INVALID。 */
+ParserTokenType_T Parser_TokenKeyword(const char *pText);
+{% if has_dfa %}
+/** DFA 描述：转移表按“状态 × 字符类”展平。 */
+typedef struct ParserLexDfa_T
+{
+    const uint16_t *pTrans;
+    const uint8_t *pAccept;
+    uint16_t stateCount;
+    uint16_t startState;
+    uint16_t trapState;
+} ParserLexDfa_T;
+
+/** @brief 用 DFA 做最长前缀匹配。 @param pDfa DFA。
+ *  @param pText 文本。 @retval 匹配到的字节数（0 表示不匹配）。 */
+uint32_t Parser_LexDfaMatch(const ParserLexDfa_T *pDfa, const char *pText);
+
+extern const uint8_t s_ParserLexClassMap[256];
+extern const uint16_t s_ParserLexClassCount;
+{% if has_regex %}
+#define PARSER_REGEX_COUNT {{ regex_count }}u
+extern const ParserLexDfa_T s_ParserRegexDfas[PARSER_REGEX_COUNT];
+extern const ParserTokenType_T s_ParserRegexTypes[PARSER_REGEX_COUNT];
+extern const int32_t s_ParserRegexOrders[PARSER_REGEX_COUNT];
+{% endif %}
+{% if has_identifier %}
+
+/** @brief 取最长标识符前缀长度。 @param pText 文本。
+ *  @retval 长度（0 表示不是标识符开头）。 */
+uint32_t Parser_TokenIdentifierLength(const char *pText);
+
+/** @brief 整串是否是标识符。 @param pText 文本。
+ *  @retval 1 是标识符。 */
+uint8_t Parser_TokenIsIdentifier(const char *pText);
+{% endif %}
+#define PARSER_COMMIT_COUNT {{ commit_count }}u
+extern const ParserLexDfa_T s_ParserCommitDfas[{{ commit_slots }}];
+extern const char *const s_ParserCommitTypes[{{ commit_slots }}];
+extern const uint8_t s_ParserCommitSkips[{{ commit_slots }}];
+extern const int32_t s_ParserCommitOrders[{{ commit_slots }}];
+{% endif %}
+
+#endif /* PARSER_LEX_DFA_DECLARED */

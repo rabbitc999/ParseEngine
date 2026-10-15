@@ -1,0 +1,17 @@
+{# 一条正则 DFA 的 Mermaid 源码（Mermaid::dfaSource）。
+   变量：label（图里用的 Token 名）、pattern（正则，已转义）、
+         state_count（状态数文本）、trap（陷阱状态号文本）、start（初态号文本）、
+         states（数组，元素 {id, is_accept}）、
+         edges（数组，元素 {from, to, label（已转义）}）、
+         classes（数组，元素 {id, klass}）。本模板自带行尾换行。 #}
+flowchart LR
+    %% {{ label }}：{{ pattern }}（{{ state_count }} 个状态，陷阱状态 s{{ trap }} 已省略）
+    ENTRY(["开始"]) --> s{{ start }}
+{% for state in states %}{% if state.is_accept %}    s{{ state.id }}((("s{{ state.id }}")))
+{% else %}    s{{ state.id }}(("s{{ state.id }}"))
+{% endif %}{% endfor %}{% for edge in edges %}    s{{ edge.from }} -->|"{{ edge.label }}"| s{{ edge.to }}
+{% endfor %}    classDef startState fill:#e0e7ff,stroke:#4338ca,color:#1e1b4b
+    classDef acceptState fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef dfaState fill:#f1f5f9,stroke:#64748b,color:#334155
+{% for item in classes %}    class s{{ item.id }} {{ item.klass }}
+{% endfor %}

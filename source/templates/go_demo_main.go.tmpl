@@ -1,0 +1,42 @@
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+)
+
+// sParserDemoReadLine 从标准输入读一行（读到换行或 EOF 为止，去掉行尾换行）。
+func sParserDemoReadLine() string {
+	reader := bufio.NewReader(os.Stdin)
+	line, _ := reader.ReadString('\n')
+	return strings.TrimRight(line, "\r\n")
+}
+
+// main 演示程序入口：读一行输入（到换行或 EOF）后开始解析。
+func main() {
+	inputText := sParserDemoReadLine()
+	fmt.Println("解析输入: " + inputText)
+	engine := NewParser()
+	status := engine.RunText(inputText)
+	if status != StatusOK {
+		if last := engine.LastError(); last != nil {
+			fmt.Printf("解析失败: code=%d line=%d column=%d message=%s\n",
+				last.Code, last.Line, last.Column, last.Message)
+		} else {
+			fmt.Println("解析失败: " + StatusName(status))
+		}
+		os.Exit(1)
+	}
+	fmt.Println("解析成功")
+{% if dd %}	// 递归下降只保留第 1 条匹配路径的结果（按产生式声明顺序逐条试，失败回退
+	// 输入位置再试下一条）；有歧义的文法不会像 GLR 那样列出全部解释。
+{% endif %}{{ demo_commits }}
+{% if tree %}	if tree := engine.ParseTree(inputText); tree != nil {
+		fmt.Println("语法树:")
+		tree.Print()
+	}
+
+{% else %}	fmt.Printf("解析结果: %v\n", engine.Result())
+
+{% endif %}	os.Exit(0)
+}

@@ -1,0 +1,30 @@
+
+
+def _read_all():
+    """把标准输入整个读进来（读到 EOF）。"""
+    lines = []
+    for line in sys.stdin:
+        lines.append(line)
+    return "".join(lines)
+
+
+def main():
+    """读标准输入到 EOF，逐个打印 Token 的类型与词素。"""
+    text = _read_all()
+    lexer = Parser()
+    status, tokens = lexer.tokenize(text)
+    for token in tokens:
+        print("%-12s %-12s %d:%d" % (parser.token_name(token.type),
+                                     '"%s"' % token.text,
+                                     token.line, token.column))
+    if status != parser.STATUS_OK:
+        error = lexer.last_error
+        print("词法错误: code=%d line=%d column=%d message=%s"
+              % (error.code, error.line, error.column, error.message))
+        return 1
+    print("共 %d 个 Token" % (len(tokens) - 1))
+{{ demo_commits }}    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

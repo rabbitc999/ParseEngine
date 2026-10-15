@@ -1,0 +1,459 @@
+# ============ 内部辅助（语义结果壳 / 建树）============
+
+
+class _Holder(object):
+    """一次归约的语义结果壳：动作里的 ``$$`` 就是它的 ``value``。"""
+
+    __slots__ = ("value",)
+
+    def __init__(self):
+        self.value = None
+
+
+class _LlFrame(object):
+    """LL(1) 语义帧：一个非终结符展开期间的全部语义槽。"""
+
+    __slots__ = ("parent_frame", "parent_value", "values", "names",
+                 "result_value", "discarded")
+
+    def __init__(self):
+        self.parent_frame = _INVALID_INDEX
+        self.parent_value = 0
+        self.values = [None] * (_VALUE_SLOTS + 1)
+        self.names = [""] * (_VALUE_SLOTS + 1)
+        self.result_value = None
+        self.discarded = False
+
+
+# LL(1) 分析栈上的项目类型。
+_ITEM_TERMINAL = 0     # 终结符：与 lookahead 比对
+_ITEM_NONTERM = 1      # 非终结符：查预测分析表展开
+_ITEM_ACTION = 2       # 语义动作：执行后完成语义帧
+_ITEM_ACTION_KEEP = 3  # 语义动作：执行后保留语义帧（左递归基线规则）
+_ITEM_FORWARD = 4      # 转发语义槽：$n 就是本产生式的结果
+_ITEM_LEFT_LOOP = 5    # 左递归尾部：接着展开或收尾
+_ITEM_TREE_END = 6     # 语法树：闭合当前节点
+
+
+def _is_sync_token(token):
+    """这是一个同步 Token 吗（``%sync``）。
+
+    没写 %sync 时恒为 False：错误恢复里那些 panic 代码根本不会走到。
+    """
+    return token in _SYNC_TOKENS
+
+
+def _token_type_text(type_id):
+    """取 Token 类型名（与 C 目标的 ``Parser_TokenName`` 同义）。"""
+    name = token_name(type_id)
+    return name if name is not None else "UNKNOWN"
+
+
+def _lex_regex_match(pattern, text, start):
+    """用 Python 正则从 ``start`` 起匹配，返回匹配到的字符数（0 = 不匹配）。
+
+    词法器要的是「这个位置能匹配多长就匹配多长」，Python 的 ``re`` 按贪婪语义
+    给出的就是最长匹配（``%token regex`` / ``%identifier`` / ``%commit`` 的正则
+    都在模块加载时用 `re.compile` 编译好，存在 ``_REGEX_RULES`` 等表里）。
+    多条规则之间谁长用谁，长度相同再按声明序——由调用方比较。
+
+    :param pattern: ``re.compile`` 出来的正则；``None`` 表示没声明。
+    :param text: 输入文本。
+    :param start: 起始下标。
+    :return: 匹配到的字符数（0 表示不匹配）。
+    """
+    if pattern is None:
+        return 0
+    match = pattern.match(text, start)
+    if match is None:
+        return 0
+    return match.end() - start
+
+
+def _tree_name(symbol_id):
+    """非终结符编号 -> 名字（``%tree`` 建内部分支节点用）。"""
+    if symbol_id < _NONTERM_COUNT:
+        return _TREE_NONTERM_NAMES[symbol_id]
+    return "?"
+
+
+def _make_leaf(token):
+    """建一个终结符叶子节点：名字是 Token 类型名，词素是 Token 的显示文本。
+
+    位置取 Token 的起点（行 / 列 / UTF-8 字节偏移）。
+    """
+    return Tree(_token_type_text(token.type), token_text(token),
+                ParserLocation(token.line, token.column, token.offset))
+
+
+def _make_branch(nodes, name, base, length):
+    """把栈上 [base, base + length) 的节点收成一个非终结符节点。
+
+    位置取第一个子节点的位置（节点覆盖文本的起点）。
+    """
+    node = Tree(name)
+    for index in range(length):
+        child = nodes[base + index]
+        if child is not None:
+            node.add_child(child)
+    return node
+
+
+{% if glr %}class _GlrEdge(object):
+    """GSS 的一条边：从 from_node 指向本边所属节点。"""
+
+    __slots__ = ("from_node", "symbol", "production", "name_slot", "value",
+                 "tree")
+
+    def __init__(self):
+        self.from_node = _INVALID_INDEX
+        self.symbol = _INVALID_INDEX
+        self.production = _INVALID_INDEX
+        self.name_slot = _INVALID_INDEX
+        self.value = None
+        self.tree = None
+
+
+class _GlrNode(object):
+    """GSS 的一个节点：状态 + 入边表。"""
+
+    __slots__ = ("state", "edges")
+
+    def __init__(self, state):
+        self.state = state
+        self.edges = []
+
+
+{% endif %}class {{ class }}(object):
+    """{{ mode_name }} 解析器：一次解析的全部状态都在这里。
+
+    同一个解析器实例可以连续解析多次：每次 ``run_text`` / ``run`` /
+    ``parse_tree`` 都会先清空上一次的错误表与结果。
+
+    只读查询用 ``errors`` / ``last_error``；最近一次解析的语义结果放在
+    ``result``；``%commit`` 收集到的片段在 ``commits``（``ParserCommit``
+    列表，按出现顺序）。
+    """
+
+    # 分析栈最大深度（`%max_stack_depth`）。
+    max_stack_depth = {{ max_stack_depth }}
+    # 一次解析最多记录多少条错误（`%max_errors`）。
+    max_errors = {{ max_errors }}
+    # 恢复成功后要连续移进多少个真实 Token 才退出错误状态
+    # （`%error_recovery_tokens`）。
+    error_recovery_tokens = {{ error_recovery_tokens }}
+    # 语义动作里 `$1..$n` 的槽位个数。
+    value_slots = {{ value_slots }}
+
+    def __init__(self):
+        # 错误表与最近一次解析的结果
+        self._errors = []
+        self.result = None
+        # %commit 收集到的片段（ParserCommit 列表；没有 %commit 时恒为空）
+        self.commits = []
+        # 输入与 lookahead
+        self._input = ""
+        self._text_pos = 0
+        self._text_mode = True
+        self._tokens = ()
+        self._token_pos = 0
+        self._current = Token()
+        # LR(k) / LALR(k)：current 之后的 k-1 个 Token（k = 1 时是空列表）
+        self._lookahead = []
+        self._line = 1
+        self._column = 1
+        # 当前输入位置的 UTF-8 字节偏移（0 起；current_location 用）
+        self._byte_pos = 0
+        self._lexeme = ""
+        self._error_status = 0
+{% if glr %}        # GLR：两个输入位置上各一张图（nodes / edges 共享池，按位置索引）
+        self._glr_nodes = []
+        self._glr_edges = []
+        self._glr_node_ids = [[], []]
+        self._glr_node_of = [{}, {}]
+        self._glr_work = []
+        self._glr_queued = []
+        self._glr_names = []
+        self._glr_results = []
+        self._glr_trees = []
+        self._glr_resolver = None
+        self._glr_path_edges = []
+        self._glr_path_visits = 0
+{% endif %}
+        # LR 分析栈：状态 / 符号 / 语义值 / 变量名 / 语法树节点
+        self._states = []
+        self._symbols = []
+        self._values = []
+        self._names = []
+        self._nodes = []
+        self._top = 0
+        # LL(1)：分析栈 / 语义帧栈 / 根语义值 / 建树路径
+        self._ll_stack = []
+        self._ll_frames = []
+        self._root_result = None
+        self._tree_root = None
+        self._tree_path = []
+    # ---------- 只读查询 ----------
+
+    @property
+    def errors(self):
+        """本次解析累积的错误（``ParserError`` 列表）。"""
+        return self._errors
+
+    @property
+    def last_error(self):
+        """最近一条错误；没有错误时返回 ``None``。"""
+        return self._errors[-1] if self._errors else None
+
+    def _set_error(self, code, line, column, message):
+        """追加一条错误（错误表满时丢弃，与 C 目标的 `PARSER_MAX_ERRORS` 一致）。"""
+        if len(self._errors) >= self.max_errors:
+            return
+        self._errors.append(ParserError(code, line, column, message))
+
+    def _set_expected_one_error(self, expected_type):
+        """记一条「只期望某一个 Token」的语法错误（例如终结符不匹配）。
+
+        :param expected_type: 期望的 Token 类型。
+        """
+        if len(self._errors) >= self.max_errors:
+            return
+        actual = token_name(self._current.type) or "?"
+        expected = token_name(expected_type) or "?"
+        self._errors.append(ParserError(
+            STATUS_ERR_EXPECTED, self._current.line, self._current.column,
+            "语法错误：期望 %s，实际是 %s" % (expected, actual),
+            self._current.type, self._current.text or "", 0, [expected_type],
+            self._error_context(self._current.line, self._current.column)))
+
+    def _error_context(self, line, column):
+        """拼「出错那一行的原文 + 一行 ^ 指示」；拿不到源文时返回空串。
+
+        :param line: 行号（1 起）。
+        :param column: 列号（1 起）。
+        """
+        if not self._input:
+            return ""
+        offset = 0
+        for _ in range(line - 1):
+            end = self._input.find("\n", offset)
+            if end < 0:
+                return ""
+            offset = end + 1
+        end = self._input.find("\n", offset)
+        if end < 0:
+            end = len(self._input)
+        text = self._input[offset:end].rstrip("\r")
+        caret = max(0, column - 1)
+        if caret > len(text):
+            caret = len(text)
+        return text + "\n" + (" " * caret) + "^"
+
+    def _set_syntax_error(self, row, expected_types):
+        """语法错误：带上「期望哪些 Token / 实际是哪个 / 状态号 / 词素」。
+
+        文案五档统一：期望集非空时是「期望 A / B 之一，实际是 C」（只列前 4
+        个，其余用「等 N 个」带过；只有一个期望时不写「之一」），期望集为空
+        时是 ``_EXPECTED_FALLBACK``。
+        :param row: 出错时的行号（LR 是状态号、LL 是栈顶符号编号）。
+        :param expected_types: 生成期算好的、这一行期望的 Token 类型列表。
+        """
+        expected_total = len(expected_types)
+        expected = list(expected_types)[:_MAX_EXPECTED]
+        listed = min(len(expected), 4)
+        names = [token_name(t) or "?" for t in expected[:listed]]
+        actual = token_name(self._current.type) or "?"
+        if expected_total == 0:
+            message = "语法错误：" + _EXPECTED_FALLBACK
+        elif expected_total == 1:
+            message = "语法错误：期望 %s，实际是 %s" % (names[0], actual)
+        else:
+            message = "语法错误：期望 " + " / ".join(names)
+            if expected_total > listed:
+                message += " 等 %d 个" % expected_total
+                message += "之一"
+            else:
+                message += " 之一"
+            message += "，实际是 %s" % actual
+        if len(self._errors) >= self.max_errors:
+            return
+        if expected_total:
+            code = (STATUS_ERR_UNEXPECTED_EOF
+                    if self._current.type == TOKEN_END else STATUS_ERR_EXPECTED)
+        else:
+            code = STATUS_ERR_SYNTAX
+        self._errors.append(ParserError(code, self._current.line,
+                                        self._current.column, message,
+                                        self._current.type,
+                                        self._current.text or "",
+                                        row, expected,
+                                        self._error_context(self._current.line,
+                                                            self._current.column)))
+
+    # ---------- 解析入口 ----------
+
+    def _prepare_text(self, text):
+        """文本模式：记下输入并读入第一个词法单元。"""
+        if text is None:
+            text = ""
+        elif not isinstance(text, str):
+            text = str(text)
+        self._input = text
+        self._text_pos = 0
+        self._text_mode = True
+        return self._prepare_common()
+
+    def _prepare_tokens(self, tokens):
+        """Token 模式：直接用调用方给的 Token 序列。"""
+        self._tokens = tuple(tokens)
+        self._token_pos = 0
+        self._text_mode = False
+        self._input = ""
+        self._text_pos = 0
+        return self._prepare_common()
+
+    def _prepare_common(self):
+        """两种模式共用的复位动作：清错误、清词素、取第一个 lookahead。"""
+        self._errors = []
+        self.commits = []
+        self._lexeme = ""
+        self._error_status = 0
+        self._line = 1
+        self._column = 1
+        self._byte_pos = 0
+        self._current = Token()
+        self.result = None
+        if self._advance() != STATUS_OK:
+            return STATUS_ERR_LEXER
+        return self._fill_lookahead_window()
+
+    def _fill_lookahead_window(self):
+        """LR(k) / LALR(k)：把 current 之后的 k-1 个 Token 预先取进窗口。
+
+        窗口头始终是 ``self._current``，所以错误恢复里「不消耗 lookahead」、
+        ``yyclearin`` 这些操作都只是挪动窗口。k = 1 时窗口是空的，这里是空操作。
+        """
+        self._lookahead = [Token() for _ in range(max(0, _LOOKAHEAD_K - 1))]
+        if not self._lookahead:
+            return STATUS_OK
+        head = self._current
+        for index in range(len(self._lookahead)):
+            status = self._advance()
+            if status != STATUS_OK:
+                return status
+            self._lookahead[index] = self._current
+        self._current = head
+        return STATUS_OK
+
+    def _advance_window(self):
+        """LR(k) / LALR(k)：窗口左移一位（current 前进，末尾补一个新 Token）。"""
+        if not self._lookahead:
+            return self._advance()
+        status = self._advance()
+        if status != STATUS_OK:
+            return status
+        fresh = self._current
+        self._current = self._lookahead[0]
+        for index in range(len(self._lookahead) - 1):
+            self._lookahead[index] = self._lookahead[index + 1]
+        self._lookahead[-1] = fresh
+        return STATUS_OK
+
+    def _peek_char(self, offset=0):
+        """取输入里第 ``_text_pos + offset`` 个字符（越过末尾返回空串）。"""
+        index = self._text_pos + offset
+        if (index < 0) or (index >= len(self._input)):
+            return ""
+        return self._input[index]
+
+    def _read_char(self):
+        """读一个字符并维护行列号与 UTF-8 字节偏移。"""
+        ch = self._input[self._text_pos]
+        self._text_pos += 1
+        self._byte_pos += 1 if ord(ch) < 0x80 else len(ch.encode("utf-8"))
+        if ch == "\n":
+            self._line += 1
+            self._column = 1
+        else:
+            self._column += 1
+        return ch
+
+    def current_location(self):
+        """当前 lookahead 的位置：行 / 列 + UTF-8 字节偏移。
+
+        行 / 列都是 1 起，``offset`` 是 0 起的 UTF-8 字节偏移（Token 数组
+        模式由调用方给的 Token 决定）。语义动作里的 ``$line`` / ``$column``
+        读的就是这里的值。
+
+        :return: ``ParserLocation(line, column, offset)``。
+        """
+        return ParserLocation(self._current.line, self._current.column,
+                              self._current.offset)
+
+    def _advance(self):
+        """取下一个 lookahead：文本模式走词法器，Token 模式按序号取。"""
+        if not self._text_mode:
+            if self._token_pos < len(self._tokens):
+                self._current = self._tokens[self._token_pos]
+                self._token_pos += 1
+            else:
+                self._current = Token(TOKEN_END)
+            return STATUS_OK
+        status, token = self._lex_next()
+        if status != STATUS_OK:
+            # 按细分码给一句人话：未闭合字符串 / 认不出来的字符 / 其它
+            if status == STATUS_ERR_LEX_UNTERMINATED:
+                why = "字符串没有闭合"
+            elif status == STATUS_ERR_LEX_CHAR:
+                why = "认不出来的字符"
+            else:
+                why = "词法解析失败"
+            self._set_error(
+                status if status in (STATUS_ERR_LEX_UNTERMINATED,
+                                     STATUS_ERR_LEX_CHAR)
+                else STATUS_ERR_LEXER,
+                token.line, token.column, why)
+            token.type = TOKEN_INVALID
+            self._current = token
+            return status
+        self._current = token
+        return STATUS_OK
+
+    def run_text(self, text):
+        """解析一段文本。
+
+        语义结果写进 ``self.result``（失败时是 ``None``）。
+        :param text: 输入文本。
+        :return: ``STATUS_OK`` 表示成功。
+        """
+        if self._prepare_text(text) != STATUS_OK:
+            return STATUS_ERR_LEXER
+        return self._run_loop(False)
+
+    def run(self, tokens):
+        """解析已经切好的 Token 序列。
+
+        :param tokens: Token 序列（``Token`` 列表）。
+        :return: ``STATUS_OK`` 表示成功。
+        """
+        if self._prepare_tokens(tokens) != STATUS_OK:
+            return STATUS_ERR_LEXER
+        return self._run_loop(False)
+
+    def parse_tree(self, text):
+        """解析文本并构建语法树（只建树，不跑语义动作）。
+
+        :param text: 输入文本。
+        :return: 语法树根；失败返回 ``None``（原因在 ``errors`` 里）。
+        """
+        self._tree_root = None
+        if self._prepare_text(text) != STATUS_OK:
+            return None
+        if self._run_loop(True) != STATUS_OK:
+            return None
+        return self._tree_root
+
+{{ run_loop }}
+{{ lexer }}
+{{ lr }}
+{{ ll }}{{ dd }}{{ draw_graph }}

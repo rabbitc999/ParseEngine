@@ -1,0 +1,4 @@
+token,word,备注
+KW_LET,"let",第 1 列不是被导入的 Token 名 → 整行忽略（所以表头不校验也不报错）
+KW_IF,"if",KW_IF 在文法里没有 include → 整行忽略，不会凭空冒出一个 Token
+OTHER,"other",文法里根本没有 OTHER —— 静默忽略，不报错、不新建

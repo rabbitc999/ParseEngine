@@ -1,0 +1,1 @@
+打不开文件: samples/nope.js

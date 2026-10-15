@@ -1,0 +1,13 @@
+
+    // Earley 用原文法；CYK 用同一文法的 CNF 展开表。
+    private const int _CHART_START = {{ start }};
+    private const bool _CHART_ACCEPTS_EMPTY = {% if accepts_empty %}true{% else %}false{% endif %};
+    private static readonly int[] _CHART_LHS = {{ lhs }};
+    private static readonly int[] _CHART_RHS_START = {{ rhs_start }};
+    private static readonly int[] _CHART_RHS_LENGTH = {{ rhs_length }};
+    private static readonly int[] _CHART_RHS_SYMBOLS = {{ rhs_symbols }};
+    private static readonly int[] _CHART_UNARY_LHS = {{ unary_lhs }};
+    private static readonly int[] _CHART_UNARY_TOKEN = {{ unary_token }};
+    private static readonly int[] _CHART_BINARY_LHS = {{ binary_lhs }};
+    private static readonly int[] _CHART_BINARY_LEFT = {{ binary_left }};
+    private static readonly int[] _CHART_BINARY_RIGHT = {{ binary_right }};

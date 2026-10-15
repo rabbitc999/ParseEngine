@@ -1,0 +1,1333 @@
+/* ============================================================
+ * project/pl0-super/pl0-super.gram —— PL/0 超集 → 目标机汇编（C++17）
+ *
+ * 「四元式路线」之外的补偿工程。**语义动作就在本文件里**（照 project/pl0-ir/pl0.gram
+ * 的分工）：文法归约时把"简化代码"建进池子（语义值 = 池子下标），收尾交给库：
+ *     pl0s::simplify()  → 常量折叠 / 代数化简 / 死分支
+ *     pl0s::generate()  → 栈式目标机汇编
+ *     pl0s::runAsm()    → 自带解释器跑出结果
+ *
+ * 三块用户代码：
+ *   %code       类型、Token→语义值钩子、动作函数原型（parser 与 main 共享）
+ *   %epilogue   动作函数的定义 + 全局池子（只编进 parser 那个编译单元）
+ *   %main       驱动：Parser_RunText 之后直接用池子拼出的 Program 跑库
+ *
+ * 语言：struct（字段表 `( … )`，因为 `{ }` 是注释）/ const / var(int|float|结构体) /
+ *       array(一维) / str / ref(匿名指针：绑定一次、能读能写、不能改绑定) /
+ *       procedure(可嵌套、可递归)；:= / if-then-else / while-do / for to|downto do /
+ *       goto / label / call / write / begin-end；表达式含 + - * / %、比较、
+ *       and or not、int()/float()、下标、结构体字段。
+ *       if / while / for 的分支**强制写 `begin … end`**：悬挂 else 的移进/归约冲突
+ *       在文法结构上就不存在，不需要优先级硬掰。
+ * ============================================================ */
+
+%mode lalr
+%namespace pl0sgram
+%value_type double
+
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+/* 浮点单独一个正则 Token。写法要用引擎 DFA 支持的最小子集：
+ * 分组 / `?` / `\.` 这些它不认，所以小数点放进字符类 `[.]`。 */
+%token DECIMAL "[0-9]+\.[0-9]+"
+%trivia "\\{[^}]*\\}"
+%trivia "\\(\\*[^*]*\\*\\)"
+%trivia "//[^\\n]*"
+
+%define PROGRAM   "program"
+%define CONST     "const"
+%define VAR       "var"
+%define ARRAY     "array"
+%define STR       "str"
+%define STRUCT    "struct"
+%define REF       "ref"
+%define PROCEDURE "procedure"
+%define BEGIN     "begin"
+%define END       "end"
+%define IF        "if"
+%define THEN      "then"
+%define ELSE      "else"
+%define WHILE     "while"
+%define DO        "do"
+%define FOR       "for"
+%define TO        "to"
+%define DOWNTO    "downto"
+%define CALL      "call"
+%define WRITE     "write"
+%define GOTO      "goto"
+%define LABEL     "label"
+%define AND       "and"
+%define OR        "or"
+%define NOT       "not"
+%define INT       "int"
+%define FLOAT     "float"
+%define ASSIGN    ":="
+%define PLUS      "+"
+%define MINUS     "-"
+%define STAR      "*"
+%define SLASH     "/"
+%define MOD       "%"
+%define EQ        "="
+%define NE        "<>"
+%define LT        "<"
+%define LE        "<="
+%define GT        ">"
+%define GE        ">="
+%define LPAREN    "("
+%define RPAREN    ")"
+%define LBRACK    "["
+%define RBRACK    "]"
+%define SEMI      ";"
+%define COLON     ":"
+%define COMMA     ","
+%define DOT       "."
+
+%left  OR
+%left  AND
+%left  EQ NE LT LE GT GE
+%left  PLUS MINUS
+%left  STAR SLASH MOD
+%right NOT UMINUS
+
+%start program
+
+program := PROGRAM VARIABLE SEMI block DOT        { Pl0s_FinishProgram($2); } ;
+
+block := decls BEGIN stmts END                    { Pl0s_EndBlock($3); } ;
+
+decls := %empty                                   { $$ = 0; }
+       | decls decl                               { $$ = 0; } ;
+
+decl := struct_decl { $$ = 0; }
+      | const_decl  { $$ = 0; }
+      | var_decl    { $$ = 0; }
+      | array_decl  { $$ = 0; }
+      | str_decl    { $$ = 0; }
+      | ref_decl    { $$ = 0; }
+      | proc_decl   { $$ = 0; } ;
+
+/* 结构体：字段表用 `( … )`（`{ }` 是注释） */
+struct_decl := struct_head fields RPAREN SEMI     { Pl0s_EndStruct($1, $line); } ;
+struct_head := STRUCT VARIABLE LPAREN             { $$ = Pl0s_BeginStruct($2); } ;
+fields := field                                   { $$ = 0; }
+        | fields field                            { $$ = 0; } ;
+field := VARIABLE COLON type SEMI                 { Pl0s_AddField($1, $3, $line); } ;
+
+const_decl := CONST VARIABLE ASSIGN expr SEMI     { Pl0s_AddConst($2, $4, $line); } ;
+
+var_decl := VAR id_list COLON type SEMI           { Pl0s_AddVars($4, $line); } ;
+
+array_decl := ARRAY VARIABLE LBRACK expr RBRACK COLON type SEMI
+              { Pl0s_AddArray($2, $4, $7, $line); } ;
+
+str_decl := STR id_list SEMI                      { Pl0s_AddStr($line); } ;
+
+ref_decl := REF VARIABLE ASSIGN designator SEMI   { Pl0s_AddRef($2, $4, $line); } ;
+
+/* 过程：proc_head 这个"中间非终结符"就是 mid-rule action——先切作用域与声明目标，
+ * 再解析过程体的声明组与语句（pl0-ir 的 while_head 也是这一招） */
+proc_head := PROCEDURE VARIABLE SEMI              { Pl0s_BeginProc($2, $line); $$ = 0; } ;
+proc_decl := proc_head block SEMI                 { Pl0s_EndProc(); } ;
+
+id_list := VARIABLE                               { Pl0s_IdList($1); $$ = 0; }
+         | id_list COMMA VARIABLE                 { Pl0s_IdListAdd($3); $$ = 0; } ;
+
+/* 类型：0=int 1=float 2=str 3=结构体（名字由 $2 给） */
+type := INT      { $$ = Pl0s_Type(0, -1); }
+      | FLOAT    { $$ = Pl0s_Type(1, -1); }
+      | STR      { $$ = Pl0s_Type(2, -1); }
+      | VARIABLE { $$ = Pl0s_Type(3, $1); } ;
+
+stmts := %empty                                   { $$ = Pl0s_NewList(); }
+       | stmts SEMI                               { $$ = $1; }
+       | stmts stmt                               { $$ = Pl0s_ListAdd($1, $2); } ;
+
+stmt := designator ASSIGN expr                    { $$ = Pl0s_Assign($1, $3, $line); }
+      | WRITE expr                                { $$ = Pl0s_Write($2, $line); }
+      | IF expr THEN block_stmt                   { $$ = Pl0s_If($2, $4, -1); }
+      | IF expr THEN block_stmt ELSE block_stmt   { $$ = Pl0s_If($2, $4, $6); }
+      | WHILE expr DO block_stmt                  { $$ = Pl0s_While($2, $4); }
+      | FOR VARIABLE ASSIGN expr TO expr DO block_stmt
+            { $$ = Pl0s_For($2, $4, $6, 0, $8, $line); }
+      | FOR VARIABLE ASSIGN expr DOWNTO expr DO block_stmt
+            { $$ = Pl0s_For($2, $4, $6, 1, $8, $line); }
+      | GOTO VARIABLE                             { $$ = Pl0s_Goto($2, $line); }
+      | LABEL VARIABLE                            { $$ = Pl0s_Label($2, $line); }
+      | CALL VARIABLE                             { $$ = Pl0s_Call($2, $line); }
+      | BEGIN stmts END                           { $$ = Pl0s_BlockStmt($2); } ;
+
+/* 强制语句块：if / while / for 的分支只能写 `begin … end` */
+block_stmt := BEGIN stmts END                     { $$ = Pl0s_BlockStmt($2); } ;
+
+designator := VARIABLE                            { $$ = Pl0s_Name($1, $line); }
+            | designator DOT VARIABLE             { $$ = Pl0s_Field($1, $3, $line); }
+            | designator LBRACK expr RBRACK       { $$ = Pl0s_Index($1, $3, $line); } ;
+
+expr := NUMBER                                    { $$ = Pl0s_IntLiteral($1); }
+      | DECIMAL                                   { $$ = Pl0s_RealLiteral($1); }
+      | STRING                                    { $$ = Pl0s_TextLiteral($1); }
+      | designator                                { $$ = Pl0s_PlaceAsExpr($1); }
+      | expr PLUS expr                            { $$ = Pl0s_Binary(PL0S_OP_ADD, $1, $3, $line); }
+      | expr MINUS expr                           { $$ = Pl0s_Binary(PL0S_OP_SUB, $1, $3, $line); }
+      | expr STAR expr                            { $$ = Pl0s_Binary(PL0S_OP_MUL, $1, $3, $line); }
+      | expr SLASH expr                           { $$ = Pl0s_Binary(PL0S_OP_DIV, $1, $3, $line); }
+      | expr MOD expr                             { $$ = Pl0s_Binary(PL0S_OP_MOD, $1, $3, $line); }
+      | expr EQ expr                              { $$ = Pl0s_Binary(PL0S_OP_EQ, $1, $3, $line); }
+      | expr NE expr                              { $$ = Pl0s_Binary(PL0S_OP_NE, $1, $3, $line); }
+      | expr LT expr                              { $$ = Pl0s_Binary(PL0S_OP_LT, $1, $3, $line); }
+      | expr LE expr                              { $$ = Pl0s_Binary(PL0S_OP_LE, $1, $3, $line); }
+      | expr GT expr                              { $$ = Pl0s_Binary(PL0S_OP_GT, $1, $3, $line); }
+      | expr GE expr                              { $$ = Pl0s_Binary(PL0S_OP_GE, $1, $3, $line); }
+      | expr AND expr                             { $$ = Pl0s_Binary(PL0S_OP_AND, $1, $3, $line); }
+      | expr OR expr                              { $$ = Pl0s_Binary(PL0S_OP_OR, $1, $3, $line); }
+      | MINUS expr %prec UMINUS                   { $$ = Pl0s_Unary(PL0S_OP_NEG, $2, $line); }
+      | NOT expr %prec NOT                        { $$ = Pl0s_Unary(PL0S_OP_NOT, $2, $line); }
+      | LPAREN expr RPAREN                        { $$ = $2; }
+      | INT LPAREN expr RPAREN                    { $$ = Pl0s_Convert(PL0S_TYPE_INT, $3, $line); }
+      | FLOAT LPAREN expr RPAREN                  { $$ = Pl0s_Convert(PL0S_TYPE_FLOAT, $3, $line); } ;
+
+%code
+/* ============================================================
+ * 共享声明（进 pl0sgram_parser_user.h，被 parser 与 main 各包含一次）
+ * ============================================================ */
+
+#include "pl0super.hpp"
+
+#include <stdio.h>
+#include <string.h>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
+
+/* 词法池里的一条：取值的 Token 都登记进来，语义值是它的下标 */
+typedef struct Pl0s_Lex_T
+{
+    int         kind;      /* 1=NUMBER 2=DECIMAL 3=STRING 4=VARIABLE */
+    std::string text;
+    double      number;
+    int         line;
+} Pl0s_Lex_T;
+
+/* Token → 语义值（生成出来的 parser 对每个 Token 调这个宏） */
+#define PARSER_USER_TOKEN_VALUE(pToken)                                              \
+    Pl0s_TokenValue((((pToken)->type) == TOKEN_NUMBER)     ? 1                        \
+                    : (((pToken)->type) == TOKEN_DECIMAL)  ? 2                        \
+                    : (((pToken)->type) == TOKEN_STRING)   ? 3                        \
+                    : (((pToken)->type) == TOKEN_VARIABLE) ? 4                        \
+                                                           : 0,                       \
+                    (double)((pToken)->value),                                       \
+                    ((pToken)->pName != nullptr ? (pToken)->pName : (pToken)->name),  \
+                    (int)((pToken)->text.size()))
+
+/* 源码运算符 → 助记符：动作里只能写标识符（迷你语法不认字符串字面量），
+ * 所以统一用枚举常量（pl0-ir 的 Basic_Op_T 也是这个做法）。 */
+typedef enum Pl0s_Op_T
+{
+    PL0S_OP_ADD = 0, PL0S_OP_SUB, PL0S_OP_MUL, PL0S_OP_DIV, PL0S_OP_MOD,
+    PL0S_OP_EQ,      PL0S_OP_NE,  PL0S_OP_LT,  PL0S_OP_LE,  PL0S_OP_GT,
+    PL0S_OP_GE,      PL0S_OP_AND, PL0S_OP_OR,  PL0S_OP_NEG, PL0S_OP_NOT
+} Pl0s_Op_T;
+
+typedef enum Pl0s_TypeTag_T
+{
+    PL0S_TYPE_INT = 0, PL0S_TYPE_FLOAT, PL0S_TYPE_STR, PL0S_TYPE_STRUCT
+} Pl0s_TypeTag_T;
+
+/* ---- 动作函数（定义在 %epilogue）---- */
+double Pl0s_TokenValue(int kind, double value, const char* pName, int nameLen);
+void   Pl0s_Reset(void);
+void   Pl0s_FinishProgram(double name);
+void   Pl0s_EndBlock(double listIndex);
+
+double Pl0s_BeginStruct(double name);
+void   Pl0s_AddField(double name, double typeIndex, int line);
+void   Pl0s_EndStruct(double tag, int line);
+void   Pl0s_AddConst(double name, double exprIndex, int line);
+void   Pl0s_IdList(double name);
+void   Pl0s_IdListAdd(double name);
+void   Pl0s_AddVars(double typeIndex, int line);
+void   Pl0s_AddStr(int line);
+void   Pl0s_AddArray(double name, double lengthExpr, double typeIndex, int line);
+void   Pl0s_AddRef(double name, double placeIndex, int line);
+void   Pl0s_BeginProc(double name, int line);
+void   Pl0s_EndProc(void);
+double Pl0s_Type(int kind, double structName);
+
+double Pl0s_Name(double name, int line);
+double Pl0s_Field(double placeIndex, double name, int line);
+double Pl0s_Index(double placeIndex, double exprIndex, int line);
+
+double Pl0s_IntLiteral(double lexIndex);
+double Pl0s_RealLiteral(double lexIndex);
+double Pl0s_TextLiteral(double lexIndex);
+double Pl0s_PlaceAsExpr(double placeIndex);
+double Pl0s_Binary(int op, double left, double right, int line);
+double Pl0s_Unary(int op, double operand, int line);
+double Pl0s_Convert(int target, double operand, int line);
+
+double Pl0s_NewList(void);
+double Pl0s_ListAdd(double listIndex, double stmtIndex);
+double Pl0s_BlockStmt(double listIndex);
+double Pl0s_Assign(double placeIndex, double exprIndex, int line);
+double Pl0s_Write(double exprIndex, int line);
+double Pl0s_If(double cond, double thenStmt, double elseStmt);
+double Pl0s_While(double cond, double body);
+double Pl0s_For(double name, double from, double to, int down, double body, int line);
+double Pl0s_Goto(double name, int line);
+double Pl0s_Label(double name, int line);
+double Pl0s_Call(double name, int line);
+
+/* ---- %main 用：拿结果 / 说错误 ---- */
+const char* Pl0s_Error(void);
+int         Pl0s_TakeProgram(pl0s::Program* out);
+%endcode
+
+%epilogue
+/* ============================================================
+ * 语义动作的实现（只编进 pl0sgram_parser.cpp，状态是 file-scope static）
+ *
+ * 与手写前端 parser.cpp 一一对应：作用域与改名（`过程$名字`、字段 `p$x`）、
+ * 设计式（变量 / 字段 / 下标）、引用（绑定一次、用时克隆展开）、类型标注
+ * （isText / isFloat）、名字与标号检查、常量求值。
+ * ============================================================ */
+
+namespace
+{
+
+typedef struct Pl0s_Sym_T
+{
+    int         kind;        /* 0=const 1=var 2=array 3=str 4=structvar 5=structarray 6=proc 7=ref */
+    int         type;        /* g_types 下标 */
+    std::string mangled;
+    long        value;
+    std::string structName;
+    pl0s::ExprPtr refTarget;
+} Pl0s_Sym_T;
+
+typedef struct Pl0s_Place_T
+{
+    pl0s::ExprPtr expr;
+    int           type;      /* g_types 下标 */
+    int           writable;
+} Pl0s_Place_T;
+
+std::vector<Pl0s_Lex_T>        g_lex;
+std::vector<pl0s::TypeKind>    unusedKind;      /* 占位：类型统一放 g_types */
+std::vector<Pl0s_Sym_T>        unusedSym;       /* 占位 */
+std::vector<pl0s::ExprPtr>     g_exprs;
+std::vector<pl0s::StmtPtr>     g_stmts;
+std::vector<Pl0s_Place_T>      g_places;
+std::vector<std::vector<pl0s::StmtPtr> > g_lists;
+std::vector<std::map<std::string, Pl0s_Sym_T> > g_scopes;
+std::map<std::string, pl0s::StructDef> g_structs;
+std::vector<pl0s::Decl>        g_decls;
+std::vector<std::vector<pl0s::Decl> > g_procDecls;
+std::vector<std::string>       g_idList;
+std::vector<pl0s::Field>       g_fieldStack;
+std::vector<std::pair<std::string, int> > g_labels;
+std::vector<std::pair<std::string, int> > g_gotos;
+std::vector<std::string>       g_prefixStack;   /* 进过程时存外层前缀 */
+std::vector<pl0s::StmtPtr>     g_pendingBody;
+std::vector<pl0s::ExprPtr>     g_texts;          /* 字符串字面量池 */
+std::vector<std::string>       g_strings;
+std::string                    g_prefix = "main";
+std::string                    g_error;
+pl0s::Program                  g_program;
+int                            g_procDepth = 0;
+int                            g_structTag = 0;
+std::map<int, int>             g_exprPlace;      /* 表达式下标 → 它来自哪个设计式 */
+
+/* 类型：0=int 1=float 2=str 3=结构体 */
+typedef struct Pl0s_TypeDef_T
+{
+    int         kind;
+    std::string structName;
+} Pl0s_TypeDef_T;
+
+std::vector<Pl0s_TypeDef_T> g_types;
+
+const char kSep = '$';
+
+void Fail(const std::string& what)
+{
+    if (g_error.empty()) g_error = what;
+}
+
+void FailAt(int line, const std::string& what)
+{
+    Fail("第 " + std::to_string(line) + " 行：" + what);
+}
+
+const Pl0s_TypeDef_T& TypeAt(double index)
+{
+    static Pl0s_TypeDef_T fallback;
+    const int at = (int)index;
+    if (at < 0 || at >= (int)g_types.size()) return fallback;
+    return g_types[at];
+}
+
+bool IsText(double typeIndex) { return TypeAt(typeIndex).kind == 2; }
+bool IsFloat(double typeIndex) { return TypeAt(typeIndex).kind == 1; }
+bool IsStruct(double typeIndex) { return TypeAt(typeIndex).kind == 3; }
+
+std::string NameOf(double lexIndex)
+{
+    const int at = (int)lexIndex;
+    if (at < 0 || at >= (int)g_lex.size()) return std::string();
+    return g_lex[at].text;
+}
+
+const Pl0s_Sym_T* Lookup(const std::string& name)
+{
+    for (size_t i = g_scopes.size(); i-- > 0;)
+    {
+        std::map<std::string, Pl0s_Sym_T>::const_iterator found = g_scopes[i].find(name);
+        if (found != g_scopes[i].end()) return &found->second;
+    }
+    return 0;
+}
+
+bool DefinedHere(const std::string& name)
+{
+    return !g_scopes.empty() && g_scopes.back().count(name) != 0;
+}
+
+std::vector<pl0s::Decl>& CurrentDecls()
+{
+    return g_procDecls.empty() ? g_decls : g_procDecls.back();
+}
+
+int PushExpr(const pl0s::ExprPtr& expr)
+{
+    g_exprs.push_back(expr);
+    return (int)g_exprs.size() - 1;
+}
+
+int PushStmt(const pl0s::StmtPtr& stmt)
+{
+    g_stmts.push_back(stmt);
+    return (int)g_stmts.size() - 1;
+}
+
+pl0s::ExprPtr ExprAt(double index)
+{
+    const int at = (int)index;
+    return at >= 0 && at < (int)g_exprs.size() ? g_exprs[at] : pl0s::ExprPtr();
+}
+
+pl0s::StmtPtr StmtAt(double index)
+{
+    const int at = (int)index;
+    return at >= 0 && at < (int)g_stmts.size() ? g_stmts[at] : pl0s::StmtPtr();
+}
+
+Pl0s_Place_T PlaceAt(double index)
+{
+    const int at = (int)index;
+    return at >= 0 && at < (int)g_places.size() ? g_places[at] : Pl0s_Place_T();
+}
+
+int PushPlace(const Pl0s_Place_T& place)
+{
+    g_places.push_back(place);
+    return (int)g_places.size() - 1;
+}
+
+pl0s::ExprPtr MakeNumber(long value, int line)
+{
+    pl0s::ExprPtr node(new pl0s::Expr());
+    node->kind = pl0s::ExprKind::Number;
+    node->number = value;
+    node->line = line;
+    return node;
+}
+
+pl0s::ExprPtr MakeReal(double value, int line)
+{
+    pl0s::ExprPtr node(new pl0s::Expr());
+    node->kind = pl0s::ExprKind::Float;
+    node->real = value;
+    node->isFloat = true;
+    node->line = line;
+    return node;
+}
+
+std::string FlattenField(const std::string& head, const pl0s::Field& field)
+{
+    if (field.subs.empty()) return head;
+    std::string out;
+    for (size_t i = 0; i < field.subs.size(); ++i)
+    {
+        if (!out.empty()) out += kSep;
+        out += FlattenField(head + kSep + field.subs[i].name, field.subs[i]);
+    }
+    return out;
+}
+
+pl0s::Field* FindField(std::vector<pl0s::Field>& fields, const std::string& name)
+{
+    for (size_t i = 0; i < fields.size(); ++i)
+    {
+        if (fields[i].name == name) return &fields[i];
+    }
+    return 0;
+}
+
+pl0s::ExprPtr CloneExpr(const pl0s::ExprPtr& expr)
+{
+    if (!expr) return expr;
+    pl0s::ExprPtr copy(new pl0s::Expr());
+    *copy = *expr;
+    copy->args.clear();
+    for (size_t i = 0; i < expr->args.size(); ++i) copy->args.push_back(CloneExpr(expr->args[i]));
+    return copy;
+}
+
+/* 常量求值：声明里的数组长度、const 初值 */
+bool ConstEval(const pl0s::ExprPtr& expr, long* out)
+{
+    if (!expr) return false;
+    if (expr->kind == pl0s::ExprKind::Number)
+    {
+        *out = expr->number;
+        return true;
+    }
+    if (expr->kind == pl0s::ExprKind::Unary)
+    {
+        long inner = 0;
+        if (!ConstEval(expr->args[0], &inner)) return false;
+        *out = expr->op == "neg" ? -inner : (inner == 0 ? 1 : 0);
+        return true;
+    }
+    if (expr->kind == pl0s::ExprKind::Binary)
+    {
+        long a = 0;
+        long b = 0;
+        if (!ConstEval(expr->args[0], &a) || !ConstEval(expr->args[1], &b)) return false;
+        const std::string& op = expr->op;
+        if (op == "+") { *out = a + b; return true; }
+        if (op == "-") { *out = a - b; return true; }
+        if (op == "*") { *out = a * b; return true; }
+        if (op == "%" && b != 0) { *out = a % b; return true; }
+        if (op == "/")
+        {
+            if (b == 0)
+            {
+                FailAt(expr->line, "除数是常量 0");
+                return false;
+            }
+            *out = a / b;
+            return true;
+        }
+    }
+    return false;
+}
+
+} /* namespace */
+
+/**
+ * Token → 语义值：取值的 Token 登记进词法池，返回池子下标。
+ *
+ * 三件事必须按生成器给的数据来（踩过坑，记下来）：
+ *   - `pToken->value` 是 **int32**，浮点的小数位在这一步就没了 → 数字一律从**词素**解析；
+ *   - 词素要读 `text`（string_view，可能不 NUL 结尾），所以连长度一起传；
+ *   - 整数还是浮点看词素里有没有 `.`（不依赖 DECIMAL 那个正则有没有命中）。
+ *
+ * @param kind    0 不取值 / 1 NUMBER / 2 DECIMAL / 3 STRING / 4 VARIABLE
+ * @param value   词法器给的数值（整数用它兜底）
+ * @param pName   词素指针（可能为空）
+ * @param nameLen 词素长度
+ * @return 词法池下标（不取值时 -1）
+ */
+double Pl0s_TokenValue(int kind, double value, const char* pName, int nameLen)
+{
+    if (kind == 0) return -1.0;
+    Pl0s_Lex_T lex;
+    lex.kind = kind;
+    if (pName != 0 && nameLen > 0) lex.text.assign(pName, (size_t)nameLen);
+    const bool isReal = kind == 2 || lex.text.find('.') != std::string::npos;
+    lex.number = isReal ? std::atof(lex.text.c_str()) : value;
+    if (isReal) lex.kind = 2;                    /* 统一标成浮点 */
+    lex.line = 0;
+    g_lex.push_back(lex);
+    return (double)(g_lex.size() - 1);
+}
+
+void Pl0s_Reset(void)
+{
+    g_lex.clear();
+    g_types.clear();
+    g_exprs.clear();
+    g_stmts.clear();
+    g_places.clear();
+    g_lists.clear();
+    g_scopes.clear();
+    g_structs.clear();
+    g_decls.clear();
+    g_procDecls.clear();
+    g_idList.clear();
+    g_fieldStack.clear();
+    g_labels.clear();
+    g_gotos.clear();
+    g_prefixStack.clear();
+    g_pendingBody.clear();
+    g_texts.clear();
+    g_strings.clear();
+    g_exprPlace.clear();
+    g_error.clear();
+    g_prefix = "main";
+    g_procDepth = 0;
+    g_program = pl0s::Program();
+    g_scopes.push_back(std::map<std::string, Pl0s_Sym_T>());
+    /* 预置 int / float / str 三个类型 */
+    Pl0s_TypeDef_T intType; intType.kind = 0; g_types.push_back(intType);
+    Pl0s_TypeDef_T floatType; floatType.kind = 1; g_types.push_back(floatType);
+    Pl0s_TypeDef_T strType; strType.kind = 2; g_types.push_back(strType);
+}
+
+double Pl0s_Type(int kind, double structName)
+{
+    Pl0s_TypeDef_T type;
+    type.kind = kind;
+    if (kind == 3) type.structName = NameOf(structName);
+    g_types.push_back(type);
+    return (double)(g_types.size() - 1);
+}
+
+void Pl0s_FinishProgram(double name)
+{
+    g_program.name = NameOf(name);
+    g_program.decls = g_decls;
+    g_program.body = g_pendingBody;
+    for (std::map<std::string, pl0s::StructDef>::iterator it = g_structs.begin();
+         it != g_structs.end(); ++it)
+    {
+        g_program.structs.push_back(it->second);
+    }
+}
+
+void Pl0s_EndBlock(double listIndex)
+{
+    const int at = (int)listIndex;
+    g_pendingBody = at >= 0 && at < (int)g_lists.size() ? g_lists[at]
+                                                        : std::vector<pl0s::StmtPtr>();
+}
+
+/* ---- 结构体 ---- */
+double Pl0s_BeginStruct(double name)
+{
+    g_fieldStack.clear();
+    g_structTag = (int)name;
+    return name;
+}
+
+void Pl0s_AddField(double name, double typeIndex, int line)
+{
+    pl0s::Field field;
+    field.name = NameOf(name);
+    const Pl0s_TypeDef_T& type = TypeAt(typeIndex);
+    if (type.kind == 3)
+    {
+        field.kind = pl0s::TypeKind::Struct;
+        field.structName = type.structName;
+        std::map<std::string, pl0s::StructDef>::const_iterator found = g_structs.find(type.structName);
+        if (found == g_structs.end()) FailAt(line, "字段用了没定义的结构体：" + type.structName);
+        else field.subs = found->second.fields;
+    }
+    else if (type.kind == 2)
+    {
+        FailAt(line, "结构体字段暂时不能是 str");
+        field.kind = pl0s::TypeKind::Int;
+    }
+    else
+    {
+        field.kind = type.kind == 1 ? pl0s::TypeKind::Float : pl0s::TypeKind::Int;
+    }
+    g_fieldStack.push_back(field);
+}
+
+void Pl0s_EndStruct(double tag, int line)
+{
+    pl0s::StructDef def;
+    def.name = NameOf(tag);
+    def.fields = g_fieldStack;
+    def.line = line;
+    if (def.fields.empty()) FailAt(line, "结构体 " + def.name + " 至少要有一个字段");
+    if (g_structs.count(def.name) != 0) FailAt(line, "结构体重复定义：" + def.name);
+    g_structs[def.name] = def;
+    g_fieldStack.clear();
+}
+
+/* ---- 声明 ---- */
+void Pl0s_AddConst(double name, double exprIndex, int line)
+{
+    const std::string text = NameOf(name);
+    long value = 0;
+    if (!ConstEval(ExprAt(exprIndex), &value)) FailAt(line, "常量 " + text + " 的值要是整数常量");
+    if (DefinedHere(text)) FailAt(line, "同名重复定义：" + text);
+    Pl0s_Sym_T symbol;
+    symbol.kind = 0;
+    symbol.type = 0;
+    symbol.mangled = g_prefix + kSep + text;
+    symbol.value = value;
+    g_scopes.back()[text] = symbol;
+    pl0s::Decl decl;
+    decl.kind = pl0s::DeclKind::Const;
+    decl.name = text;
+    decl.value = value;
+    decl.line = line;
+    CurrentDecls().push_back(decl);
+}
+
+void Pl0s_IdList(double name)
+{
+    g_idList.clear();
+    g_idList.push_back(NameOf(name));
+}
+
+void Pl0s_IdListAdd(double name)
+{
+    g_idList.push_back(NameOf(name));
+}
+
+void Pl0s_AddVars(double typeIndex, int line)
+{
+    const Pl0s_TypeDef_T type = TypeAt(typeIndex);
+    for (size_t i = 0; i < g_idList.size(); ++i)
+    {
+        const std::string text = g_idList[i];
+        if (DefinedHere(text)) FailAt(line, "同名重复定义：" + text);
+        Pl0s_Sym_T symbol;
+        symbol.type = (int)typeIndex;
+        symbol.mangled = g_prefix + kSep + text;
+        pl0s::Decl decl;
+        decl.line = line;
+        decl.name = symbol.mangled;
+        if (type.kind == 3)
+        {
+            symbol.kind = 4;
+            symbol.structName = type.structName;
+            decl.kind = pl0s::DeclKind::StructVar;
+            decl.structName = type.structName;
+        }
+        else
+        {
+            symbol.kind = 1;
+            decl.kind = pl0s::DeclKind::Var;
+            decl.isFloat = type.kind == 1;
+        }
+        g_scopes.back()[text] = symbol;
+        CurrentDecls().push_back(decl);
+    }
+    g_idList.clear();
+}
+
+void Pl0s_AddStr(int line)
+{
+    for (size_t i = 0; i < g_idList.size(); ++i)
+    {
+        const std::string text = g_idList[i];
+        if (DefinedHere(text)) FailAt(line, "同名重复定义：" + text);
+        Pl0s_Sym_T symbol;
+        symbol.kind = 3;
+        symbol.type = 2;
+        symbol.mangled = g_prefix + kSep + text;
+        g_scopes.back()[text] = symbol;
+        pl0s::Decl decl;
+        decl.kind = pl0s::DeclKind::Str;
+        decl.name = symbol.mangled;
+        decl.line = line;
+        CurrentDecls().push_back(decl);
+    }
+    g_idList.clear();
+}
+
+void Pl0s_AddArray(double name, double lengthExpr, double typeIndex, int line)
+{
+    const std::string text = NameOf(name);
+    long length = 0;
+    if (!ConstEval(ExprAt(lengthExpr), &length)) FailAt(line, "数组 " + text + " 的长度要是整数常量");
+    if (length <= 0) FailAt(line, "数组 " + text + " 的长度要大于 0");
+    if (DefinedHere(text)) FailAt(line, "同名重复定义：" + text);
+    const Pl0s_TypeDef_T type = TypeAt(typeIndex);
+    Pl0s_Sym_T symbol;
+    symbol.type = (int)typeIndex;
+    symbol.mangled = g_prefix + kSep + text;
+    pl0s::Decl decl;
+    decl.name = symbol.mangled;
+    decl.length = length;
+    decl.line = line;
+    if (type.kind == 3)
+    {
+        symbol.kind = 5;
+        symbol.structName = type.structName;
+        decl.kind = pl0s::DeclKind::StructArray;
+        decl.structName = type.structName;
+    }
+    else
+    {
+        symbol.kind = 2;
+        decl.kind = pl0s::DeclKind::Array;
+        decl.isFloat = type.kind == 1;
+    }
+    g_scopes.back()[text] = symbol;
+    CurrentDecls().push_back(decl);
+}
+
+void Pl0s_AddRef(double name, double placeIndex, int line)
+{
+    const std::string text = NameOf(name);
+    if (DefinedHere(text)) FailAt(line, "同名重复定义：" + text);
+    const Pl0s_Place_T place = PlaceAt(placeIndex);
+    if (!place.writable || !place.expr) FailAt(line, "引用的目标要能读写：" + text);
+    Pl0s_Sym_T symbol;
+    symbol.kind = 7;
+    symbol.type = place.type;
+    symbol.mangled = g_prefix + kSep + text;
+    symbol.refTarget = place.expr;
+    g_scopes.back()[text] = symbol;
+}
+
+void Pl0s_BeginProc(double name, int line)
+{
+    const std::string text = NameOf(name);
+    if (DefinedHere(text)) FailAt(line, "同名重复定义：" + text);
+    Pl0s_Sym_T symbol;
+    symbol.kind = 6;
+    symbol.mangled = g_prefix + kSep + text;
+    g_scopes.back()[text] = symbol;
+    g_procDecls.push_back(std::vector<pl0s::Decl>());
+    g_scopes.push_back(std::map<std::string, Pl0s_Sym_T>());
+    g_prefixStack.push_back(g_prefix);          /* 嵌套过程：出来要回到外层前缀 */
+    g_prefix = symbol.mangled;
+    g_labels.clear();
+    g_gotos.clear();
+    ++g_procDepth;
+}
+
+void Pl0s_EndProc(void)
+{
+    for (size_t i = 0; i < g_gotos.size(); ++i)
+    {
+        bool found = false;
+        for (size_t j = 0; j < g_labels.size(); ++j)
+        {
+            if (g_labels[j].first == g_gotos[i].first) found = true;
+        }
+        if (!found) FailAt(g_gotos[i].second, "goto " + g_gotos[i].first + " 没有对应的 label");
+    }
+    if (!g_procDecls.empty())
+    {
+        pl0s::Decl decl;
+        decl.kind = pl0s::DeclKind::Proc;
+        decl.name = g_prefix;
+        decl.decls = g_procDecls.back();
+        decl.body = g_pendingBody;
+        g_procDecls.pop_back();
+        CurrentDecls().push_back(decl);
+        g_pendingBody.clear();
+    }
+    if (!g_scopes.empty()) g_scopes.pop_back();
+    g_prefix = g_prefixStack.empty() ? std::string("main") : g_prefixStack.back();
+    if (!g_prefixStack.empty()) g_prefixStack.pop_back();
+    if (g_procDepth > 0) --g_procDepth;
+}
+
+/* ---- 设计式 ---- */
+double Pl0s_Name(double name, int line)
+{
+    const std::string text = NameOf(name);
+    const Pl0s_Sym_T* symbol = Lookup(text);
+    Pl0s_Place_T place;
+    if (symbol == 0)
+    {
+        FailAt(line, "名字 " + text + " 没有定义");
+        return (double)PushPlace(place);
+    }
+    if (symbol->kind == 0)                                  /* 常量：当字面量用 */
+    {
+        pl0s::ExprPtr node = MakeNumber(symbol->value, line);
+        place.type = 0;
+        place.expr = node;
+        place.writable = 0;
+        return (double)PushPlace(place);
+    }
+    if (symbol->kind == 6)
+    {
+        FailAt(line, "过程名不能当值用：" + text);
+        return (double)PushPlace(place);
+    }
+    if (symbol->kind == 7)                                  /* 引用：展开成目标 */
+    {
+        place.expr = CloneExpr(symbol->refTarget);
+        place.type = symbol->type;
+        place.writable = 1;
+        return (double)PushPlace(place);
+    }
+    pl0s::ExprPtr node(new pl0s::Expr());
+    node->kind = pl0s::ExprKind::Var;
+    node->text = symbol->mangled;
+    node->isFloat = IsFloat(symbol->type);
+    node->isText = IsText(symbol->type);
+    node->line = line;
+    place.expr = node;
+    place.type = symbol->type;
+    place.writable = symbol->kind == 1 || symbol->kind == 3 ? 1 : 0;
+    if (symbol->kind == 4 || symbol->kind == 5) place.writable = 0;   /* 结构体整体要先取字段 */
+    return (double)PushPlace(place);
+}
+
+double Pl0s_Field(double placeIndex, double name, int line)
+{
+    Pl0s_Place_T place = PlaceAt(placeIndex);
+    const std::string field = NameOf(name);
+    if (!IsStruct(place.type))
+    {
+        FailAt(line, "只有结构体才有字段：" + field);
+        return placeIndex;
+    }
+    const std::string structName = TypeAt(place.type).structName;
+    std::map<std::string, pl0s::StructDef>::iterator def = g_structs.find(structName);
+    if (def == g_structs.end())
+    {
+        FailAt(line, "结构体 " + structName + " 没有定义");
+        return placeIndex;
+    }
+    pl0s::Field* found = FindField(def->second.fields, field);
+    if (found == 0)
+    {
+        FailAt(line, "结构体 " + structName + " 没有字段 " + field);
+        return placeIndex;
+    }
+    const std::string leaf = FlattenField(field, *found);
+    if (place.expr->kind == pl0s::ExprKind::Var) place.expr->text += kSep + leaf;
+    else if (place.expr->kind == pl0s::ExprKind::Index) place.expr->args[0]->text += kSep + leaf;
+    else
+    {
+        FailAt(line, "这个设计式不能取字段：" + field);
+        return placeIndex;
+    }
+    if (found->kind == pl0s::TypeKind::Struct)
+    {
+        Pl0s_TypeDef_T type;
+        type.kind = 3;
+        type.structName = found->structName;
+        g_types.push_back(type);
+        place.type = (int)g_types.size() - 1;
+        place.writable = 0;
+    }
+    else
+    {
+        Pl0s_TypeDef_T type;
+        type.kind = found->kind == pl0s::TypeKind::Float ? 1 : 0;
+        g_types.push_back(type);
+        place.type = (int)g_types.size() - 1;
+        place.writable = 1;
+        /* 字段自己的类型要回填到表达式上：代码生成与简化都读它 */
+        place.expr->isFloat = found->kind == pl0s::TypeKind::Float;
+        place.expr->isText = false;
+    }
+    return (double)PushPlace(place);
+}
+
+double Pl0s_Index(double placeIndex, double exprIndex, int line)
+{
+    Pl0s_Place_T place = PlaceAt(placeIndex);
+    pl0s::ExprPtr index = ExprAt(exprIndex);
+    if (index && (index->isText || index->isFloat)) FailAt(line, "数组下标要是整数");
+    if (!place.expr || place.expr->kind != pl0s::ExprKind::Var)
+    {
+        FailAt(line, "下标要写在数组上");
+        return placeIndex;
+    }
+    /* `数组名[i]`：基名后面挂下标；元素类型就是数组声明时记下的那个类型 */
+    pl0s::ExprPtr node(new pl0s::Expr());
+    node->kind = pl0s::ExprKind::Index;
+    node->isFloat = IsFloat(place.type);
+    node->line = line;
+    pl0s::ExprPtr base(new pl0s::Expr());
+    base->kind = pl0s::ExprKind::Var;
+    base->text = place.expr->text;
+    base->isFloat = node->isFloat;
+    base->line = line;
+    node->args.push_back(base);
+    node->args.push_back(index);
+    Pl0s_Place_T result;
+    result.expr = node;
+    result.type = place.type;                    /* 元素类型（结构体数组就还是结构体） */
+    result.writable = IsStruct(place.type) ? 0 : 1;
+    return (double)PushPlace(result);
+}
+
+/* ---- 表达式 ---- */
+/**
+ * 数字字面量：整数还是浮点看钩子里标好的 kind（钩子按词素里的 `.` 判定）。
+ *
+ * @param lexIndex 词法池下标
+ * @return 表达式池下标
+ */
+double Pl0s_NumberLiteral(double lexIndex)
+{
+    const int at = (int)lexIndex;
+    if (at < 0 || at >= (int)g_lex.size()) return (double)PushExpr(MakeNumber(0, 0));
+    const Pl0s_Lex_T& lex = g_lex[at];
+    if (lex.kind == 2) return (double)PushExpr(MakeReal(lex.number, lex.line));
+    return (double)PushExpr(MakeNumber((long)lex.number, lex.line));
+}
+
+double Pl0s_IntLiteral(double lexIndex) { return Pl0s_NumberLiteral(lexIndex); }
+
+double Pl0s_RealLiteral(double lexIndex) { return Pl0s_NumberLiteral(lexIndex); }
+
+double Pl0s_TextLiteral(double lexIndex)
+{
+    const int at = (int)lexIndex;
+    pl0s::ExprPtr node(new pl0s::Expr());
+    node->kind = pl0s::ExprKind::Text;
+    node->text = at >= 0 && at < (int)g_lex.size() ? g_lex[at].text : std::string();
+    node->isText = true;
+    return (double)PushExpr(node);
+}
+
+double Pl0s_PlaceAsExpr(double placeIndex)
+{
+    const Pl0s_Place_T place = PlaceAt(placeIndex);
+    const int index = PushExpr(place.expr);
+    g_exprPlace[index] = (int)placeIndex;
+    return (double)index;
+}
+
+/** 运算符枚举 → 源码里的写法（动作里只能写标识符，映射放在这里）。 */
+const char* OpName(int op)
+{
+    switch (op)
+    {
+        case PL0S_OP_ADD: return "+";
+        case PL0S_OP_SUB: return "-";
+        case PL0S_OP_MUL: return "*";
+        case PL0S_OP_DIV: return "/";
+        case PL0S_OP_MOD: return "%";
+        case PL0S_OP_EQ:  return "=";
+        case PL0S_OP_NE:  return "<>";
+        case PL0S_OP_LT:  return "<";
+        case PL0S_OP_LE:  return "<=";
+        case PL0S_OP_GT:  return ">";
+        case PL0S_OP_GE:  return ">=";
+        case PL0S_OP_AND: return "and";
+        case PL0S_OP_OR:  return "or";
+        case PL0S_OP_NEG: return "neg";
+        case PL0S_OP_NOT: return "not";
+        default: return "";
+    }
+}
+
+double Pl0s_Binary(int op, double left, double right, int line)
+{
+    pl0s::ExprPtr a = ExprAt(left);
+    pl0s::ExprPtr b = ExprAt(right);
+    const std::string text = OpName(op);
+    if (a && b && (a->isText || b->isText))
+    {
+        if (text != "+") FailAt(line, "字符串只支持 +（拼接）");
+        else if (!a->isText || !b->isText) FailAt(line, "字符串拼接的两边都要是字符串");
+    }
+    if (a && b && !a->isText && !b->isText)
+    {
+        if (text == "%" && (a->isFloat || b->isFloat)) FailAt(line, "% 只支持整数");
+    }
+    pl0s::ExprPtr node(new pl0s::Expr());
+    node->kind = pl0s::ExprKind::Binary;
+    node->op = text;
+    node->line = line;
+    node->isText = (a && a->isText) || (b && b->isText);
+    node->isFloat = !node->isText && ((a && a->isFloat) || (b && b->isFloat));
+    node->args.push_back(a);
+    node->args.push_back(b);
+    return (double)PushExpr(node);
+}
+
+double Pl0s_Unary(int op, double operand, int line)
+{
+    pl0s::ExprPtr inner = ExprAt(operand);
+    const std::string text = OpName(op);
+    if (inner && inner->isText) FailAt(line, text + " 不能用在字符串上");
+    pl0s::ExprPtr node(new pl0s::Expr());
+    node->kind = pl0s::ExprKind::Unary;
+    node->op = text;
+    node->line = line;
+    node->isFloat = inner && inner->isFloat;
+    node->args.push_back(inner);
+    return (double)PushExpr(node);
+}
+
+double Pl0s_Convert(int target, double operand, int line)
+{
+    pl0s::ExprPtr inner = ExprAt(operand);
+    const std::string text = target == PL0S_TYPE_FLOAT ? std::string("float") : std::string("int");
+    if (inner && inner->isText) FailAt(line, text + "(...) 不能用在字符串上");
+    pl0s::ExprPtr node(new pl0s::Expr());
+    node->kind = pl0s::ExprKind::Convert;
+    node->text = text;
+    node->isFloat = text == "float";
+    node->line = line;
+    node->args.push_back(inner);
+    return (double)PushExpr(node);
+}
+
+/* ---- 语句 ---- */
+double Pl0s_NewList(void)
+{
+    g_lists.push_back(std::vector<pl0s::StmtPtr>());
+    return (double)(g_lists.size() - 1);
+}
+
+double Pl0s_ListAdd(double listIndex, double stmtIndex)
+{
+    const int at = (int)listIndex;
+    if (at >= 0 && at < (int)g_lists.size()) g_lists[at].push_back(StmtAt(stmtIndex));
+    return listIndex;
+}
+
+double Pl0s_BlockStmt(double listIndex)
+{
+    const int at = (int)listIndex;
+    pl0s::StmtPtr stmt(new pl0s::Stmt());
+    stmt->kind = pl0s::StmtKind::Block;
+    if (at >= 0 && at < (int)g_lists.size()) stmt->body = g_lists[at];
+    return (double)PushStmt(stmt);
+}
+
+double Pl0s_Assign(double placeIndex, double exprIndex, int line)
+{
+    const Pl0s_Place_T place = PlaceAt(placeIndex);
+    pl0s::ExprPtr value = ExprAt(exprIndex);
+    pl0s::StmtPtr stmt(new pl0s::Stmt());
+    stmt->kind = pl0s::StmtKind::Assign;
+    stmt->line = line;
+    stmt->target = place.expr;
+    if (IsStruct(place.type))
+    {
+        /* 结构体整体赋值：右值也要是设计式（同类型结构体） */
+        std::map<int, int>::const_iterator found = g_exprPlace.find((int)exprIndex);
+        if (found == g_exprPlace.end())
+        {
+            FailAt(line, "结构体只能整体复制另一个同类型结构体（或按字段赋值）");
+            return (double)PushStmt(stmt);
+        }
+        const Pl0s_Place_T from = PlaceAt((double)found->second);
+        if (!IsStruct(from.type) || TypeAt(from.type).structName != TypeAt(place.type).structName)
+        {
+            FailAt(line, "结构体整体赋值要同类型");
+            return (double)PushStmt(stmt);
+        }
+        stmt->copyStruct = TypeAt(place.type).structName;
+        stmt->args.push_back(from.expr);
+        return (double)PushStmt(stmt);
+    }
+    if (!place.writable) FailAt(line, "这个设计式不能赋值");
+    if (place.expr && place.expr->isText != (value && value->isText)) FailAt(line, "赋值两边类型不同");
+    if (place.expr && !place.expr->isText && !place.expr->isFloat && value && value->isFloat)
+    {
+        FailAt(line, "目标是整数，右值是浮点（要转换请写 int(...)）");
+    }
+    stmt->args.push_back(value);
+    return (double)PushStmt(stmt);
+}
+
+double Pl0s_Write(double exprIndex, int line)
+{
+    pl0s::StmtPtr stmt(new pl0s::Stmt());
+    stmt->kind = pl0s::StmtKind::Write;
+    stmt->line = line;
+    stmt->args.push_back(ExprAt(exprIndex));
+    return (double)PushStmt(stmt);
+}
+
+double Pl0s_If(double cond, double thenStmt, double elseStmt)
+{
+    pl0s::StmtPtr stmt(new pl0s::Stmt());
+    stmt->kind = pl0s::StmtKind::If;
+    stmt->args.push_back(ExprAt(cond));
+    stmt->body.push_back(StmtAt(thenStmt));
+    if (elseStmt >= 0) stmt->otherwise = StmtAt(elseStmt);
+    return (double)PushStmt(stmt);
+}
+
+double Pl0s_While(double cond, double body)
+{
+    pl0s::StmtPtr stmt(new pl0s::Stmt());
+    stmt->kind = pl0s::StmtKind::While;
+    stmt->args.push_back(ExprAt(cond));
+    stmt->body.push_back(StmtAt(body));
+    return (double)PushStmt(stmt);
+}
+
+double Pl0s_For(double name, double from, double to, int down, double body, int line)
+{
+    const std::string text = NameOf(name);
+    const Pl0s_Sym_T* symbol = Lookup(text);
+    pl0s::StmtPtr stmt(new pl0s::Stmt());
+    stmt->kind = pl0s::StmtKind::For;
+    stmt->down = down != 0;
+    stmt->line = line;
+    if (symbol == 0 || symbol->kind != 1)
+    {
+        FailAt(line, "for 的循环变量要是普通变量：" + text);
+        return (double)PushStmt(stmt);
+    }
+    pl0s::ExprPtr target(new pl0s::Expr());
+    target->kind = pl0s::ExprKind::Var;
+    target->text = symbol->mangled;
+    target->isFloat = IsFloat(symbol->type);
+    target->line = line;
+    stmt->target = target;
+    stmt->args.push_back(ExprAt(from));
+    stmt->args.push_back(ExprAt(to));
+    stmt->body.push_back(StmtAt(body));
+    return (double)PushStmt(stmt);
+}
+
+double Pl0s_Goto(double name, int line)
+{
+    pl0s::StmtPtr stmt(new pl0s::Stmt());
+    stmt->kind = pl0s::StmtKind::Goto;
+    stmt->name = NameOf(name);
+    stmt->line = line;
+    g_gotos.push_back(std::make_pair(stmt->name, line));
+    return (double)PushStmt(stmt);
+}
+
+double Pl0s_Label(double name, int line)
+{
+    const std::string text = NameOf(name);
+    for (size_t i = 0; i < g_labels.size(); ++i)
+    {
+        if (g_labels[i].first == text) FailAt(line, "标号重复定义：" + text);
+    }
+    g_labels.push_back(std::make_pair(text, line));
+    pl0s::StmtPtr stmt(new pl0s::Stmt());
+    stmt->kind = pl0s::StmtKind::Label;
+    stmt->name = text;
+    stmt->line = line;
+    return (double)PushStmt(stmt);
+}
+
+double Pl0s_Call(double name, int line)
+{
+    const std::string text = NameOf(name);
+    const Pl0s_Sym_T* symbol = Lookup(text);
+    pl0s::StmtPtr stmt(new pl0s::Stmt());
+    stmt->kind = pl0s::StmtKind::Call;
+    stmt->line = line;
+    if (symbol == 0 || symbol->kind != 6)
+    {
+        FailAt(line, "过程 " + text + " 没有定义");
+        return (double)PushStmt(stmt);
+    }
+    stmt->name = symbol->mangled;
+    return (double)PushStmt(stmt);
+}
+
+const char* Pl0s_Error(void) { return g_error.c_str(); }
+
+int Pl0s_TakeProgram(pl0s::Program* out)
+{
+    if (!g_error.empty()) return 0;
+    if (out != 0) *out = g_program;
+    return 1;
+}
+
+%main
+/* 入口：pl0-super [--asm|--stats] 源文件 —— 不给文件就读标准输入。
+ * ① 生成出来的前端归约时就把"简化代码"建进池子；② 库做简化 / 出汇编 / 跑目标机。 */
+int main(int argc, char **argv)
+{
+    ParserValue_T result;
+    int32_t status = 0;
+    const ParserError_T *pError = NULL;
+    std::ifstream stream;
+    std::string text;
+    std::string path;
+    bool showAsm = false;
+    bool showStats = false;
+
+    for (int i = 1; i < argc; ++i)
+    {
+        const std::string arg = argv[i];
+        if (arg == "--asm") showAsm = true;
+        else if (arg == "--stats") showStats = true;
+        else path = arg;
+    }
+    if (!path.empty())
+    {
+        stream.open(path.c_str(), std::ios::binary);
+        if (!stream)
+        {
+            fprintf(stderr, "打不开文件: %s\n", path.c_str());
+            return 2;
+        }
+        text.assign(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+        stream.close();
+    }
+    else
+    {
+        text.assign(std::istreambuf_iterator<char>(std::cin), std::istreambuf_iterator<char>());
+    }
+
+    Pl0s_Reset();
+    memset(&result, 0, sizeof(result));
+    status = Parser_RunText(text.c_str(), &result);
+    if (status != PARSER_OK)
+    {
+        pError = Parser_GetLastError();
+        fprintf(stderr, "第 %u 行第 %u 列：%s\n", (unsigned)pError->line,
+                (unsigned)pError->column, pError->message);
+        return 1;
+    }
+    if (Pl0s_Error()[0] != '\0')
+    {
+        fprintf(stderr, "%s\n", Pl0s_Error());
+        return 1;
+    }
+    pl0s::Program program;
+    if (!Pl0s_TakeProgram(&program))
+    {
+        fprintf(stderr, "%s\n", Pl0s_Error());
+        return 1;
+    }
+
+    std::string error;
+    pl0s::SimplifyStats stats;
+    if (!pl0s::simplify(program, &error, &stats))
+    {
+        fprintf(stderr, "%s\n", error.c_str());
+        return 1;
+    }
+    pl0s::CodegenResult code;
+    if (!pl0s::generate(program, code, &error))
+    {
+        fprintf(stderr, "%s\n", error.c_str());
+        return 1;
+    }
+    if (showStats)
+    {
+        printf("简化：折叠 %d，代数 %d，死分支 %d，窥孔 %d\n", stats.folded, stats.algebra,
+               stats.deadBranch, stats.peephole);
+    }
+    if (showAsm)
+    {
+        fputs(code.asmText.c_str(), stdout);
+        return 0;
+    }
+    pl0s::VmResult run;
+    if (!pl0s::runAsm(code.asmText, run))
+    {
+        fprintf(stderr, "运行时错误：%s\n", run.error.c_str());
+        return 1;
+    }
+    fputs(run.output.c_str(), stdout);
+    return 0;
+}

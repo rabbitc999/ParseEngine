@@ -1,0 +1,47 @@
+"""Generated binary codec for $protocol_name. Do not edit."""
+
+from dataclasses import dataclass
+from enum import IntEnum
+
+
+class ProtocolDecodeError(ValueError):
+    pass
+
+
+class ProtocolEncodeError(ValueError):
+    pass
+
+
+def _read_bytes(data, offset, size):
+    if size < 0 or offset + size > len(data):
+        raise ProtocolDecodeError("need %d bytes at offset %d" % (size, offset))
+    return bytes(data[offset:offset + size]), offset + size
+
+
+def _read_integer(data, offset, size, signed, little):
+    chunk, offset = _read_bytes(data, offset, size)
+    return int.from_bytes(chunk, "little" if little else "big", signed=signed), offset
+
+
+def _write_integer(value, size, signed, little, field):
+    try:
+        return int(value).to_bytes(size, "little" if little else "big", signed=signed)
+    except (OverflowError, TypeError, ValueError) as exc:
+        raise ProtocolEncodeError("invalid integer for %s: %s" % (field, exc)) from exc
+
+
+def _as_enum(enum_type, value):
+    try:
+        return enum_type(value)
+    except ValueError as exc:
+        raise ProtocolDecodeError("invalid %s value: %d" % (enum_type.__name__, value)) from exc
+
+
+def _enum_value(enum_type, value, field):
+    try:
+        return int(enum_type(value))
+    except (TypeError, ValueError) as exc:
+        raise ProtocolEncodeError("invalid enum for %s: %r" % (field, value)) from exc
+
+
+$python_declarations

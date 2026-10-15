@@ -1,0 +1,437 @@
+    /* ---------- 递归下降（DD，带回溯） ---------- */
+
+    /// 递归下降的语义槽：`%tree` 时装语法树节点，否则装一个语义值。
+    struct DdSlot
+    {
+        bool tree = false;                  ///< 这一格装的是节点还是值
+        ParserValue_T value{};              ///< `%tree` 关闭时的语义值
+        ParserMemory::UniquePtr<Tree> node;         ///< `%tree` 时的子树
+    };
+
+    /// 递归下降的「输入位置」快照（回溯用）。
+    ///
+    /// `current.text` / `pName` 是**视图**（正则 / 数字 / 通配命中时指词法缓冲，
+    /// 固定字面量则指静态字面量），拷贝之后会悬空或指向别人。所以快照里额外
+    /// 存一份「这个 Token 当时显示出来的文本」的副本，恢复时重指回
+    /// `m_ddLexeme`（跟着解析器活的那份）。
+    struct DdMark
+    {
+        std::size_t textPos = 0u;
+        std::size_t tokenPos = 0u;
+        std::uint32_t line = 1u;
+        std::uint32_t column = 1u;
+        Token current;
+        ParserMemory::String tokenText;
+        std::size_t depth = 0u;
+    };
+
+    /// 一次解析最多往后跳几次同步 Token 再重试（`%sync` 的 panic mode）。
+    static constexpr std::uint32_t kDdMaxRecoverySkips = 64u;
+
+    /// 复位「最远失败点」与递归深度。
+    void ddReset()
+    {
+        m_ddDepth = 0u;
+        m_ddFrameDepth = 0u;
+        m_ddFarthestDepth = -1;
+        m_ddFarthestTypes.clear();
+        m_ddFarthestToken = m_current;
+        m_ddFarthestText.assign(m_current.text.data(), m_current.text.size());
+    }
+
+    /// 存一份「输入位置」快照。
+    DdMark ddMark() const
+    {
+        DdMark mark;
+        mark.textPos = m_textPos;
+        mark.tokenPos = m_tokenPos;
+        mark.line = m_line;
+        mark.column = m_column;
+        mark.current = m_current;
+        mark.tokenText.assign(m_current.text.data(), m_current.text.size());
+        mark.depth = m_ddDepth;
+        return mark;
+    }
+
+    /// 回退到快照。
+    void ddRestore(const DdMark &mark)
+    {
+        m_textPos = mark.textPos;
+        m_tokenPos = mark.tokenPos;
+        m_line = mark.line;
+        m_column = mark.column;
+        m_current = mark.current;
+        m_lexeme = mark.tokenText;
+        if (!m_lexeme.empty())
+        {
+            m_current.text = m_lexeme;
+            m_current.pName = m_lexeme.c_str();
+        }
+        m_ddDepth = mark.depth;
+    }
+
+    /// 记一次「在最远处期望某个 Token」（回溯不清这条记录）。
+    void ddRecordFail(std::uint16_t expected)
+    {
+        const long long depth = static_cast<long long>(m_ddDepth);
+        if (depth > m_ddFarthestDepth)
+        {
+            m_ddFarthestDepth = depth;
+            m_ddFarthestToken = m_current;
+            m_ddFarthestText.assign(m_current.text.data(),
+                                    m_current.text.size());
+            m_ddFarthestTypes.clear();
+            m_ddFarthestTypes.push_back(expected);
+            return;
+        }
+        if (depth != m_ddFarthestDepth)
+        {
+            return;
+        }
+        for (const std::uint16_t item : m_ddFarthestTypes)
+        {
+            if (item == expected)
+            {
+                return;
+            }
+        }
+        m_ddFarthestTypes.push_back(expected);
+    }
+
+    /// 解析一个非终结符：**按产生式声明顺序逐条试**，失败就回退输入位置。
+    ///
+    /// 这是递归下降的全部驱动逻辑，每个非终结符共用它——「一个非终结符一个
+    /// 解析函数」由 `ddProdStart` / `ddProdCount` 两张表表达。
+    bool ddParse(std::uint16_t nonterm, bool treeMode, bool requireEnd,
+                 DdSlot &out)
+    {
+        if (m_ddFrameDepth >= kMaxStackDepth)
+        {
+            setError(static_cast<std::int32_t>(Status::ErrStack), m_current.line,
+                     m_current.column, "递归太深（超过 max_stack_depth）");
+            return false;
+        }
+        ++m_ddFrameDepth;
+        const DdMark mark = ddMark();
+        const std::uint32_t start = ddProdStart[nonterm];
+        const std::uint32_t count = ddProdCount[nonterm];
+        ParserMemory::Vector<DdSlot> values(static_cast<std::size_t>(ddProdSlots[nonterm]));
+        for (std::uint32_t offset = 0u; offset < count; ++offset)
+        {
+            const std::uint16_t production =
+                static_cast<std::uint16_t>(start + offset);
+            ddRestore(mark);
+            for (DdSlot &slot : values)
+            {
+                slot = DdSlot();
+            }
+            if (!ddMatch(production, treeMode, values))
+            {
+                continue;
+            }
+            if (requireEnd && (m_current.type != TokenType::TOKEN_END))
+            {
+                // 右部走完了但输入还有剩：按「这里该结束了」记一次最远失败，
+                // 然后试本非终结符的下一条产生式
+                ddRecordFail(static_cast<std::uint16_t>(TokenType::TOKEN_END));
+                continue;
+            }
+            ddBuild(production, nonterm, treeMode, values, out);
+            --m_ddFrameDepth;
+            return true;
+        }
+        ddRestore(mark);
+        --m_ddFrameDepth;
+        return false;
+    }
+
+    /// 沿一条产生式的右部逐符号匹配。
+    ///
+    /// 终结符比对当前 Token（不等就记一次最远失败并返回 false），非终结符递归
+    /// 调用 `ddParse`。匹配成功的语义值写进 `values[1..n]`——第 0 个槽位留空，
+    /// 与 LL 的语义帧同一个约定（动作里的 `$n` 就是 `values[n]`）。
+    bool ddMatch(std::uint16_t production, bool treeMode,
+                 ParserMemory::Vector<DdSlot> &values)
+    {
+        const std::uint32_t base = treeProdStart[production];
+        const std::uint32_t length = treeProdLength[production];
+        for (std::uint32_t index = 0u; index < length; ++index)
+        {
+            const std::uint32_t symbol = treeProdSymbols[base + index];
+            const std::size_t slot = static_cast<std::size_t>(index) + 1u;
+            if (symbol < kTerminalCount)
+            {
+                if (static_cast<std::uint32_t>(m_current.type) != symbol)
+                {
+                    ddRecordFail(static_cast<std::uint16_t>(symbol));
+                    return false;
+                }
+                if (treeMode)
+                {
+                    values[slot].tree = true;
+                    values[slot].node = makeLeaf(m_current);
+                }
+                else
+                {
+                    values[slot].value = m_current.value;
+                }
+                ++m_ddDepth;
+                if (advance() != Status::Ok)
+                {
+                    return false;
+                }
+                continue;
+            }
+            DdSlot child;
+            if (!ddParse(static_cast<std::uint16_t>(symbol - kTerminalCount),
+                         treeMode, false, child))
+            {
+                return false;
+            }
+            values[slot] = std::move(child);
+        }
+        return true;
+    }
+
+    /// 右部匹配完了：`%tree` 建分支节点，否则跑语义动作。
+    void ddBuild(std::uint16_t production, std::uint16_t nonterm, bool treeMode,
+                 ParserMemory::Vector<DdSlot> &values, DdSlot &out)
+    {
+        const std::uint32_t length = treeProdLength[production];
+        if (treeMode)
+        {
+            ParserMemory::Vector<ParserMemory::UniquePtr<Tree>> nodes(values.size());
+            for (std::size_t index = 1u; index < values.size(); ++index)
+            {
+                if (values[index].tree)
+                {
+                    nodes[index] = std::move(values[index].node);
+                }
+            }
+            out.tree = true;
+            out.node = makeBranch(nodes, treeTreeName(nonterm), 1u, length);
+            return;
+        }
+        ParserMemory::Vector<ParserValue_T> plain(values.size());
+        for (std::size_t index = 0u; index < values.size(); ++index)
+        {
+            plain[index] = values[index].value;
+        }
+        ParseResult result;
+        if (ddApplyAction(production, plain.data(), result) != Status::Ok)
+        {
+            out = DdSlot();
+            return;
+        }
+        out.value = result.value;
+    }
+
+    /// DD 的语义动作分派：`$n` 读 `values[n]`（第 0 个槽位留空，与 LL 一致）。
+    Status ddApplyAction(std::uint16_t production, ParserValue_T *values,
+                         ParseResult &result)
+    {
+        (void)values;
+        switch (production)
+        {
+{{ dd_action_cases }}
+        default: return Status::ErrSyntax;
+        }
+        return Status::Ok;
+    }
+
+    /// DD 增量入口：当前版本按完整文本做保守失效。
+    ///
+    /// 命中时恢复上次解析的错误表、commit 表与语义结果，不再走词法/递归下降；
+    /// 文本变化时自动回退到完整解析并刷新缓存。
+    Status runTextIncremental(std::string_view text, ParserValue_T *out,
+                              IncrementalCache &cache)
+    {
+        if (cache.valid && (cache.text.size() == text.size()) &&
+            std::equal(cache.text.begin(), cache.text.end(), text.begin()))
+        {
+            m_errors = cache.errors;
+            m_commits = cache.commits;
+            if (out != nullptr)
+            {
+                *out = cache.result;
+            }
+            return cache.status;
+        }
+        ParserValue_T value{};
+        const Status status = runText(text, &value);
+        cache.valid = true;
+        cache.text.assign(text.data(), text.size());
+        cache.status = status;
+        cache.result = value;
+        cache.errors = m_errors;
+        cache.commits = m_commits;
+        if (out != nullptr)
+        {
+            *out = value;
+        }
+        return status;
+    }
+
+    /// DD 版语法错误：期望集合由调用方给（递归下降没有状态号，row 记 0）。
+    ///
+    /// 文案与 `setSyntaxError` 逐字一致，只是期望集合不来自 `kExpected` 那套
+    /// 按状态号索引的表（同一份文案在这份 DD 专用模板里重写一遍，避免动到
+    /// 其余五档共用的 core 模板）。
+    void ddSetSyntaxError(const ParserMemory::Vector<std::uint16_t> &expectedTypes)
+    {
+        ParserMemory::Vector<std::uint32_t> expected;
+        for (const std::uint16_t type : expectedTypes)
+        {
+            if (expected.size() < kMaxExpected)
+            {
+                expected.push_back(type);
+            }
+        }
+        const std::uint32_t total = static_cast<std::uint32_t>(expected.size());
+        ParserMemory::String message = "语法错误：";
+        if (total == 0u)
+        {
+            message += kExpectedFallback;
+        }
+        else
+        {
+            const std::uint32_t listed =
+                (total > 4u) ? 4u : total;
+            for (std::uint32_t at = 0u; at < listed; ++at)
+            {
+                const char *pName =
+                    kTokenNames[static_cast<std::size_t>(expected[at])][0];
+                message += (at == 0u) ? "期望 " : " / ";
+                message += (pName != nullptr) ? pName : "?";
+            }
+            if (total > 1u)
+            {
+                if (total > listed)
+                {
+                    message += " 等 " + ParserMemory::toString(total) + " 个";
+                    message += "之一";
+                }
+                else
+                {
+                    message += " 之一";
+                }
+            }
+            message += "，实际是 ";
+            const char *pActual =
+                kTokenNames[static_cast<std::size_t>(m_current.type)][0];
+            message += (pActual != nullptr) ? pActual : "?";
+        }
+        std::int32_t code = static_cast<std::int32_t>(Status::ErrSyntax);
+        if (total != 0u)
+        {
+            code = (m_current.type == TokenType::TOKEN_END)
+                       ? static_cast<std::int32_t>(Status::ErrUnexpectedEof)
+                       : static_cast<std::int32_t>(Status::ErrExpected);
+        }
+        if (m_errors.size() >= kMaxErrors)
+        {
+            return;
+        }
+        m_errors.emplace_back(code, m_current.line, m_current.column, message,
+                              static_cast<std::uint32_t>(m_current.type),
+                              ParserMemory::String(m_current.text), 0u,
+                              std::move(expected),
+                              buildErrorContext(m_current.line,
+                                                m_current.column));
+    }
+
+    /// 递归下降主循环：从起始符号开始解析，要求把输入吃到 END。
+    ///
+    /// 解析失败时按「最远失败点」报一条错；文法写了 `%sync` 的话，再跳到下一个
+    /// 同步 Token 之后重试一段（panic mode），直到错误条数或跳过次数用完。
+    Status runLoop(ParserValue_T *out, ParserMemory::UniquePtr<Tree> *outTree,
+                   bool treeMode = false)
+    {
+        ddReset();
+        std::uint32_t budget = kDdMaxRecoverySkips;
+        while (true)
+        {
+            const DdMark mark = ddMark();
+            m_ddDepth = 0u;
+            m_ddFrameDepth = 0u;
+            m_ddFarthestDepth = -1;
+            m_ddFarthestTypes.clear();
+            DdSlot built;
+            if (ddParse(kStartId, treeMode, true, built))
+            {
+                if (treeMode)
+                {
+                    if (outTree != nullptr)
+                    {
+                        *outTree = std::move(built.node);
+                    }
+                }
+                else if (out != nullptr)
+                {
+                    *out = built.value;
+                }
+                return Status::Ok;
+            }
+            // 失败：回到这一段起点，把「最远失败的那个 Token」摆到 current 上
+            // 报错（报完再放回去，好接着往后找同步 Token）
+            ddRestore(mark);
+            if (m_ddFarthestTypes.empty())
+            {
+                m_ddFarthestToken = m_current;
+                m_ddFarthestText.assign(m_current.text.data(),
+                                        m_current.text.size());
+                m_ddFarthestTypes.push_back(
+                    static_cast<std::uint16_t>(TokenType::TOKEN_END));
+            }
+            const Token savedToken = m_current;
+            const ParserMemory::String savedLexeme = m_lexeme;
+            m_current = m_ddFarthestToken;
+            m_lexeme = m_ddFarthestText;
+            if (!m_ddFarthestText.empty())
+            {
+                m_current.text = m_ddFarthestText;
+                m_current.pName = m_ddFarthestText.c_str();
+            }
+            ddSetSyntaxError(m_ddFarthestTypes);
+            m_current = savedToken;
+            m_lexeme = savedLexeme;
+            if ((budget == 0u) || (m_errors.size() >= kMaxErrors))
+            {
+                return Status::ErrSyntax;
+            }
+            // panic mode：往前找下一个同步 Token，吃掉它再试一段
+            bool found = false;
+            while (m_current.type != TokenType::TOKEN_END)
+            {
+                if (isSyncToken(static_cast<std::uint16_t>(m_current.type)))
+                {
+                    found = true;
+                    break;
+                }
+                if (advance() != Status::Ok)
+                {
+                    return Status::ErrLexer;
+                }
+            }
+            if (!found)
+            {
+                return Status::ErrSyntax;
+            }
+            if (advance() != Status::Ok)
+            {
+                return Status::ErrLexer;
+            }
+            --budget;
+        }
+    }
+
+    /// 递归深度 / 已匹配的终结符数 / 最远失败点（回溯时不清它）。
+    std::size_t m_ddFrameDepth = 0u;
+    std::size_t m_ddDepth = 0u;
+    long long m_ddFarthestDepth = -1;
+    ParserMemory::Vector<std::uint16_t> m_ddFarthestTypes;
+    Token m_ddFarthestToken;
+    ParserMemory::String m_ddFarthestText;
+    /// 恢复位置 / 报错时 `current.text`、`pName` 指回来的那份文本副本
+    /// （跟着解析器活，不会被下一次取词覆盖）。
+    ParserMemory::String m_ddLexeme;

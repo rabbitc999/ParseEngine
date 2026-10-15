@@ -1,0 +1,284 @@
+    # ---------- LR 分析栈 ----------
+
+    def _lr_reset(self):
+        """把分析栈复位成「只有一个起始状态」。"""
+        self._states = [0]
+        self._symbols = [_INVALID_INDEX]
+        self._values = [None]
+        self._names = [""]
+        self._nodes = [None]
+        self._top = 1
+
+    def _lr_push(self, state, symbol, value, name, node=None):
+        """入栈；栈深超过 ``max_stack_depth`` 时返回 ``False``。"""
+        if self._top >= self.max_stack_depth:
+            return False
+        self._states.append(state)
+        self._symbols.append(symbol)
+        self._values.append(value)
+        self._names.append(name)
+        self._nodes.append(node)
+        self._top += 1
+        return True
+
+    def _lr_pop_to(self, new_top):
+        """弹到 new_top：语义值 / 变量名 / 语法树节点一起丢掉。"""
+        if new_top >= self._top:
+            return
+        del self._states[new_top:]
+        del self._symbols[new_top:]
+        del self._values[new_top:]
+        del self._names[new_top:]
+        del self._nodes[new_top:]
+        self._top = new_top
+
+    def _lr_discard_top(self):
+        """丢弃栈顶一个槽位（错误恢复用）。"""
+        if self._top > 0:
+            self._lr_pop_to(self._top - 1)
+
+    def _lr_shift(self, state, tree_mode):
+        """移进：把当前 Token 压栈；``%tree`` 时顺带建一个叶子节点。"""
+        token = self._current
+        node = _make_leaf(token) if tree_mode else None
+        if not self._lr_push(state, token.type, token.value, token.text, node):
+            return STATUS_ERR_STACK
+        return STATUS_OK
+
+    def _lr_reduce(self, production, tree_mode):
+        """归约：执行语义动作、弹出右部、按 GOTO 压回结果。"""
+        length = _PRODUCTION_LENGTH[production]
+        lhs = _PRODUCTION_LHS[production]
+        if length > self._top:
+            return STATUS_ERR_STACK
+        base = self._top - length
+        node = None
+        result_value = None
+        if tree_mode:
+            node = _make_branch(self._nodes, _tree_name(lhs), base, length)
+        else:
+            result = _Holder()
+            status = self._apply_action(production,
+                                        self._values[base:self._top], result)
+            if status != STATUS_OK:
+                return STATUS_ERR_SYNTAX
+            result_value = result.value
+        self._lr_pop_to(base)
+        if self._top == 0:
+            self._set_error(STATUS_ERR_STACK, self._current.line,
+                            self._current.column, "{{ lr_name }} 归约后栈为空")
+            return STATUS_ERR_STACK
+        state = _GOTO[self._states[self._top - 1]][lhs]
+        if state == _INVALID_STATE:
+            self._set_error(STATUS_ERR_SYNTAX, self._current.line,
+                            self._current.column,
+                            "{{ lr_name }} GOTO 表没有匹配项")
+            return STATUS_ERR_SYNTAX
+        if not self._lr_push(state, lhs, result_value, "", node):
+            return STATUS_ERR_STACK
+        return STATUS_OK
+
+    def _lr_panic_reduce(self, state, tree_mode):
+        """panic reduce：`%sync` 恢复时先把栈顶状态上待归约的项做掉。
+
+        语法错误常常出现在「归约到一半」的构造里（例如 ``1 + + 2`` 卡在
+        ``expr PLUS . term``），这时栈上没有任何状态能直接移进同步 Token；
+        沿着归约链做掉待归约的项，才能回到语句边界那种能移进同步 Token 的
+        状态。空产生式归约不会缩短栈，跳过它以免原地打转。
+        """
+        if _LOOKAHEAD_K > 1:
+            # LR(k)：归约在第二层（按 k 元组展望符建列）。跟 k = 1 一样
+            # 「只要这个状态有可归约的项就做掉」，所以扫全部列——错误发生时
+            # 窗口恰恰可能不在任何展望符集合里（那正是 LR(k) 提前发现错误的
+            # 方式），只查当前窗口那一列会找不到任何可归约的项。
+            for column in range(_LOOKAHEAD_COLUMN_COUNT):
+                action = _REDUCE[state][column]
+                if action >= 0:
+                    continue
+                production = -action - 1
+                length = _PRODUCTION_LENGTH[production]
+                if length == 0:
+                    # 空产生式归约不缩短栈：跳过它接着找别的项，不要直接放弃
+                    continue
+                if length > self._top:
+                    return STATUS_ERR_SYNTAX
+                return self._lr_reduce(production, tree_mode)
+            return STATUS_ERR_SYNTAX
+        for terminal in range(_TERMINAL_COUNT):
+            action = _ACTION[state][terminal]
+            if action >= 0:
+                continue
+            production = -action - 1
+            length = _PRODUCTION_LENGTH[production]
+            if length == 0:
+                # 空产生式归约不缩短栈：跳过它接着找别的项，不要直接放弃
+                continue
+            if length > self._top:
+                return STATUS_ERR_SYNTAX
+            return self._lr_reduce(production, tree_mode)
+        return STATUS_ERR_SYNTAX
+
+    def _lookahead_code(self, head_type=None):
+        """把 k 个 Token 的窗口编成一个整数（低位是窗口头）。
+
+        :param head_type: 覆盖窗口头的 Token 号；``None`` 表示用 current。
+        """
+        code = self._current.type if head_type is None else head_type
+        scale = _TERMINAL_COUNT
+        for index in range(1, _LOOKAHEAD_K):
+            code += self._lookahead[index - 1].type * scale
+            scale *= _TERMINAL_COUNT
+        return code
+
+    def _find_lookahead_column(self, code):
+        """二分查找窗口对应的归约列；没有这一列返回 -1。"""
+        low = 0
+        high = _LOOKAHEAD_COLUMN_COUNT - 1
+        while low <= high:
+            mid = low + (high - low) // 2
+            mid_code = _LOOKAHEAD_CODE[mid]
+            if mid_code == code:
+                return _LOOKAHEAD_COLUMN[mid]
+            if mid_code < code:
+                low = mid + 1
+            else:
+                high = mid - 1
+        return -1
+
+    def _lookup_window_action(self, state, head_type=None):
+        """两层查表：先按 k 元组展望符查归约列，再按窗口首个 Token 查移进。
+
+        k = 1 时只有一层（与从前完全一致）。
+        """
+        head = self._current.type if head_type is None else head_type
+        if _LOOKAHEAD_K <= 1:
+            return _ACTION[state][head]
+        column = self._find_lookahead_column(self._lookahead_code(head_type))
+        if column >= 0:
+            reduced = _REDUCE[state][column]
+            if reduced != 0:
+                return reduced
+        return _ACTION[state][head]
+
+    def _lr_can_shift_sync_token(self, state):
+        """栈顶状态能不能移进某个同步 Token。"""
+        if not _HAS_SYNC_TOKENS:
+            return False
+        for token in range(_TERMINAL_COUNT):
+            if (token in _SYNC_TOKENS) and (_ACTION[state][token] > 0):
+                return True
+        return False
+
+    def _lr_recover(self, tree_mode):
+        """语法错误恢复：error 产生式优先，`%sync` 兜底。
+
+        :return: ``STATUS_OK`` 表示找到了恢复点（主循环继续）。
+        """
+        # ① 已经在错误状态里：先丢掉当前 lookahead 再试，避免同一处连续刷屏
+        if self._error_status > 0:
+            while self._current.type != TOKEN_END:
+                if self._advance_window() != STATUS_OK:
+                    return STATUS_ERR_LEXER
+                token = self._current.type
+                if ((0 <= token < _TERMINAL_COUNT) and
+                        (self._lookup_window_action(
+                            self._states[self._top - 1]) != 0)):
+                    self._error_status = self.error_recovery_tokens
+                    return STATUS_OK
+            return STATUS_ERR_SYNTAX
+        # ② error 产生式：弹栈到能移进 error 的状态，把 error 当伪 Token 移进
+        #    （不消耗 lookahead，继续用同一个 Token 走主循环）
+        if _HAS_ERROR_TOKEN:
+            while self._top > 0:
+                action = _ACTION[self._states[self._top - 1]][_ERROR_TOKEN_ID]
+                if action > 0:
+                    if not self._lr_push(action - 1, _ERROR_TOKEN_ID, None,
+                                         "error"):
+                        return STATUS_ERR_STACK
+                    self._error_status = self.error_recovery_tokens
+                    return STATUS_OK
+                self._lr_discard_top()
+        # ③ %sync panic mode：弹栈到能移进某个同步 Token 的状态，再丢输入到它。
+        #    弹栈之前先做掉栈顶状态上待归约的项（panic reduce），否则「归约到
+        #    一半」的错误（例如 `1 + + 2`）找不到任何能移进同步 Token 的状态。
+        if _HAS_SYNC_TOKENS:
+            reduce_budget = 256
+            while self._top > 0:
+                state = self._states[self._top - 1]
+                if self._lr_can_shift_sync_token(state):
+                    while ((self._current.type != TOKEN_END) and
+                           (self._current.type not in _SYNC_TOKENS)):
+                        if self._advance_window() != STATUS_OK:
+                            return STATUS_ERR_LEXER
+                    if self._current.type == TOKEN_END:
+                        return STATUS_ERR_SYNTAX
+                    action = _ACTION[state][self._current.type]
+                    if action > 0:
+                        if self._lr_shift(action - 1, tree_mode) != STATUS_OK:
+                            return STATUS_ERR_STACK
+                        if self._advance_window() != STATUS_OK:
+                            return STATUS_ERR_LEXER
+                        self._error_status = self.error_recovery_tokens
+                        return STATUS_OK
+                elif ((reduce_budget > 0) and
+                      (self._lr_panic_reduce(state, tree_mode) == STATUS_OK)):
+                    reduce_budget -= 1
+                    if _LOOKAHEAD_K > 1:
+                        # LR(k) 的窗口比单 Token 更「挑」：错误常常正好卡在一个
+                        # 待归约的项上（窗口不在它的展望符集合里），做掉这个归约
+                        # 之后栈顶可能已经能正常走了——那就直接回主循环。
+                        if self._lookup_window_action(
+                                self._states[self._top - 1]) != 0:
+                            self._error_status = self.error_recovery_tokens
+                            return STATUS_OK
+                    continue
+                self._lr_discard_top()
+        return STATUS_ERR_SYNTAX
+
+    def _run_lr_loop(self, tree_mode):
+        """LR 主循环：移进 / 归约 / 接受。
+
+        :param tree_mode: 是否构建语法树（建树时不跑语义动作）。
+        :return: ``STATUS_OK`` 表示成功。
+        """
+        self._lr_reset()
+        while True:
+            state = self._states[self._top - 1]
+            token = self._current.type
+            if (state >= _STATE_COUNT) or (token >= _TERMINAL_COUNT):
+                self._set_error(STATUS_ERR_SYNTAX, self._current.line,
+                                self._current.column,
+                                "{{ lr_name }} 状态或 Token 越界")
+                return STATUS_ERR_SYNTAX
+            action = self._lookup_window_action(state)
+            if action == _ACCEPT_ACTION:
+                self.result = self._values[self._top - 1]
+                if tree_mode:
+                    self._tree_root = self._nodes[self._top - 1]
+                return STATUS_OK
+            if action > 0:
+                if self._lr_shift(action - 1, tree_mode) != STATUS_OK:
+                    self._set_error(STATUS_ERR_STACK, self._current.line,
+                                    self._current.column,
+                                    "{{ lr_name }} 分析栈已满")
+                    return STATUS_ERR_STACK
+                if self._advance_window() != STATUS_OK:
+                    return STATUS_ERR_LEXER
+                # 3 Token 规则：恢复过程中每成功移进一个真实 Token 就递减，
+                # 降到 0 就退出错误状态（下一个错误重新上报）
+                if self._error_status > 0:
+                    self._error_status -= 1
+                continue
+            if action < 0:
+                if self._lr_reduce(-action - 1, tree_mode) != STATUS_OK:
+                    return STATUS_ERR_SYNTAX
+                continue
+            # 已经在错误状态里就不再上报（bison 的 3 Token 规则 / yyerrok
+            # 就是用来控制「什么时候重新开始报错」的）
+            if self._error_status == 0:
+                self._set_syntax_error(state, _EXPECTED[state])
+                # 错误太多就放弃恢复
+                if len(self._errors) >= self.max_errors:
+                    return STATUS_ERR_SYNTAX
+            if self._lr_recover(tree_mode) != STATUS_OK:
+                return STATUS_ERR_SYNTAX

@@ -1,0 +1,78 @@
+    /**
+     * @brief 记一条「语法错误」：带上期望集合、实际 Token、状态号与词素。
+     *
+     * 文案五档统一：
+     *   - 期望集非空：「语法错误：期望 A / B 之一，实际是 C」（只列前 4 个，
+     *     其余用「等 N 个」带过；只有一个期望时不写「之一」）；
+     *   - 期望集为空：「语法错误：<kExpectedFallback>」。
+     * @param row 出错时的行（LR 是状态号、LL 是栈顶符号编号）。
+     */
+    void setSyntaxError(std::uint32_t row)
+    {
+        ParserMemory::Vector<std::uint32_t> expected;
+        std::uint32_t total = 0u;
+        if (row < kExpectedRowCount)
+        {
+            const std::uint32_t begin = kExpectedStart[row];
+            const std::uint32_t end = kExpectedStart[row + 1u];
+            total = end - begin;
+            for (std::uint32_t at = begin;
+                 (at < end) && (expected.size() < kMaxExpected); ++at)
+            {
+                expected.push_back(kExpectedData[at]);
+            }
+        }
+        const char *pActual =
+            kTokenNames[static_cast<std::size_t>(m_current.type)][0];
+        ParserMemory::String message = "语法错误：";
+        if (total == 0u)
+        {
+            message += kExpectedFallback;
+        }
+        else
+        {
+            const std::uint32_t listed =
+                (expected.size() > 4u)
+                    ? 4u
+                    : static_cast<std::uint32_t>(expected.size());
+            for (std::uint32_t at = 0u; at < listed; ++at)
+            {
+                const char *name =
+                    kTokenNames[static_cast<std::size_t>(expected[at])][0];
+                message += (at == 0u) ? "期望 " : " / ";
+                message += (name != nullptr) ? name : "?";
+            }
+            if (total > 1u)
+            {
+                if (total > listed)
+                {
+                    message += " 等 " + ParserMemory::toString(total) + " 个";
+                    message += "之一";
+                }
+                else
+                {
+                    message += " 之一";
+                }
+            }
+            message += "，实际是 ";
+            message += (pActual != nullptr) ? pActual : "?";
+        }
+        std::int32_t code = static_cast<std::int32_t>(Status::ErrSyntax);
+        if (total != 0u)
+        {
+            code = (m_current.type == TokenType::TOKEN_END)
+                       ? static_cast<std::int32_t>(Status::ErrUnexpectedEof)
+                       : static_cast<std::int32_t>(Status::ErrExpected);
+        }
+        if (m_errors.size() >= kMaxErrors)
+        {
+            return;
+        }
+        m_errors.emplace_back(code, m_current.line, m_current.column, message,
+                              static_cast<std::uint32_t>(m_current.type),
+                              ParserMemory::String(m_current.text), row,
+                              std::move(expected),
+                              buildErrorContext(m_current.line,
+                                                m_current.column));
+    }
+

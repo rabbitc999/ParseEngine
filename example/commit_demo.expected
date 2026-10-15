@@ -1,0 +1,14 @@
+解析输入: /* c1 */ 1+2 0x1F @tag #tag // c2
+解析成功
+commits: 3
+  [0] line=1 type=block text=/* c1 */
+  [1] line=1 type=default text=0x1F
+  [2] line=1 type=line text=// c2
+location: line=1 column=34 offset=33
+语法树:
+program
+  expr
+    expr
+      NUMBER(1)
+    PLUS(+)
+    NUMBER(2)

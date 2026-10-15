@@ -1,0 +1,16 @@
+{# LL(1) 的产生式展开分支。cases 每项 { id, items[] }，
+   items 每项 { note, terminal, kind, symbol, slot }：
+     note     —— 只写一行注释（空尾规则）；
+     terminal —— push 的是终结符（符号要写成 TOKEN_X）；
+     否则      —— push 的符号号后面补 `u`。
+   case 之间用一个换行分隔（分隔符放轮首），整个结果结尾不带换行。 #}
+{% for c in cases %}{% if loop_first %}{% else %}
+{% endif %}        case {{ c.id }}u:
+        {
+{% for i in c.items %}{% if i.note %}            /* 空尾规则由 LeftLoop 直接完成 */
+{% else %}            if (!push({{ i.kind }}, {% if i.terminal %}static_cast<std::uint16_t>(TOKEN_{{ i.symbol }}){% else %}{{ i.symbol }}u{% endif %}, frameIndex, {{ i.slot }}u, kInvalidIndex))
+            {
+                return Status::ErrStack;
+            }
+{% endif %}{% endfor %}            break;
+        }{% endfor %}

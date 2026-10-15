@@ -1,0 +1,8 @@
+{# 语法树元数据（CodeGenGo 的 goTreeTables）：一维整数表正文。
+   变量：prod_start / prod_length / prod_symbols。
+   本模板自带行尾换行。 #}
+// sParserTreeProdStart / sParserTreeProdLength / sParserTreeProdSymbols：
+// 语法树元数据，右部符号表（终结符用下标，非终结符用 sParserTerminalCount + 下标）。
+var sParserTreeProdStart = []int32{ {{ prod_start }} }
+var sParserTreeProdLength = []int32{ {{ prod_length }} }
+var sParserTreeProdSymbols = []int32{ {{ prod_symbols }} }

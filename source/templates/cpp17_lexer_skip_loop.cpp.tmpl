@@ -1,0 +1,12 @@
+        while (isSkipChar(static_cast<unsigned char>(m_text[m_textPos])))
+        {
+{% if has_blank_rule %}
+            // 空白也可能是 Token（%define NL "\n" / %token SP "\b"）：
+            // 命中以空白开头的字面量就停手，交给词法匹配
+            if (lexBlankRuleHit(&m_text[m_textPos]))
+            {
+                break;
+            }
+{% endif %}
+            readChar();
+        }

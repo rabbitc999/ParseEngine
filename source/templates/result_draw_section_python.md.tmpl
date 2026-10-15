@@ -1,0 +1,32 @@
+## 语法树绘图（`--svg` / `--dot`）
+
+这一档（{{ mode_label }}）的产物自带**自绘 SVG** 的能力：只用标准库拼文本，
+不依赖任何第三方模块，画出来是「叶子按出现顺序占位、父节点取子节点中点、
+按深度分层」的整齐树布局 —— 节点框里第一行是符号名（非终结符名或 Token 类型名）、
+第二行是词素（叶节点才有）。同一棵树每次画出的坐标完全一样。
+
+```python
+import parser
+
+engine = parser.Parser()
+tree = engine.parse_tree({{ example_code }})  # 只建树、不跑语义动作
+if tree is not None:
+    tree.write_svg("tree.svg")          # 自绘 SVG：浏览器 / 图片查看器直接打开
+    tree.write_dot("tree.dot")          # Graphviz DOT 文本
+    print(tree.to_svg())                # 也可以只要文本，自己决定写哪儿
+```
+
+演示程序认两个开关（**不给开关时输出与从前逐字相同**）：
+
+```sh
+printf '%s\n' {{ example_shell }} | python main.py --svg tree.svg --dot tree.dot
+```
+
+`--svg` / `--dot` 会**多解析一次**（`parse_tree` 只建树），所以没写 `%tree` 的
+文法也能画出树来。装了 Graphviz（Python 包 + `dot` 命令）时 DOT 可以直接渲染：
+`graphviz.Source(tree.to_dot()).render("tree")`；不想装也能把 `.dot` 交给
+任意 Graphviz 工具或在线渲染器。
+
+绘图只给 `LR(1)` / `LALR(1)` / `IELR(1)` 这三档（别的模式产物里没有
+`to_svg` / `to_dot` / `write_svg` / `write_dot` 这几个方法）。
+

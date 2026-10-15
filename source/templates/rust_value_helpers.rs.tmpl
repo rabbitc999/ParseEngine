@@ -1,0 +1,40 @@
+{# 语义值转换函数（CodeGenRust 的 rustValueHelpers）。
+   变量：
+     value_type         —— 语义值类型名
+     is_union           —— 语义值是不是 %union 结构体
+     text_cases         —— %union 里能吃字符串的成员，字段 kind / member
+     has_number_member  —— 数字该塞进哪个成员（没有就是假）
+     number_member / number_type —— 成员名与成员类型
+     is_text_carrier    —— 类型本身能装下字符串
+     is_numeric         —— 类型是标量数值（`as` 转换合法）
+   两个分支互斥且必须覆盖全部情况（不是 union、不是数值、又不吃字符串时走
+   `Default::default()`）。本模板自带行尾换行。 #}
+/// 把 Token 词素转成语义值（按 %value_type / %union 生成）。
+fn value_from_text(kind: i32, text: &str) -> {{ value_type }}
+{
+{% if is_union %}    let mut value = {{ value_type }}::default();
+    match kind
+    {
+{% for c in text_cases %}        {{ c.kind }} => value.{{ c.member }} = text.to_string(),
+{% endfor %}        _ => {}
+    }
+    value
+{% else %}{% if is_text_carrier %}    text.to_string()
+{% else %}    let _ = text;
+    Default::default()
+{% endif %}{% endif %}}
+
+/// 把数字词素转成语义值（按 %value_type / %union 生成）。
+fn value_from_number(number: f64, is_float: bool) -> {{ value_type }}
+{
+{% if is_union %}    let _ = is_float;
+    let mut value = {{ value_type }}::default();
+{% if has_number_member %}    value.{{ number_member }} = number as {{ number_type }};
+{% endif %}    value
+{% else %}{% if is_numeric %}    let _ = is_float;
+    number as {{ value_type }}
+{% else %}{% if is_text_carrier %}    let _ = is_float;
+    number.to_string()
+{% else %}    let _ = (number, is_float);
+    Default::default()
+{% endif %}{% endif %}{% endif %}}

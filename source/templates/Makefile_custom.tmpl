@@ -1,0 +1,57 @@
+# Makefile —— custom 运行时，由 ParseEngine 自动生成（{{ mode_name }}）
+#
+# 目标：
+#   make        默认编译静态库 libparser.a 与演示程序 parser_demo
+#   make lib    只编译静态库 libparser.a
+#   make demo   只编译演示程序 parser_demo
+#   make run    编译并运行演示程序（ARGS 会当 argv 传给 main；内建 demo main
+#               从标准输入读一行，用 `make run < 输入.txt` 更顺手）
+#   make clean  删除中间文件与产物
+#
+{% if user_header %}
+# 注意：ParserValue_T 与内存管理由用户在 parser_user.h（%code ... %endcode）中提供。
+{% endif %}
+
+CC      = gcc
+AR      = ar
+CFLAGS  = -std=c99 -Wall -Wextra -O2
+LDLIBS  = -lm
+ARFLAGS = rcs
+
+LIB_SRCS  := parser.c parser_token.c parser_table.c{% for src in lib_srcs %} {{ src }}{% endfor %}
+DEMO_SRCS := main.c
+HDRS      := parser.h parser_token.h{% if user_header %} parser_user.h{% endif %}{% for hdr in hdr_srcs %} {{ hdr }}{% endfor %}
+
+LIB_OBJS  := $(LIB_SRCS:.c=.o)
+DEMO_OBJS := $(DEMO_SRCS:.c=.o)
+
+LIB    := libparser.a
+TARGET := parser_demo
+
+.PHONY: all lib demo run clean
+
+all: $(LIB) $(TARGET)
+
+lib: $(LIB)
+
+demo: $(TARGET)
+
+$(LIB): $(LIB_OBJS)
+	$(AR) $(ARFLAGS) $@ $^
+
+$(TARGET): $(DEMO_OBJS) $(LIB)
+	$(CC) $(CFLAGS) -o $@ $(DEMO_OBJS) $(LIB) $(LDLIBS)
+
+%.o: %.c $(HDRS)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+run: $(TARGET)
+	./$(TARGET) $(ARGS)
+
+clean:
+	rm -f $(LIB_OBJS) $(DEMO_OBJS) $(LIB) $(TARGET)
+
+# 挂载点：生成目录里如果有一个 local.mk（可以用 `%copy local.mk` 一起带出来），
+# 就在所有默认变量与规则之后被包含进来——工程可以在这里补自己的源文件、
+# 头文件搜索路径、链接库与额外目标（例如 `check`）。
+-include local.mk

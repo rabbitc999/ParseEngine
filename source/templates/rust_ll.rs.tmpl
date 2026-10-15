@@ -1,0 +1,607 @@
+    // ---------- LL 分析驱动 ----------
+
+    fn ll_push(
+        &mut self,
+        kind: i32,
+        symbol: i32,
+        frame_index: i32,
+        value_index: i32,
+        seed_frame: i32,
+    ) -> bool
+    {
+        if self.ll_stack.len() >= MAX_STACK_DEPTH
+        {
+            return false;
+        }
+        self.ll_stack
+            .push([kind, symbol, frame_index, value_index, seed_frame]);
+        true
+    }
+
+    fn ll_pop(&mut self) -> [i32; 5]
+    {
+        match self.ll_stack.pop()
+        {
+            Some(item) => item,
+            None => [0, 0, INVALID_INDEX, 0, INVALID_INDEX],
+        }
+    }
+
+    /// 按产生式展开语义帧（生成期算好的分支各推一条右部）。
+    fn ll_expand(&mut self, production: i32, frame_index: i32) -> i32
+    {
+{{ ll_expand_cases }}
+        STATUS_ERR_SYNTAX
+    }
+
+    /// 执行一个产生式的语义动作（`$n` 读 `values`，`$$` 写 `result.value`）。
+    fn ll_execute(&mut self, production: i32, frame_index: i32) -> i32
+    {
+        let index = frame_index as usize;
+        let values = std::mem::take(&mut self.ll_frames[index].values);
+        let mut result = Holder {
+            value: self.ll_frames[index].result_value,
+        };
+        let status = self.apply_action(production, &values, &mut result);
+        self.ll_frames[index].values = values;
+        self.ll_frames[index].result_value = result.value;
+        if status != STATUS_OK
+        {
+            return STATUS_ERR_SYNTAX;
+        }
+        STATUS_OK
+    }
+
+    /// 转发语义槽：把 `$n` 直接当作本产生式的结果值。
+    fn ll_forward(&mut self, frame_index: i32, value_index: i32)
+    {
+        let frame = &mut self.ll_frames[frame_index as usize];
+        frame.result_value = frame.values[value_index as usize];
+    }
+
+    /// 完成语义帧：把结果交给父帧，或作为根结果。
+    fn ll_complete(&mut self, frame_index: i32) -> i32
+    {
+        while (self.ll_frames.len() > (frame_index as usize + 1))
+            && self.ll_frames.last().map_or(false, |f| f.discarded)
+        {
+            self.ll_frames.pop();
+        }
+        if self.ll_frames.is_empty() || ((frame_index as usize) != self.ll_frames.len() - 1)
+        {
+            return STATUS_ERR_STACK;
+        }
+        let frame = match self.ll_frames.pop()
+        {
+            Some(item) => item,
+            None => return STATUS_ERR_STACK,
+        };
+        if frame.parent_frame == INVALID_INDEX
+        {
+            self.root_result = frame.result_value;
+        }
+        else
+        {
+            let parent = &mut self.ll_frames[frame.parent_frame as usize];
+            parent.values[frame.parent_value as usize] = frame.result_value;
+        }
+        STATUS_OK
+    }
+
+    /// 捕获终结符：记下词素，并把 Token 语义值写进槽位。
+    fn ll_capture(&mut self, frame_index: i32, value_index: i32) -> i32
+    {
+        if value_index as usize >= VALUE_SLOTS
+        {
+            return STATUS_ERR_STACK;
+        }
+        let text = self.current.text.clone();
+        let value = self.current.value;
+        let frame = &mut self.ll_frames[frame_index as usize];
+        frame.names[value_index as usize] = text;
+        frame.values[value_index as usize] = value;
+        STATUS_OK
+    }
+
+    /// 取预测分析表的列号（LL(0) 恒为 0、LL(1) 用 Token 号、LL(k) 二分查列）。
+    fn ll_table_column(&self) -> i32
+    {
+        if _LOOKAHEAD_K == 0
+        {
+            return 0;
+        }
+        if _LOOKAHEAD_K == 1
+        {
+            return self.current.kind;
+        }
+        let mut code = self.current.kind as i64;
+        let mut scale = _TERMINAL_COUNT as i64;
+        for index in 1.._LOOKAHEAD_K
+        {
+            code += (self.lookahead[index as usize - 1].kind as i64) * scale;
+            scale *= _TERMINAL_COUNT as i64;
+        }
+        if _LOOKAHEAD_COLUMN_COUNT == 0
+        {
+            return -1;
+        }
+        let mut low = 0usize;
+        let mut high = _LOOKAHEAD_COLUMN_COUNT - 1;
+        while low <= high
+        {
+            let mid = low + (high - low) / 2;
+            let mid_code = _LOOKAHEAD_CODE[mid];
+            if mid_code == code
+            {
+                return _LOOKAHEAD_COLUMN[mid];
+            }
+            if mid_code < code
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                if mid == 0
+                {
+                    break;
+                }
+                high = mid - 1;
+            }
+        }
+        -1
+    }
+
+    /// 栈上第 `index` 项能不能取当前 Token（主循环能接着走）。
+    fn ll_item_takes(&self, index: usize, column: i32, head: i32) -> bool
+    {
+        let item = self.ll_stack[index];
+        if item[0] == _ITEM_TERMINAL
+        {
+            return item[1] == head;
+        }
+        if (item[0] == _ITEM_NONTERM) || (item[0] == _ITEM_LEFT_LOOP)
+        {
+            if item[1] as usize >= _NONTERM_COUNT
+            {
+                return false;
+            }
+            return (column >= 0)
+                && (_LL_TABLE[item[1] as usize][column as usize] >= 0);
+        }
+        false
+    }
+
+    /// 栈上第 `index` 项是不是「当前 Token 在它的 FOLLOW 里」。
+    fn ll_item_in_follow(&self, index: usize, head: i32) -> bool
+    {
+        let item = self.ll_stack[index];
+        if (item[0] != _ITEM_NONTERM) && (item[0] != _ITEM_LEFT_LOOP)
+        {
+            return false;
+        }
+        if (item[1] as usize >= _NONTERM_COUNT) || (head as usize >= _TERMINAL_COUNT)
+        {
+            return false;
+        }
+        _LL_FOLLOW[item[1] as usize].contains(&head)
+    }
+
+    fn ll_stack_takes(&self, column: i32, head: i32) -> bool
+    {
+        if self.ll_stack.is_empty()
+        {
+            return false;
+        }
+        self.ll_item_takes(self.ll_stack.len() - 1, column, head)
+    }
+
+    fn ll_stack_in_follow(&self, head: i32) -> bool
+    {
+        if self.ll_stack.is_empty()
+        {
+            return false;
+        }
+        self.ll_item_in_follow(self.ll_stack.len() - 1, head)
+    }
+
+    /// 栈顶之下还有没有哪一项能取当前 Token（FOLLOW 集恢复用）。
+    fn ll_deeper_takes(&self, column: i32, head: i32) -> bool
+    {
+        let mut index = self.ll_stack.len();
+        while index > 1
+        {
+            index -= 1;
+            if self.ll_item_takes(index - 1, column, head)
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn ll_unwind_frames(&mut self)
+    {
+        while self.ll_frames.last().map_or(false, |f| f.discarded)
+        {
+            self.ll_frames.pop();
+        }
+    }
+
+    /// 放弃「第 `frame_index` 个语义帧以及它里面已经展开的内层帧」。
+    fn ll_discard_frames_from(&mut self, frame_index: i32)
+    {
+        for index in (frame_index as usize)..self.ll_frames.len()
+        {
+            self.ll_frames[index].discarded = true;
+        }
+        self.ll_unwind_frames();
+    }
+
+    fn ll_discard_top(&mut self)
+    {
+        if self.ll_stack.is_empty()
+        {
+            return;
+        }
+        let item = self.ll_pop();
+        let frame_index = item[2];
+        if (frame_index == INVALID_INDEX)
+            || ((frame_index as usize) >= self.ll_frames.len())
+        {
+            return;
+        }
+        self.ll_frames[frame_index as usize].discarded = true;
+        self.ll_unwind_frames();
+    }
+
+    /// LL 的错误恢复（panic mode）：对齐到「栈上某一项能接受当前 Token」。
+    fn ll_synchronize(&mut self, failed_item: [i32; 5]) -> i32
+    {
+        if _LOOKAHEAD_K == 0
+        {
+            return STATUS_ERR_SYNTAX;
+        }
+        self.ll_stack.push(failed_item);
+        let mut budget = 256;
+        while budget > 0
+        {
+            let column = self.ll_table_column();
+            let head = self.current.kind;
+            if self.ll_stack_takes(column, head)
+            {
+                return STATUS_OK;
+            }
+            if !_SYNC_TOKENS.is_empty()
+                && (self.current.kind != TOKEN_END)
+                && is_sync_token(self.current.kind)
+            {
+                while (budget > 0) && !self.ll_stack.is_empty()
+                    && !self.ll_stack_takes(column, head)
+                {
+                    self.ll_discard_top();
+                    budget -= 1;
+                }
+                return if self.ll_stack.is_empty()
+                {
+                    STATUS_ERR_SYNTAX
+                }
+                else
+                {
+                    STATUS_OK
+                };
+            }
+            if !self.ll_stack.is_empty()
+                && (self.ll_stack_in_follow(head) || self.ll_deeper_takes(column, head))
+            {
+                let frame = self.ll_stack[self.ll_stack.len() - 1][2];
+                if frame == INVALID_INDEX
+                {
+                    self.ll_discard_top();
+                    budget -= 1;
+                    continue;
+                }
+                self.ll_discard_frames_from(frame);
+                while (budget > 0)
+                    && !self.ll_stack.is_empty()
+                    && (self.ll_stack[self.ll_stack.len() - 1][2] >= frame)
+                {
+                    self.ll_discard_top();
+                    budget -= 1;
+                }
+                continue;
+            }
+            if self.current.kind == TOKEN_END
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            if self.advance_window() != STATUS_OK
+            {
+                return STATUS_ERR_LEXER;
+            }
+            budget -= 1;
+        }
+        STATUS_ERR_SYNTAX
+    }
+
+    /// 非递归预测分析主循环（`%tree` 时只建树、不跑语义动作）。
+    fn run_ll_loop(&mut self, tree_mode: bool) -> i32
+    {
+        self.ll_stack.clear();
+        self.ll_frames.clear();
+        self.root_result = Default::default();
+        if tree_mode
+        {
+            self.tree_root = None;
+            self.tree_path.clear();
+            return self.run_ll_tree_loop();
+        }
+        if !self.ll_push(_ITEM_NONTERM, _START_ID, INVALID_INDEX, 0, INVALID_INDEX)
+        {
+            return STATUS_ERR_STACK;
+        }
+        while !self.ll_stack.is_empty()
+        {
+            let item = self.ll_pop();
+            let kind = item[0];
+            if kind == _ITEM_TERMINAL
+            {
+                if self.current.kind != item[1]
+                {
+                    self.set_expected_one_error(item[1]);
+                    if self.ll_synchronize(item) != STATUS_OK
+                    {
+                        return STATUS_ERR_SYNTAX;
+                    }
+                    continue;
+                }
+                if self.ll_capture(item[2], item[3]) != STATUS_OK
+                {
+                    return STATUS_ERR_STACK;
+                }
+                if self.advance_window() != STATUS_OK
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                continue;
+            }
+            if (kind == _ITEM_NONTERM) || (kind == _ITEM_LEFT_LOOP)
+            {
+                let column = self.ll_table_column();
+                let expected: Vec<i32> = if (item[1] as usize) < _NONTERM_COUNT
+                {
+                    _EXPECTED[item[1] as usize].to_vec()
+                }
+                else
+                {
+                    Vec::new()
+                };
+                if ((self.current.kind as usize) >= _TERMINAL_COUNT)
+                    || ((item[1] as usize) >= _NONTERM_COUNT)
+                    || (column < 0)
+                {
+                    self.set_syntax_error(item[1], &expected);
+                    if self.ll_synchronize(item) != STATUS_OK
+                    {
+                        return STATUS_ERR_SYNTAX;
+                    }
+                    continue;
+                }
+                let production = _LL_TABLE[item[1] as usize][column as usize];
+                if production < 0
+                {
+                    self.set_syntax_error(item[1], &expected);
+                    if self.ll_synchronize(item) != STATUS_OK
+                    {
+                        return STATUS_ERR_SYNTAX;
+                    }
+                    continue;
+                }
+                if kind == _ITEM_LEFT_LOOP
+                {
+                    if _PRODUCTION_IS_LEFT_EMPTY[production as usize] != 0
+                    {
+                        if self.ll_complete(item[2]) != STATUS_OK
+                        {
+                            return STATUS_ERR_STACK;
+                        }
+                    }
+                    else
+                    {
+                        let frame_index = item[2];
+                        let value = self.ll_frames[frame_index as usize].result_value;
+                        self.ll_frames[frame_index as usize].values[1] = value;
+                        if self.ll_expand(production, frame_index) != STATUS_OK
+                        {
+                            let (line, column) = (self.current.line, self.current.column);
+                            self.set_error(STATUS_ERR_STACK, line, column, "分析栈已满");
+                            return STATUS_ERR_STACK;
+                        }
+                    }
+                    continue;
+                }
+                if self.ll_frames.len() >= MAX_STACK_DEPTH
+                {
+                    let (line, column) = (self.current.line, self.current.column);
+                    self.set_error(STATUS_ERR_STACK, line, column, "语义帧栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                let frame_index = self.ll_frames.len() as i32;
+                let mut frame = LlFrame {
+                    parent_frame: item[2],
+                    parent_value: item[3],
+                    values: vec![Default::default(); VALUE_SLOTS + 1],
+                    names: vec![String::new(); VALUE_SLOTS + 1],
+                    result_value: Default::default(),
+                    discarded: false,
+                };
+                if item[4] != INVALID_INDEX
+                {
+                    frame.values[1] = self.ll_frames[item[4] as usize].result_value;
+                }
+                self.ll_frames.push(frame);
+                if self.ll_expand(production, frame_index) != STATUS_OK
+                {
+                    let (line, column) = (self.current.line, self.current.column);
+                    self.set_error(STATUS_ERR_STACK, line, column, "分析栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                continue;
+            }
+            // Action / ActionKeep / Forward：先跑动作，再看要不要收尾
+            if kind == _ITEM_FORWARD
+            {
+                self.ll_forward(item[2], item[3]);
+            }
+            else if self.ll_execute(item[1], item[2]) != STATUS_OK
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            if (kind != _ITEM_ACTION_KEEP) && (self.ll_complete(item[2]) != STATUS_OK)
+            {
+                return STATUS_ERR_STACK;
+            }
+        }
+        if self.current.kind != TOKEN_END
+        {
+            let (line, column) = (self.current.line, self.current.column);
+            self.set_error(STATUS_ERR_SYNTAX, line, column, "输入尚未完全消费");
+            return STATUS_ERR_SYNTAX;
+        }
+        self.result_value = self.root_result;
+        STATUS_OK
+    }
+
+    /// 语法树解析主循环（`%tree`）：只按预测表建树，不跑语义动作。
+    fn run_ll_tree_loop(&mut self) -> i32
+    {
+        if !self.ll_push(_ITEM_NONTERM, _START_ID, INVALID_INDEX, 0, INVALID_INDEX)
+        {
+            return STATUS_ERR_STACK;
+        }
+        while !self.ll_stack.is_empty()
+        {
+            let item = self.ll_pop();
+            let kind = item[0];
+            if kind == _ITEM_TERMINAL
+            {
+                if self.current.kind != item[1]
+                {
+                    self.set_expected_one_error(item[1]);
+                    return STATUS_ERR_SYNTAX;
+                }
+                if self.tree_path.is_empty()
+                {
+                    return STATUS_ERR_SYNTAX;
+                }
+                let leaf = make_leaf(&self.current);
+                let last = self.tree_path.len() - 1;
+                self.tree_path[last].add_child(leaf);
+                if self.advance_window() != STATUS_OK
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                continue;
+            }
+            if kind == _ITEM_NONTERM
+            {
+                let column = self.ll_table_column();
+                let expected: Vec<i32> = if (item[1] as usize) < _NONTERM_COUNT
+                {
+                    _EXPECTED[item[1] as usize].to_vec()
+                }
+                else
+                {
+                    Vec::new()
+                };
+                if ((self.current.kind as usize) >= _TERMINAL_COUNT)
+                    || ((item[1] as usize) >= _NONTERM_COUNT)
+                    || (column < 0)
+                {
+                    self.set_syntax_error(item[1], &expected);
+                    return STATUS_ERR_SYNTAX;
+                }
+                let production = _LL_TABLE[item[1] as usize][column as usize];
+                if production < 0
+                {
+                    self.set_syntax_error(item[1], &expected);
+                    return STATUS_ERR_SYNTAX;
+                }
+                if self.tree_path.len() >= MAX_STACK_DEPTH
+                {
+                    let (line, column) = (self.current.line, self.current.column);
+                    self.set_error(STATUS_ERR_STACK, line, column, "语法树节点栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                let node = Tree::new(tree_name(item[1]), "");
+                self.tree_path.push(node);
+                if !self.ll_push(_ITEM_TREE_END, 0, INVALID_INDEX, 0, INVALID_INDEX)
+                {
+                    let (line, column) = (self.current.line, self.current.column);
+                    self.set_error(STATUS_ERR_STACK, line, column, "分析栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                let rhs_start = _TREE_PROD_START[production as usize] as usize;
+                let rhs_length = _TREE_PROD_LENGTH[production as usize] as usize;
+                for index in (0..rhs_length).rev()
+                {
+                    let symbol = _TREE_PROD_SYMBOLS[rhs_start + index];
+                    let terminal = (symbol as usize) < _TERMINAL_COUNT;
+                    let symbol_id = if terminal
+                    {
+                        symbol
+                    }
+                    else
+                    {
+                        symbol - _TERMINAL_COUNT as i32
+                    };
+                    let kind = if terminal
+                    {
+                        _ITEM_TERMINAL
+                    }
+                    else
+                    {
+                        _ITEM_NONTERM
+                    };
+                    if !self.ll_push(kind, symbol_id, INVALID_INDEX, 0, INVALID_INDEX)
+                    {
+                        let (line, column) = (self.current.line, self.current.column);
+                        self.set_error(STATUS_ERR_STACK, line, column, "分析栈已满");
+                        return STATUS_ERR_STACK;
+                    }
+                }
+                continue;
+            }
+            if kind == _ITEM_TREE_END
+            {
+                if self.tree_path.is_empty()
+                {
+                    let (line, column) = (self.current.line, self.current.column);
+                    self.set_error(STATUS_ERR_SYNTAX, line, column, "语法树闭合失败");
+                    return STATUS_ERR_SYNTAX;
+                }
+                // Rust 里节点是「移动」的：闭合时把它交给父节点（或作为根）。
+                // （Java / C# 那两版靠引用共享，能在建节点时就挂到父节点上。）
+                if let Some(node) = self.tree_path.pop()
+                {
+                    match self.tree_path.last_mut()
+                    {
+                        Some(parent) => parent.add_child(node),
+                        None => self.tree_root = Some(node),
+                    }
+                }
+                continue;
+            }
+            let (line, column) = (self.current.line, self.current.column);
+            self.set_error(STATUS_ERR_SYNTAX, line, column, "语法树分析出现未知项目");
+            return STATUS_ERR_SYNTAX;
+        }
+        if self.tree_root.is_none()
+            || !self.tree_path.is_empty()
+            || (self.current.kind != TOKEN_END)
+        {
+            let (line, column) = (self.current.line, self.current.column);
+            self.set_error(STATUS_ERR_SYNTAX, line, column, "输入尚未完全消费");
+            return STATUS_ERR_SYNTAX;
+        }
+        STATUS_OK
+    }

@@ -1,0 +1,21 @@
+    /* 标识符：用 %identifier 的 DFA 扫描，再查关键字表。 */
+    {
+        uint32_t identLength = Parser_TokenIdentifierLength(pStart);
+        if (identLength > 0u) {
+            ParserTokenType_T keyword = TOKEN_INVALID;
+            if (identLength >= sizeof(pCtx->lexeme)) { return PARSER_ERR_LEXER; }
+            PARSER_MEMCPY(pCtx->lexeme, pStart, identLength);
+            pCtx->lexeme[identLength] = '\0';
+            for (length = 0u; length < identLength; length++) {
+                Parser_ReadChar(pCtx);
+            }
+            keyword = Parser_TokenKeyword(pCtx->lexeme);
+            pToken->type = (keyword != TOKEN_INVALID) ? keyword
+                                                      : TOKEN_VARIABLE;
+            pToken->pName = pCtx->lexeme;
+{% if variant_member %}
+            pToken->value.{{ variant_member }} = pCtx->lexeme;
+{% endif %}
+            return PARSER_OK;
+        }
+    }

@@ -1,0 +1,7 @@
+        for pattern, rule_type, rule_order in _REGEX_RULES:
+            matched = _lex_regex_match(pattern, self._input, start)
+            if matched > best_length:
+                best_length = matched
+                best_type = rule_type
+                best_from_regex = True
+                best_order = rule_order

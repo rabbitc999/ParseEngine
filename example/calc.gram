@@ -1,0 +1,179 @@
+/* ============================================================
+ * 计算器文法 · 左递归版（SLR(1) / LALR(1) 都能用）
+ *
+ * 支持：+ - * / % 与括号、一元正负号、sqrt/abs/pow 函数、
+ *       X / Y / ans 三个变量与 := 赋值，多条语句用 ; 分隔，
+ *       整个输入的值就是最后一条语句的值。
+ * 运行时是 custom：语义值类型由 %value_type 声明，变量表由 %code 提供，
+ * 语义动作按普通 C 表达式生成（$1 + $3 就是 C 的加法，sqrt/fabs/fmod/pow
+ * 就是 <math.h> 里的函数）。
+ *   语义值  %value_type double（生成器补 typedef double ParserValue_T;）
+ *           NUMBER 的语义值是数字本身，VARIABLE 的语义值是它在变量表里的下标
+ *   变量表  %code 里的定长数组（名字 + 值），读写走 Calc_Load / Calc_Store，
+ *           它替代了原来的 %var X/Y/ans + 运行时动态变量表。
+ *
+ * 试用输入：
+ *   1+2*3             -> 7
+ *   (1+2)*3           -> 9
+ *   2-3-4             -> -5    （左结合）
+ *   7%4               -> 3
+ *   -3*2              -> -6    （一元负号）
+ *   sqrt(9)+1         -> 4
+ *   pow(2,10)         -> 1024
+ *   X:=3*4            -> 12    （写进变量表）
+ *   X:=3*4; X/2       -> 6     （多条语句，返回最后一条）
+ *   1/0               -> inf   （custom 下就是 C 的浮点除法语义）
+ * ============================================================ */
+
+%mode lalr
+%value_type double
+
+%define PLUS    "+"
+%define MINUS   "-"
+%define STAR    "*"
+%define SLASH   "/"
+%define PERCENT "%"
+%define LPAREN  "("
+%define RPAREN  ")"
+%define COMMA   ","
+%define SEMI    ";"
+%define ASSIGN  ":="
+%define SQRT    "sqrt"
+%define ABS     "abs"
+%define POW     "pow"
+
+%code
+/* ---------------------------------------------------------------
+ * custom 运行时：语义值类型与变量表全部由用户在 %code 里提供。
+ *
+ * 语义值 ParserValue_T 就是一个 double（由上面的 %value_type 声明）：
+ *   - NUMBER 的语义值是数字本身；
+ *   - VARIABLE 的语义值是它在下面变量表里的下标。
+ * 两者不会混淆，因为文法里 NUMBER 与 VARIABLE 走不同的规则。
+ *
+ * 变量表替代了原来的 %var X/Y/ans + 运行时动态变量表：一张定长数组
+ * 加线性查找，读变量写 Calc_Load($n)，写变量写 Calc_Store($n, $m)。
+ * 名字必须在词法阶段就拷进自己的表里：词法器的 lexeme 缓冲会被下一个
+ * Token 覆盖（PARSER_USER_TOKEN_VALUE 正是在移进时被调用的）。
+ * --------------------------------------------------------------- */
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#define CALC_NAME_MAX 32
+#define CALC_VAR_MAX  8
+
+typedef struct Calc_VarSlot_T
+{
+    char   name[CALC_NAME_MAX];
+    double value;
+} Calc_VarSlot_T;
+
+typedef struct Calc_Vars_T
+{
+    Calc_VarSlot_T slots[CALC_VAR_MAX];
+    int            count;
+} Calc_Vars_T;
+
+/* 变量表本体：进程内一张表，文法规模很小，线性查找足够 */
+static inline Calc_Vars_T *Calc_Vars(void)
+{
+    static Calc_Vars_T s_Vars;
+    return &s_Vars;
+}
+
+/* 变量名 -> 下标；第一次见到就新建（对应原来写变量时的自动建表），
+ * 表满返回 -1 */
+static inline int Calc_Intern(const char *pName)
+{
+    Calc_Vars_T *pVars = Calc_Vars();
+    int index = 0;
+    if ((pName == NULL) || (pName[0] == '\0'))
+    {
+        return -1;
+    }
+    for (index = 0; index < pVars->count; index++)
+    {
+        if (strcmp(pVars->slots[index].name, pName) == 0)
+        {
+            return index;
+        }
+    }
+    if (pVars->count >= CALC_VAR_MAX)
+    {
+        return -1;
+    }
+    index = pVars->count++;
+    snprintf(pVars->slots[index].name, sizeof(pVars->slots[index].name), "%s",
+             pName);
+    pVars->slots[index].value = 0.0;
+    return index;
+}
+
+/* 读变量：表达式里的 X */
+static inline double Calc_Load(double nameIndex)
+{
+    const Calc_Vars_T *pVars = Calc_Vars();
+    const int index = (int)nameIndex;
+    if ((index < 0) || (index >= pVars->count))
+    {
+        return 0.0;
+    }
+    return pVars->slots[index].value;
+}
+
+/* 写变量：X := 表达式 */
+static inline double Calc_Store(double nameIndex, double value)
+{
+    Calc_Vars_T *pVars = Calc_Vars();
+    const int index = (int)nameIndex;
+    if ((index >= 0) && (index < pVars->count))
+    {
+        pVars->slots[index].value = value;
+    }
+    return value;
+}
+
+/* Token -> 语义值。数字 Token 用词法器解析好的 pToken->value；VARIABLE 把
+ * 名字登记进变量表，语义值就是下标；其余 Token（固定字面量）用不到语义值。*/
+#define PARSER_USER_TOKEN_VALUE(pToken) \
+    (((pToken)->type == TOKEN_NUMBER) \
+         ? (ParserValue_T)((pToken)->value) \
+         : (((pToken)->type == TOKEN_VARIABLE) \
+                ? (ParserValue_T)Calc_Intern((pToken)->pName) \
+                : (ParserValue_T)0))
+
+/* 演示程序（main.c）打印解析结果 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%g", *(pValue))
+%endcode
+
+%start stmt_list
+
+/* ---------- 语句表：左递归，用 ; 分隔，取最后一条语句的值 ---------- */
+stmt_list := stmt_list SEMI stmt { $$ = $3; }
+stmt_list := stmt { $$ = $1; }
+
+/* ---------- 语句：赋值或纯求值 ---------- */
+stmt := VARIABLE ASSIGN expr { $$ = Calc_Store($1, $3); }
+stmt := expr { $$ = $1; }
+
+/* ---------- 表达式：左递归 + 优先级 ---------- */
+expr := expr PLUS term  { $$ = $1 + $3; }
+expr := expr MINUS term { $$ = $1 - $3; }
+expr := term { $$ = $1; }
+
+term := term STAR factor    { $$ = $1 * $3; }
+term := term SLASH factor   { $$ = $1 / $3; }
+term := term PERCENT factor { $$ = fmod($1, $3); }
+term := factor { $$ = $1; }
+
+/* ---------- 因子：数字 / 变量 / 括号 / 一元正负号 / 数学函数 ---------- */
+factor := NUMBER { $$ = $1; }
+factor := VARIABLE { $$ = Calc_Load($1); }
+factor := LPAREN expr RPAREN { $$ = $2; }
+factor := MINUS factor { $$ = -$2; }
+factor := PLUS factor { $$ = $2; }
+factor := SQRT LPAREN expr RPAREN { $$ = sqrt($3); }
+factor := ABS LPAREN expr RPAREN { $$ = fabs($3); }
+factor := POW LPAREN expr COMMA expr RPAREN { $$ = pow($3, $5); }

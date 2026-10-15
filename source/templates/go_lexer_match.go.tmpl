@@ -1,0 +1,82 @@
+{# 固定字面量 + 正则的最长匹配主体（CodeGenGo 的 buildGoLexerBlocks）。
+   变量：lex_regex_loop —— `%token regex` 的循环（没有正则时是空串）；
+         has_commits —— 有没有 `%commit`（没有就不发这一段，免得引用没声明的表）。
+   本模板自带行尾换行。 #}
+		// 固定字面量与 %token regex 一起做最长匹配，字面量优先。
+		bestLength := 0
+		bestKind := TOKEN_INVALID
+		bestFromRegex := false
+		bestWildcard := false
+		bestText := ""
+		bestOrder := int32(0)
+		matchStart := p.textPos
+		for ruleIndex := 0; ruleIndex < len(sParserLexRulesText); ruleIndex++ {
+			ruleText := []rune(sParserLexRulesText[ruleIndex])
+			ruleLength := int(sParserLexRulesLength[ruleIndex])
+			if len(ruleText) == 0 {
+				continue
+			}
+			if !sParserLexRuleHit(ruleText, p.input, matchStart) {
+				continue
+			}
+			last := ruleText[len(ruleText)-1]
+			next := p.peekRune(ruleLength)
+			if sParserIsWord(int32(last)) && sParserIsWord(next) {
+				continue
+			}
+			if ruleLength > bestLength {
+				bestLength = ruleLength
+				bestKind = sParserLexRulesType[ruleIndex]
+				bestFromRegex = false
+				bestWildcard = sParserLexRulesBlank[ruleIndex] == 1
+				bestText = sParserLexRulesText[ruleIndex]
+				bestOrder = sParserLexRulesOrder[ruleIndex]
+			}
+		}
+{{ lex_regex_loop }}{% if has_commits %}
+		// %commit：与 Token 规则共用一份最长匹配；同长度时按声明序，
+		// 先声明优先（skip 命中不算 Token，直接丢掉）。
+		commitLength := 0
+		commitIndex := 0
+		for index := 0; index < len(sParserCommitRes); index++ {
+			matched := sParserLexRegexMatch(sParserCommitRes[index], p.text, p.bytePos)
+			if matched > commitLength {
+				commitLength = matched
+				commitIndex = index
+			}
+		}
+		if commitLength != 0 &&
+			(commitLength > bestLength ||
+				(commitLength == bestLength &&
+					(bestKind == TOKEN_INVALID ||
+						sParserCommitOrders[commitIndex] < bestOrder))) {
+			if !sParserCommitSkips[commitIndex] {
+				p.commits = append(p.commits, ParserCommit{
+					Line: item.Line,
+					Type: sParserCommitTypes[commitIndex],
+					Text: string(p.input[matchStart : matchStart+commitLength]),
+				})
+			}
+			for index := 0; index < commitLength; index++ {
+				p.readChar()
+			}
+			continue
+		}
+{% endif %}		if bestKind != TOKEN_INVALID {
+			for index := 0; index < bestLength; index++ {
+				p.readChar()
+			}
+			item.Type = bestKind
+			if bestFromRegex || bestWildcard {
+				p.lexeme = string(p.input[matchStart : matchStart+bestLength])
+				item.Text = p.lexeme
+			} else {
+				item.Text = bestText
+			}
+			item.Value = valueFromText(item.Type, item.Text)
+			return StatusOK
+		}
+{% if has_commits %}{% else %}		// 没有 %commit 时 bestOrder 用不上，但它记的是「同长度时谁先声明」，
+		// 保留计算逻辑（与 %commit 档口径一致），这里显式吃掉免得报未使用。
+		_ = bestOrder
+{% endif %}

@@ -1,0 +1,14 @@
+        // 标识符：没有 %identifier 时的内建 C 风格规则。
+        if is_alpha(self.peek(0)) || (self.peek(0) == Some('_'))
+        {
+            let ident_start = self.text_pos;
+            while is_word(self.peek(0))
+            {
+                self.read_char();
+            }
+            self.lexeme = self.input[ident_start..self.text_pos].iter().collect();
+            item.kind = TOKEN_VARIABLE;
+            item.text = self.lexeme.clone();
+            item.value = value_from_text(TOKEN_VARIABLE, &self.lexeme);
+            return STATUS_OK;
+        }

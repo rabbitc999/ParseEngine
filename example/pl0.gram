@@ -1,0 +1,122 @@
+/* ============================================================
+ * PL/0 文法 · 左递归版 · 供 SLR(1) / LALR(1) 使用
+ *
+ * 与 pl0_ll1.gram 描述同一门语言（PL/0），区别在写法：
+ *   - 表达式、语句表、声明尾链全部写成直接左递归
+ *     （expression := expression PLUS term 这种），不提取左公因子、
+ *     不做左递归消除，直接交给 LR 分析表处理；
+ *   - 因此 %mode 用 lalr；SLR(1) 也能吃下同一份文法（见 RESULT.md）。
+ *
+ * 本文件不写语义动作，只做语法分析并生成 CST（%tree）；
+ * AST 标记沿用 CST→AST 转换器的约定：
+ *   fold  左递归链在 AST 里折叠成左结合二叉树；
+ *   label 关系运算符取首个终结符子节点作标签；
+ *   skip  纯优先级包装层直接消失。
+ *
+ * 试用输入（从标准输入整段喂进去，就是一个 PL/0 程序）：
+ *   const m = 2; var x, y;
+ *   procedure p; begin y := y - 2 end;
+ *   begin x := m*3; y := x - 1;
+ *         while y > 0 do y := y - 2;
+ *         if odd x then y := y + 1;
+ *         call p
+ *   end .
+ * ============================================================ */
+
+%tree
+%mode lalr
+
+/* ---------- 关键字（词法层固定字面量） ---------- */
+%define CONST     "const"
+%define VAR       "var"
+%define PROCEDURE "procedure"
+%define BEGIN     "begin"
+%define END       "end"
+%define IF        "if"
+%define THEN      "then"
+%define WHILE     "while"
+%define DO        "do"
+%define CALL      "call"
+%define ODD       "odd"
+
+/* ---------- 运算符与分隔符 ---------- */
+%define PLUS   "+"
+%define MINUS  "-"
+%define STAR   "*"
+%define SLASH  "/"
+%define EQ     "="
+%define NE     "#"
+%define LT     "<"
+%define LE     "<="
+%define GT     ">"
+%define GE     ">="
+%define ASSIGN ":="
+%define COMMA  ","
+%define SEMI   ";"
+%define DOT    "."
+%define LPAREN "("
+%define RPAREN ")"
+
+%start program
+
+/* ---------- 程序与分程序 ---------- */
+program := block DOT
+
+block := const_part var_part proc_part statement_opt
+
+/* ---------- 常量 / 变量 / 过程声明（尾链左递归） ---------- */
+const_part := CONST VARIABLE EQ NUMBER const_tail SEMI
+const_part := %empty
+
+const_tail := const_tail COMMA VARIABLE EQ NUMBER
+const_tail := %empty
+
+var_part := VAR VARIABLE var_tail SEMI
+var_part := %empty
+
+var_tail := var_tail COMMA VARIABLE
+var_tail := %empty
+
+proc_part := proc_part PROCEDURE VARIABLE SEMI block SEMI
+proc_part := %empty
+
+/* ---------- 语句（语句表左递归，用 ; 分隔） ---------- */
+statement_opt := statement
+statement_opt := %empty
+
+statement := VARIABLE ASSIGN expression
+statement := CALL VARIABLE
+statement := BEGIN statement_list END
+statement := IF condition THEN statement
+statement := WHILE condition DO statement
+
+statement_list := statement_list SEMI statement
+statement_list := statement
+
+/* ---------- 条件与关系运算符 ---------- */
+condition := ODD expression
+condition := expression relational
+
+relational := EQ expression
+relational := NE expression
+relational := LT expression
+relational := LE expression
+relational := GT expression
+relational := GE expression
+
+/* ---------- 表达式：左递归 + 优先级 + 可带前导正负号 ---------- */
+expression := expression PLUS term
+expression := expression MINUS term
+expression := sign term
+
+term := term STAR factor
+term := term SLASH factor
+term := factor
+
+sign := PLUS
+sign := MINUS
+sign := %empty
+
+factor := VARIABLE
+factor := NUMBER
+factor := LPAREN expression RPAREN

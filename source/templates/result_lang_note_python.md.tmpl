@@ -1,0 +1,11 @@
+{# 语言说明（Python 档）；变量：class_name（解析器类名，来自 %class / --class） #}
+> 目标是 Python：公开接口是一个解析器类 `{{ class_name }}`（用 `%class` /
+> `--class` 改名）：解析入口是 `run_text` /
+> `run`，错误读 `errors` / `last_error`，语义结果在 `result`
+> 里（任意 Python 对象）；产物只有 `parser.py` / `main.py`
+> 两个文件，不需要编译。`%code … %endcode` / `%code … %endcode` 的正文
+> 插在 `parser.py` 的 import 之后（缩进自动归一化），
+> `%epilogue` 贴到模块末尾、`%main` 替换 `main.py` 的演示体；
+> `%value_type` / `%union` / `%token <成员>` / `%namespace`
+> 这些 C 专属写法**不支持**：语义动作直接写 Python 表达式即可。
+

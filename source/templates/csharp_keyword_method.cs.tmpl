@@ -1,0 +1,11 @@
+    /** 关键字查表：命中返回对应 Token 类型，否则 TOKEN_INVALID。 */
+    private static int _keywordType(string text)
+    {
+{% for k in keywords %}
+        if (text == {{ k.literal }})
+        {
+            return {{ k.id }};
+        }
+{% endfor %}
+        return TOKEN_INVALID;
+    }

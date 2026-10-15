@@ -1,0 +1,124 @@
+        // 小数点和指数决定浮点，后缀 d 决定 double；后缀 u 只用于整数。
+        if is_digit(self.peek(0))
+            || ((self.peek(0) == Some('.')) && is_digit(self.peek(1)))
+        {
+            let number_start = self.text_pos;
+            let mut has_dot = false;
+            let mut has_exponent = false;
+            let mut suffix = '\0';
+            while is_digit(self.peek(0))
+            {
+                self.read_char();
+            }
+            if self.peek(0) == Some('.')
+            {
+                has_dot = true;
+                self.read_char();
+                while is_digit(self.peek(0))
+                {
+                    self.read_char();
+                }
+            }
+            if matches!(self.peek(0), Some('e') | Some('E'))
+            {
+                has_exponent = true;
+                self.read_char();
+                if matches!(self.peek(0), Some('+') | Some('-'))
+                {
+                    self.read_char();
+                }
+                if !is_digit(self.peek(0))
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                while is_digit(self.peek(0))
+                {
+                    self.read_char();
+                }
+            }
+            if is_alpha(self.peek(0))
+            {
+                suffix = self.read_char();
+            }
+            if is_alpha(self.peek(0))
+            {
+                return STATUS_ERR_LEXER;
+            }
+            let mut lexeme: String = self.input[number_start..self.text_pos].iter().collect();
+            if suffix != '\0'
+            {
+                lexeme.pop();
+            }
+            let mut number_long: i64 = 0;
+            let mut number_double: f64 = 0.0;
+            let mut is_float = false;
+            let mut ok = false;
+            if (suffix == 'u') || (suffix == 'U')
+            {
+                if has_dot || has_exponent
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                if let Ok(value) = lexeme.parse::<i64>()
+                {
+                    if (value >= 0) && (value <= 0xFFFF_FFFF)
+                    {
+                        number_long = value;
+                        ok = true;
+                    }
+                }
+            }
+            else if (suffix == 'd') || (suffix == 'D')
+            {
+                if !has_dot && !has_exponent
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                if let Ok(value) = lexeme.parse::<f64>()
+                {
+                    number_double = value;
+                    is_float = true;
+                    ok = true;
+                }
+            }
+            else if suffix != '\0'
+            {
+                return STATUS_ERR_LEXER;
+            }
+            else if has_dot || has_exponent
+            {
+                if let Ok(value) = lexeme.parse::<f64>()
+                {
+                    number_double = value;
+                    is_float = true;
+                    ok = true;
+                }
+            }
+            else if let Ok(value) = lexeme.parse::<i64>()
+            {
+                if (value >= -2147483648) && (value <= 2147483647)
+                {
+                    number_long = value;
+                    ok = true;
+                }
+            }
+            if !ok
+            {
+                return STATUS_ERR_LEXER;
+            }
+            self.lexeme = lexeme.clone();
+            item.kind = TOKEN_NUMBER;
+            item.text = lexeme;
+            item.value = value_from_number(
+                if is_float
+                {
+                    number_double
+                }
+                else
+                {
+                    number_long as f64
+                },
+                is_float,
+            );
+            return STATUS_OK;
+        }

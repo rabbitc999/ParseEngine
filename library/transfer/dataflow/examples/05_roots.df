@@ -1,0 +1,15 @@
+# 名称: 两个根块（主流程 + halt 之后的死块）
+# 说明: 前向分析的边界种子是"没有前驱的块"，不止 0 号块：halt 之后的块没有前驱，
+#       只种 0 号的话工作队列永远不碰它，reach 就会和朴素轮询结果不一致。
+#       函数体（call 的目标标签）是同一个形状，这里用死块把它压成最小例子。
+# 期望 reach entry in: {}
+# 期望 reach dead in: {}
+# 期望 reach dead out: {b@3}
+label entry
+  mov a, 1
+  print a
+  halt
+label dead
+  mov b, 2
+  print b
+  halt

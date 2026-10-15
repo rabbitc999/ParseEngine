@@ -1,0 +1,15 @@
+%mode glr
+%value_type i32
+%start e
+%define PLUS "+"
+%define STAR "*"
+%code
+use std::sync::atomic::{AtomicI32, Ordering};
+pub static ACTION_CALLS: AtomicI32 = AtomicI32::new(0);
+pub static SEMANTIC_BIAS: AtomicI32 = AtomicI32::new(0);
+fn record_action() { ACTION_CALLS.fetch_add(1, Ordering::SeqCst); }
+fn semantic_bias() -> i32 { SEMANTIC_BIAS.load(Ordering::SeqCst) }
+%endcode
+e := e PLUS e { record_action(); $$ = $1 + $3; }
+   | e STAR e { record_action(); $$ = $1 * $3; }
+   | NUMBER { record_action(); $$ = $1 + semantic_bias(); };

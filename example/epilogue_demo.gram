@@ -1,0 +1,55 @@
+/* ============================================================
+ * %epilogue 示例（`%mode lalr`）
+ *
+ * 三段用户代码各有各的位置，放错了会炸：
+ *   %code         声明、typedef、宏、static inline —— 进 parser_user.h，
+ *                 parser.c / parser_token.c 都会 include 它
+ *   %epilogue     普通函数定义、static 辅助函数 —— 原样贴到 parser.c 末尾
+ *   %copy         独立的 .c / .h —— 拷进产物目录并进 Makefile / CMakeLists
+ *
+ * 反例（不要这么写）：把 `double EpiDemoScale(double)` 的定义放进 %code
+ * ——parser_user.h 被多个 .c 包含，链接时会有多份重复定义。
+ *
+ * C++17 下 parser.c → parser.cpp，生成内容在 namespace Parser 里，而 %epilogue
+ * 贴在命名空间之外：所以这里的 EpiDemoScale 就是普通 C 函数，能被别的编译单元
+ * 链到。正文前会自动补一行 using namespace，正文原样保留——于是两种语言都用
+ * 同一套 C99 名字调生成器函数（C++17 靠命名空间里的兼容层，如 Parser_RunText）。
+ *
+ * 试用输入（从标准输入喂进去）：1+2*3 -> 13（2*3 先被 EpiDemoScale 乘了 2）
+ * ============================================================ */
+
+%mode lalr
+%value_type double
+
+%define PLUS   "+"
+%define STAR   "*"
+
+%code
+#include <stdio.h>
+
+/* 声明放这里：parser.c 与 parser_token.c 都能看到它 */
+double EpiDemoScale(double value);
+
+/* 数字 Token 的语义值取自词法器解析好的 pToken->value */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+
+/* 演示程序（main.c）打印解析结果 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%g", *(pValue))
+%endcode
+
+%start expr
+
+expr := expr PLUS term { $$ = $1 + $3; }
+      | term            { $$ = $1; };
+
+term := term STAR factor { $$ = EpiDemoScale($1 * $3); }
+      | factor            { $$ = $1; };
+
+factor := NUMBER { $$ = $1; };
+
+%epilogue
+/* %epilogue：普通函数定义写在这里，生成时原样贴到 parser.c 末尾 */
+double EpiDemoScale(double value)
+{
+    return value * 2.0;
+}

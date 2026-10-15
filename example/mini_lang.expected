@@ -1,0 +1,37 @@
+解析输入: let a = 1 + 2 * 3; print a;
+解析成功
+语法树:
+program
+  statement_list
+    statement
+      LET(let)
+      VARIABLE(a)
+      EQ(=)
+      expr
+        term
+          atom
+            NUMBER(1)
+          term_tail
+        expr_tail
+          PLUS(+)
+          term
+            atom
+              NUMBER(2)
+            term_tail
+              STAR(*)
+              atom
+                NUMBER(3)
+              term_tail
+          expr_tail
+      SEMI(;)
+    statement_list
+      statement
+        PRINT(print)
+        expr
+          term
+            atom
+              VARIABLE(a)
+            term_tail
+          expr_tail
+        SEMI(;)
+      statement_list

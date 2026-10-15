@@ -1,0 +1,16 @@
+		// 标识符：%identifier 声明的正则（命中关键字时换成关键字 Token）。
+		identLength := sParserLexRegexMatch(sParserIdentifierRe, p.text, p.bytePos)
+		if identLength > 0 {
+			identStart := p.textPos
+			for index := 0; index < identLength; index++ {
+				p.readChar()
+			}
+			p.lexeme = string(p.input[identStart:p.textPos])
+			item.Type = TOKEN_VARIABLE
+			if keyword := keywordType(p.lexeme); keyword != TOKEN_INVALID {
+				item.Type = keyword
+			}
+			item.Text = p.lexeme
+			item.Value = valueFromText(item.Type, p.lexeme)
+			return StatusOK
+		}

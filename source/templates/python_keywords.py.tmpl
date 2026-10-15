@@ -1,0 +1,5 @@
+{# 关键字表：`%define` / `%token` 里像标识符的字面量（`%identifier` 命中后查它）。 #}
+# 关键字表：%define / %token 里像标识符的字面量。
+_KEYWORDS = {
+{% for k in keywords %}    {{ k.literal }}: TOKEN_{{ k.token_name }},
+{% endfor %}}

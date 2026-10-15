@@ -1,0 +1,37 @@
+{# %destructor 的按符号分派函数（只有写了 %destructor、且真的有符号绑到成员上时才生成）。
+   变量：groups —— 按 %union 成员分组的数组，每项四个字段：
+     member      —— %union 成员名（注释里用）；
+     symbols     —— 会被丢到栈上、绑到该成员的符号名（产物里用「、」连起来）；
+     case_labels —— 这些符号的统一符号编号（产物里就是 `case Nu:`，已带 u 后缀）；
+     body_lines  —— 清理片段正文按行切开（空片段是空数组，一行都不出）。
+   引擎没有 `{% if not %}`，所以「最后一项不加顿号」写成 `{% if loop_last %}` 取反。 #}
+/**
+ * @brief %destructor：按统一符号编号调对应清理片段。
+ *
+ * symbol 是统一符号编号（终结符 = Token 号，非终结符 = 终结符个数 + 编号），
+ * 与 LR 栈的 symbols / LL 语义帧记录的一致。
+ * @param pValue 正在被丢弃的那个语义值。
+ * @param symbol 这个语义值的文法符号（统一编号）。
+ * @return 无。
+ */
+void discardValueBySymbol(ParserValue_T *pValue, std::uint16_t symbol)
+{
+    (void)pValue;
+    switch (symbol)
+    {
+{% for g in groups %}
+    /* %destructor <{{ g.member }}>：{% for s in g.symbols %}{{ s }}{% if loop_last %}{% else %}、{% endif %}{% endfor %} */
+{% for c in g.case_labels %}
+    case {{ c }}:
+{% endfor %}
+    {
+{% for line in g.body_lines %}
+        {{ line }}
+{% endfor %}
+        break;
+    }
+{% endfor %}
+    default:
+        break;
+    }
+}

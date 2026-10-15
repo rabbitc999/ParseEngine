@@ -1,0 +1,11 @@
+/* C# 图表模式：两条歧义路径必须分别执行语义动作。 */
+%mode earley
+%lang csharp
+%value_type int
+%start e
+%define PLUS "+"
+%define STAR "*"
+
+e := e PLUS e { $$ = $1 + $3; }
+   | e STAR e { $$ = $1 * $3; }
+   | NUMBER { $$ = $1; };

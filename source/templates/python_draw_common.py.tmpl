@@ -1,0 +1,280 @@
+{# 绘图内核（Python 产物）：自绘 SVG 的公共拼装 + Graphviz DOT 文本。
+   变量：mode_label —— 模式标签（如 LALR(1)），只用在默认标题里。
+   本模板自带行尾换行。
+
+   为什么自绘 SVG：产物零依赖，SVG 是纯文本（能进 .expected 做逐字节比对），
+   浏览器 / 图片查看器都能直接打开；另外顺手给一份 DOT 文本，装了 Graphviz
+   的用户可以用 graphviz 模块（`Source(dot).render()`）或 `dot` 命令渲染。 #}
+# ============ 绘图内核（自绘 SVG + Graphviz DOT 文本）============
+
+#: 节点框的内边距 / 层高 / 兄弟间距 / 画布留白（单位：像素，全部取整数或半整数，
+#: 保证同一棵树每次画出来的坐标完全一样）。
+_DRAW_PAD = 8.0
+_DRAW_LEVEL = 62.0
+_DRAW_SIBLING_GAP = 14.0
+_DRAW_MARGIN = 24.0
+_DRAW_FONT_SIZE = 12.0
+_DRAW_FONT_FAMILY = ("Consolas, 'DejaVu Sans Mono', 'Courier New', "
+                     "monospace")
+#: 一个字占多宽（近似等宽字体：ASCII 7.2px、CJK 等全角字 12px，按字号等比缩放）。
+_DRAW_ASCII_WIDTH = 7.2
+_DRAW_WIDE_WIDTH = 12.0
+
+
+def _draw_escape(text):
+    """转义 XML 文本里的五个特殊字符（``& < > " '``）。"""
+    return (text.replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;")
+            .replace("'", "&apos;"))
+
+
+def _draw_text_width(text, size=_DRAW_FONT_SIZE):
+    """估一段文本的显示宽度（等宽字体的近似度量）。
+
+    CJK / 全角字符按两个 ASCII 宽度算，其余按一个算 —— 不需要真的测量字体，
+    但同一段文本每次算出来的宽度是同一个数。
+
+    :param text: 文本（``None`` 当空串）。
+    :param size: 字号（像素）。
+    :return: 宽度（浮点数）。
+    """
+    if not text:
+        return 0.0
+    wide = 0
+    for ch in text:
+        if ord(ch) > 0x2E7F:
+            wide += 1
+    narrow = len(text) - wide
+    base = (narrow * _DRAW_ASCII_WIDTH) + (wide * _DRAW_WIDE_WIDTH)
+    if size == _DRAW_FONT_SIZE:
+        return base
+    return base * (size / _DRAW_FONT_SIZE)
+
+
+def _draw_svg_text(x, y, text, size=_DRAW_FONT_SIZE, anchor="middle",
+                   fill="#1f2937", bold=False, baseline="middle"):
+    """拼一条 ``<text>`` 元素。
+
+    :param x: 横坐标。
+    :param y: 纵坐标。
+    :param text: 文本（自动转义）。
+    :param anchor: ``start`` / ``middle`` / ``end``。
+    :param bold: 是否加粗。
+    :return: SVG 片段（自带换行）。
+    """
+    weight = ' font-weight="bold"' if bold else ""
+    return ('<text x="%.1f" y="%.1f" text-anchor="%s" '
+            'dominant-baseline="%s" font-size="%.1f" fill="%s"%s>%s</text>\n'
+            % (x, y, anchor, baseline, size, fill, weight,
+               _draw_escape(text)))
+
+
+def _draw_svg_box(x, y, width, height, fill="#eef4fb", stroke="#5b7fa6",
+                  width_=1.2, radius=7.0):
+    """拼一个圆角矩形（节点框）。
+
+    :param x: 左上角横坐标。
+    :param y: 左上角纵坐标。
+    :return: SVG 片段（自带换行）。
+    """
+    return ('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="%.1f" '
+            'ry="%.1f" fill="%s" stroke="%s" stroke-width="%.1f"/>\n'
+            % (x, y, width, height, radius, radius, fill, stroke, width_))
+
+
+def _draw_svg_curve(x1, y1, x2, y2, stroke="#94a3b8", dashed=False,
+                    width_=1.2):
+    """拼一条「竖直出、竖直进」的三次贝塞尔连线。
+
+    :param x1: 起点横坐标（父节点底边中点）。
+    :param y1: 起点纵坐标。
+    :param x2: 终点横坐标（子节点顶边中点）。
+    :param y2: 终点纵坐标。
+    :return: SVG 片段（自带换行）。
+    """
+    mid = (y1 + y2) / 2.0
+    dash = ' stroke-dasharray="5 4"' if dashed else ""
+    return ('<path d="M %.1f %.1f C %.1f %.1f, %.1f %.1f, %.1f %.1f" '
+            'fill="none" stroke="%s" stroke-width="%.1f"%s/>\n'
+            % (x1, y1, x1, mid, x2, mid, x2, y2, stroke, width_, dash))
+
+
+def _draw_svg_document(width, height, body, title=None):
+    """拼一份完整的 SVG 文档（XML 声明 + 白底 + 正文）。
+
+    :param width: 画布宽。
+    :param height: 画布高。
+    :param body: 正文片段。
+    :param title: 可选的 ``<title>`` 文本（浏览器悬停 / 无障碍读取用）。
+    :return: SVG 文本（自带换行）。
+    """
+    head = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" width="%.1f" '
+            'height="%.1f" viewBox="0 0 %.1f %.1f" '
+            'font-family="%s">\n'
+            % (width, height, width, height, _DRAW_FONT_FAMILY))
+    if title:
+        head += "<title>%s</title>\n" % _draw_escape(title)
+    head += ('<rect x="0" y="0" width="%.1f" height="%.1f" fill="#ffffff"/>\n'
+             % (width, height))
+    return head + body + "</svg>\n"
+
+
+def _draw_layout_tree(root):
+    """算一棵树的整齐布局（节点框大小 + 坐标）。
+
+    算法是「叶子按出现顺序占位、父节点取第一个与最后一个子节点的中点、按深度
+    分层」：先做一次后序遍历量出每个节点的框大小，再按同一个后序给叶子发位置
+    （父节点由子节点定中点），所以布局是确定性的 —— 同一棵树永远画出同一份 SVG。
+
+    :param root: 根节点（``Tree``）。
+    :return: ``(items, edges, width, height)``，其中 ``items`` 是
+        ``[(节点, 中心 x, 顶边 y, 框宽, 框高), ...]``、``edges`` 是
+        ``[(父节点框底中点 x, 底边 y, 子节点框顶中点 x, 顶边 y), ...]``。
+    """
+    post = []
+    stack = [(root, 0, False)]
+    while stack:
+        node, depth, visited = stack.pop()
+        if visited:
+            post.append((node, depth))
+            continue
+        stack.append((node, depth, True))
+        for child in reversed(node.children):
+            stack.append((child, depth + 1, False))
+    size = {}
+    for node, depth in post:
+        width = max(_draw_text_width(node.name),
+                    _draw_text_width(node.text, _DRAW_FONT_SIZE - 1.0),
+                    18.0) + (2.0 * _DRAW_PAD)
+        height = 40.0 if node.text else 28.0
+        size[id(node)] = (width, height, depth)
+    center = {}
+    cursor = 0.0
+    for node, depth in post:
+        width, height, _depth = size[id(node)]
+        if node.children:
+            first = center[id(node.children[0])]
+            last = center[id(node.children[-1])]
+            center[id(node)] = (first + last) / 2.0
+        else:
+            center[id(node)] = cursor + (width / 2.0)
+            cursor += width + _DRAW_SIBLING_GAP
+    items = []
+    edges = []
+    max_depth = 0
+    right = 0.0
+    for node, depth in post:
+        width, height, _depth = size[id(node)]
+        cx = center[id(node)]
+        top = depth * _DRAW_LEVEL
+        items.append((node, cx, top, width, height))
+        for child in node.children:
+            edges.append((cx, top + height,
+                          center[id(child)], (depth + 1) * _DRAW_LEVEL))
+        if (cx + (width / 2.0)) > right:
+            right = cx + (width / 2.0)
+        if depth > max_depth:
+            max_depth = depth
+    return items, edges, right, ((max_depth + 1) * _DRAW_LEVEL) - \
+        (_DRAW_LEVEL - 40.0)
+
+
+def _draw_tree_body(root, x0=0.0, y0=0.0):
+    """把一棵树画成 SVG 片段（给整份文档或 GLR 的语法图复用）。
+
+    :param root: 根节点（``Tree``）。
+    :param x0: 原点横坐标（画布留白）。
+    :param y0: 原点纵坐标。
+    :return: ``(片段, 宽度, 高度)``（宽高不含 ``x0`` / ``y0``）。
+    """
+    items, edges, width, height = _draw_layout_tree(root)
+    body = []
+    for x1, y1, x2, y2 in edges:
+        body.append(_draw_svg_curve(x0 + x1, y0 + y1, x0 + x2, y0 + y2))
+    for node, cx, top, box_width, box_height in items:
+        left = x0 + cx - (box_width / 2.0)
+        top_y = y0 + top
+        leaf = (len(node.children) == 0)
+        body.append(_draw_svg_box(left, top_y, box_width, box_height,
+                                  "#f7f8f6" if leaf else "#eef4fb",
+                                  "#9aa0a6" if leaf else "#5b7fa6"))
+        if node.text:
+            body.append(_draw_svg_text(cx + x0, top_y + 13.0, node.name,
+                                       bold=True))
+            body.append(_draw_svg_text(cx + x0, top_y + 28.0, node.text,
+                                       size=_DRAW_FONT_SIZE - 1.0,
+                                       fill="#6b7280"))
+        else:
+            body.append(_draw_svg_text(cx + x0, top_y + (box_height / 2.0),
+                                       node.name, bold=True))
+    return "".join(body), width, height
+
+
+def _draw_tree_svg(root, title):
+    """把一棵树画成完整的 SVG 文本（带标题）。
+
+    :param root: 根节点（``Tree``）。
+    :param title: 标题文本。
+    :return: SVG 文本。
+    """
+    margin = _DRAW_MARGIN
+    inner, width, height = _draw_tree_body(root, margin, margin + 28.0)
+    caption = _draw_svg_text(margin, 20.0, title, size=14.0, anchor="start",
+                             bold=True)
+    return _draw_svg_document(width + (2.0 * margin),
+                              height + (2.0 * margin) + 28.0,
+                              caption + inner, title)
+
+
+def _draw_tree_dot(root, name="tree"):
+    """把一棵树画成 Graphviz DOT 文本。
+
+    装了 Graphviz 的话可以直接渲染：``graphviz.Source(dot).render()``，
+    或者存成 ``.dot`` 再跑 ``dot -Tsvg``。
+
+    :param root: 根节点（``Tree``）。
+    :param name: 图的标识符。
+    :return: DOT 文本（自带换行）。
+    """
+    lines = ["digraph %s {" % name,
+             "  rankdir=TB;",
+             "  node [shape=box, fontname=\"Consolas\", fontsize=11];",
+             "  edge [color=\"#94a3b8\"];"]
+    counter = [0]
+    _draw_tree_dot_walk(root, "n", counter, lines)
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def _draw_tree_dot_walk(node, prefix, counter, lines):
+    """递归把一个节点与它的子树写进 DOT 行表。"""
+    index = counter[0]
+    counter[0] += 1
+    node_id = "%s%d" % (prefix, index)
+    label = node.name
+    if node.text:
+        label += "\\n" + node.text
+    lines.append("  %s [label=\"%s\"];" % (node_id, _draw_dot_escape(label)))
+    for child in node.children:
+        child_id = _draw_tree_dot_walk(child, prefix, counter, lines)
+        lines.append("  %s -> %s;" % (node_id, child_id))
+    return node_id
+
+
+def _draw_dot_escape(text):
+    """转义 DOT 字符串里的反斜杠、双引号与换行。"""
+    return (text.replace("\\", "\\\\").replace('"', '\\"')
+            .replace("\n", "\\n"))
+
+
+def _draw_write_text(path, text):
+    """把文本写进文件（UTF-8、LF 行尾），返回写出的路径。
+
+    :param path: 文件路径。
+    :param text: 文本。
+    :return: ``path``。
+    """
+    with open(path, "w", encoding="utf-8", newline="\n") as stream:
+        stream.write(text)
+    return path

@@ -1,0 +1,50 @@
+    /**
+     * @brief 解析文本。
+     * @param text 输入文本。
+     * @param result 输出语义值；可为 nullptr。
+     * @return Status::Ok 表示成功。
+     */
+    Status runText(std::string_view text, ParserValue_T *result)
+    {
+        const Status ready = prepareText(text);
+        if (ready != Status::Ok)
+        {
+            return Status::ErrLexer;
+        }
+        ParserMemory::UniquePtr<Tree> ignoredTree;
+        return runLoop(result, &ignoredTree);
+    }
+
+    /**
+     * @brief 解析 Token 序列。
+     * @param tokens Token 序列。
+     * @param result 输出语义值；可为 nullptr。
+     * @return Status::Ok 表示成功。
+     */
+    Status runTokens(const ParserMemory::Vector<Token> &tokens, ParserValue_T *result)
+    {
+        const Status ready = prepareTokens(tokens);
+        if (ready != Status::Ok)
+        {
+            return Status::ErrLexer;
+        }
+        ParserMemory::UniquePtr<Tree> ignoredTree;
+        return runLoop(result, &ignoredTree);
+    }
+
+    /**
+     * @brief 解析文本并构建语法树（只建树，不跑语义动作）。
+     * @param text 输入文本。
+     * @return 语法树根；失败返回 nullptr（原因在 errors() 里）。
+     */
+    ParserMemory::UniquePtr<Tree> parseTree(std::string_view text)
+    {
+        ParserMemory::UniquePtr<Tree> tree;
+        if (prepareText(text) != Status::Ok)
+        {
+            return tree;
+        }
+        (void)runLoop(nullptr, &tree, true);
+        return tree;
+    }
+

@@ -1,0 +1,73 @@
+{# `%token regex` / `%identifier` / `%commit` 的正则表（CodeGenRust 的 rustLexRegexes）。
+   产物里不再有生成期算好的 DFA 表：模式原样交给 Rust 官方的 `regex` crate，
+   每张表第一次用到时编译一遍（`OnceLock`），之后一直复用。
+   变量：
+     regexes             —— 每条 `%token regex`：pattern（带引号的 Rust 字符串字面量）
+                            / type（整数）/ order（整数）
+     has_identifier      —— 有没有 %identifier
+     identifier_pattern  —— 标识符正则（带引号的字符串字面量）
+     commits             —— %commit 数组：pattern（带引号）/ type（带引号）/
+                            skip（真假）/ order（整数）
+     commit_aliases      —— 字段 type / alias（都已带引号）
+   本模板自带行尾换行。 #}
+/// `%token regex` 声明的 Token 正则：与固定字面量一起做最长匹配，
+/// 同长度时字面量优先（关键字不会被正则吃掉）。
+static _REGEX_RES: OnceLock<Vec<Regex>> = OnceLock::new();
+
+/// 取 `%token regex` 的正则表（第一次调用时把模式编译一遍）。
+fn _regex_res() -> &'static Vec<Regex>
+{
+    _REGEX_RES.get_or_init(|| {
+        vec![
+{% for r in regexes %}            lex_compile_regex({{ r.pattern }}),
+{% endfor %}        ]
+    })
+}
+
+static _REGEX_TYPES: &[i32] = &[
+{% for r in regexes %}    {{ r.type }},
+{% endfor %}];
+static _REGEX_ORDERS: &[i32] = &[
+{% for r in regexes %}    {{ r.order }},
+{% endfor %}];
+{% if has_identifier %}/// `%identifier` 声明的标识符正则（命中关键字时换成关键字 Token）。
+static _IDENTIFIER_RE: OnceLock<Regex> = OnceLock::new();
+
+/// 取标识符正则（第一次调用时把模式编译一遍）。
+fn _identifier_re() -> &'static Regex
+{
+    _IDENTIFIER_RE.get_or_init(|| lex_compile_regex({{ identifier_pattern }}))
+}
+
+{% endif %}/// `%commit` 声明的片段正则：与 `%token` 一起做最长匹配；
+/// 同长度时按声明序，先声明优先（skip 命中直接丢掉）。
+static _COMMIT_RES: OnceLock<Vec<Regex>> = OnceLock::new();
+
+/// 取 `%commit` 的正则表（第一次调用时把模式编译一遍）。
+fn _commit_res() -> &'static Vec<Regex>
+{
+    _COMMIT_RES.get_or_init(|| {
+        vec![
+{% for c in commits %}            lex_compile_regex({{ c.pattern }}),
+{% endfor %}        ]
+    })
+}
+
+static _COMMIT_TYPES: &[&str] = &[
+{% for c in commits %}    {{ c.type }},
+{% endfor %}];
+/// `%commit`/`%trivia` 类型到显示别名的映射。
+fn commit_alias(kind: &str) -> &str
+{
+    match kind
+    {
+{% for a in commit_aliases %}        {{ a.type }} => {{ a.alias }},
+{% endfor %}        _ => "",
+    }
+}
+static _COMMIT_SKIPS: &[bool] = &[
+{% for c in commits %}    {{ c.skip }},
+{% endfor %}];
+static _COMMIT_ORDERS: &[i32] = &[
+{% for c in commits %}    {{ c.order }},
+{% endfor %}];

@@ -1,0 +1,88 @@
+        // 固定字面量与 %token regex 一起做最长匹配，字面量优先。
+        let mut best_length = 0usize;
+        let mut best_kind = TOKEN_INVALID;
+        let mut best_from_regex = false;
+        let mut best_wildcard = false;
+        let mut best_text = String::new();
+        let mut best_order = 0i32;
+        let match_start = self.text_pos;
+        for (rule_index, rule_text) in _LEX_RULES_TEXT.iter().enumerate()
+        {
+            let rule_length = _LEX_RULES_LENGTH[rule_index] as usize;
+            if !lex_rule_hit(rule_text, &self.input, match_start)
+            {
+                continue;
+            }
+            let last = rule_text.chars().last();
+            let next = self.peek(rule_length);
+            if is_word(last) && is_word(next)
+            {
+                continue;
+            }
+            if rule_length > best_length
+            {
+                best_length = rule_length;
+                best_kind = _LEX_RULES_TYPE[rule_index];
+                best_from_regex = false;
+                best_wildcard = rule_text.contains(BLANK_WILDCARD);
+                best_text = rule_text.to_string();
+                best_order = _LEX_RULES_ORDER[rule_index];
+            }
+        }
+{{ lex_regex_loop }}
+        // %commit：与 Token 规则共用一份最长匹配；同长度时按声明序，
+        // 先声明优先（skip 命中不算 Token，直接丢掉）。
+        let mut commit_length = 0usize;
+        let mut commit_index = 0usize;
+        for (index, pattern) in _commit_res().iter().enumerate()
+        {
+            let matched = lex_regex_match(pattern, &self.text, self.byte_pos);
+            if matched > commit_length
+            {
+                commit_length = matched;
+                commit_index = index;
+            }
+        }
+        if (commit_length != 0)
+            && ((commit_length > best_length)
+                || ((commit_length == best_length)
+                    && ((best_kind == TOKEN_INVALID)
+                        || (_COMMIT_ORDERS[commit_index] < best_order))))
+        {
+            if !_COMMIT_SKIPS[commit_index]
+            {
+                self.commits.push(ParserCommit {
+                    line: item.line as i32,
+                    kind: _COMMIT_TYPES[commit_index].to_string(),
+                    text: self.input[match_start..match_start + commit_length]
+                        .iter()
+                        .collect(),
+                });
+            }
+            for _ in 0..commit_length
+            {
+                self.read_char();
+            }
+            continue;
+        }
+        if best_kind != TOKEN_INVALID
+        {
+            for _ in 0..best_length
+            {
+                self.read_char();
+            }
+            item.kind = best_kind;
+            if best_from_regex || best_wildcard
+            {
+                self.lexeme = self.input[match_start..match_start + best_length]
+                    .iter()
+                    .collect();
+                item.text = self.lexeme.clone();
+            }
+            else
+            {
+                item.text = best_text;
+            }
+            item.value = value_from_text(item.kind, &item.text);
+            return STATUS_OK;
+        }

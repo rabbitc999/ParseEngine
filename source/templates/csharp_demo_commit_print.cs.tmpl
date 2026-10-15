@@ -1,0 +1,12 @@
+        // %commit：打印收集到的片段（行号 + 类型 + 原文）与当前位置
+        System.Console.WriteLine("commits: " + engine.Commits.Count);
+        for (int index = 0; index < engine.Commits.Count; index++)
+        {
+            Parser.Commit entry = engine.Commits[index];
+            System.Console.WriteLine("  [" + index + "] line=" + entry.Line +
+                                     " type=" + entry.Type + " text=" + entry.Text);
+        }
+        Parser.Location location = engine.CurrentLocation;
+        System.Console.WriteLine("location: line=" + location.Line +
+                                 " column=" + location.Column +
+                                 " offset=" + location.Offset);

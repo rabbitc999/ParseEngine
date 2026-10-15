@@ -1,0 +1,30 @@
+    /* 固定规则按最长候选优先，并在关键字末尾检查标识符边界。 */
+    for (index = 0u; index < (uint32_t)(sizeof(s_ParserLexRules) /
+                                        sizeof(s_ParserLexRules[0])); index++) {
+        const ParserLexRule_T *pRule = &s_ParserLexRules[index];
+        if ((pRule->pText != NULL) &&
+            (Parser_LexRuleHit(pRule, pStart) != 0)) {
+            unsigned char last = (unsigned char)pRule->pText[pRule->length - 1u];
+            unsigned char next = (unsigned char)pStart[pRule->length];
+            if (((isalnum(last) != 0) || (last == '_')) &&
+                ((isalnum(next) != 0) || (next == '_'))) {
+                continue;
+            }
+            for (length = 0u; length < pRule->length; length++) {
+                Parser_ReadChar(pCtx);
+            }
+            pToken->type = pRule->type;
+            if (pRule->wildcard != 0u) {
+                /* \b 通配命中：词素要按输入抄一份，不能直接指字面量 */
+                if (pRule->length >= (uint32_t)sizeof(pCtx->lexeme)) {
+                    return PARSER_ERR_LEXER;
+                }
+                PARSER_MEMCPY(pCtx->lexeme, pStart, pRule->length);
+                pCtx->lexeme[pRule->length] = '\0';
+                pToken->pName = pCtx->lexeme;
+            } else {
+                pToken->pName = pRule->pText;
+            }
+            return PARSER_OK;
+        }
+    }

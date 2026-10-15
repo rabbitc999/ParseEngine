@@ -1,0 +1,28 @@
+    // 固定字面量词法规则（按长度降序；第 4 张表说明该字面量以
+    // 空白 / \b 通配开头，跳空白时要先看它能不能命中）。
+    private static readonly string[] _LEX_RULES_TEXT = {
+{% for r in rules %}
+        {{ r.text }},
+{% endfor %}
+    };
+    private static readonly int[] _LEX_RULES_TYPE = {
+{% for r in rules %}
+        {{ r.type }},
+{% endfor %}
+    };
+    private static readonly int[] _LEX_RULES_LENGTH = {
+{% for r in rules %}
+        {{ r.length }},
+{% endfor %}
+    };
+    private static readonly int[] _LEX_RULES_BLANK = {
+{% for r in rules %}
+        {{ r.blank }},
+{% endfor %}
+    };
+    // 词法声明序（%commit 与 Token 同长度时比较「谁先声明」）。
+    private static readonly int[] _LEX_RULES_ORDER = {
+{% for r in rules %}
+        {{ r.order }},
+{% endfor %}
+    };

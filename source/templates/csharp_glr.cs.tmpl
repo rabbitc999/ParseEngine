@@ -1,0 +1,361 @@
+
+    // ---------- GLR 图结构栈与多结果 ----------
+    private sealed class _GlrNode
+    {
+        public int state;
+        public readonly List<int> edges = new List<int>();
+        public _GlrNode(int state) { this.state = state; }
+    }
+
+    private sealed class _GlrEdge
+    {
+        public int from;
+        public int symbol;
+        public int production;
+        public {{ value_type }} value;
+        public Tree tree;
+        public _GlrEdge(int from, int symbol, int production,
+                        {{ value_type }} value, Tree tree)
+        {
+            this.from = from;
+            this.symbol = symbol;
+            this.production = production;
+            this.value = value;
+            this.tree = tree;
+        }
+    }
+
+    private readonly List<_GlrNode> _glrNodes = new List<_GlrNode>();
+    private readonly List<_GlrEdge> _glrEdges = new List<_GlrEdge>();
+    private readonly List<int>[] _glrNodeIds = { new List<int>(), new List<int>() };
+    private readonly Dictionary<int, int>[] _glrNodeOf = {
+        new Dictionary<int, int>(), new Dictionary<int, int>()
+    };
+    private readonly Queue<int> _glrWork = new Queue<int>();
+    private readonly HashSet<int> _glrQueued = new HashSet<int>();
+    private readonly int[] _glrPathEdges = new int[_MAX_PATH_DEPTH];
+    private int _glrPathVisits;
+    private readonly List<{{ value_type }}> _glrResults = new List<{{ value_type }}>();
+    private readonly List<Tree> _glrTrees = new List<Tree>();
+    private System.Func<{{ value_type }}, {{ value_type }}, bool> _glrResolver;
+
+    /** 注册歧义解决回调；返回 true 采用候选结果，null 则保留所有结果。 */
+    public void setAmbiguityResolver(System.Func<{{ value_type }}, {{ value_type }}, bool> resolver)
+    {
+        _glrResolver = resolver;
+    }
+
+    public int glrResultCount() { return _glrResults.Count; }
+    public {{ value_type }} glrResult(int index)
+    {
+        return index >= 0 && index < _glrResults.Count ? _glrResults[index] : _defaultValue();
+    }
+    public Tree glrTree(int index)
+    {
+        return index >= 0 && index < _glrTrees.Count ? _glrTrees[index] : null;
+    }
+
+    public int runGlr(string text) { return runText(text); }
+    public int runGlrTree(string text)
+    {
+        _treeRoot = null;
+        _glrClear();
+        return _prepareText(text) == STATUS_OK ? _runGlrLoop(true) : STATUS_ERR_LEXER;
+    }
+
+    private void _glrClear()
+    {
+        _glrResults.Clear();
+        _glrTrees.Clear();
+        _glrNodes.Clear();
+        _glrEdges.Clear();
+        for (int i = 0; i < 2; i++)
+        {
+            _glrNodeIds[i].Clear();
+            _glrNodeOf[i].Clear();
+        }
+        _glrWork.Clear();
+        _glrQueued.Clear();
+        _glrPathVisits = 0;
+    }
+
+    private int _glrNodeFor(int position, int state)
+    {
+        if (_glrNodeOf[position].TryGetValue(state, out int found)) return found;
+        if (_glrNodes.Count >= INVALID_INDEX) return INVALID_INDEX;
+        int index = _glrNodes.Count;
+        _glrNodes.Add(new _GlrNode(state));
+        _glrNodeOf[position][state] = index;
+        _glrNodeIds[position].Add(index);
+        return index;
+    }
+
+    private bool _glrEdgeExists(int target, int from, int symbol, int production,
+                                Tree tree, bool compareTree)
+    {
+        foreach (int id in _glrNodes[target].edges)
+        {
+            _GlrEdge edge = _glrEdges[id];
+            if (edge.from != from || edge.symbol != symbol || edge.production != production)
+                continue;
+            if (!compareTree || (edge.tree == null && tree == null) ||
+                (edge.tree != null && tree != null && edge.tree.ToString() == tree.ToString()))
+                return true;
+        }
+        return false;
+    }
+
+    private int _glrAddEdge(int target, int from, int symbol, int production,
+                            {{ value_type }} value, Tree tree, bool compareTree)
+    {
+        if (_glrEdgeExists(target, from, symbol, production, tree, compareTree)) return 0;
+        if (_glrEdges.Count >= INVALID_INDEX) return -1;
+        int id = _glrEdges.Count;
+        _glrEdges.Add(new _GlrEdge(from, symbol, production, value, tree));
+        _glrNodes[target].edges.Add(id);
+        return 1;
+    }
+
+    private void _glrQueue(int node)
+    {
+        if (_glrQueued.Add(node)) _glrWork.Enqueue(node);
+    }
+
+    private int _glrReduceApply(int position, int from, int production, bool treeMode)
+    {
+        int length = _PRODUCTION_LENGTH[production];
+        int lhs = _PRODUCTION_LHS[production];
+        int target = _GOTO[_glrNodes[from].state][lhs];
+        if (target == INVALID_STATE) return STATUS_OK;
+        int node = _glrNodeFor(position, target);
+        if (node == INVALID_INDEX) return STATUS_ERR_STACK;
+        int symbol = _TERMINAL_COUNT + lhs;
+        if (!treeMode && _glrEdgeExists(node, from, symbol, production, null, false))
+            return STATUS_OK;
+        Tree branch = null;
+        {{ value_type }} value = _defaultValue();
+        if (treeMode)
+        {
+            Tree[] children = new Tree[length];
+            for (int i = 0; i < length; i++)
+            {
+                Tree child = _glrEdges[_glrPathEdges[i]].tree;
+                children[i] = child == null ? null : child.clone();
+            }
+            branch = _makeBranch(children, _treeName(lhs), 0, length);
+        }
+        else
+        {
+            {{ value_type }}[] values = new {{ value_type }}[length];
+            for (int i = 0; i < length; i++)
+                values[i] = _glrEdges[_glrPathEdges[i]].value;
+            _Holder result = new _Holder();
+            if (_applyAction(production, values, result) != STATUS_OK)
+                return STATUS_ERR_SYNTAX;
+            value = result.value;
+        }
+        int added = _glrAddEdge(node, from, symbol, production, value, branch, treeMode);
+        if (added < 0) return STATUS_ERR_STACK;
+        if (added > 0) _glrQueue(node);
+        return STATUS_OK;
+    }
+
+    private int _glrReduceWalk(int position, int node, int depth, int length,
+                               int production, bool treeMode)
+    {
+        if (depth == length) return _glrReduceApply(position, node, production, treeMode);
+        if (++_glrPathVisits > _MAX_PATH_VISITS) return STATUS_ERR_STACK;
+        List<int> edges = _glrNodes[node].edges;
+        int snapshot = edges.Count;
+        for (int i = snapshot - 1; i >= 0; i--)
+        {
+            int id = edges[i];
+            _glrPathEdges[length - 1 - depth] = id;
+            int status = _glrReduceWalk(position, _glrEdges[id].from, depth + 1,
+                                        length, production, treeMode);
+            if (status != STATUS_OK) return status;
+        }
+        return STATUS_OK;
+    }
+
+    private int _glrApplyAction(int position, int node, int action, bool treeMode)
+    {
+        if (action >= 0) return STATUS_OK;
+        int production = -action - 1;
+        int length = _PRODUCTION_LENGTH[production];
+        return length > _MAX_PATH_DEPTH ? STATUS_ERR_STACK
+            : _glrReduceWalk(position, node, 0, length, production, treeMode);
+    }
+
+    private int _glrReduceNode(int position, int node, int token, bool treeMode)
+    {
+        int state = _glrNodes[node].state;
+        if (state >= _STATE_COUNT || token >= _TERMINAL_COUNT) return STATUS_ERR_SYNTAX;
+        int status = _glrApplyAction(position, node, _ACTION[state][token], treeMode);
+        if (status != STATUS_OK) return status;
+        int cell = state * _TERMINAL_COUNT + token;
+        for (int i = 0; i < _GLR_EXTRA_COUNT[cell]; i++)
+        {
+            status = _glrApplyAction(position, node,
+                _GLR_EXTRA_DATA[_GLR_EXTRA_START[cell] + i], treeMode);
+            if (status != STATUS_OK) return status;
+        }
+        return STATUS_OK;
+    }
+
+    private int _glrShiftRound(int current, int next, int token, bool treeMode)
+    {
+        foreach (int node in new List<int>(_glrNodeIds[current]))
+        {
+            int state = _glrNodes[node].state;
+            if (state >= _STATE_COUNT) continue;
+            int cell = state * _TERMINAL_COUNT + token;
+            for (int i = -1; i < _GLR_EXTRA_COUNT[cell]; i++)
+            {
+                int action = i < 0 ? _ACTION[state][token]
+                    : _GLR_EXTRA_DATA[_GLR_EXTRA_START[cell] + i];
+                if (action <= 0 || action == ACCEPT_ACTION) continue;
+                int target = _glrNodeFor(next, action - 1);
+                if (target == INVALID_INDEX) return STATUS_ERR_STACK;
+                Tree leaf = treeMode ? _makeLeaf(_current) : null;
+                if (_glrAddEdge(target, node, token, INVALID_INDEX,
+                                _current.value, leaf, treeMode) < 0)
+                    return STATUS_ERR_STACK;
+            }
+        }
+        return STATUS_OK;
+    }
+
+    private void _glrAcceptNode(int node)
+    {
+        int state = _glrNodes[node].state;
+        if (state >= _STATE_COUNT || _ACTION[state][TOKEN_END] != ACCEPT_ACTION) return;
+        List<int> edges = _glrNodes[node].edges;
+        for (int i = edges.Count - 1; i >= 0; i--)
+        {
+            _GlrEdge edge = _glrEdges[edges[i]];
+            if (edge.symbol != _GLR_START_SYMBOL) continue;
+            if (_glrResolver != null && _glrResults.Count > 0)
+            {
+                if (!_glrResolver(_glrResults[0], edge.value)) continue;
+                _glrResults.Clear();
+                _glrTrees.Clear();
+            }
+            _glrResults.Add(edge.value);
+            if (edge.tree != null) _glrTrees.Add(edge.tree.clone());
+        }
+    }
+
+    private string _glrExpectedTokens(int position)
+    {
+        List<string> names = new List<string>();
+        foreach (int node in _glrNodeIds[position])
+        {
+            int state = _glrNodes[node].state;
+            if (state >= _STATE_COUNT) continue;
+            for (int token = 0; token < _TERMINAL_COUNT && names.Count < 4; token++)
+            {
+                int cell = state * _TERMINAL_COUNT + token;
+                if (_ACTION[state][token] == 0 && _GLR_EXTRA_COUNT[cell] == 0) continue;
+                string name = Token.tokenName(token);
+                if (name != null && !names.Contains(name)) names.Add(name);
+            }
+            if (names.Count >= 4) break;
+        }
+        return names.Count == 0 ? "（未知）" : string.Join(" / ", names);
+    }
+
+    private int _runGlrLoop(bool treeMode)
+    {
+{% if chart %}        int chartStatus = _chartPrecheck();
+        if (chartStatus != STATUS_OK) return chartStatus;
+{% endif %}
+        int current = 0, next = 1, deleted = 0;
+        bool recovering = false;
+        int start = _glrNodeFor(current, 0);
+        if (start == INVALID_INDEX) return STATUS_ERR_STACK;
+        _glrQueue(start);
+        while (true)
+        {
+            int token = _current.type;
+            while (_glrWork.Count > 0)
+            {
+                int node = _glrWork.Dequeue();
+                _glrQueued.Remove(node);
+                int status = _glrReduceNode(current, node, token, treeMode);
+                if (status != STATUS_OK)
+                {
+                    _setError(status, _current.line, _current.column, "GLR 归约失败");
+                    _glrResults.Clear(); _glrTrees.Clear();
+                    return status;
+                }
+            }
+            if (token == TOKEN_END)
+            {
+                foreach (int node in _glrNodeIds[current]) _glrAcceptNode(node);
+                break;
+            }
+            _glrNodeIds[next].Clear();
+            _glrNodeOf[next].Clear();
+            int shifted = _glrShiftRound(current, next, token, treeMode);
+            if (shifted != STATUS_OK)
+            {
+                _setError(shifted, _current.line, _current.column, "GLR 移进失败");
+                _glrResults.Clear(); _glrTrees.Clear();
+                return shifted;
+            }
+            if (_glrNodeIds[next].Count == 0)
+            {
+                if (!recovering)
+                {
+                    _setError(STATUS_ERR_SYNTAX, _current.line, _current.column,
+                              "GLR 语法错误：遇到 " + _tokenTypeText(token) +
+                              "，" + _glrNodeIds[current].Count +
+                              " 条活跃路径都没有匹配动作（期望 " +
+                              _glrExpectedTokens(current) + "）");
+                    if (_errors.Count >= MAX_ERRORS)
+                    {
+                        _glrResults.Clear(); _glrTrees.Clear();
+                        return STATUS_ERR_SYNTAX;
+                    }
+                    recovering = true;
+                    deleted = 0;
+                }
+                bool sync = _isSyncToken(token);
+                if (_advance() != STATUS_OK)
+                {
+                    _glrResults.Clear(); _glrTrees.Clear();
+                    return STATUS_ERR_LEXER;
+                }
+                deleted = sync ? 0 : deleted + 1;
+                if (sync) recovering = false;
+                if (deleted > 256)
+                {
+                    _glrResults.Clear(); _glrTrees.Clear();
+                    return STATUS_ERR_SYNTAX;
+                }
+                foreach (int node in _glrNodeIds[current]) _glrQueue(node);
+                continue;
+            }
+            int swap = current; current = next; next = swap;
+            recovering = false;
+            deleted = 0;
+            foreach (int node in _glrNodeIds[current]) _glrQueue(node);
+            if (_advance() != STATUS_OK)
+            {
+                _glrResults.Clear(); _glrTrees.Clear();
+                return STATUS_ERR_LEXER;
+            }
+        }
+        if (_glrResults.Count == 0)
+        {
+            _setError(STATUS_ERR_SYNTAX, _current.line, _current.column,
+                      "没有可接受的解析路径");
+            return STATUS_ERR_SYNTAX;
+        }
+        _result = _glrResults[0];
+        if (treeMode && _glrTrees.Count > 0) _treeRoot = _glrTrees[0].clone();
+        return STATUS_OK;
+    }
+
+{{ chart_body }}

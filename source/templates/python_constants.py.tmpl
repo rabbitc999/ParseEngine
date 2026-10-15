@@ -1,0 +1,29 @@
+{# 容量常量段（LR 与 LL 共用）：容量数 + `_EXPECTED` 的每行 Token 号 + 兜底说明。 #}
+# Token 个数（含 END）/ 非终结符个数 / 起始非终结符编号。
+_TERMINAL_COUNT = {{ terminal_count }}
+_NONTERM_COUNT = {{ nonterm_count }}
+_START_ID = {{ start_id }}
+# LR 自动机状态个数（LL(1) 模式没有状态机，这里是 0）。
+_STATE_COUNT = {{ state_count }}
+# ACTION 表里的「接受」标记 / 无效状态 / 无效下标。
+_ACCEPT_ACTION = 2147483647
+# LR(k) / LALR(k) 的展望符长度与归约列数（k = 1 时不用第二层）。
+_LOOKAHEAD_K = {{ lookahead_k }}
+_LOOKAHEAD_COLUMN_COUNT = {{ lookahead_column_count }}
+_INVALID_STATE = 0xFFFF
+_INVALID_INDEX = 0xFFFF
+# 语义动作里 `$1..$n` 的槽位个数（LL 的帧里第 0 个槽位留空）。
+_VALUE_SLOTS = {{ value_slots }}
+# 每一行「期望的 Token」：语法错误时用来填 ParserError.expected。
+_EXPECTED = [
+{% for row in expected_rows %}            [{{ row.cells }}],
+{% endfor %}]
+# 期望集为空时的兜底说明（LL 说「产生式」、LR 说「动作」）。
+_EXPECTED_FALLBACK = {{ expected_fallback }}
+{% if glr %}# GLR 归约路径的最大长度 / 单次最多访问多少条路径 / 死路时最多吞几个 Token。
+_MAX_PATH_DEPTH = 64
+_MAX_PATH_VISITS = 200000
+_GLR_MAX_RECOVERY_DELETES = 256
+{% endif %}{% if dd %}# DD：整段解析失败时，最多往后跳几次同步 Token 再重试（%sync 的 panic mode）。
+_DD_MAX_RECOVERY_SKIPS = 64
+{% endif %}

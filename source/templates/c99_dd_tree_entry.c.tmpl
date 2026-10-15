@@ -1,0 +1,48 @@
+{# 递归下降（DD）的语法树入口（CodeGenC99 的 generatorCustomTreeEntryC 那一支）。
+   变量：start_id —— 起始非终结符编号。
+   只有 %tree 才发；`Parser_TreeParseLoop` / `Parser_ParseTreeText` 与 LL(1)
+   那一份同名同签名，所以 %tree 的公开 API 在 DD 下不用改。
+   本模板自带行尾换行。 #}
+
+/**
+ * @brief 语法树解析主循环（DD）：交给递归下降驱动，建树模式跑一遍。
+ * @param pCtx 上下文。
+ * @retval 根节点或 NULL。
+ */
+static ParserTree_T *Parser_TreeParseLoop(ParserCtx_T *pCtx)
+{
+    if (Parser_DdParseAll(pCtx, 1u) != PARSER_OK) {
+        return NULL;
+    }
+    if ((pCtx->pTreeRoot == NULL) || (pCtx->current.type != TOKEN_END)) {
+        Parser_SetError(PARSER_ERR_SYNTAX, pCtx->current.line,
+                        pCtx->current.column, "输入尚未完全消费");
+        return NULL;
+    }
+    return pCtx->pTreeRoot;
+}
+
+/**
+ * @brief 直接解析脚本文本并返回语法树根节点（DD）。
+ * @param pText 输入文本。
+ * @retval 根节点或 NULL。
+ */
+ParserTree_T *Parser_ParseTreeText(const char *pText)
+{
+    ParserCtx_T *pContext = &s_ParserContext;
+    ParserTree_T *pTree = NULL;
+    if (pText == NULL) { return NULL; }
+    PARSER_MEMSET(pContext, 0, sizeof(*pContext));
+    Parser_ClearErrors();
+    pContext->pText = pText;
+    pContext->textMode = 1u;
+    pContext->line = 1u;
+    pContext->column = 1u;
+    if (Parser_Advance(pContext) != PARSER_OK) { return NULL; }
+    pTree = Parser_TreeParseLoop(pContext);
+    if (pTree == NULL) {
+        Parser_TreeFree(pContext->pTreeRoot);
+        pContext->pTreeRoot = NULL;
+    }
+    return pTree;
+}

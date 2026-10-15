@@ -1,0 +1,105 @@
+        /* 固定字面量与 %token regex 一起做最长匹配，字面量优先。 */
+        {
+            std::uint32_t bestLength = 0u;
+            TokenType bestType = TokenType::TOKEN_INVALID;
+            bool bestFromRegex = false;
+            bool bestWildcard = false;
+            const char *pBestText = nullptr;
+            int bestOrder = 0;
+            for (const LexRule &rule : kLexRules)
+            {
+                if ((rule.text != nullptr) &&
+                    lexRuleHit(rule, pStart))
+                {
+                    const unsigned char last = static_cast<unsigned char>(
+                        rule.text[rule.length - 1u]);
+                    const unsigned char next =
+                        static_cast<unsigned char>(pStart[rule.length]);
+                    if (((std::isalnum(last) != 0) || (last == '_')) &&
+                        ((std::isalnum(next) != 0) || (next == '_')))
+                    {
+                        continue;
+                    }
+                    if (rule.length > bestLength)
+                    {
+                        bestLength = rule.length;
+                        bestType = rule.type;
+                        bestFromRegex = false;
+                        bestWildcard = rule.wildcard;
+                        pBestText = rule.text;
+                        bestOrder = rule.order;
+                    }
+                }
+            }
+{{ lex_regex_loop }}            /* %commit：与 Token 规则共用一份最长匹配；同长度时按
+               声明序，先声明优先（skip 命中不算 Token，直接丢掉）。 */
+            std::uint32_t commitLength = 0u;
+            std::size_t commitIndex = 0u;
+            for (std::size_t index = 0u; index < kCommitCount; ++index)
+            {
+                const std::uint32_t matched =
+                    lexRegexMatch(kCommitRes[index], m_text, m_textPos);
+                if (matched > commitLength)
+                {
+                    commitLength = matched;
+                    commitIndex = index;
+                }
+            }
+            if ((commitLength != 0u) &&
+                ((commitLength > bestLength) ||
+                 ((commitLength == bestLength) &&
+                  ((bestType == TokenType::TOKEN_INVALID) ||
+                   (kCommitOrders[commitIndex] < bestOrder)))))
+            {
+                const std::uint32_t commitLine = m_line;
+                const char *const pCommitText = pStart;
+                if (kCommitSkips[commitIndex] == 0u)
+                {
+                    m_commits.push_back(
+                        ParserCommit{static_cast<int>(commitLine),
+                                     kCommitTypes[commitIndex][0],
+                                     ParserMemory::String(pCommitText, commitLength)});
+                }
+                for (std::uint32_t index = 0u; index < commitLength; ++index)
+                {
+                    readChar();
+                }
+                continue;
+            }
+            if (bestType != TokenType::TOKEN_INVALID)
+            {
+                for (std::uint32_t index = 0u; index < bestLength; ++index)
+                {
+                    readChar();
+                }
+                token.type = bestType;
+                if (bestFromRegex)
+                {
+                    m_lexeme.assign(pStart, bestLength);
+                    token.text = m_lexeme;
+                    token.pName = m_lexeme.c_str();
+{% if has_regex_members %}                    switch (token.type)
+                    {
+{% for r in regex_members %}                case TOKEN_{{ r.token }}:
+                    token.value.{{ r.member }} = m_lexeme.data();
+                    break;
+{% endfor %}                    default:
+                        break;
+                    }
+{% endif %}
+                }
+                else if (bestWildcard)
+                {
+                    /* \b 通配命中：词素要按输入抄一份，不能直接指字面量 */
+                    m_lexeme.assign(pStart, bestLength);
+                    token.text = m_lexeme;
+                    token.pName = m_lexeme.c_str();
+                }
+                else
+                {
+                    token.text = pBestText;
+                    token.pName = pBestText;
+                }
+                return Status::Ok;
+            }
+        }

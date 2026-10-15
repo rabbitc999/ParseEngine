@@ -1,0 +1,313 @@
+/** 
+ * @brief LL(k) / LALR(k) 共用的 lookahead 窗口：把 current 之后的 k-1 个 Token 预先取进来。 
+ *
+ * 窗口头始终是 pCtx->current，所以「不消耗 lookahead」的错误恢复、丢输入同步
+ * 都只需要挪动窗口。k = 0 / 1 时窗口是空的，这个函数是空操作。 
+ * @param pCtx 上下文。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_FillLookaheadWindow(ParserCtx_T *pCtx)
+{
+    const ParserToken_T head = pCtx->current;
+    uint32_t index = 0u;
+    for (index = 0u; (index + 1u) < PARSER_LOOKAHEAD_K; index++) {
+        if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+        pCtx->lookahead[index] = pCtx->current;
+    }
+    pCtx->current = head;
+    return PARSER_OK;
+}
+
+/** 
+ * @brief LL(k)：窗口左移一个 Token（current 前进，末尾补一个新 Token）。 
+ * @param pCtx 上下文。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_AdvanceLookahead(ParserCtx_T *pCtx)
+{
+#if PARSER_LOOKAHEAD_K > 1
+    ParserToken_T fresh;
+    uint32_t index = 0u;
+    if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    fresh = pCtx->current;
+    pCtx->current = pCtx->lookahead[0];
+    for (index = 0u; (index + 1u) < (PARSER_LOOKAHEAD_K - 1u); index++) {
+        pCtx->lookahead[index] = pCtx->lookahead[index + 1u];
+    }
+    pCtx->lookahead[PARSER_LOOKAHEAD_K - 2u] = fresh;
+    return PARSER_OK;
+#else
+    return Parser_Advance(pCtx);
+#endif
+}
+
+/** 
+ * @brief 取预测分析表的列号：LL(0) 恒为 0，LL(1) 用 Token 号，LL(k) 二分查 k 元组。 
+ * @param pCtx 上下文。 
+ * @retval 列号。 
+ */
+static int32_t Parser_TableColumn(const ParserCtx_T *pCtx)
+{
+#if PARSER_LOOKAHEAD_K == 0
+    /* LL(0)：不看 lookahead，预测分析表只有一列 */
+    (void)pCtx;
+    return 0;
+#elif PARSER_LOOKAHEAD_K == 1
+    /* LL(1)：列就是 Token 号（密表） */
+    return (int32_t)pCtx->current.type;
+#else
+    {
+        uint64_t code = (uint64_t)pCtx->current.type;
+        uint64_t scale = {{ terminal_count }}u;
+        uint32_t index = 0u;
+        int32_t low = 0;
+        int32_t high = (int32_t)PARSER_LOOKAHEAD_COLUMN_COUNT - 1;
+        for (index = 1u; index < PARSER_LOOKAHEAD_K; index++) {
+            code += (uint64_t)pCtx->lookahead[index - 1u].type * scale;
+            scale *= {{ terminal_count }}u;
+        }
+        while (low <= high) {
+            const int32_t mid = low + (high - low) / 2;
+            const int64_t midCode = s_ParserLookaheadCode[mid];
+            if ((uint64_t)midCode == code) {
+                return (int32_t)s_ParserLookaheadColumn[mid];
+            }
+            if ((uint64_t)midCode < code) { low = mid + 1; } else { high = mid - 1; }
+        }
+    }
+    return -1;
+#endif
+}
+
+/** 
+ * @brief 压入分析项目。 
+ * @param pCtx 上下文。 
+ * @param kind 项目类型。 
+ * @param symbol 符号编号。 
+ * @param frameIndex 语义帧下标。 
+ * @param valueIndex 语义槽位。 
+ * @param seedFrameIndex 左递归种子帧。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_Push(ParserCtx_T *pCtx, ParserItemKind_T kind,
+                           uint16_t symbol, uint16_t frameIndex,
+                           uint16_t valueIndex, uint16_t seedFrameIndex)
+{
+    ParserStackItem_T *pItem = NULL;
+    if (pCtx->stackTop >= PARSER_MAX_STACK_DEPTH) { return PARSER_ERR_STACK; }
+    pItem = &pCtx->stack[pCtx->stackTop++];
+    pItem->kind = kind;
+    pItem->symbol = symbol;
+    pItem->frameIndex = frameIndex;
+    pItem->valueIndex = valueIndex;
+    pItem->seedFrameIndex = seedFrameIndex;
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 展开产生式。 
+ * @param pCtx 上下文。 
+ * @param production 产生式编号。 
+ * @param frameIndex 语义帧下标。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_ExpandProduction(ParserCtx_T *pCtx,
+                                       uint16_t production,
+                                       uint16_t frameIndex)
+{
+    (void)pCtx;
+    (void)frameIndex;
+    switch (production) {
+{{ expand_cases }}
+        default: return PARSER_ERR_SYNTAX;
+    }
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 执行语义动作：把 $$ 写入 result.value，$n 直接读语义槽位。 
+ * @param pCtx 上下文。 
+ * @param production 产生式编号。 
+ * @param frameIndex 语义帧下标。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_ExecuteAction(ParserCtx_T *pCtx,
+                                    uint16_t production,
+                                    uint16_t frameIndex)
+{
+    ParserSemanticFrame_T *pFrame = &pCtx->frames[frameIndex];
+    ParserValue_T *values = pFrame->values;
+    const char *names[PARSER_VALUE_SLOTS] = { 0 };
+    ParseResult_T result;
+    uint32_t index = 0u;
+
+    for (index = 0u; index < PARSER_VALUE_SLOTS; index++) {
+        names[index] = pFrame->names[index];
+    }
+    (void)values;
+    (void)names;
+    PARSER_MEMSET(&result, 0, sizeof(result));
+    result.value = pFrame->resultValue;
+    switch (production) {
+{{ action_cases }}
+        default: return PARSER_ERR_SYNTAX;
+    }
+    pFrame->resultValue = result.value;
+{% if has_destructors %}
+    pFrame->resultDone = 1u;
+{% endif %}
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 转发语义槽：把 $n 直接当作本产生式的结果值。 
+ * @param pFrame 语义帧。 
+ * @param valueIndex 语义槽位。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_ForwardFrame(ParserSemanticFrame_T *pFrame,
+                                   uint16_t valueIndex)
+{
+    pFrame->resultValue = pFrame->values[valueIndex];
+{% if has_destructors %}
+    pFrame->resultSymbol =
+        pFrame->symbols[valueIndex];
+    pFrame->resultDone = 1u;
+    pFrame->symbols[valueIndex] =
+        PARSER_INVALID_INDEX;
+{% endif %}
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 完成语义帧，把结果交给父帧或作为根结果。 
+ * @param pCtx 上下文。 
+ * @param frameIndex 语义帧下标。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_CompleteFrame(ParserCtx_T *pCtx, uint16_t frameIndex)
+{
+    ParserSemanticFrame_T *pFrame = &pCtx->frames[frameIndex];
+    /* 错误恢复丢掉的帧还留在栈顶（标了 valuesDiscarded）：先退掉它们，
+     * 否则后面的完成动作会看到「自己的帧不在栈顶」而误报栈错误 */
+    while ((pCtx->frameTop > (uint16_t)(frameIndex + 1u)) &&
+           (pCtx->frames[pCtx->frameTop - 1u].valuesDiscarded != 0u)) {
+        PARSER_MEMSET(&pCtx->frames[pCtx->frameTop - 1u], 0,
+               sizeof(ParserSemanticFrame_T));
+        pCtx->frameTop--;
+    }
+    if ((pCtx->frameTop == 0u) ||
+        (frameIndex != (uint16_t)(pCtx->frameTop - 1u))) {
+        return PARSER_ERR_STACK;
+    }
+    if (pFrame->parentFrameIndex == PARSER_INVALID_INDEX) {
+        pCtx->rootResult = pFrame->resultValue;
+    } else {
+        pCtx->frames[pFrame->parentFrameIndex]
+            .values[pFrame->parentValueIndex] = pFrame->resultValue;
+{% if has_destructors %}
+        pCtx->frames[pFrame->parentFrameIndex]
+            .symbols[pFrame->parentValueIndex] =
+            pFrame->resultSymbol;
+{% endif %}
+    }
+    PARSER_MEMSET(pFrame, 0, sizeof(*pFrame));
+    pCtx->frameTop--;
+    return PARSER_OK;
+}
+
+/** 
+{% if has_destructors %}
+ * @brief 失败路径清理上下文：先丢弃还活着的语义值（%destructor / 全局钩子），再把上下文整体清零。 
+{% else %}
+ * @brief 失败路径清理上下文（POD 语义值无需释放）。 
+{% endif %}
+ * @param pCtx 上下文。 
+ * @retval 无。 
+ */
+static void Parser_ReleaseContext(ParserCtx_T *pCtx)
+{
+{% if has_destructors %}
+    {
+        uint16_t frameIndex = 0u;
+        for (frameIndex = 0u; frameIndex < pCtx->frameTop;
+             frameIndex++)
+        {
+            ParserSemanticFrame_T *pFrame =
+                &pCtx->frames[frameIndex];
+            uint16_t slotIndex = 0u;
+            for (slotIndex = 0u;
+                 slotIndex < (uint16_t)PARSER_VALUE_SLOTS;
+                 slotIndex++)
+            {
+                if (pFrame->symbols[slotIndex] !=
+                    PARSER_INVALID_INDEX)
+                {
+                    Parser_DiscardSlot(
+                        &pFrame->values[slotIndex],
+                        pFrame->symbols[slotIndex]);
+                }
+            }
+            if (pFrame->resultDone != 0u)
+            {
+                Parser_DiscardSlot(&pFrame->resultValue,
+                                   pFrame->resultSymbol);
+            }
+        }
+    }
+{% endif %}
+    PARSER_MEMSET(pCtx, 0, sizeof(*pCtx));
+}
+
+/** 
+ * @brief 由用户在 %code … %endcode 中提供的 Token 语义值转换钩子。
+ * @param pToken 当前 Token。 
+ * @retval 语义值；未定义 PARSER_USER_TOKEN_VALUE 时返回零值。 
+ */
+static ParserValue_T Parser_UserTokenValue(const ParserToken_T *pToken)
+{
+{% if has_union %}
+#ifdef PARSER_USER_TOKEN_VALUE
+    return PARSER_USER_TOKEN_VALUE(pToken);
+#else
+    /* %union：词法器已按 %token <成员> 把词素写进 value */
+    return pToken->value;
+#endif
+{% else %}
+#ifdef PARSER_USER_TOKEN_VALUE
+    return PARSER_USER_TOKEN_VALUE(pToken);
+#else
+    ParserValue_T zero;
+    (void)pToken;
+    PARSER_MEMSET(&zero, 0, sizeof(zero));
+    return zero;
+#endif
+{% endif %}
+}
+
+/** 
+ * @brief 捕获终结符语义：记录名字并写入用户 Token 语义值。 
+ * @param pCtx 上下文。 
+ * @param frameIndex 语义帧下标。 
+ * @param valueIndex 语义槽位。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_CaptureTerminal(ParserCtx_T *pCtx,
+                                      uint16_t frameIndex,
+                                      uint16_t valueIndex)
+{
+    ParserSemanticFrame_T *pFrame = &pCtx->frames[frameIndex];
+    if (valueIndex >= PARSER_VALUE_SLOTS) { return PARSER_ERR_STACK; }
+    if ((pCtx->current.pName != NULL) || (pCtx->current.name != NULL)) {
+        snprintf(pFrame->names[valueIndex],
+                 sizeof(pFrame->names[valueIndex]), "%s",
+                 (pCtx->current.pName != NULL) ? pCtx->current.pName :
+                                                pCtx->current.name);
+    }
+    pFrame->values[valueIndex] = Parser_UserTokenValue(&pCtx->current);
+{% if has_destructors %}
+    pFrame->symbols[valueIndex] = (uint16_t)pCtx->current.type;
+{% endif %}
+    return PARSER_OK;
+}
+

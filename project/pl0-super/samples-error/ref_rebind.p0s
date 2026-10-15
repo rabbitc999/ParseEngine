@@ -1,0 +1,8 @@
+{ 引用只能绑定到"能读写的设计式"：绑到表达式（a + 1）要报错 }
+program ref_bad;
+  var a: int;
+  ref r := a + 1;
+begin
+  a := 1;
+  write(a)
+end.

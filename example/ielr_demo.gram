@@ -1,0 +1,59 @@
+/* ============================================================
+ * IELR(1) 示例 · 经典「非 LALR(1) 但 LR(1)」文法
+ *
+ * 文法取自 Bison 手册里说明 LALR 局限的那组经典产生式
+ * （def / param_spec / return_spec）。它在 VARIABLE 上同时可能
+ * 归约成 name 或 type：
+ *
+ *   param_spec := type | name_list COLON type;
+ *   return_spec := type | name COLON type;
+ *
+ * 由于 name_list 与 name 都以同一个 VARIABLE 开头，LALR(1) 按
+ * LR(0) core 合并状态后会把「name -> VARIABLE .」与
+ * 「type -> VARIABLE .」的 lookahead 并到一起，在 COMMA 上产生
+ * 归约/归约冲突；而这个冲突在规范 LR(1) 与 IELR(1) 里并不存在。
+ *
+ * 本文件用 %mode ielr：生成器先建 LALR 表，只有当出现未消解的
+ * 归约/归约冲突时才拆分相关状态，因此表规模与 LALR 同量级。
+ * 用相同文法把首行换成 %mode lalr，ParseEngine 会直接报归约/归约
+ * 冲突——正好可以对照。
+ *
+ * 试用输入（形式为 param_spec return_spec ','）：
+ *   int int ,          -> 0
+ *   a : int int ,      -> 0
+ *   int a : int ,      -> 0
+ *   a , b : int int ,  -> 0
+ * ============================================================ */
+
+%mode ielr
+%value_type int
+%start def
+
+%define COLON ":"
+%define COMMA ","
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+%code
+/* custom 运行时：语义值类型由 %value_type 声明（int），动作就是普通 C 表达式 */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%d", *(pValue))
+%endcode
+
+/* 参数声明段 与 返回声明段，最后以逗号结束 */
+def := param_spec return_spec COMMA { $$ = 0; }
+     | type                        { $$ = 0; };
+
+/* 形参：只是类型，或「名字列表 : 类型」 */
+param_spec := type                  { $$ = 0; }
+            | name_list COLON type  { $$ = 0; };
+
+/* 返回：只是类型，或「名字 : 类型」 */
+return_spec := type                 { $$ = 0; }
+             | name COLON type      { $$ = 0; };
+
+/* 这里正是 LALR 会冲突的地方：VARIABLE 既能归约成 type 也能归约成 name */
+type := VARIABLE { $$ = 0; };
+name := VARIABLE { $$ = 0; };
+
+name_list := name                 { $$ = 0; }
+           | name COMMA name_list { $$ = 0; };

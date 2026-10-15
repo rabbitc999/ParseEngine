@@ -1,0 +1,47 @@
+# CMakeLists.txt —— 词法模式（%mode lex）产物，由 ParseEngine 自动生成
+#
+# 与同目录的 Makefile 等价，二者任选其一：
+#   cmake -S . -B build
+#   cmake --build build
+#   printf 'a + 12' | ./build/lexer_demo     # 逐个打印 Token 类型
+#
+# 目标：
+#   lexer        静态库（liblexer.a）：词法器 + Token 名 / 词素接口
+#   lexer_demo   演示程序（没有解析器）
+#
+# 语义值类型与内存管理由用户在 parser_user.h（%code ... %endcode）中提供。
+# %copy 拷进来的 .c 会自动追加到 source 列表。
+
+cmake_minimum_required(VERSION 3.10)
+
+project(lexer_demo C)
+
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+add_library(lexer STATIC
+    lexer.c
+    parser_token.c
+{% for src in copy_sources %}    {{ src }}
+{% endfor %})
+
+target_include_directories(lexer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_executable(lexer_demo main.c)
+target_link_libraries(lexer_demo PRIVATE lexer)
+
+# libm 提供数学函数；Windows 上没有独立的 libm，跳过即可
+if(NOT WIN32)
+    target_link_libraries(lexer_demo PRIVATE m)
+endif()
+
+# 产物源码是 UTF-8（含中文注释与字符串）：MSVC 不加 /utf-8 会按当前代码页
+# 解码源文件，简体中文环境下中文字符串字面量会被读坏（C2001）
+if(MSVC)
+    target_compile_options(lexer PRIVATE /utf-8)
+    target_compile_options(lexer_demo PRIVATE /utf-8)
+endif()

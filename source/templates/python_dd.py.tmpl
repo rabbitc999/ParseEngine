@@ -1,0 +1,165 @@
+    # ---------- 递归下降（带回溯） ----------
+
+    def _dd_reset(self):
+        """复位递归下降的「最远失败点」与递归深度。"""
+        self._dd_depth = 0
+        self._dd_frame_depth = 0
+        self._dd_farthest_depth = -1
+        self._dd_farthest_types = []
+        self._dd_farthest_token = self._current
+
+    def _dd_mark(self):
+        """存一份「输入位置」快照（回溯用）。
+
+        快照里是**词法器的全部可回退状态**（文本位置 / 行 / 列 / 字节偏移）、
+        Token 模式的下标、当前 lookahead，以及「已经匹配掉几个终结符」的计数。
+        """
+        return (self._text_pos, self._token_pos, self._line, self._column,
+                self._byte_pos, self._current, self._dd_depth)
+
+    def _dd_restore(self, mark):
+        """回退到快照（产生式试失败时用）。"""
+        (self._text_pos, self._token_pos, self._line, self._column,
+         self._byte_pos, self._current, self._dd_depth) = mark
+
+    def _dd_record_fail(self, expected_type):
+        """记一次「在最远处期望某个 Token」。
+
+        回溯**不**清这条记录：整段解析最终失败时，它给出的是「走得最远的
+        那一次在期望什么」，比「最后一次尝试在期望什么」有用得多。
+        """
+        if self._dd_depth > self._dd_farthest_depth:
+            self._dd_farthest_depth = self._dd_depth
+            self._dd_farthest_token = self._current
+            self._dd_farthest_types = [expected_type]
+        elif ((self._dd_depth == self._dd_farthest_depth) and
+              (expected_type not in self._dd_farthest_types)):
+            self._dd_farthest_types.append(expected_type)
+
+    def _dd_parse(self, nonterm, tree_mode, require_end=False):
+        """解析一个非终结符：**按产生式声明顺序逐条试**，失败就回退输入位置。
+
+        这是递归下降的全部驱动逻辑，每个非终结符共用它——「一个非终结符一个
+        解析函数」由下面那两张表（`_DD_PROD_START` / `_DD_PROD_COUNT`）表达，
+        不再逐个子程序手写。
+
+        :param nonterm: 非终结符编号。
+        :param tree_mode: 是否构建语法树（建树时不跑语义动作）。
+        :param require_end: 要求匹配完右部之后当前 Token 已经是 END（只有起始
+            符号那一次为真：整个输入必须被吃干净）。
+        :return: ``(True, 语义值或语法树节点)``；该非终结符的所有产生式都
+            失败时返回 ``(False, None)``，由调用方回退。
+        """
+        if self._dd_frame_depth >= self.max_stack_depth:
+            self._set_error(STATUS_ERR_STACK, self._current.line,
+                            self._current.column,
+                            "递归太深（超过 max_stack_depth = %d）"
+                            % self.max_stack_depth)
+            return (False, None)
+        self._dd_frame_depth += 1
+        mark = self._dd_mark()
+        start = _DD_PROD_START[nonterm]
+        count = _DD_PROD_COUNT[nonterm]
+        for offset in range(count):
+            production = start + offset
+            self._dd_restore(mark)
+            values = [None] * _DD_PROD_SLOTS[nonterm]
+            if not self._dd_match(production, values, tree_mode):
+                continue
+            if require_end and (self._current.type != TOKEN_END):
+                # 右部走完了但输入还有剩：按「这里该结束了」记一次最远失败，
+                # 然后试本非终结符的下一条产生式
+                self._dd_record_fail(TOKEN_END)
+                continue
+            built = self._dd_build(production, nonterm, values, tree_mode)
+            self._dd_frame_depth -= 1
+            return (True, built)
+        self._dd_restore(mark)
+        self._dd_frame_depth -= 1
+        return (False, None)
+
+    def _dd_match(self, production, values, tree_mode):
+        """沿一条产生式的右部逐符号匹配。
+
+        终结符比对当前 Token（不等就记一次最远失败并返回 ``False``），非终结符
+        递归调用 ``_dd_parse``。匹配成功的语义值写进 ``values[1..n]``——第 0 个
+        槽位留空，与 LL 的语义帧同一个约定（动作里的 ``$n`` 就是 ``values[n]``）。
+        """
+        base = _TREE_PROD_START[production]
+        length = _TREE_PROD_LENGTH[production]
+        for index in range(length):
+            symbol = _TREE_PROD_SYMBOLS[base + index]
+            if symbol < _TERMINAL_COUNT:
+                if self._current.type != symbol:
+                    self._dd_record_fail(symbol)
+                    return False
+                values[index + 1] = (_make_leaf(self._current) if tree_mode
+                                     else self._current.value)
+                self._dd_depth += 1
+                if self._advance() != STATUS_OK:
+                    return False
+            else:
+                ok, child = self._dd_parse(symbol - _TERMINAL_COUNT, tree_mode)
+                if not ok:
+                    return False
+                values[index + 1] = child
+        return True
+
+    def _dd_build(self, production, nonterm, values, tree_mode):
+        """右部匹配完了：``%tree`` 建分支节点，否则跑语义动作。"""
+        if tree_mode:
+            return _make_branch(values, _tree_name(nonterm), 1,
+                                _TREE_PROD_LENGTH[production])
+        result = _Holder()
+        if self._apply_action(production, values, result) != STATUS_OK:
+            return None
+        return result.value
+
+    def _run_dd_loop(self, tree_mode):
+        """递归下降主循环：从起始符号开始解析，要求把输入吃到 END。
+
+        解析失败时按「最远失败点」报一条错（说明那里期望哪些 Token）；文法写了
+        `%sync` 的话，再跳到下一个同步 Token 之后重试一段（panic mode），直到
+        错误条数或跳过次数用完为止。
+
+        :param tree_mode: 是否构建语法树。
+        :return: ``STATUS_OK`` 表示成功。
+        """
+        self._dd_reset()
+        budget = _DD_MAX_RECOVERY_SKIPS
+        while True:
+            mark = self._dd_mark()
+            self._dd_depth = 0
+            self._dd_frame_depth = 0
+            self._dd_farthest_depth = -1
+            self._dd_farthest_types = []
+            ok, value = self._dd_parse(_START_ID, tree_mode, True)
+            if ok:
+                self.result = value
+                if tree_mode:
+                    self._tree_root = value
+                return STATUS_OK
+            # 失败：回到这一段起点，把「最远失败的那个 Token」摆到 current 上
+            # 报错（报完再放回去，好接着往后找同步 Token）
+            self._dd_restore(mark)
+            if not self._dd_farthest_types:
+                self._dd_farthest_token = self._current
+                self._dd_farthest_types = [TOKEN_END]
+            saved = self._current
+            self._current = self._dd_farthest_token
+            self._set_syntax_error(0, self._dd_farthest_types)
+            self._current = saved
+            if ((not _HAS_SYNC_TOKENS) or (budget <= 0) or
+                    (len(self._errors) >= self.max_errors)):
+                return STATUS_ERR_SYNTAX
+            # panic mode：往前找下一个同步 Token，吃掉它再试一段
+            found = False
+            while self._current.type != TOKEN_END:
+                if self._current.type in _SYNC_TOKENS:
+                    found = True
+                    break
+                if self._advance() != STATUS_OK:
+                    return STATUS_ERR_LEXER
+            if (not found) or (self._advance() != STATUS_OK):
+                return STATUS_ERR_SYNTAX
+            budget -= 1

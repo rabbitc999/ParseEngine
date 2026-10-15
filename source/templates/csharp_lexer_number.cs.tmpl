@@ -1,0 +1,112 @@
+        // 小数点和指数决定浮点，后缀 d 决定 double；后缀 u 只用于整数。
+        if (_isDigit(_peekChar(0)) ||
+            ((_peekChar(0) == '.') && _isDigit(_peekChar(1))))
+        {
+            int numberStart = _textPos;
+            bool hasDot = false;
+            bool hasExponent = false;
+            char suffix = (char) 0;
+            while (_isDigit(_peekChar(0)))
+            {
+                _readChar();
+            }
+            if (_peekChar(0) == '.')
+            {
+                hasDot = true;
+                _readChar();
+                while (_isDigit(_peekChar(0)))
+                {
+                    _readChar();
+                }
+            }
+            if ((_peekChar(0) == 'e') || (_peekChar(0) == 'E'))
+            {
+                hasExponent = true;
+                _readChar();
+                if ((_peekChar(0) == '+') || (_peekChar(0) == '-'))
+                {
+                    _readChar();
+                }
+                if (!_isDigit(_peekChar(0)))
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                while (_isDigit(_peekChar(0)))
+                {
+                    _readChar();
+                }
+            }
+            if (_isAlpha(_peekChar(0)))
+            {
+                suffix = _readChar();
+            }
+            if (_isAlpha(_peekChar(0)))
+            {
+                return STATUS_ERR_LEXER;
+            }
+            _lexeme = _input.Substring(numberStart, _textPos - numberStart);
+            if (suffix != (char) 0)
+            {
+                _lexeme = _lexeme.Substring(0, _lexeme.Length - 1);
+            }
+            long _lexNumberLong = 0L;
+            double _lexNumberDouble = 0.0;
+            bool _lexNumberIsFloat = false;
+            try
+            {
+                if ((suffix == 'u') || (suffix == 'U'))
+                {
+                    if (hasDot || hasExponent)
+                    {
+                        return STATUS_ERR_LEXER;
+                    }
+                    _lexNumberLong = long.Parse(_lexeme,
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    if ((_lexNumberLong < 0L) ||
+                        (_lexNumberLong > 0xFFFFFFFFL))
+                    {
+                        return STATUS_ERR_LEXER;
+                    }
+                }
+                else if ((suffix == 'd') || (suffix == 'D'))
+                {
+                    if (!hasDot && !hasExponent)
+                    {
+                        return STATUS_ERR_LEXER;
+                    }
+                    _lexNumberDouble = double.Parse(_lexeme,
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    _lexNumberIsFloat = true;
+                }
+                else if (suffix != (char) 0)
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                else if (hasDot || hasExponent)
+                {
+                    _lexNumberDouble = double.Parse(_lexeme,
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    _lexNumberIsFloat = true;
+                }
+                else
+                {
+                    _lexNumberLong = long.Parse(_lexeme,
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    if ((_lexNumberLong < -2147483648L) ||
+                        (_lexNumberLong > 2147483647L))
+                    {
+                        return STATUS_ERR_LEXER;
+                    }
+                }
+            }
+            catch (System.FormatException)
+            {
+                return STATUS_ERR_LEXER;
+            }
+            item.type = TOKEN_NUMBER;
+            item.text = _lexeme;
+            item.value = _valueFromNumber(
+                _lexNumberIsFloat ? _lexNumberDouble : (double) _lexNumberLong,
+                _lexNumberIsFloat);
+            return STATUS_OK;
+        }

@@ -1,0 +1,67 @@
+/* ============================================================
+ * 错误恢复示例 · GLR 的 panic mode（吞 Token 找下一个能接上的位置）
+ *
+ *   %mode glr
+ *   %sync SEMI
+ *
+ * GLR 同时活着很多条路径（GSS 里的活跃节点集合）。出错时——所有活跃
+ * 路径都接不上当前 Token——运行时不立刻杀，而是：
+ *
+ *   ① 报一条错（一次恢复只报一条，不刷屏）；
+ *   ② 把活着的那些路径原样留在图里（其它路径继续活着）；
+ *   ③ 吞掉当前 Token，用同一个活跃集合在新 Token 上重试；
+ *   ④ 吞到一个能接上的 Token 就继续解析；吞过 256 个还接不上就放弃。
+ *
+ * 写了 `%sync` 时，同步 Token 就是「吞」的边界：吞到锚点（连锚点一起
+ * 吞掉）本轮恢复就结束，从锚点之后按正常模式重新开始——免得一路吞过
+ * 语句边界，把两段拼成一段。
+ *
+ * 与 LR / LL 的区别：LR 靠 `error` 产生式 / `%sync` 弹栈找恢复点，LL 靠
+ * FOLLOW 集放弃一层构造；GLR 既不能弹栈（图里没有一条「栈」）也不用
+ * `error` 伪 Token，它的恢复就是「吞 Token」——三者都能一次解析报多个错。
+ *
+ * 用法（C / C++17 产物）：
+ *   ParseEngine example/glr_recovery.gram --lang c \
+ *                 --out-dir /tmp/glrr && make -C /tmp/glrr && \
+ *   printf '1 + + 2 ; 3 ;' | /tmp/glrr/parser_demo
+ *
+ * 试用输入（打印的是最后一个结果的语义值）：
+ *   1 + 2 ; 3        -> 解析成功，0 条错
+ *   1 + + 2 ; 3      -> 解析成功，多出来的 `+` 被吞掉，1 条错（结果仍是 3）
+ *   1 + 2 ; ; ; 4    -> 解析成功，多出来的 `;` 按锚点逐个丢弃，2 条错
+ *
+ * 错误条数用 `Parser_GetErrorCount()` / `Parser_GetLastError()`（C）或
+ * `Engine::errors()` / `Engine::lastError()`（C++17）取；默认演示程序只
+ * 打「解析成功」和结果。
+ * ============================================================ */
+
+%mode glr
+%value_type int
+
+%define PLUS "+"
+%define STAR "*"
+%define SEMI ";"
+
+%sync SEMI
+
+%code
+#include <stdint.h>
+#include <stdio.h>
+
+/* 数字 Token 的语义值取自词法器解析好的 pToken->value */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+
+/* 演示程序（main.c / main.cpp）打印解析结果 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%d", *(pValue))
+%endcode
+
+%start s
+
+/* `;` 分隔语句：吞 Token 时它就是锚点 */
+s := s SEMI e { $$ = $3; }
+   | e        { $$ = $1; };
+
+/* 故意不写优先级：`1 + 2 * 3` 有两种结合方式，GLR 两个都保留 */
+e := e PLUS e { $$ = $1 + $3; }
+   | e STAR e { $$ = $1 * $3; }
+   | NUMBER   { $$ = $1; };

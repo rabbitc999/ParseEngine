@@ -1,0 +1,62 @@
+    /**
+     * @brief 固定字面量命中判断（\b 通配命中任意一个空白字符）。
+     * @param rule 词法规则。
+     * @param pText 文本起点。
+     * @return 命中返回 true。
+     */
+    static bool lexRuleHit(const LexRule &rule, const char *pText)
+    {
+        if (!rule.wildcard)
+        {
+            return std::strncmp(pText, rule.text, rule.length) == 0;
+        }
+        for (std::uint32_t index = 0u; index < rule.length; ++index)
+        {
+            if (rule.text[index] == '\x1f')
+            {
+                const unsigned char ch =
+                    static_cast<unsigned char>(pText[index]);
+                if ((ch != ' ') && (ch != '\t') && (ch != '\n') &&
+                    (ch != '\v') && (ch != '\f') && (ch != '\r'))
+                {
+                    return false;
+                }
+            }
+            else if (rule.text[index] != pText[index])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+{% if has_skip_char %}
+
+    /**
+     * @brief 这个字符在取 Token 前要不要跳过（%space 决定的空白集合）。
+     * @param ch 字符。
+     * @return 跳过返回 true。
+     */
+    static bool isSkipChar(unsigned char ch)
+    {
+{{ skip_char_body }}    }
+{% endif %}
+{% if has_blank_rule %}
+
+    /**
+     * @brief 当前位置能不能开始一个以空白 / \b 通配开头的固定字面量。
+     * @param pText 文本起点。
+     * @return 能返回 true（跳空白时停手，交给词法匹配）。
+     */
+    static bool lexBlankRuleHit(const char *pText)
+    {
+        for (const LexRule &rule : kLexRules)
+        {
+            if ((rule.text != nullptr) && rule.blankFirst &&
+                lexRuleHit(rule, pText))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+{% endif %}

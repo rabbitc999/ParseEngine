@@ -1,0 +1,12 @@
+		// 标识符：没有 %identifier 时的内建 C 风格规则。
+		if sParserIsAlpha(p.peekRune(0)) || p.peekRune(0) == '_' {
+			identStart := p.textPos
+			for sParserIsWord(p.peekRune(0)) {
+				p.readChar()
+			}
+			p.lexeme = string(p.input[identStart:p.textPos])
+			item.Type = TOKEN_VARIABLE
+			item.Text = p.lexeme
+			item.Value = valueFromText(TOKEN_VARIABLE, p.lexeme)
+			return StatusOK
+		}

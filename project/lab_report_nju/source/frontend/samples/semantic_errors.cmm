@@ -1,0 +1,7 @@
+int main() {
+    int value;
+    float real;
+    value = real;
+    missing = 1;
+    return 0;
+}

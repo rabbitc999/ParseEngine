@@ -1,0 +1,8 @@
+{# 语法树元数据（CodeGenRust 的 rustTreeTables）：一维整数表正文。
+   变量：prod_start / prod_length / prod_symbols。
+   本模板自带行尾换行。 #}
+/// 语法树元数据：右部符号表（终结符用下标，非终结符用
+/// TERMINAL_COUNT + 下标）。
+static _TREE_PROD_START: &[i32] = &[{{ prod_start }}];
+static _TREE_PROD_LENGTH: &[i32] = &[{{ prod_length }}];
+static _TREE_PROD_SYMBOLS: &[i32] = &[{{ prod_symbols }}];

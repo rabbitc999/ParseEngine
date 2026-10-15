@@ -1,0 +1,259 @@
+    // ---------- 递归下降（带回溯） ----------
+
+    /// 复位「最远失败点」与递归深度。
+    fn dd_reset(&mut self)
+    {
+        self.dd_depth = 0;
+        self.dd_frame_depth = 0;
+        self.dd_farthest_depth = -1;
+        self.dd_farthest_types.clear();
+        self.dd_farthest_token = self.current.clone();
+    }
+
+    /// 存一份「输入位置」快照（回溯用）。
+    ///
+    /// 快照里是词法器的全部可回退状态（字符位置 / 行 / 列 / 字节偏移）、
+    /// Token 模式的下标、当前 lookahead，以及「已经匹配掉几个终结符」的计数。
+    fn dd_mark(&self) -> DdMark
+    {
+        DdMark {
+            text_pos: self.text_pos,
+            token_pos: self.token_pos,
+            line: self.line,
+            column: self.column,
+            byte_pos: self.byte_pos,
+            current: self.current.clone(),
+            depth: self.dd_depth,
+        }
+    }
+
+    /// 回退到快照。
+    fn dd_restore(&mut self, mark: &DdMark)
+    {
+        self.text_pos = mark.text_pos;
+        self.token_pos = mark.token_pos;
+        self.line = mark.line;
+        self.column = mark.column;
+        self.byte_pos = mark.byte_pos;
+        self.current = mark.current.clone();
+        self.dd_depth = mark.depth;
+    }
+
+    /// 记一次「在最远处期望某个 Token」。
+    ///
+    /// 回溯**不**清这条记录：整段解析最终失败时，它给出的是「走得最远的那一次
+    /// 在期望什么」，比「最后一次尝试在期望什么」有用得多。
+    fn dd_record_fail(&mut self, expected: i32)
+    {
+        let depth = self.dd_depth as isize;
+        if depth > self.dd_farthest_depth
+        {
+            self.dd_farthest_depth = depth;
+            self.dd_farthest_token = self.current.clone();
+            self.dd_farthest_types.clear();
+            self.dd_farthest_types.push(expected);
+        }
+        else if (depth == self.dd_farthest_depth) &&
+                !self.dd_farthest_types.contains(&expected)
+        {
+            self.dd_farthest_types.push(expected);
+        }
+    }
+
+    /// 解析一个非终结符：**按产生式声明顺序逐条试**，失败就回退输入位置。
+    ///
+    /// 这是递归下降的全部驱动逻辑，每个非终结符共用它——「一个非终结符一个
+    /// 解析函数」由 `_DD_PROD_START` / `_DD_PROD_COUNT` 两张表表达。
+    fn dd_parse(&mut self, nonterm: usize, tree_mode: bool, require_end: bool)
+        -> Option<DdSlot>
+    {
+        if self.dd_frame_depth >= MAX_STACK_DEPTH
+        {
+            let (line, column) = (self.current.line, self.current.column);
+            self.set_error(STATUS_ERR_STACK, line, column,
+                           "递归太深（超过 max_stack_depth）");
+            return None;
+        }
+        self.dd_frame_depth += 1;
+        let mark = self.dd_mark();
+        let start = _DD_PROD_START[nonterm] as usize;
+        let count = _DD_PROD_COUNT[nonterm] as usize;
+        for offset in 0..count
+        {
+            let production = (start + offset) as i32;
+            self.dd_restore(&mark);
+            let mut values: Vec<DdSlot> =
+                Vec::with_capacity(_DD_PROD_SLOTS[nonterm] as usize);
+            for _ in 0..(_DD_PROD_SLOTS[nonterm] as usize)
+            {
+                values.push(DdSlot::Empty);
+            }
+            if !self.dd_match(production, tree_mode, &mut values)
+            {
+                continue;
+            }
+            if require_end && (self.current.kind != TOKEN_END)
+            {
+                // 右部走完了但输入还有剩：按「这里该结束了」记一次最远失败，
+                // 然后试本非终结符的下一条产生式
+                self.dd_record_fail(TOKEN_END);
+                continue;
+            }
+            let built = self.dd_build(production, nonterm, tree_mode, &values);
+            self.dd_frame_depth -= 1;
+            return Some(built);
+        }
+        self.dd_restore(&mark);
+        self.dd_frame_depth -= 1;
+        None
+    }
+
+    /// 沿一条产生式的右部逐符号匹配。
+    ///
+    /// 终结符比对当前 Token（不等就记一次最远失败并返回 `false`），非终结符
+    /// 递归调用 `dd_parse`。匹配成功的语义值写进 `values[1..n]`——第 0 个槽位
+    /// 留空，与 LL 的语义帧同一个约定（动作里的 `$n` 就是 `values[n]`）。
+    fn dd_match(&mut self, production: i32, tree_mode: bool,
+                values: &mut Vec<DdSlot>) -> bool
+    {
+        let base = _TREE_PROD_START[production as usize] as usize;
+        let length = _TREE_PROD_LENGTH[production as usize] as usize;
+        for index in 0..length
+        {
+            let symbol = _TREE_PROD_SYMBOLS[base + index];
+            if symbol < (_TERMINAL_COUNT as i32)
+            {
+                if self.current.kind != symbol
+                {
+                    self.dd_record_fail(symbol);
+                    return false;
+                }
+                values[index + 1] = if tree_mode
+                {
+                    DdSlot::Node(make_leaf(&self.current))
+                }
+                else
+                {
+                    DdSlot::Value(self.current.value)
+                };
+                self.dd_depth += 1;
+                if self.advance() != STATUS_OK
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                let child = match self.dd_parse(
+                    (symbol - (_TERMINAL_COUNT as i32)) as usize, tree_mode, false)
+                {
+                    Some(item) => item,
+                    None => return false,
+                };
+                values[index + 1] = child;
+            }
+        }
+        true
+    }
+
+    /// 右部匹配完了：`%tree` 建分支节点，否则跑语义动作。
+    fn dd_build(&mut self, production: i32, nonterm: usize, tree_mode: bool,
+                values: &[DdSlot]) -> DdSlot
+    {
+        let length = _TREE_PROD_LENGTH[production as usize] as usize;
+        if tree_mode
+        {
+            let mut branch = Tree::new(tree_name(nonterm as i32), "");
+            for index in 1..(length + 1)
+            {
+                if let DdSlot::Node(child) = &values[index]
+                {
+                    branch.add_child(child.clone_tree());
+                }
+            }
+            return DdSlot::Node(branch);
+        }
+        let mut plain: Vec<{{ value_type }}> = Vec::with_capacity(values.len());
+        for item in values
+        {
+            match item
+            {
+                DdSlot::Value(value) => plain.push(*value),
+                _ => plain.push(Default::default()),
+            }
+        }
+        let mut result = Holder {
+            value: Default::default(),
+        };
+        if self.apply_action(production, &plain, &mut result) != STATUS_OK
+        {
+            return DdSlot::Empty;
+        }
+        DdSlot::Value(result.value)
+    }
+
+    /// 递归下降主循环：从起始符号开始解析，要求把输入吃到 END。
+    ///
+    /// 解析失败时按「最远失败点」报一条错（说明那里期望哪些 Token）；文法写了
+    /// `%sync` 的话，再跳到下一个同步 Token 之后重试一段（panic mode），直到
+    /// 错误条数或跳过次数用完为止。
+    fn run_dd_loop(&mut self, tree_mode: bool) -> i32
+    {
+        self.dd_reset();
+        let mut budget = _DD_MAX_RECOVERY_SKIPS;
+        loop
+        {
+            let mark = self.dd_mark();
+            self.dd_depth = 0;
+            self.dd_frame_depth = 0;
+            self.dd_farthest_depth = -1;
+            self.dd_farthest_types.clear();
+            if let Some(built) = self.dd_parse(_START_ID as usize, tree_mode, true)
+            {
+                match built
+                {
+                    DdSlot::Node(node) => self.tree_root = Some(node),
+                    DdSlot::Value(value) => self.result_value = value,
+                    DdSlot::Empty => {}
+                }
+                return STATUS_OK;
+            }
+            // 失败：回到这一段起点，把「最远失败的那个 Token」摆到 current 上
+            // 报错（报完再放回去，好接着往后找同步 Token）
+            self.dd_restore(&mark);
+            if self.dd_farthest_types.is_empty()
+            {
+                self.dd_farthest_token = self.current.clone();
+                self.dd_farthest_types.push(TOKEN_END);
+            }
+            let saved = self.current.clone();
+            self.current = self.dd_farthest_token.clone();
+            let expected = self.dd_farthest_types.clone();
+            self.set_syntax_error(0, &expected);
+            self.current = saved;
+            if _SYNC_TOKENS.is_empty() || (budget <= 0) ||
+               (self.errors.len() >= MAX_ERRORS)
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            // panic mode：往前找下一个同步 Token，吃掉它再试一段
+            let mut found = false;
+            while self.current.kind != TOKEN_END
+            {
+                if is_sync_token(self.current.kind)
+                {
+                    found = true;
+                    break;
+                }
+                if self.advance() != STATUS_OK
+                {
+                    return STATUS_ERR_LEXER;
+                }
+            }
+            if !found || (self.advance() != STATUS_OK)
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            budget -= 1;
+        }
+    }

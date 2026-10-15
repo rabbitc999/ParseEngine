@@ -1,0 +1,11 @@
+        # 标识符：没写 %identifier 时的内建 C 风格标识符（写了的话走
+        # python_lexer_identifier_dfa.py 那一份，用正则匹配）。
+        if _is_alpha(self._peek_char()) or (self._peek_char() == "_"):
+            start = self._text_pos
+            while _is_word(self._peek_char()):
+                self._read_char()
+            self._lexeme = self._input[start:self._text_pos]
+            token.type = TOKEN_VARIABLE
+            token.text = self._lexeme
+            token.value = self._lexeme
+            return STATUS_OK, token

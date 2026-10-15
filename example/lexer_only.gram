@@ -1,0 +1,64 @@
+/* ============================================================
+ * 词法模式示例：%mode lex —— 只导出词法器，没有解析器
+ *
+ * 这份文法**一条产生式都没有**：`%mode lex` 只关心「输入里的每个 Token 是什么
+ * 类型」，不建分析栈、不算分析表，产物里也没有解析入口。
+ *
+ *   %mode lex                 只导出词法器（命令行 --mode lex 同）
+ *   %identifier "正则"         声明标识符（默认 Token 名 VARIABLE）
+ *   %define NAME "字面量"      固定字面量 Token
+ *   %token KEYWORD "if"       与 %define 等价，名字自带语义
+ *   %token regex NAME "正则"   正则 Token（与字面量一起做最长匹配）
+ *
+ * 三种目标语言都支持，产物里都只有词法器（没有解析器）：
+ *   --lang c        lexer.h / lexer.c / parser_token.h / parser_token.c / main.c
+ *   --lang cpp17    lexer.hpp / lexer.cpp / main.cpp（缺省就是 cpp17）
+ *   --lang python   parser.py / main.py（%code 要写 Python）
+ *   C / C++17 另带 Makefile / CMakeLists.txt（liblexer.a + lexer_demo）与 RESULT.md；
+ *   三种都不生成 parser.h / parser.c / parser_table.c（C++17 是 parser.hpp /
+ *   parser.cpp，Python 的 parser.py 里没有分析表与 run_text）。
+ *
+ * 试用：
+ *   ParseEngine --grammar-file example/lexer_only.gram --out-dir /tmp/lexer --lang c
+ *   make -C /tmp/lexer
+ *   printf 'a + 12 if 3.5 (x)' | /tmp/lexer/lexer_demo
+ *
+ * 输出：
+ *   VARIABLE     "a"          1:1
+ *   PLUS         "+"          1:3
+ *   NUMBER       "12"         1:5
+ *   KEYWORD_IF   "if"         1:8
+ *   FLOAT        "3.5"        1:11
+ *   LPAREN       "("          1:15
+ *   VARIABLE     "x"          1:16
+ *   RPAREN       ")"          1:17
+ *   END          "END"        2:1
+ *   共 8 个 Token
+ *
+ * 认不出来的字符 / 字符串没有闭合会打印一行错误并以退出码 1 结束：
+ *   printf 'a @ b' | /tmp/lexer/lexer_demo   # 词法错误 -29（认不出来的字符）
+ * ============================================================ */
+
+%mode lex
+
+/* 标识符：默认产出 VARIABLE（关键字在词法器里另查表，长的优先） */
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+/* 固定字面量 Token：`%define NAME "字面量"` 与 `%token NAME "字面量"` 等价 */
+%define PLUS   "+"
+%define MINUS  "-"
+%define LPAREN "("
+%define RPAREN ")"
+
+/* 关键字：写全名让产物里的 Token 名一眼看得懂 */
+%token KEYWORD_IF "if"
+
+/* 正则 Token：与固定字面量一起做最长匹配，同长度时字面量优先 */
+%token regex FLOAT "[0-9]+\.[0-9]+"
+
+/* 想给 Token 带语义值就用 %union + %token <成员>：词法器按成员把词素填进去。
+
+   这里也可以写 %code 用户代码（生成的词法器旁边要用的类型 / 辅助函数），
+   但它是原样贴进产物的：C / C++17 里要写 C，Python 产物里要写 Python——想让
+   同一份文法三种产物都能跑就不要写，或者像 example/python_demo.gram 那样只为
+   Python 写一份。*/

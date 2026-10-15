@@ -1,0 +1,8 @@
+{# 二维整数表（`[][]int32{ {…}, … }`）：外层花括号、换行、缩进都在本模板里，
+   内层每行的排版复用一维表的规则（缩进多一个制表符）。`{% raw %}{{% endraw %}`
+   是产物里那个内层左花括号——**必须包 raw**，否则紧跟其后的 `{% for %}` 会被
+   当成 `{{` 变量标签吃掉。 #}
+{
+{% for r in rows %}{{ indent }}	{% raw %}{{% endraw %}{% for v in r.items %}{% if v.br %},
+{{ indent }}		{% else %}{% if loop_first %}{% else %}, {% endif %}{% endif %}{{ v.value }}{% endfor %}},
+{% endfor %}{{ indent }}}

@@ -1,0 +1,18 @@
+解析输入: the teacher made the student happy
+解析成功，共 1 个结果（歧义路径数）
+结果[0] 语法树:
+sentence
+  core
+    clause
+      np
+        DET(the)
+        nominal
+          NOUN(teacher)
+      vp
+        V_CAUSE(made)
+        np
+          DET(the)
+          nominal
+            NOUN(student)
+        complement
+          ADJ(happy)

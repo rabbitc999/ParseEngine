@@ -1,0 +1,7 @@
+{# 给用户代码正文两边各插一行出处注释（CodeGenGo 的 withLineMarkers）。
+   变量：has_line —— 有没有行号信息；line；indent —— 注释行的缩进；
+         body —— 正文（调用方保证以换行收尾）；file_name —— 产物文件名。
+   本模板自带行尾换行。 #}
+{% if has_line %}{{ indent }}// 在 @@SE_GRAMMAR_FILE@@ 的第 {{ line }} 行
+{% endif %}{{ body }}{% if has_line %}{{ indent }}// 继续 {{ file_name }} 的正文
+{% endif %}

@@ -1,0 +1,8 @@
+三元式：共 7 条
+  0: (:=, 1, x)
+  1: (read, _, x)
+  2: (write, x, _)
+  3: (read, _, x)
+  4: (write, x, _)
+  5: (read, _, x)
+  6: (write, x, _)

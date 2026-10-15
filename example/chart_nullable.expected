@@ -1,0 +1,14 @@
+解析输入: a b c b b
+解析成功，共 1 个结果（歧义路径数）
+结果[0] 语法树:
+sentence
+  prefix
+  sequence
+    chain
+      chain
+        chain
+          A(a)
+          B(b)
+          C(c)
+        B(b)
+      B(b)

@@ -1,0 +1,21 @@
+{# 文法 LR 自动机的 Mermaid 源码（Mermaid::grammarSource）。
+   变量：start_state（初态的编号文本）、
+         states（数组，元素 {id, is_start, is_accept, items（已转义）、
+                 hidden_items（截断掉的项数）、actions（已转义的 ACTION 摘要，
+                 空串表示没有）、klass}）、
+         accepts（数组，元素是被接受的编号文本）、
+         transitions（数组，元素 {from, to, label（已转义）}）。
+   本模板自带行尾换行。 #}
+flowchart LR
+    %% 图例：蓝=可移进 黄=可归约 绿=接受 红=未消解冲突；边上写 GOTO 的是非终结符转移
+    START(["开始"]) --> I{{ start_state }}
+{% for state in states %}    I{{ state.id }}["I{{ state.id }}{% if state.is_start %}（开始）{% endif %}{% if state.is_accept %}（接受）{% endif %}{% for item in state.items %}<br/>{{ item }}{% endfor %}{% if state.hidden_items %}<br/>…（还有 {{ state.hidden_items }} 项）{% endif %}{% if state.actions %}<br/>动作：{{ state.actions }}{% endif %}"]
+{% endfor %}{% for id in accepts %}    I{{ id }} --> ACCEPT(["接受"])
+{% endfor %}{% for edge in transitions %}    I{{ edge.from }} -->|"{{ edge.label }}"| I{{ edge.to }}
+{% endfor %}    classDef shiftState fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef reduceState fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef acceptState fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef conflictState fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    classDef plainState fill:#f1f5f9,stroke:#64748b,color:#334155
+{% for state in states %}    class I{{ state.id }} {{ state.klass }}
+{% endfor %}

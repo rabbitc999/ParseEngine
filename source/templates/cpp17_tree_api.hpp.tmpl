@@ -1,0 +1,69 @@
+/**
+ * @brief 语法树节点（`%tree` 文法）：名字 + 词素 + 子节点。
+ *
+ * 父子所有权：父节点拥有子节点（std::unique_ptr），拷贝被禁用——要复制整棵
+ * 树请自己写克隆。节点用 ParserMemory::String 存名字与词素，所以不依赖任何外部缓冲区，
+ * 整棵树析构即释放。
+ */
+class Tree
+{
+public:
+    Tree() = default;
+    Tree(const Tree &) = delete;
+    Tree &operator=(const Tree &) = delete;
+    Tree(Tree &&) = default;
+    Tree &operator=(Tree &&) = default;
+
+    /**
+     * @brief 建一个节点。
+     * @param name 符号名（终结符 / 非终结符）。
+     * @param text 终结符词素；非终结符留空。
+     * @param location 节点覆盖文本的起点（行 / 列 / UTF-8 字节偏移）。
+     */
+    explicit Tree(ParserMemory::String name, ParserMemory::String text = ParserMemory::String(),
+                  ParserLocation location = ParserLocation());
+
+    /// @return 符号名。
+    const ParserMemory::String &name() const noexcept { return m_name; }
+    /// @return 终结符词素（非终结符为空串）。
+    const ParserMemory::String &text() const noexcept { return m_text; }
+    /**
+     * @return 节点覆盖文本的起点。叶节点是 Token 的起点；分支节点取第一个
+     *         有位置的子节点（按需计算，所以先建父节点再填子节点也对）；
+     *         都没有时三个字段都是 0。
+     */
+    const ParserLocation &location() const noexcept;
+    /// @brief 设置节点位置（行号 0 表示「未知」）。
+    void setLocation(const ParserLocation &location) noexcept
+    {
+        m_location = location;
+    }
+    /// @return 子节点个数。
+    std::size_t childCount() const noexcept { return m_children.size(); }
+    /// @param index 下标。@return 第 index 个子节点；越界返回 nullptr。
+    const Tree *child(std::size_t index) const noexcept;
+    /// @param index 下标。@return 第 index 个子节点；越界返回 nullptr。
+    Tree *child(std::size_t index) noexcept;
+    /**
+     * @brief 追加一个子节点（所有权转移给本节点）。
+     * @param child 子节点。
+     */
+    void addChild(ParserMemory::UniquePtr<Tree> child);
+
+    /**
+     * @brief 取整棵树的缩进文本（每层两个空格）。
+     * @return 文本。
+     */
+    ParserMemory::String toString() const;
+    /**
+     * @brief 打印整棵树。
+     * @param stream 输出流；缺省 stdout。
+     */
+    void print(std::FILE *stream = stdout) const;
+
+private:
+    ParserMemory::String m_name;
+    ParserMemory::String m_text;
+    ParserLocation m_location;
+    ParserMemory::Vector<ParserMemory::UniquePtr<Tree>> m_children;
+};

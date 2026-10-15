@@ -1,0 +1,52 @@
+/* Shared syntax-only grammar for the native C++17 and Rust implementations. */
+
+%mode lalr
+%tree
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+%token regex INTEGER "[0-9]+"
+
+%define PROTOCOL "protocol"
+%define ENDIAN   "endian"
+%define LITTLE   "little"
+%define BIG      "big"
+%define ENUM     "enum"
+%define PACKET   "packet"
+%define BYTES    "bytes"
+%define U8       "u8"
+%define U16      "u16"
+%define U32      "u32"
+%define U64      "u64"
+%define I8       "i8"
+%define I16      "i16"
+%define I32      "i32"
+%define I64      "i64"
+%define COLON    ":"
+%define ASSIGN   "="
+%define SEMI     ";"
+%define LBRACE   "{"
+%define RBRACE   "}"
+%define LBRACKET "["
+%define RBRACKET "]"
+
+%trivia "//[^\n]*"
+%trivia "/\\*[^*]*\\*+([^/*][^*]*\\*+)*/"
+
+%start document
+
+document := protocol_decl endian_decl declarations;
+protocol_decl := PROTOCOL VARIABLE SEMI;
+endian_decl := ENDIAN endian_value SEMI;
+endian_value := LITTLE | BIG;
+declarations := declaration | declarations declaration;
+declaration := enum_decl | packet_decl;
+enum_decl := ENUM VARIABLE COLON unsigned_type LBRACE enum_items RBRACE SEMI;
+enum_items := enum_item | enum_items enum_item;
+enum_item := VARIABLE ASSIGN INTEGER SEMI;
+packet_decl := PACKET VARIABLE LBRACE fields RBRACE SEMI;
+fields := field | fields field;
+field := type_ref VARIABLE SEMI
+       | BYTES VARIABLE LBRACKET array_length RBRACKET SEMI;
+type_ref := integer_type | VARIABLE;
+integer_type := unsigned_type | I8 | I16 | I32 | I64;
+unsigned_type := U8 | U16 | U32 | U64;
+array_length := INTEGER | VARIABLE;

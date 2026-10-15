@@ -1,0 +1,11 @@
+{# 「状态机图示（Mermaid）」小节：产物清单里没有 mermaid/ 就整段不出现。
+   变量：mermaid_files（数组，元素是产物清单里 mermaid/ 开头的文件名）。 #}
+{% if mermaid_files %}
+## 状态机图示（Mermaid）
+
+`%mermaid` / `--mermaid` 会把生成期算出来的状态机画成图：用浏览器打开 `mermaid/index.html` 就能看图（页面从 CDN 加载 Mermaid，首次打开需要联网）；没有网络时页面里的「Mermaid 源码」小节与 `.mmd` 文件仍然可读可复制，贴到 Markdown 或 mermaid.live 一样能渲染。
+
+{% for name in mermaid_files %}- `{{ name }}`
+{% endfor %}
+
+{% endif %}

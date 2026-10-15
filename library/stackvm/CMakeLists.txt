@@ -1,0 +1,40 @@
+cmake_minimum_required(VERSION 3.15)
+project(ParseEngineStackVm LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+if(MSVC)
+  add_compile_options(/utf-8)
+endif()
+
+option(STACKVM_WITH_BIGINT "Enable bint native functions" ON)
+option(STACKVM_WITH_BIGFLOAT "Enable bfloat native functions" ${STACKVM_WITH_BIGINT})
+if(STACKVM_WITH_BIGFLOAT AND NOT STACKVM_WITH_BIGINT)
+  message(FATAL_ERROR "STACKVM_WITH_BIGFLOAT requires STACKVM_WITH_BIGINT")
+endif()
+
+add_library(parseengine_stackvm STATIC stackvm.cpp stackvm_glue.cpp)
+target_include_directories(parseengine_stackvm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(parseengine_stackvm PRIVATE
+  STACKVM_WITH_BIGINT=$<BOOL:${STACKVM_WITH_BIGINT}>
+  STACKVM_WITH_BIGFLOAT=$<BOOL:${STACKVM_WITH_BIGFLOAT}>)
+if(STACKVM_WITH_BIGINT)
+  target_sources(parseengine_stackvm PRIVATE ../big_number/bigint.cpp)
+  target_include_directories(parseengine_stackvm PRIVATE ../big_number)
+endif()
+if(STACKVM_WITH_BIGFLOAT)
+  target_sources(parseengine_stackvm PRIVATE ../big_number/bigfloat.cpp)
+endif()
+if(MSVC)
+  target_compile_options(parseengine_stackvm PRIVATE /W4 /utf-8)
+else()
+  target_compile_options(parseengine_stackvm PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_executable(stackvm-cli main.cpp)
+target_link_libraries(stackvm-cli PRIVATE parseengine_stackvm)
+
+enable_testing()
+add_executable(stackvm-tests test_stackvm.cpp)
+target_link_libraries(stackvm-tests PRIVATE parseengine_stackvm)
+add_test(NAME stackvm-tests
+         COMMAND stackvm-tests ${CMAKE_CURRENT_SOURCE_DIR}/examples)

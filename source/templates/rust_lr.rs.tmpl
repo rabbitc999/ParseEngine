@@ -1,0 +1,467 @@
+    // ---------- LR 分析栈 ----------
+
+    fn lr_push(
+        &mut self,
+        state: i32,
+        symbol: i32,
+        value: {{ value_type }},
+        name: &str,
+        node: Option<Tree>,
+    ) -> i32
+    {
+        if self.top >= MAX_STACK_DEPTH
+        {
+            return STATUS_ERR_STACK;
+        }
+        self.states.push(state);
+        self.symbols.push(symbol);
+        self.values.push(value);
+        self.names.push(name.to_string());
+        self.nodes.push(node);
+        self.top = self.states.len();
+        STATUS_OK
+    }
+
+    fn lr_pop_to(&mut self, new_top: usize)
+    {
+        if new_top >= self.top
+        {
+            return;
+        }
+        self.states.truncate(new_top);
+        self.symbols.truncate(new_top);
+        self.values.truncate(new_top);
+        self.names.truncate(new_top);
+        self.nodes.truncate(new_top);
+        self.top = new_top;
+    }
+
+    fn lr_discard_top(&mut self)
+    {
+        if self.top > 0
+        {
+            self.lr_pop_to(self.top - 1);
+        }
+    }
+
+    /// 移进：把当前 Token 压栈；`%tree` 时顺带建一个叶子节点。
+    fn lr_shift(&mut self, state: i32, tree_mode: bool) -> i32
+    {
+        let node = if tree_mode
+        {
+            Some(make_leaf(&self.current))
+        }
+        else
+        {
+            None
+        };
+        let (kind, value, text) = (
+            self.current.kind,
+            self.current.value,
+            self.current.text.clone(),
+        );
+        let status = self.lr_push(state, kind, value, &text, node);
+{% if lr_incremental %}        if (status == STATUS_OK) && !tree_mode
+        {
+            self.lr_record_incremental_point(kind, value, &text);
+        }
+{% endif %}        status
+    }
+
+{% if lr_incremental %}    /// LR 增量友好记录：保存本次移进的 Token，并按间隔保存前缀栈快照。
+    fn lr_record_incremental_point(&mut self, kind: i32, value: {{ value_type }},
+                                   text: &str)
+    {
+        if !self.lr_incremental_recording
+        {
+            return;
+        }
+        self.lr_incremental_tokens.push(IncrementalToken {
+            kind,
+            value,
+            text: text.to_string(),
+            line: self.current.line,
+            column: self.current.column,
+            offset: self.current.offset,
+        });
+        let token_index = self.lr_incremental_tokens.len();
+        let interval = self.lr_incremental_interval;
+        if (interval == 0) || ((token_index % interval) != 0)
+        {
+            return;
+        }
+        self.lr_incremental_checkpoints.push(LrStackCheckpoint {
+            token_index,
+            top: self.top,
+            states: self.states.clone(),
+            symbols: self.symbols.clone(),
+            values: self.values.clone(),
+            names: self.names.clone(),
+        });
+    }
+
+{% endif %}
+    /// 归约：执行语义动作、弹出右部、按 GOTO 压回结果。
+    fn lr_reduce(&mut self, production: i32, tree_mode: bool) -> i32
+    {
+        let length = _PRODUCTION_LENGTH[production as usize] as usize;
+        let lhs = _PRODUCTION_LHS[production as usize];
+        if length > self.top
+        {
+            return STATUS_ERR_STACK;
+        }
+        let base = self.top - length;
+        let mut node: Option<Tree> = None;
+        let mut result_value: {{ value_type }} = Default::default();
+        if tree_mode
+        {
+            let mut branch = Tree::new(tree_name(lhs), "");
+            for index in 0..length
+            {
+                if let Some(child) = self.nodes[base + index].take()
+                {
+                    branch.add_child(child);
+                }
+            }
+            node = Some(branch);
+        }
+        else
+        {
+            for index in 0..length
+            {
+                self.action_values[index] = self.values[base + index];
+            }
+            let values = std::mem::take(&mut self.action_values);
+            let mut result = Holder {
+                value: Default::default(),
+            };
+            let status = self.apply_action(production, &values, &mut result);
+            self.action_values = values;
+            if status != STATUS_OK
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            result_value = result.value;
+        }
+        self.lr_pop_to(base);
+        if self.top == 0
+        {
+            let (line, column) = (self.current.line, self.current.column);
+            self.set_error(STATUS_ERR_STACK, line, column, "归约后分析栈为空");
+            return STATUS_ERR_STACK;
+        }
+        let state = _GOTO[self.states[self.top - 1] as usize][lhs as usize];
+        if state == INVALID_STATE
+        {
+            let (line, column) = (self.current.line, self.current.column);
+            self.set_error(STATUS_ERR_SYNTAX, line, column, "GOTO 表没有匹配项");
+            return STATUS_ERR_SYNTAX;
+        }
+        self.lr_push(state, lhs, result_value, "", node)
+    }
+
+    /// panic reduce：`%sync` 恢复时先把栈顶状态上待归约的项做掉。
+    fn lr_panic_reduce(&mut self, state: i32, tree_mode: bool) -> i32
+    {
+        if _LOOKAHEAD_K > 1
+        {
+            for column in 0.._LOOKAHEAD_COLUMN_COUNT
+            {
+                let action = _REDUCE[state as usize][column];
+                if action >= 0
+                {
+                    continue;
+                }
+                let production = -action - 1;
+                let length = _PRODUCTION_LENGTH[production as usize] as usize;
+                if length == 0
+                {
+                    continue;
+                }
+                if length > self.top
+                {
+                    return STATUS_ERR_SYNTAX;
+                }
+                return self.lr_reduce(production, tree_mode);
+            }
+            return STATUS_ERR_SYNTAX;
+        }
+        for terminal in 0.._TERMINAL_COUNT
+        {
+            let action = _ACTION[state as usize][terminal];
+            if action >= 0
+            {
+                continue;
+            }
+            let production = -action - 1;
+            let length = _PRODUCTION_LENGTH[production as usize] as usize;
+            if length == 0
+            {
+                continue;
+            }
+            if length > self.top
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            return self.lr_reduce(production, tree_mode);
+        }
+        STATUS_ERR_SYNTAX
+    }
+
+    fn lookahead_code_long(&self, head_kind: i32) -> i64
+    {
+        let mut code = head_kind as i64;
+        let mut scale = _TERMINAL_COUNT as i64;
+        for index in 1.._LOOKAHEAD_K
+        {
+            code += (self.lookahead[index as usize - 1].kind as i64) * scale;
+            scale *= _TERMINAL_COUNT as i64;
+        }
+        code
+    }
+
+    /// 二分查找窗口对应的归约列；没有这一列返回 `-1`。
+    fn find_lookahead_column(&self, code: i64) -> i32
+    {
+        if _LOOKAHEAD_COLUMN_COUNT == 0
+        {
+            return -1;
+        }
+        let mut low = 0usize;
+        let mut high = _LOOKAHEAD_COLUMN_COUNT - 1;
+        while low <= high
+        {
+            let mid = low + (high - low) / 2;
+            let mid_code = _LOOKAHEAD_CODE[mid];
+            if mid_code == code
+            {
+                return _LOOKAHEAD_COLUMN[mid];
+            }
+            if mid_code < code
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                if mid == 0
+                {
+                    break;
+                }
+                high = mid - 1;
+            }
+        }
+        -1
+    }
+
+    /// 两层查表：先按 k 元组展望符查归约列，再按窗口首个 Token 查移进。
+    fn lookup_window_action(&self, state: i32, head_kind: i32) -> i32
+    {
+        if _LOOKAHEAD_K <= 1
+        {
+            return _ACTION[state as usize][head_kind as usize];
+        }
+        let column = self.find_lookahead_column(self.lookahead_code_long(head_kind));
+        if column >= 0
+        {
+            let reduced = _REDUCE[state as usize][column as usize];
+            if reduced != 0
+            {
+                return reduced;
+            }
+        }
+        _ACTION[state as usize][head_kind as usize]
+    }
+
+    fn lr_can_shift_sync_token(&self, state: i32) -> bool
+    {
+        for kind in _SYNC_TOKENS
+        {
+            if _ACTION[state as usize][*kind as usize] > 0
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// 语法错误恢复：`error` 产生式优先，`%sync` 兜底。
+    fn lr_recover(&mut self, tree_mode: bool) -> i32
+    {
+        // ① 已经在错误状态里：先丢掉当前 lookahead 再试
+        if self.error_status > 0
+        {
+            while self.current.kind != TOKEN_END
+            {
+                if self.advance_window() != STATUS_OK
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                let kind = self.current.kind;
+                if (kind >= 0)
+                    && ((kind as usize) < _TERMINAL_COUNT)
+                    && (self.lookup_window_action(self.states[self.top - 1], kind) != 0)
+                {
+                    self.error_status = ERROR_RECOVERY_TOKENS;
+                    return STATUS_OK;
+                }
+            }
+            return STATUS_ERR_SYNTAX;
+        }
+        // ② error 产生式：弹栈到能移进 error 的状态
+        if _HAS_ERROR_TOKEN
+        {
+            while self.top > 0
+            {
+                let action =
+                    _ACTION[self.states[self.top - 1] as usize][_ERROR_TOKEN_ID as usize];
+                if action > 0
+                {
+                    let status = self.lr_push(
+                        action - 1,
+                        _ERROR_TOKEN_ID,
+                        Default::default(),
+                        "error",
+                        None,
+                    );
+                    if status != STATUS_OK
+                    {
+                        return STATUS_ERR_STACK;
+                    }
+                    self.error_status = ERROR_RECOVERY_TOKENS;
+                    return STATUS_OK;
+                }
+                self.lr_discard_top();
+            }
+        }
+        // ③ %sync panic mode：弹栈到能移进某个同步 Token 的状态，再丢输入到它
+        if !_SYNC_TOKENS.is_empty()
+        {
+            let mut reduce_budget = 256;
+            while self.top > 0
+            {
+                let state = self.states[self.top - 1];
+                if self.lr_can_shift_sync_token(state)
+                {
+                    while (self.current.kind != TOKEN_END)
+                        && !is_sync_token(self.current.kind)
+                    {
+                        if self.advance_window() != STATUS_OK
+                        {
+                            return STATUS_ERR_LEXER;
+                        }
+                    }
+                    if self.current.kind == TOKEN_END
+                    {
+                        return STATUS_ERR_SYNTAX;
+                    }
+                    let action =
+                        _ACTION[state as usize][self.current.kind as usize];
+                    if action > 0
+                    {
+                        if self.lr_shift(action - 1, tree_mode) != STATUS_OK
+                        {
+                            return STATUS_ERR_STACK;
+                        }
+                        if self.advance_window() != STATUS_OK
+                        {
+                            return STATUS_ERR_LEXER;
+                        }
+                        self.error_status = ERROR_RECOVERY_TOKENS;
+                        return STATUS_OK;
+                    }
+                }
+                else if (reduce_budget > 0)
+                    && (self.lr_panic_reduce(state, tree_mode) == STATUS_OK)
+                {
+                    reduce_budget -= 1;
+                    if _LOOKAHEAD_K > 1
+                    {
+                        if self.lookup_window_action(
+                            self.states[self.top - 1],
+                            self.current.kind,
+                        ) != 0
+                        {
+                            self.error_status = ERROR_RECOVERY_TOKENS;
+                            return STATUS_OK;
+                        }
+                    }
+                    continue;
+                }
+                self.lr_discard_top();
+            }
+        }
+        STATUS_ERR_SYNTAX
+    }
+
+    /// LR 主循环：移进 / 归约 / 接受。
+    fn run_lr_loop(&mut self, tree_mode: bool) -> i32
+    {
+        self.reset_states();
+        self.continue_lr_loop(tree_mode)
+    }
+
+    /// 从当前 lookahead 与现有 LR 栈继续主循环。
+    fn continue_lr_loop(&mut self, tree_mode: bool) -> i32
+    {
+        loop
+        {
+            let state = self.states[self.top - 1];
+            let kind = self.current.kind;
+            if (state >= _STATE_COUNT as i32)
+                || ((kind as usize) >= _TERMINAL_COUNT)
+            {
+                let (line, column) = (self.current.line, self.current.column);
+                self.set_error(STATUS_ERR_SYNTAX, line, column, "状态或 Token 越界");
+                return STATUS_ERR_SYNTAX;
+            }
+            let action = self.lookup_window_action(state, kind);
+            if action == ACCEPT_ACTION
+            {
+                self.result_value = self.values[self.top - 1];
+                if tree_mode
+                {
+                    self.tree_root = self.nodes[self.top - 1].take();
+                }
+                return STATUS_OK;
+            }
+            if action > 0
+            {
+                if self.lr_shift(action - 1, tree_mode) != STATUS_OK
+                {
+                    let (line, column) = (self.current.line, self.current.column);
+                    self.set_error(STATUS_ERR_STACK, line, column, "分析栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                if self.advance_window() != STATUS_OK
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                if self.error_status > 0
+                {
+                    self.error_status -= 1;
+                }
+                continue;
+            }
+            if action < 0
+            {
+                if self.lr_reduce(-action - 1, tree_mode) != STATUS_OK
+                {
+                    return STATUS_ERR_SYNTAX;
+                }
+                continue;
+            }
+            if self.error_status == 0
+            {
+                let expected = _EXPECTED[state as usize];
+                self.set_syntax_error(state, expected);
+                if self.errors.len() >= MAX_ERRORS
+                {
+                    return STATUS_ERR_SYNTAX;
+                }
+            }
+            if self.lr_recover(tree_mode) != STATUS_OK
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+        }
+    }

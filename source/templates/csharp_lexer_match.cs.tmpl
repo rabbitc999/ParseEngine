@@ -1,0 +1,85 @@
+        // 固定字面量与 %token regex 一起做最长匹配，字面量优先。
+        int bestLength = 0;
+        int bestType = TOKEN_INVALID;
+        bool bestFromRegex = false;
+        bool bestWildcard = false;
+        string bestText = "";
+        int bestOrder = 0;
+        int matchStart = _textPos;
+        for (int ruleIndex = 0; ruleIndex < _LEX_RULES_TEXT.Length; ruleIndex++)
+        {
+            string ruleText = _LEX_RULES_TEXT[ruleIndex];
+            int ruleType = _LEX_RULES_TYPE[ruleIndex];
+            int ruleLength = _LEX_RULES_LENGTH[ruleIndex];
+            if (!_lexRuleHit(ruleText, _input, matchStart))
+            {
+                continue;
+            }
+            char last = ruleText[ruleText.Length - 1];
+            int next = _peekChar(ruleLength);
+            if (_isWord(last) && _isWord(next))
+            {
+                continue;
+            }
+            if (ruleLength > bestLength)
+            {
+                bestLength = ruleLength;
+                bestType = ruleType;
+                bestFromRegex = false;
+                bestWildcard = ruleText.IndexOf(_BLANK_WILDCARD) >= 0;
+                bestText = ruleText;
+                bestOrder = _LEX_RULES_ORDER[ruleIndex];
+            }
+        }
+{{ lex_regex_loop }}
+        // %commit：与 Token 规则共用一份最长匹配；同长度时按声明序，
+        // 先声明优先（skip 命中不算 Token，直接丢掉）。
+        int commitLength = 0;
+        int commitIndex = 0;
+        for (int index = 0; index < _COMMIT_RE_LIST.Length; index++)
+        {
+            int matched = _lexRegexMatch(_COMMIT_RE_LIST[index], _input,
+                                         matchStart);
+            if (matched > commitLength)
+            {
+                commitLength = matched;
+                commitIndex = index;
+            }
+        }
+        if ((commitLength != 0) &&
+            ((commitLength > bestLength) ||
+             ((commitLength == bestLength) &&
+              ((bestType == TOKEN_INVALID) ||
+               (_COMMIT_ORDERS[commitIndex] < bestOrder)))))
+        {
+            if (!_COMMIT_SKIPS[commitIndex])
+            {
+                _commits.Add(new Commit(_line, _COMMIT_TYPES[commitIndex],
+                                        _input.Substring(
+                                            matchStart, commitLength)));
+            }
+            for (int index = 0; index < commitLength; index++)
+            {
+                _readChar();
+            }
+            return _LEX_COMMIT_CONSUMED;
+        }
+        if (bestType != TOKEN_INVALID)
+        {
+            for (int index = 0; index < bestLength; index++)
+            {
+                _readChar();
+            }
+            item.type = bestType;
+            if (bestFromRegex || bestWildcard)
+            {
+                _lexeme = _input.Substring(matchStart, bestLength);
+                item.text = _lexeme;
+            }
+            else
+            {
+                item.text = bestText;
+            }
+            item.value = _valueFromText(item.type, item.text);
+            return STATUS_OK;
+        }

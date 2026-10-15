@@ -1,0 +1,5 @@
+{# 固定字面量词法规则表的每一行（表尾哨兵也是数组里的一项：
+   text 写 nullptr、token 写 TokenType::TOKEN_END）。
+   分隔符写在每轮开头（`{% if loop_first %}` 取反），所以结尾不带换行。#}
+{% for r in rules %}{% if loop_first %}{% else %},
+{% endif %}    { {{ r.text }}, {{ r.length }}u, {{ r.token }}, {{ r.blankFirst }}, {{ r.wildcard }}, {{ r.order }} }{% endfor %}

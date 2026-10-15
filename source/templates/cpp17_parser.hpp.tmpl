@@ -1,0 +1,472 @@
+/**
+ * {% if lex %}lexer.hpp —— 词法模式（%mode lex）公开接口（C++17）{% else %}parser.hpp —— {{ mode_name }} 解析器公开接口（C++17）{% endif %}
+ *
+ * 由 ParseEngine 自动生成，请勿手工修改。
+ *
+ * 目标语言是 C++17：
+ *   - 符号收在命名空间 {{ ns }} 里，不再有 Parser_Xxx 下划线前缀；
+ *   - 字符串 / 容器 / 智能指针直接用标准库（std::string_view / ParserMemory::String /
+ *     std::vector / std::unique_ptr / std::function）；
+ *   - 常量用 inline constexpr（C++17 的 inline 变量），不写 #define；
+ *   - 容器与对象分配可由用户头的 PARSER_MEMORY_NAMESPACE 配置，也没有
+ *     PARSER_USER_DISCARD_VALUE 这类释放钩子（析构函数就是释放）。
+ *
+ * 语义值类型 ParserValue_T 由文法提供（%value_type / %union / %code … %endcode），
+ * 都没有时生成器补 `typedef int ParserValue_T;`。
+ */
+
+#ifndef {{ guard }}
+#define {{ guard }}
+
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <functional>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <sstream>
+#include <deque>
+#include <map>
+#include <unordered_map>
+#include <utility>
+
+{{ user_include }}
+
+namespace {{ ns }}
+{
+#ifdef PARSER_MEMORY_NAMESPACE
+namespace ParserMemory = PARSER_MEMORY_NAMESPACE;
+#else
+namespace ParserMemory {
+using String = std::string;
+template<class T> using Function = std::function<T>;
+using OutputStringStream = std::ostringstream;
+using InputStringStream = std::istringstream;
+using StringStream = std::stringstream;
+template<class T> String toString(T value) { return std::to_string(value); }
+template<class T> using Vector = std::vector<T>;
+template<class T> using Deque = std::deque<T>;
+template<class K, class V, class C = std::less<K>> using Map = std::map<K, V, C>;
+template<class K, class V, class H = std::hash<K>, class E = std::equal_to<K>> using UnorderedMap = std::unordered_map<K, V, H, E>;
+template<class T> using UniquePtr = std::unique_ptr<T>;
+template<class T, class... A> UniquePtr<T> makeUnique(A&&... a) { return std::make_unique<T>(std::forward<A>(a)...); }
+}
+#endif
+
+
+/// 解析状态码（数值与 C 目标一致，方便两份产物对照）。
+enum class Status : std::int32_t
+{
+    Ok = 0,           ///< 成功
+    ErrStack = -20,   ///< 分析栈 / 语义帧栈溢出
+    ErrSyntax = -21,  ///< 语法错误
+    ErrLexer = -22,   ///< 词法错误
+        ErrDuplicate = -23, ///< 重复定义（保留，与 C 目标一致）
+        ErrUndefined = -24, ///< 未定义符号（保留，与 C 目标一致）
+        ErrSystem = -25,  ///< 系统错误
+        ErrExpected = -26, ///< 期望若干 Token，实际是别的
+        ErrUnexpectedEof = -27, ///< 提前遇到输入末尾
+        ErrLexUnterminated = -28, ///< 未闭合的字符串 / 注释
+        ErrLexChar = -29  ///< 认不出来的字符
+};
+
+/**
+ * @brief 取状态码的名字（如 `Ok` / `ErrSyntax`）。
+ * @param status 状态码。
+ * @return 只读名字；未知状态返回 `Unknown`。
+ */
+const char *statusName(Status status) noexcept;
+
+{{ constants }}
+
+{{ token_types }}
+
+/**
+ * @brief 输入里的一个位置：行、列、偏移。
+ *
+ * 行 / 列都是 1 起；`offset` 是从输入开头算起的 **UTF-8 字节偏移**
+ * （0 起）。位置指的是当前 lookahead Token 的起点；Token 数组模式
+ * （`Engine::run`）下 `offset` 由调用方给的 Token 决定（没填就是 0）。
+ */
+struct ParserLocation
+{
+    int line = 0;   ///< 行号（1 起）
+    int column = 0; ///< 列号（1 起）
+    int offset = 0; ///< UTF-8 字节偏移（0 起）
+};
+
+/**
+ * @brief 词法单元。
+ *
+ * 这是个聚合体（public 数据成员）：`%code … %endcode` 里的
+ * `PARSER_USER_TOKEN_VALUE(pToken)` 宏按 C 目标的写法直接读
+ * `pToken->type` / `pToken->value` 就能用，不用改用户代码。
+ *
+ * 三份词素视图放的是同一段文本，按用途选一个：
+ *   - `text`：C++17 的 `std::string_view`，不保证 '\0' 结尾，最省事；
+ *   - `pName` / `name`：C 目标里的两个字段（NUL 结尾的 `const char *`），
+ *     只为兼容按 C 产物写的 `%code … %endcode` 代码而保留。
+ *
+ * 它们都指向词法缓冲或输入文本，只在**下一次取词法单元之前**有效；要长期
+ * 保存请自己拷成 ParserMemory::String。
+ */
+struct Token
+{
+    TokenType type = TokenType::TOKEN_INVALID; ///< 词法类型
+{{ token_value_decl }}
+    std::string_view text{};     ///< 词素（C++17 视图）
+    const char *name = nullptr;  ///< 词素（兼容 C 产物：字符串 / 数字 Token）
+    const char *pName = nullptr; ///< 词素（兼容 C 产物：字面量 / 标识符 / 正则）
+    std::uint32_t line = 1u;     ///< 行号（1 起）
+    std::uint32_t column = 1u;   ///< 列号（1 起）
+    std::uint32_t offset = 0u;   ///< UTF-8 字节偏移（0 起）
+};
+
+/**
+ * @brief 取 Token 类型名（枚举名去掉 `TOKEN_` 之前的部分原样返回）。
+ * @param type Token 类型。
+ * @return 只读名字；越界返回 nullptr。
+ */
+const char *tokenName(TokenType type) noexcept;
+
+/**
+ * @brief 取 Token 的显示文本：优先词素，没有词素时退回类型名。
+ * @param token 词法单元。
+ * @return 文本（ParserMemory::String，调用方持有）。
+ */
+ParserMemory::String tokenText(const Token &token);
+
+/**
+ * @brief `%commit` 收集到的一条片段：行号 + 类型 + 原文。
+ *
+ * 匹配到的原文（含字面量本身）按出现顺序收进 `Engine::commits()`；
+ * `%commit skip "..."` 命中的片段不进容器。类型名来自文法，缺省 "default"。
+ */
+struct ParserCommit
+{
+    int line = 0;                 ///< 片段起始行（1 起）
+    ParserMemory::String type = "default"; ///< %commit 的类型名
+    ParserMemory::String text;             ///< 匹配到的原文（含字面量本身）
+};
+
+{{ tree_api }}
+
+/**
+ * @brief 解析错误：一次解析可以累积多条（错误恢复时）。
+ */
+class Error
+{
+public:
+    Error() = default;
+
+    /**
+     * @brief 构造一条错误。
+     * @param code 错误码。
+     * @param line 行号。
+     * @param column 列号。
+     * @param message 说明。
+     */
+    Error(std::int32_t code, std::uint32_t line, std::uint32_t column,
+          ParserMemory::String message);
+
+    /**
+     * @brief 构造一条「语法错误」：带上实际 Token、期望集合与状态号。
+     * @param code 错误码（ErrExpected / ErrUnexpectedEof / ErrSyntax）。
+     * @param line 行号。
+     * @param column 列号。
+     * @param message 说明（形如「期望 SEMI / RBRACE 之一，实际是 PLUS」）。
+     * @param tokenType 实际看到的 Token 类型。
+     * @param tokenText 出错位置的词素。
+     * @param state LR 状态号（LL 家族是栈顶符号编号）。
+     * @param expected 期望的 Token 类型列表。
+     */
+    Error(std::int32_t code, std::uint32_t line, std::uint32_t column,
+          ParserMemory::String message, std::uint32_t tokenType, ParserMemory::String tokenText,
+          std::uint32_t state, ParserMemory::Vector<std::uint32_t> expected,
+          ParserMemory::String context = ParserMemory::String());
+
+    /// @return 实际看到的 Token 类型（非语法错误时为 0）。
+    std::uint32_t tokenType() const noexcept { return m_tokenType; }
+    /// @return 出错位置的词素（非语法错误时为空）。
+    const ParserMemory::String &tokenText() const noexcept { return m_tokenText; }
+    /// @return LR 状态号（LL 家族是栈顶符号编号；非语法错误时为 0）。
+    std::uint32_t state() const noexcept { return m_state; }
+    /// @return 该位置期望的 Token 类型列表（可能被上限截断）。
+    const ParserMemory::Vector<std::uint32_t> &expected() const noexcept
+    {
+        return m_expected;
+    }
+    /// @return 出错那一行的原文 + 一行 `^` 指示（文本模式才有；否则为空）。
+    const ParserMemory::String &context() const noexcept { return m_context; }
+
+    /// @return 错误码（Status 的数值形式）。
+    std::int32_t code() const noexcept { return m_code; }
+    /// @return 行号。
+    std::uint32_t line() const noexcept { return m_line; }
+    /// @return 列号。
+    std::uint32_t column() const noexcept { return m_column; }
+    /// @return 说明文本。
+    const ParserMemory::String &message() const noexcept { return m_message; }
+
+    /**
+     * @brief 拼成一行诊断文本。
+     * @return 形如 `第 3 行第 5 列：语法错误：期望 SEMI / RBRACE 之一，实际是 PLUS`。
+     */
+    ParserMemory::String toString() const;
+
+private:
+    std::int32_t m_code = 0;
+    std::uint32_t m_line = 0u;
+    std::uint32_t m_column = 0u;
+    ParserMemory::String m_message;
+    std::uint32_t m_tokenType = 0u;
+    ParserMemory::String m_tokenText;
+    std::uint32_t m_state = 0u;
+    ParserMemory::Vector<std::uint32_t> m_expected;
+    ParserMemory::String m_context;
+  };
+
+{% if incremental %}{% if lr_incremental %}/**
+ * @brief LR 增量友好的 Token 缓存项。
+ */
+struct IncrementalToken
+{
+    TokenType type = TokenType::TOKEN_INVALID;
+    ParserValue_T value{};
+    std::int32_t rawValue = 0;  ///< 原始 Token.value；可能与自定义语义值类型不同。
+    ParserMemory::String text;
+    std::uint32_t line = 1u;
+    std::uint32_t column = 1u;
+    std::uint32_t offset = 0u;
+};
+
+/**
+ * @brief LR 前缀状态 checkpoint。
+ *
+ * 当前版本只记录语义模式所需的 LR 栈；`parseTree` 的节点栈不在 checkpoint 里。
+ */
+struct LrStackCheckpoint
+{
+    std::size_t tokenIndex = 0u;
+    std::size_t top = 0u;
+    ParserMemory::Vector<std::uint16_t> states;
+    ParserMemory::Vector<std::uint16_t> symbols;
+    ParserMemory::Vector<ParserValue_T> values;
+    ParserMemory::Vector<ParserMemory::String> names;
+};
+
+{% endif %}/**
+ * @brief LL / DD / LR 模式的增量解析缓存。
+ *
+ * LL / DD 采用保守失效策略：输入文本完全一致时复用上次结果，文本变化时自动
+ * 完整重算并刷新缓存。确定性 LR 模式还会保存 token cache 与前缀栈 checkpoint，
+ * 文本变化后从公共 Token 前缀内最近的 checkpoint 恢复，恢复失败再完整重算。
+ * 这不是完整 LR 增量解析；状态栈局部修补、错误恢复延续、语义动作副作用纯度约束
+ * / 禁用策略以及 CST 修补属于后续完整方案。
+ */
+struct IncrementalCache
+{
+    bool valid = false;                    ///< 缓存是否可用。
+    ParserMemory::String text;                      ///< 上次解析的完整输入。
+    Status status = Status::ErrSystem;     ///< 上次解析状态。
+    ParserValue_T result{};                ///< 上次语义结果。
+    ParserMemory::Vector<Error> errors;             ///< 上次错误表。
+    ParserMemory::Vector<ParserCommit> commits;     ///< 上次 `%commit` 片段。
+{% if lr_incremental %}    std::size_t checkpointInterval = 32u;  ///< 每移进多少个 Token 记录一个 LR 栈快照；0 表示不记录。
+    ParserMemory::Vector<IncrementalToken> tokens;  ///< 上次解析收集到的 Token 缓存。
+    ParserMemory::Vector<LrStackCheckpoint> checkpoints; ///< 仍可复用的前缀栈快照。
+{% endif %}
+
+    /// 清空缓存。
+    void clear()
+    {
+        valid = false;
+        text.clear();
+        status = Status::ErrSystem;
+        result = ParserValue_T();
+        errors.clear();
+        commits.clear();
+{% if lr_incremental %}        tokens.clear();
+        checkpoints.clear();
+{% endif %}
+    }
+};
+
+{% endif %}
+{% if glr %}/**
+ * @brief GLR 增量实验用的 Token 跨度缓存项。
+ *
+ * GLR 后续局部复用应围绕 parse forest / token span / reduce 结果展开，而不是缓存
+ * 一棵简单 AST。当前字段先记录 token 的稳定跨度，供后续定位受影响区间。
+ */
+struct GlrTokenSpan
+{
+    TokenType type = TokenType::TOKEN_INVALID;
+    ParserMemory::String text;
+    std::uint32_t line = 1u;
+    std::uint32_t column = 1u;
+    std::uint32_t offset = 0u;
+    std::uint32_t length = 0u;
+};
+
+/// GLR token diff 的变更窗口：旧 token 区间 [oldBegin, oldEnd)，新 token 区间 [newBegin, newEnd)。
+struct GlrTokenChange
+{
+    bool changed = false;
+    std::size_t oldBegin = 0u;
+    std::size_t oldEnd = 0u;
+    std::size_t newBegin = 0u;
+    std::size_t newEnd = 0u;
+};
+
+/// GLR 归约结果索引：span、GSS 端点与 packed forest 稳定节点 ID。
+struct GlrReduceEntry
+{
+    std::uint16_t production = 0u;
+    std::uint32_t startToken = 0u;
+    std::uint32_t endToken = 0u;
+    std::uint16_t fromNode = 0u;
+    std::uint16_t toNode = 0u;
+    std::uint64_t forestNode = 0u;
+};
+
+/// 同一符号与 token span 下的一个 packed 归约候选。
+struct GlrForestAlternative
+{
+    std::uint16_t production = 0u;
+    ParserMemory::Vector<std::uint64_t> children;
+};
+
+/// 稳定 ID 在 clear() 前不复用；位置随编辑重映射，parents 是反向依赖。
+struct GlrForestNode
+{
+    std::uint64_t id = 0u;
+    std::uint32_t symbol = 0u;
+    std::uint32_t startToken = 0u;
+    std::uint32_t endToken = 0u;
+    bool terminal = false;
+    ParserMemory::String text;
+    ParserMemory::Vector<GlrForestAlternative> alternatives;
+    ParserMemory::Vector<std::uint64_t> parents;
+};
+
+/// Pure 是调用方承诺：动作无副作用，结果只依赖输入与 semanticRevision 指定的环境。
+enum class GlrSemanticReusePolicy { Disabled, Pure };
+
+/**
+ * @brief GLR 增量实验缓存。
+ *
+ * 默认不复用语义结果；显式声明 Pure 后，同文本、非 tree 模式可复用成功结果；文本变化时
+ * 沿父依赖传播失效并局部修补 packed forest。GSS 控制流程仍重跑，Tree 结果重新物化。
+ * forest 是共享符号节点与归约候选，不是语义值或简单 AST 缓存。
+ */
+struct GlrIncrementalCache
+{
+    GlrSemanticReusePolicy semanticReuse = GlrSemanticReusePolicy::Disabled;
+    std::uint64_t semanticRevision = 0u; ///< 外部语义环境变化时由调用方递增。
+    bool semanticResultsReusable = false; ///< 上次是否按纯动作策略保存成功结果。
+    std::uint64_t cachedSemanticRevision = 0u;
+    bool reusedSemanticResults = false; ///< 本次调用是否跳过动作并复用结果。
+    ParserMemory::Vector<GlrForestNode> forest;
+    ParserMemory::Vector<std::uint64_t> forestRoots;
+    ParserMemory::Vector<std::uint64_t> invalidatedForestNodes;
+    std::uint64_t nextForestId = 1u;
+    std::size_t reusedForestNodeCount = 0u;
+    std::size_t rebuiltForestNodeCount = 0u;
+    bool valid = false;                ///< 缓存是否可用。
+    bool treeMode = false;             ///< 上次是否按 tree 模式运行。
+    ParserMemory::String text;                  ///< 上次解析的完整输入。
+    Status status = Status::ErrSystem; ///< 上次解析状态。
+    ParserMemory::Vector<Error> errors;         ///< 上次错误表。
+    ParserMemory::Vector<ParserCommit> commits; ///< 上次 `%commit` 片段。
+    ParserMemory::Vector<GlrTokenSpan> tokens;  ///< 上次词法 token 跨度。
+    GlrTokenChange tokenChange;        ///< 最近一次文本变化对应的 token 窗口。
+    ParserMemory::Vector<ParserValue_T> results;///< 非 tree 模式下保留的语义结果。
+    ParserMemory::Vector<GlrReduceEntry> reduceEntries; ///< 上次解析记录的 reduce span 索引。
+    ParserMemory::Vector<std::size_t> invalidatedReduceEntries; ///< 被最近 token diff 影响的旧 reduce 条目。
+    std::size_t resultCount = 0u;      ///< GLR 接受结果数。
+    std::size_t forestNodeCount = 0u;  ///< 兼容旧 API：本次 GSS 节点数；packed 节点见 forest.size()。
+    std::size_t forestEdgeCount = 0u;  ///< 兼容旧 API：本次 GSS 边数。
+    std::size_t invalidatedForestEdgeCount = 0u; ///< 失效旧节点的归约候选中 child 引用数。
+    std::size_t reduceVisitCount = 0u; ///< 归约路径访问次数摘要。
+
+    /// 清空缓存，保留调用方设置的策略与语义环境版本。
+    void clear()
+    {
+        semanticResultsReusable = false;
+        cachedSemanticRevision = 0u;
+        reusedSemanticResults = false;
+        forest.clear();
+        forestRoots.clear();
+        invalidatedForestNodes.clear();
+        nextForestId = 1u;
+        reusedForestNodeCount = 0u;
+        rebuiltForestNodeCount = 0u;
+        valid = false;
+        treeMode = false;
+        text.clear();
+        status = Status::ErrSystem;
+        errors.clear();
+        commits.clear();
+        tokens.clear();
+        tokenChange = GlrTokenChange();
+        results.clear();
+        reduceEntries.clear();
+        invalidatedReduceEntries.clear();
+        resultCount = 0u;
+        forestNodeCount = 0u;
+        forestEdgeCount = 0u;
+        invalidatedForestEdgeCount = 0u;
+        reduceVisitCount = 0u;
+    }
+};
+
+{% endif %}
+/**
+ * @brief {% if lex %}词法引擎：一次词法分析的全部状态都在这里{% else %}解析引擎：一次解析的全部状态都在这里{% endif %}（Qt 风格的私有 d-pointer）。
+ *
+ * 引擎不可拷贝；同一个 Engine 可以连续{% if lex %} tokenize 多次，每次{% else %}解析多次，每次解析{% endif %}会先清空上一次的
+ * 错误列表与结果。
+ */
+class Engine
+{
+public:
+    Engine();
+    ~Engine();
+
+    Engine(const Engine &) = delete;
+    Engine &operator=(const Engine &) = delete;
+
+{{ engine_glr_resolver }}{{ engine_parse_api }}    /// @return 本次解析累积的错误（一次解析可以报多条）。
+    const ParserMemory::Vector<Error> &errors() const noexcept;
+    /// @return 最近一条错误；没有错误时返回 nullptr。
+    const Error *lastError() const noexcept;
+
+    /**
+     * @brief 当前 lookahead 的位置（行 / 列 1 起，offset 是 UTF-8 字节偏移）。
+     *
+     * 语义动作里的 `$line` / `$column` 读的就是这里的值；Token 数组模式
+     * （`run`）下偏移由调用方给的 Token 决定。
+     * @return 位置。
+     */
+    ParserLocation currentLocation() const noexcept;
+
+    /**
+     * @brief 本次解析收集到的 `%commit` 片段（按出现顺序）。
+     * @return 片段列表；文法里没写 %commit 时恒为空。
+     */
+    const ParserMemory::Vector<ParserCommit> &commits() const noexcept;
+
+{{ engine_tree_api }}{{ engine_glr_api }}
+
+private:
+    class Private;
+    ParserMemory::UniquePtr<Private> d;
+};
+
+{{ compat_api }}
+} // namespace {{ ns }}
+
+#endif /* {{ guard }} */

@@ -1,0 +1,7 @@
+{# 本模式的解析主循环入口（CodeGenGo 的 goRunLoop）。
+   变量：target —— runLRLoop / runLLLoop。
+   本模板自带行尾换行。 #}
+// runLoop 本模式的解析主循环（`%tree` 时只建树）。
+func (p *Parser) runLoop(treeMode bool) int32 {
+	return p.{{ target }}(treeMode)
+}

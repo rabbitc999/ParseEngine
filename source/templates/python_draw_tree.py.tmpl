@@ -1,0 +1,49 @@
+{# 语法树绘图（CodeGenPython）：注入 `class Tree` 的方法。
+   变量：mode_label —— 模式标签（如 LALR(1)），进默认标题。
+   只在绘图白名单（lalr / lr1 / ielr）下发；别的档这一整段不出现。
+   本模板自带行尾换行。 #}
+
+    def to_svg(self, title=None):
+        """把整棵树画成 SVG 文本（确定性：同一棵树永远画出同一份文本）。
+
+        布局是「叶子按出现顺序占位、父节点取子节点跨度中点、按深度分层」的整齐
+        树布局；节点框第一行是符号名（非终结符名或 Token 类型名）、第二行是词素
+        （只有叶节点有）。样式与文字全部内联，产物不依赖任何第三方模块。
+
+        :param title: 图标题；``None`` 时用「语法树 · {{ mode_label }}」。
+        :return: SVG 文本（含 XML 声明）。
+        """
+        if title is None:
+            title = "语法树 · {{ mode_label }}"
+        return _draw_tree_svg(self, title)
+
+    def to_dot(self, name="tree"):
+        """把整棵树画成 Graphviz DOT 文本。
+
+        装了 Graphviz（Python 包 + ``dot`` 命令）的话可以直接渲染：
+
+        >>> import graphviz                                    # doctest: +SKIP
+        >>> graphviz.Source(tree.to_dot()).render("tree")       # doctest: +SKIP
+
+        :param name: 图的标识符（DOT 里的 ``digraph <name>``）。
+        :return: DOT 文本。
+        """
+        return _draw_tree_dot(self, name)
+
+    def write_svg(self, path, title=None):
+        """把语法树写成 ``.svg`` 文件（UTF-8、LF 行尾）。
+
+        :param path: 文件路径。
+        :param title: 图标题（``None`` 用缺省标题）。
+        :return: 写出的路径。
+        """
+        return _draw_write_text(path, self.to_svg(title))
+
+    def write_dot(self, path, name="tree"):
+        """把语法树写成 ``.dot`` 文件（UTF-8、LF 行尾）。
+
+        :param path: 文件路径。
+        :param name: 图的标识符。
+        :return: 写出的路径。
+        """
+        return _draw_write_text(path, self.to_dot(name))

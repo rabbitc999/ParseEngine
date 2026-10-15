@@ -1,0 +1,4 @@
+{# `%package` 在产物里留下的注释（CodeGenRust 的 rustPackageComment）。
+   变量：package —— 原文；crate —— 点号换成下划线的 crate 名。
+   没写 %package 时调用方直接给空串。本模板自带行尾换行。 #}
+// %package {{ package }} → crate 名 `{{ crate }}`（写在 Cargo.toml 里）

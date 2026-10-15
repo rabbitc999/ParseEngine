@@ -1,0 +1,453 @@
+{# LL 分析驱动（CodeGenGo 的 buildParserGo 里那一块，照 CodeGenRust 逐项对齐）。
+   变量：ll_expand_cases —— 生成期算好的展开分支；value_type —— 语义值类型名。
+   本模板自带行尾换行。 #}
+// ---------- LL 分析驱动 ----------
+
+func (p *Parser) llPush(kind int32, symbol int32, frameIndex int32, valueIndex int32, seedFrame int32) bool {
+	if len(p.llStack) >= sParserMaxStackDepth {
+		return false
+	}
+	p.llStack = append(p.llStack, [5]int32{kind, symbol, frameIndex, valueIndex, seedFrame})
+	return true
+}
+
+func (p *Parser) llPop() [5]int32 {
+	if len(p.llStack) == 0 {
+		return [5]int32{0, 0, sParserInvalidIndex, 0, sParserInvalidIndex}
+	}
+	item := p.llStack[len(p.llStack)-1]
+	p.llStack = p.llStack[:len(p.llStack)-1]
+	return item
+}
+
+// llExpand 按产生式展开语义帧（生成期算好的分支各推一条右部）。
+func (p *Parser) llExpand(production int32, frameIndex int32) int32 {
+{{ ll_expand_cases }}
+	return StatusErrSyntax
+}
+
+// llExecute 执行一个产生式的语义动作（`$n` 读 values，`$$` 写 result.value）。
+func (p *Parser) llExecute(production int32, frameIndex int32) int32 {
+	index := int(frameIndex)
+	values := p.llFrames[index].values
+	result := &sHolder{value: p.llFrames[index].resultValue}
+	if p.applyAction(production, values, result) != StatusOK {
+		return StatusErrSyntax
+	}
+	p.llFrames[index].resultValue = result.value
+	return StatusOK
+}
+
+// llForward 转发语义槽：把 `$n` 直接当作本产生式的结果值。
+func (p *Parser) llForward(frameIndex int32, valueIndex int32) {
+	frame := p.llFrames[frameIndex]
+	frame.resultValue = frame.values[valueIndex]
+}
+
+// llComplete 完成语义帧：把结果交给父帧，或作为根结果。
+func (p *Parser) llComplete(frameIndex int32) int32 {
+	for len(p.llFrames) > int(frameIndex)+1 &&
+		p.llFrames[len(p.llFrames)-1].discarded {
+		p.llFrames = p.llFrames[:len(p.llFrames)-1]
+	}
+	if len(p.llFrames) == 0 || int(frameIndex) != len(p.llFrames)-1 {
+		return StatusErrStack
+	}
+	frame := p.llFrames[len(p.llFrames)-1]
+	p.llFrames = p.llFrames[:len(p.llFrames)-1]
+	if frame.parentFrame == sParserInvalidIndex {
+		p.rootResult = frame.resultValue
+	} else {
+		parent := p.llFrames[frame.parentFrame]
+		parent.values[frame.parentValue] = frame.resultValue
+	}
+	return StatusOK
+}
+
+// llCapture 捕获终结符：记下词素，并把 Token 语义值写进槽位。
+func (p *Parser) llCapture(frameIndex int32, valueIndex int32) int32 {
+	if int(valueIndex) >= sParserValueSlots {
+		return StatusErrStack
+	}
+	frame := p.llFrames[frameIndex]
+	frame.names[valueIndex] = p.current.Text
+	frame.values[valueIndex] = p.current.Value
+	return StatusOK
+}
+
+// llTableColumn 取预测分析表的列号（LL(0) 恒为 0、LL(1) 用 Token 号、LL(k) 二分查列）。
+func (p *Parser) llTableColumn() int32 {
+	if sParserLookaheadK == 0 {
+		return 0
+	}
+	if sParserLookaheadK == 1 {
+		return p.current.Type
+	}
+	code := int64(p.current.Type)
+	scale := int64(sParserTerminalCount)
+	for index := int32(1); index < sParserLookaheadK; index++ {
+		code += int64(p.lookahead[index-1].Type) * scale
+		scale *= int64(sParserTerminalCount)
+	}
+	if sParserLookaheadColumnCount == 0 {
+		return -1
+	}
+	low := 0
+	high := int(sParserLookaheadColumnCount) - 1
+	for low <= high {
+		mid := low + (high-low)/2
+		midCode := sParserLookaheadCode[mid]
+		if midCode == code {
+			return sParserLookaheadColumn[mid]
+		}
+		if midCode < code {
+			low = mid + 1
+		} else {
+			if mid == 0 {
+				break
+			}
+			high = mid - 1
+		}
+	}
+	return -1
+}
+
+// llItemTakes 栈上第 index 项能不能取当前 Token（主循环能接着走）。
+func (p *Parser) llItemTakes(index int, column int32, head int32) bool {
+	item := p.llStack[index]
+	if item[0] == sItemTerminal {
+		return item[1] == head
+	}
+	if item[0] == sItemNonterm || item[0] == sItemLeftLoop {
+		if int(item[1]) >= sParserNontermCount {
+			return false
+		}
+		return column >= 0 && sParserLLTable[item[1]][column] >= 0
+	}
+	return false
+}
+
+// llItemInFollow 栈上第 index 项是不是「当前 Token 在它的 FOLLOW 里」。
+func (p *Parser) llItemInFollow(index int, head int32) bool {
+	item := p.llStack[index]
+	if item[0] != sItemNonterm && item[0] != sItemLeftLoop {
+		return false
+	}
+	if int(item[1]) >= sParserNontermCount || head < 0 ||
+		int(head) >= sParserTerminalCount {
+		return false
+	}
+	for _, token := range sParserLLFollow[item[1]] {
+		if token == head {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Parser) llStackTakes(column int32, head int32) bool {
+	if len(p.llStack) == 0 {
+		return false
+	}
+	return p.llItemTakes(len(p.llStack)-1, column, head)
+}
+
+func (p *Parser) llStackInFollow(head int32) bool {
+	if len(p.llStack) == 0 {
+		return false
+	}
+	return p.llItemInFollow(len(p.llStack)-1, head)
+}
+
+// llDeeperTakes 栈顶之下还有没有哪一项能取当前 Token（FOLLOW 集恢复用）。
+func (p *Parser) llDeeperTakes(column int32, head int32) bool {
+	index := len(p.llStack)
+	for index > 1 {
+		index--
+		if p.llItemTakes(index-1, column, head) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Parser) llUnwindFrames() {
+	for len(p.llFrames) > 0 && p.llFrames[len(p.llFrames)-1].discarded {
+		p.llFrames = p.llFrames[:len(p.llFrames)-1]
+	}
+}
+
+// llDiscardFramesFrom 放弃「第 frameIndex 个语义帧以及它里面已经展开的内层帧」。
+func (p *Parser) llDiscardFramesFrom(frameIndex int32) {
+	for index := int(frameIndex); index < len(p.llFrames); index++ {
+		p.llFrames[index].discarded = true
+	}
+	p.llUnwindFrames()
+}
+
+func (p *Parser) llDiscardTop() {
+	if len(p.llStack) == 0 {
+		return
+	}
+	item := p.llPop()
+	frameIndex := item[2]
+	if frameIndex == sParserInvalidIndex || int(frameIndex) >= len(p.llFrames) {
+		return
+	}
+	p.llFrames[frameIndex].discarded = true
+	p.llUnwindFrames()
+}
+
+// llSynchronize LL 的错误恢复（panic mode）：对齐到「栈上某一项能接受当前 Token」。
+func (p *Parser) llSynchronize(failedItem [5]int32) int32 {
+	if sParserLookaheadK == 0 {
+		return StatusErrSyntax
+	}
+	p.llStack = append(p.llStack, failedItem)
+	budget := 256
+	for budget > 0 {
+		column := p.llTableColumn()
+		head := p.current.Type
+		if p.llStackTakes(column, head) {
+			return StatusOK
+		}
+		if len(sParserSyncTokens) != 0 && p.current.Type != TOKEN_END &&
+			sParserIsSyncToken(p.current.Type) {
+			for budget > 0 && len(p.llStack) > 0 && !p.llStackTakes(column, head) {
+				p.llDiscardTop()
+				budget--
+			}
+			if len(p.llStack) == 0 {
+				return StatusErrSyntax
+			}
+			return StatusOK
+		}
+		if len(p.llStack) > 0 && (p.llStackInFollow(head) || p.llDeeperTakes(column, head)) {
+			frame := p.llStack[len(p.llStack)-1][2]
+			if frame == sParserInvalidIndex {
+				p.llDiscardTop()
+				budget--
+				continue
+			}
+			p.llDiscardFramesFrom(frame)
+			for budget > 0 && len(p.llStack) > 0 &&
+				p.llStack[len(p.llStack)-1][2] >= frame {
+				p.llDiscardTop()
+				budget--
+			}
+			continue
+		}
+		if p.current.Type == TOKEN_END {
+			return StatusErrSyntax
+		}
+		if p.advanceWindow() != StatusOK {
+			return StatusErrLexer
+		}
+		budget--
+	}
+	return StatusErrSyntax
+}
+
+// runLLLoop 非递归预测分析主循环（`%tree` 时只建树、不跑语义动作）。
+func (p *Parser) runLLLoop(treeMode bool) int32 {
+	p.llStack = nil
+	p.llFrames = nil
+	var zero {{ value_type }}
+	p.rootResult = zero
+	if treeMode {
+		p.treeRoot = nil
+		p.treePath = nil
+		return p.runLLTreeLoop()
+	}
+	if !p.llPush(sItemNonterm, sParserStartID, sParserInvalidIndex, 0, sParserInvalidIndex) {
+		return StatusErrStack
+	}
+	for len(p.llStack) > 0 {
+		item := p.llPop()
+		kind := item[0]
+		if kind == sItemTerminal {
+			if p.current.Type != item[1] {
+				p.setExpectedOneError(item[1])
+				if p.llSynchronize(item) != StatusOK {
+					return StatusErrSyntax
+				}
+				continue
+			}
+			if p.llCapture(item[2], item[3]) != StatusOK {
+				return StatusErrStack
+			}
+			if p.advanceWindow() != StatusOK {
+				return StatusErrLexer
+			}
+			continue
+		}
+		if kind == sItemNonterm || kind == sItemLeftLoop {
+			column := p.llTableColumn()
+			var expected []int32
+			if int(item[1]) < sParserNontermCount {
+				expected = sParserExpected[item[1]]
+			}
+			if p.current.Type < 0 || int(p.current.Type) >= sParserTerminalCount ||
+				int(item[1]) >= sParserNontermCount || column < 0 {
+				p.setSyntaxError(item[1], expected)
+				if p.llSynchronize(item) != StatusOK {
+					return StatusErrSyntax
+				}
+				continue
+			}
+			production := sParserLLTable[item[1]][column]
+			if production < 0 {
+				p.setSyntaxError(item[1], expected)
+				if p.llSynchronize(item) != StatusOK {
+					return StatusErrSyntax
+				}
+				continue
+			}
+			if kind == sItemLeftLoop {
+				if sParserProductionIsLeftEmpty[production] != 0 {
+					if p.llComplete(item[2]) != StatusOK {
+						return StatusErrStack
+					}
+				} else {
+					frameIndex := item[2]
+					p.llFrames[frameIndex].values[1] = p.llFrames[frameIndex].resultValue
+					if p.llExpand(production, frameIndex) != StatusOK {
+						p.setError(StatusErrStack, p.current.Line, p.current.Column, "分析栈已满")
+						return StatusErrStack
+					}
+				}
+				continue
+			}
+			if len(p.llFrames) >= sParserMaxStackDepth {
+				p.setError(StatusErrStack, p.current.Line, p.current.Column, "语义帧栈已满")
+				return StatusErrStack
+			}
+			frameIndex := int32(len(p.llFrames))
+			var frameZero {{ value_type }}
+			frame := &sLLFrame{
+				parentFrame: item[2],
+				parentValue: item[3],
+				values:      make([]{{ value_type }}, sParserValueSlots+1),
+				names:       make([]string, sParserValueSlots+1),
+				resultValue: frameZero,
+				discarded:   false,
+			}
+			if item[4] != sParserInvalidIndex {
+				frame.values[1] = p.llFrames[item[4]].resultValue
+			}
+			p.llFrames = append(p.llFrames, frame)
+			if p.llExpand(production, frameIndex) != StatusOK {
+				p.setError(StatusErrStack, p.current.Line, p.current.Column, "分析栈已满")
+				return StatusErrStack
+			}
+			continue
+		}
+		// Action / ActionKeep / Forward：先跑动作，再看要不要收尾
+		if kind == sItemForward {
+			p.llForward(item[2], item[3])
+		} else if p.llExecute(item[1], item[2]) != StatusOK {
+			return StatusErrSyntax
+		}
+		if kind != sItemActionKeep && p.llComplete(item[2]) != StatusOK {
+			return StatusErrStack
+		}
+	}
+	if p.current.Type != TOKEN_END {
+		p.setError(StatusErrSyntax, p.current.Line, p.current.Column, "输入尚未完全消费")
+		return StatusErrSyntax
+	}
+	p.resultValue = p.rootResult
+	return StatusOK
+}
+
+// runLLTreeLoop 语法树解析主循环（`%tree`）：只按预测表建树，不跑语义动作。
+func (p *Parser) runLLTreeLoop() int32 {
+	if !p.llPush(sItemNonterm, sParserStartID, sParserInvalidIndex, 0, sParserInvalidIndex) {
+		return StatusErrStack
+	}
+	for len(p.llStack) > 0 {
+		item := p.llPop()
+		kind := item[0]
+		if kind == sItemTerminal {
+			if p.current.Type != item[1] {
+				p.setExpectedOneError(item[1])
+				return StatusErrSyntax
+			}
+			if len(p.treePath) == 0 {
+				return StatusErrSyntax
+			}
+			leaf := sParserMakeLeaf(&p.current)
+			p.treePath[len(p.treePath)-1].AddChild(leaf)
+			if p.advanceWindow() != StatusOK {
+				return StatusErrLexer
+			}
+			continue
+		}
+		if kind == sItemNonterm {
+			column := p.llTableColumn()
+			var expected []int32
+			if int(item[1]) < sParserNontermCount {
+				expected = sParserExpected[item[1]]
+			}
+			if p.current.Type < 0 || int(p.current.Type) >= sParserTerminalCount ||
+				int(item[1]) >= sParserNontermCount || column < 0 {
+				p.setSyntaxError(item[1], expected)
+				return StatusErrSyntax
+			}
+			production := sParserLLTable[item[1]][column]
+			if production < 0 {
+				p.setSyntaxError(item[1], expected)
+				return StatusErrSyntax
+			}
+			if len(p.treePath) >= sParserMaxStackDepth {
+				p.setError(StatusErrStack, p.current.Line, p.current.Column, "语法树节点栈已满")
+				return StatusErrStack
+			}
+			p.treePath = append(p.treePath, NewTree(sParserTreeName(item[1]), ""))
+			if !p.llPush(sItemTreeEnd, 0, sParserInvalidIndex, 0, sParserInvalidIndex) {
+				p.setError(StatusErrStack, p.current.Line, p.current.Column, "分析栈已满")
+				return StatusErrStack
+			}
+			rhsStart := int(sParserTreeProdStart[production])
+			rhsLength := int(sParserTreeProdLength[production])
+			for index := rhsLength - 1; index >= 0; index-- {
+				symbol := sParserTreeProdSymbols[rhsStart+index]
+				terminal := int(symbol) < sParserTerminalCount
+				symbolID := symbol
+				if !terminal {
+					symbolID = symbol - int32(sParserTerminalCount)
+				}
+				pushKind := sItemNonterm
+				if terminal {
+					pushKind = sItemTerminal
+				}
+				if !p.llPush(pushKind, symbolID, sParserInvalidIndex, 0, sParserInvalidIndex) {
+					p.setError(StatusErrStack, p.current.Line, p.current.Column, "分析栈已满")
+					return StatusErrStack
+				}
+			}
+			continue
+		}
+		if kind == sItemTreeEnd {
+			if len(p.treePath) == 0 {
+				p.setError(StatusErrSyntax, p.current.Line, p.current.Column, "语法树闭合失败")
+				return StatusErrSyntax
+			}
+			node := p.treePath[len(p.treePath)-1]
+			p.treePath = p.treePath[:len(p.treePath)-1]
+			if len(p.treePath) > 0 {
+				p.treePath[len(p.treePath)-1].AddChild(node)
+			} else {
+				p.treeRoot = node
+			}
+			continue
+		}
+		p.setError(StatusErrSyntax, p.current.Line, p.current.Column, "语法树分析出现未知项目")
+		return StatusErrSyntax
+	}
+	if p.treeRoot == nil || len(p.treePath) != 0 || p.current.Type != TOKEN_END {
+		p.setError(StatusErrSyntax, p.current.Line, p.current.Column, "输入尚未完全消费")
+		return StatusErrSyntax
+	}
+	return StatusOK
+}

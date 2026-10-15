@@ -1,0 +1,8 @@
+    /**
+     * @brief 把一段文本切成 Token（词法模式：产物里只有词法器）。
+     * @param text 输入文本。
+     * @param out 输出 Token 列表（末尾含一个 TOKEN_END）；可为 nullptr。
+     * @return Status::Ok 表示没有词法错误（错误说明在 errors() 里）。
+     */
+    Status tokenize(std::string_view text, ParserMemory::Vector<Token> *out);
+

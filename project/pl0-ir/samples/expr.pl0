@@ -1,0 +1,6 @@
+var x, y;
+begin
+    x := 1 + 2 * 3;
+    y := (x - 1) / 2;
+    write y
+end.

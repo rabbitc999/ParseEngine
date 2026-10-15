@@ -1,0 +1,70 @@
+
+#ifndef PARSER_SKIP_DEMO_MAIN
+namespace ParserMemory = {{ ns }}::ParserMemory;
+
+/**
+ * @brief 从标准输入读一行（读到换行或 EOF 为止）。
+ * @return 读到的文本（不含行尾换行）。
+ */
+static ParserMemory::String parserDemoReadLine()
+{
+    ParserMemory::String line;
+    for (;;)
+    {
+        const int ch = std::fgetc(stdin);
+        if ((ch == EOF) || (ch == '\n'))
+        {
+            break;
+        }
+        line.push_back(static_cast<char>(ch));
+    }
+    if (!line.empty() && (line.back() == '\r'))
+    {
+        line.pop_back();
+    }
+    return line;
+}
+
+/**
+ * @brief 演示程序入口：读一行输入（到换行或 EOF）后开始解析。
+ * @return 0 表示解析成功，1 表示解析失败，2 表示读取标准输入失败。
+ */
+int main()
+{
+    using namespace {{ ns }};
+    const ParserMemory::String input = parserDemoReadLine();
+    if (std::ferror(stdin) != 0)
+    {
+        std::printf("读取标准输入失败，已退出。\n");
+        return 2;
+    }
+    std::printf("解析输入: %s\n", input.c_str());
+    Engine engine;
+    ParserValue_T result{};
+    const Status status = engine.runText(input, &result);
+    if (status != Status::Ok)
+    {
+        const Error *error = engine.lastError();
+        if (error != nullptr)
+        {
+            std::printf("解析失败: code=%d line=%u column=%u message=%s\n",
+                        error->code(), error->line(), error->column(),
+                        error->message().c_str());
+        }
+        else
+        {
+            std::printf("解析失败: %s\n", statusName(status));
+        }
+        return 1;
+    }
+    std::printf("解析成功\n");
+#ifdef PARSER_USER_DEMO_PRINT_VALUE
+    /* %code … %endcode 里定义了打印宏时把语义结果打出来；没定义就只报解析成功 */
+    std::printf("解析结果: ");
+    PARSER_USER_DEMO_PRINT_VALUE(&result);
+    std::printf("\n");
+#endif
+{{ demo_commits }}{{ demo_tree }}    return 0;
+}
+
+#endif /* PARSER_SKIP_DEMO_MAIN */

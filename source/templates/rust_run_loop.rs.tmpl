@@ -1,0 +1,8 @@
+{# 本模式的解析主循环入口（CodeGenRust 的 rustRunLoop）。
+   变量：target —— run_lr_loop / run_ll_loop。
+   本模板自带行尾换行。 #}
+    /// 本模式的解析主循环（`%tree` 时只建树）。
+    fn run_loop(&mut self, tree_mode: bool) -> i32
+    {
+        self.{{ target }}(tree_mode)
+    }

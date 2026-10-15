@@ -1,0 +1,8 @@
+    {
+        ParserMemory::UniquePtr<Tree> tree = engine.parseTree(input);
+        if (tree != nullptr)
+        {
+            std::printf("语法树:\n");
+            tree->print();
+        }
+    }

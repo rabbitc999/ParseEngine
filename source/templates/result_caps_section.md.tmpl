@@ -1,0 +1,28 @@
+{# 「容量宏 / 容量常量」小节：文法没写 %max_* 时整段不出现（靠 caps_present 为假）。
+   变量：caps_present（真假）、caps_const（真假：C++17 / Python 叫"常量"，C 叫"宏"）、
+         python / cpp17（真假，决定末尾那句的措辞）、
+         stack_name / stack_value / stack_source、errors_*、recovery_*（三行各三个值）。 #}
+{% if caps_present %}
+{% if caps_const %}
+## 容量常量
+{% else %}
+## 容量宏
+{% endif %}
+
+| {% if caps_const %}常量{% else %}宏{% endif %} | 值 | 来源 |
+| --- | --- | --- |
+| `{{ stack_name }}` | {{ stack_value }} | {{ stack_source }} |
+| `{{ errors_name }}` | {{ errors_value }} | {{ errors_source }} |
+| `{{ recovery_name }}` | {{ recovery_value }} | {{ recovery_source }} |
+
+{% if python %}
+产物里是解析器类的属性，改容量直接改这一处即可（也可以引用文法里的 `%max_*` 指令）。
+{% else %}
+{% if cpp17 %}
+产物里是 `inline constexpr` 常量，改容量直接改这一处即可（也可以引用文法里的 `%max_*` 指令）。
+{% else %}
+产物里都是 `#ifndef` 兜底，编译期 `-DPARSER_MAX_*` 仍然优先。
+{% endif %}
+{% endif %}
+
+{% endif %}

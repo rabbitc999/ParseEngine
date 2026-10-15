@@ -1,0 +1,14 @@
+{# 同步 Token / error 伪终结符 / 非终结符名表（CodeGenRust 的 rustMiscTables）。
+   变量：sync_tokens —— 一维整数表正文；has_error_token —— 真假；
+         error_token_id —— 整数；nonterm_names —— 带引号的名字数组。
+   本模板自带行尾换行。开头那个空行是原来拼接里就有的。 #}
+
+/// %sync 声明的同步 Token / error 伪终结符。
+static _SYNC_TOKENS: &[i32] = &[{{ sync_tokens }}];
+const _HAS_ERROR_TOKEN: bool = {{ has_error_token }};
+const _ERROR_TOKEN_ID: i32 = {{ error_token_id }};
+
+/// 非终结符名表（%tree 建内部分支节点用）。
+static _TREE_NONTERM_NAMES: &[&str] = &[
+{% for n in nonterm_names %}    {{ n }},
+{% endfor %}];

@@ -1,0 +1,8 @@
+; 重新定义示例：源在复制之后被再写一次，两个变量从此都活着，不能再合并。
+; 预期：a 与 b 分到不同寄存器，`mov A, B` 必须保留（合并掉的 mov：0）。
+label entry
+  mov a, 1
+  mov b, a        ; 此刻 a 后面还会被写，所以 b 不能和 a 同色
+  mov a, 2
+  add c, a, b
+  store [out], c

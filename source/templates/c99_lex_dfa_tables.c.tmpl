@@ -1,0 +1,142 @@
+{# C99 词法 DFA 的**表段**（`generatorLexDfaC` 的 outTables，紧跟关键字表之后）。
+   变量：
+     has_dfa         —— 没有 %token regex / %identifier / %commit 时整段不出现
+     has_regex / has_identifier / has_commits
+     class_count     —— 字符类个数
+     class_map       —— 字符类划分：数组，每项有 cells（16 个整数）
+     dfas            —— 编译出来的每个 DFA，字段见 LexDfaInfo：
+                        label / pattern / trans_name / accept_name /
+                        state_count / class_count / transitions / accept
+     regex_dfas      —— %token regex 的 DFA 描述（非标识符的那些）
+     regex_types / regex_orders —— Token 名 / 词法声明序
+     identifier_dfa  —— %identifier 的 DFA 描述
+     commit_dfas / commit_types / commit_skips / commit_orders / commit_slots
+   数字表全部用 {% for %} 生成（分隔符靠 loop_first / loop_last 选，引擎没有
+   `{% if not %}`）。空行位置是照着产物摆的，别随手加空行。 #}
+{% if has_dfa %}
+/* 字符类划分：共 {{ class_count }} 类，'\0' 之外的 256 个字节各归一类 */
+const uint8_t s_ParserLexClassMap[256] =
+{
+{% for row in class_map %}
+    {% for cell in row.cells %}{% if loop_first %}{% else %}, {% endif %}{{ cell }}u{% endfor %}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+const uint16_t s_ParserLexClassCount = {{ class_count }}u;
+
+{% for dfa in dfas %}
+/* {{ dfa.label }}：{{ dfa.pattern }}（{{ dfa.state_count }} 状态 × {{ dfa.class_count }} 字符类） */
+static const uint16_t {{ dfa.trans_name }}[{{ dfa.state_count }}][{{ dfa.class_count }}] =
+{
+{% for state in dfa.transitions %}
+    { {% for cls in state.cells %}{% if loop_first %}{% else %}, {% endif %}{{ cls }}u{% endfor %} }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+static const uint8_t {{ dfa.accept_name }}[{{ dfa.state_count }}] = { {% for flag in dfa.accept %}{% if loop_first %}{% else %}, {% endif %}{{ flag }}u{% endfor %} };
+
+{% endfor %}
+{% if has_regex %}
+/* %token regex 声明的 Token DFA：与固定字面量一起做最长匹配 */
+const ParserLexDfa_T s_ParserRegexDfas[PARSER_REGEX_COUNT] =
+{
+{% for d in regex_dfas %}
+    { &{{ d.trans_name }}[0][0], {{ d.accept_name }}, {{ d.state_count }}u, {{ d.start_state }}u, {{ d.trap_state }}u }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+const ParserTokenType_T s_ParserRegexTypes[PARSER_REGEX_COUNT] =
+{
+{% for token in regex_types %}
+    {{ token }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+const int32_t s_ParserRegexOrders[PARSER_REGEX_COUNT] =
+{
+{% for order in regex_orders %}
+    {{ order }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+
+{% endif %}
+{% if has_identifier %}
+/* %identifier 声明的标识符 DFA */
+static const ParserLexDfa_T s_ParserIdentifierDfa =
+    { &{{ identifier_dfa.trans_name }}[0][0], {{ identifier_dfa.accept_name }}, {{ identifier_dfa.state_count }}u, {{ identifier_dfa.start_state }}u, {{ identifier_dfa.trap_state }}u };
+
+{% endif %}
+/* %commit 声明的片段 DFA：与 %token 一起做最长匹配；
+ * 同长度时按声明序，先声明优先（skip 命中直接丢掉）。 */
+const ParserLexDfa_T s_ParserCommitDfas[{{ commit_slots }}] =
+{
+{% if has_commits %}
+{% for d in commit_dfas %}
+    { &{{ d.trans_name }}[0][0], {{ d.accept_name }}, {{ d.state_count }}u, {{ d.start_state }}u, {{ d.trap_state }}u }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}
+{% else %}
+    { NULL, NULL, 0u, 0u, 0u }
+{% endif %}
+};
+const char *const s_ParserCommitTypes[{{ commit_slots }}] =
+{
+{% if has_commits %}
+{% for type in commit_types %}
+    {{ type }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}
+{% else %}
+    NULL
+{% endif %}
+};
+const uint8_t s_ParserCommitSkips[{{ commit_slots }}] =
+{
+{% if has_commits %}
+{% for skip in commit_skips %}
+    {{ skip }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}
+{% else %}
+    0u
+{% endif %}
+};
+const int32_t s_ParserCommitOrders[{{ commit_slots }}] =
+{
+{% if has_commits %}
+{% for order in commit_orders %}
+    {{ order }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}
+{% else %}
+    0
+{% endif %}
+};
+
+/** @brief 用 DFA 做最长前缀匹配。 @param pDfa DFA。
+ *  @param pText 文本。 @retval 匹配到的字节数（0 表示不匹配）。 */
+uint32_t Parser_LexDfaMatch(const ParserLexDfa_T *pDfa, const char *pText)
+{
+    uint32_t length = 0u;
+    uint32_t best = 0u;
+    uint16_t state = 0u;
+    if ((pDfa == NULL) || (pText == NULL)) { return 0u; }
+    state = pDfa->startState;
+    while (pText[length] != '\0') {
+        uint8_t cls = s_ParserLexClassMap[(unsigned char)pText[length]];
+        state = pDfa->pTrans[(uint32_t)state * (uint32_t)s_ParserLexClassCount + cls];
+        if (state == pDfa->trapState) { break; }
+        length++;
+        if (pDfa->pAccept[state] != 0u) { best = length; }
+    }
+    return best;
+}
+
+{% if has_identifier %}
+/** @brief 取最长标识符前缀长度。 @param pText 文本。
+ *  @retval 长度（0 表示不是标识符开头）。 */
+uint32_t Parser_TokenIdentifierLength(const char *pText)
+{
+    if (pText == NULL) { return 0u; }
+    return Parser_LexDfaMatch(&s_ParserIdentifierDfa, pText);
+}
+
+/** @brief 整串是否是标识符。 @param pText 文本。
+ *  @retval 1 是标识符。 */
+uint8_t Parser_TokenIsIdentifier(const char *pText)
+{
+    uint32_t length = 0u;
+    if (pText == NULL) { return 0u; }
+    length = Parser_TokenIdentifierLength(pText);
+    return ((length > 0u) && (pText[length] == '\0')) ? 1u : 0u;
+}
+
+{% endif %}
+{% endif %}

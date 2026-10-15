@@ -1,0 +1,693 @@
+{{ custom_sync_predicate }}
+
+/** 
+ * @brief {{ lr_label }} 分析栈入栈（custom）。 
+ * @param pStack 分析栈。 
+ * @param state 新状态。 
+ * @param symbol 文法符号编号。 
+ * @param value 语义值。 
+ * @param pName 变量名。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_LRPush(ParserLRStack_T *pStack, uint16_t state,
+                             uint16_t symbol, ParserValue_T value,
+                             const char *pName)
+{
+    if (pStack->top >= PARSER_MAX_STACK_DEPTH) { return PARSER_ERR_STACK; }
+    pStack->states[pStack->top] = state;
+    pStack->symbols[pStack->top] = symbol;
+    pStack->values[pStack->top] = value;
+    if (pName != NULL) {
+        snprintf(pStack->names[pStack->top],
+                 sizeof(pStack->names[pStack->top]), "%s", pName);
+    } else {
+        pStack->names[pStack->top][0] = '\0';
+    }
+    pStack->top++;
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 错误恢复时弹掉栈顶一个槽位，并按 §5 清理它的语义值。 
+ *
+ * 语义值的内存归用户所有，所以只调可选的 PARSER_USER_DISCARD_VALUE 钩子；
+ * %tree 的树节点由运行时自己释放。 
+ * @param pStack 分析栈。 
+ * @retval 无。 
+ */
+PARSER_UNUSED static void Parser_LRDiscardTop(ParserLRStack_T *pStack)
+{
+    if (pStack->top == 0u) { return; }
+    pStack->top--;
+{% if has_destructors %}
+    Parser_DiscardSlot(&pStack->values[pStack->top],
+                       pStack->symbols[pStack->top]);
+{% else %}
+#ifdef PARSER_USER_DISCARD_VALUE
+    PARSER_USER_DISCARD_VALUE(&pStack->values[pStack->top]);
+#endif
+{% endif %}
+{% if tree %}    if (pStack->nodes[pStack->top] != NULL) {
+        Parser_TreeFree(pStack->nodes[pStack->top]);
+        pStack->nodes[pStack->top] = NULL;
+    }
+{% endif %}}
+
+{% if has_discard_stack %}
+/** 
+ * @brief 解析失败 / 放弃时清空整个分析栈：逐项走 Parser_LRDiscardTop。 
+ *
+ * %destructor、PARSER_USER_DISCARD_VALUE 钩子、%tree 的节点释放都在 
+ * Parser_LRDiscardTop 里，这里只负责把栈清空（成功解析时不清，起始符号的 
+ * 结果交还调用方）。 
+ * @param pStack 分析栈。 
+ * @retval 无。 
+ */
+PARSER_UNUSED static void Parser_LRDiscardStack(ParserLRStack_T *pStack)
+{
+    while (pStack->top > 0u) { Parser_LRDiscardTop(pStack); }
+}
+{% endif %}
+
+/** 
+ * @brief yyerrok：清除错误状态，后续语法错误照常上报。 
+ * @param pCtx 上下文。 
+ * @retval 无。 
+ */
+PARSER_UNUSED static void Parser_LrYyErrOk(ParserCtx_T *pCtx)
+{
+    pCtx->errorStatus = 0;
+}
+
+#if PARSER_LOOKAHEAD_K > 1
+/** 
+ * @brief LR(k) / LALR(k)：把 current 之后的 k-1 个 Token 预先取进窗口。 
+ *
+ * 窗口头始终是 pCtx->current，所以「不消耗 lookahead」的错误恢复、%sync 的
+ * 丢输入循环、yyclearin 都只需要挪动窗口。取到输入末尾之后 Parser_Advance
+ * 会给 TOKEN_END，正好就是 ACTION 表用 END 补齐的约定。 
+ * @param pCtx 上下文。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_FillLookaheadWindow(ParserCtx_T *pCtx)
+{
+    const ParserToken_T head = pCtx->current;
+    uint32_t index = 0u;
+    for (index = 0u; (index + 1u) < PARSER_LOOKAHEAD_K; index++) {
+        if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+        pCtx->lookahead[index] = pCtx->current;
+    }
+    pCtx->current = head;
+    return PARSER_OK;
+}
+
+/** 
+ * @brief LR(k) / LALR(k)：窗口左移一个 Token（current 前进，末尾补一个新 Token）。 
+ * @param pCtx 上下文。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_AdvanceWindow(ParserCtx_T *pCtx)
+{
+    ParserToken_T fresh;
+    uint32_t index = 0u;
+    if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    fresh = pCtx->current;
+    pCtx->current = pCtx->lookahead[0];
+    for (index = 0u; (index + 1u) < (PARSER_LOOKAHEAD_K - 1u); index++) {
+        pCtx->lookahead[index] = pCtx->lookahead[index + 1u];
+    }
+    pCtx->lookahead[PARSER_LOOKAHEAD_K - 2u] = fresh;
+    return PARSER_OK;
+}
+
+/** 
+ * @brief 把 k 个 Token 的窗口编成一个整数（低位是窗口头）。 
+ *
+ * Token 号小于终结符个数，所以按 {{ terminal_count }} 进制打包；k ≤ 3、
+ * 终结符个数 ≤ 几百时不会溢出 32 位。 
+ * @param pCtx 上下文。 
+ * @param headType 覆盖窗口头的 Token 号；负数表示用 current。 
+ * @retval 打包后的编码。 
+ */
+static uint64_t Parser_LookaheadCode(const ParserCtx_T *pCtx, int32_t headType)
+{
+    uint64_t code = (uint64_t)((headType >= 0) ? headType
+                                              : (int32_t)pCtx->current.type);
+    uint64_t scale = {{ terminal_count }}u;
+    uint32_t index = 0u;
+    for (index = 1u; index < PARSER_LOOKAHEAD_K; index++) {
+        code += (uint64_t)pCtx->lookahead[index - 1u].type * scale;
+        scale *= {{ terminal_count }}u;
+    }
+    return code;
+}
+
+/** 
+ * @brief 二分查找窗口对应的归约列。 
+ * @param code Parser_LookaheadCode 的结果。 
+ * @retval 列号；没有这一列返回 -1。 
+ */
+static int32_t Parser_FindLookaheadColumn(uint64_t code)
+{
+    int32_t low = 0;
+    int32_t high = (int32_t)PARSER_LOOKAHEAD_COLUMN_COUNT - 1;
+    while (low <= high) {
+        const int32_t mid = low + (high - low) / 2;
+        const int64_t midCode = s_ParserLookaheadCode[mid];
+        if ((uint64_t)midCode == code) {
+            return (int32_t)s_ParserLookaheadColumn[mid];
+        }
+        if ((uint64_t)midCode < code) { low = mid + 1; } else { high = mid - 1; }
+    }
+    return -1;
+}
+
+/** 
+ * @brief 两层查表：先按 k 元组展望符查归约列，再按窗口首个 Token 查移进。 
+ * @param pCtx 上下文。 
+ * @param state 当前状态。 
+ * @param headType 覆盖窗口头的 Token 号（错误恢复时传 PARSER_TOKEN_ERROR）；
+ *        负数表示用 current。 
+ * @retval ACTION 表项：0 出错、>0 移进、<0 归约、INT32_MAX 接受。 
+ */
+static int32_t Parser_LookupWindowAction(const ParserCtx_T *pCtx, uint16_t state,
+                                         int32_t headType)
+{
+    const int32_t head = (headType >= 0) ? headType
+                                         : (int32_t)pCtx->current.type;
+    const int32_t column = Parser_FindLookaheadColumn(
+        Parser_LookaheadCode(pCtx, headType));
+    if (column >= 0) {
+        const int32_t reduced = s_ParserReduce[state][column];
+        if (reduced != 0) { return reduced; }
+    }
+    return s_ParserAction[state][head];
+}
+#endif /* PARSER_LOOKAHEAD_K > 1 */
+
+/** 
+ * @brief yyclearin：丢弃当前 lookahead Token（下一个 Token 由主循环再取）。 
+ * @param pCtx 上下文。 
+ * @retval 无。 
+ */
+PARSER_UNUSED static void Parser_LrYyClearIn(ParserCtx_T *pCtx)
+{
+    if (pCtx->current.type != TOKEN_END)
+    {
+#if PARSER_LOOKAHEAD_K > 1
+        (void)Parser_AdvanceWindow(pCtx);
+#else
+        (void)Parser_Advance(pCtx);
+#endif
+    }
+}
+
+/** 
+ * @brief 由用户在 %code … %endcode 中提供的 Token 语义值转换钩子。
+ * @param pToken 当前 Token。 
+ * @retval 语义值；未定义 PARSER_USER_TOKEN_VALUE 时返回零值。 
+ */
+static ParserValue_T Parser_UserTokenValue(const ParserToken_T *pToken)
+{
+{% if has_union %}
+#ifdef PARSER_USER_TOKEN_VALUE
+    return PARSER_USER_TOKEN_VALUE(pToken);
+#else
+    /* %union：词法器已按 %token <成员> 把词素写进 value */
+    return pToken->value;
+#endif
+{% else %}
+#ifdef PARSER_USER_TOKEN_VALUE
+    return PARSER_USER_TOKEN_VALUE(pToken);
+#else
+    ParserValue_T zero;
+    (void)pToken;
+    PARSER_MEMSET(&zero, 0, sizeof(zero));
+    return zero;
+#endif
+{% endif %}
+}
+
+/** 
+ * @brief 移进：把当前 Token 的语义值压栈（custom）。 
+ * @param pCtx 上下文。 
+ * @param pStack 分析栈。 
+ * @param state 移进目标状态。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_LRShift(ParserCtx_T *pCtx, ParserLRStack_T *pStack,
+                              uint16_t state{% if tree %},
+                              uint8_t treeMode{% endif %})
+{
+    ParserValue_T value = Parser_UserTokenValue(&pCtx->current);
+    const char *pName = (pCtx->current.pName != NULL) ?
+                        pCtx->current.pName : pCtx->current.name;
+{% if tree %}    ParserTree_T *pLeaf = NULL;
+    if ((treeMode != 0u) &&
+        (Parser_TreeMakeLeaf(pCtx, &pLeaf) != PARSER_OK)) {
+        return PARSER_ERR_STACK;
+    }
+{% endif %}    if (Parser_LRPush(pStack, state, (uint16_t)pCtx->current.type,
+                         value, pName) != PARSER_OK) {
+{% if tree %}        Parser_TreeFree(pLeaf);
+{% endif %}        return PARSER_ERR_STACK;
+    }
+{% if tree %}    pStack->nodes[pStack->top - 1u] = pLeaf;
+{% endif %}    return PARSER_OK;
+}
+
+/** 
+ * @brief 归约：执行语义动作、弹出右部、按 GOTO 压回结果（custom）。 
+ * @param pCtx 上下文。 
+ * @param stack 分析栈（动作里的 $n 直接读它的槽位）。 
+ * @param production 产生式编号。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_LRReduce(ParserCtx_T *pCtx, ParserLRStack_T *stack,
+                               uint16_t production{% if tree %},
+                               uint8_t treeMode{% endif %})
+{
+    uint32_t length = s_ParserProductionLength[production];
+    uint16_t lhs = s_ParserProductionLhs[production];
+    uint32_t base = 0u;
+    uint16_t state = 0u;
+    ParseResult_T result;
+
+    if ((uint32_t)stack->top < length) { return PARSER_ERR_STACK; }
+    base = (uint32_t)stack->top - length;
+    (void)base;
+    PARSER_MEMSET(&result, 0, sizeof(result));
+{% if tree %}    ParserTree_T *pNode = NULL;
+{% endif %}{% if tree %}    if (treeMode != 0u) {
+        if (Parser_TreeMakeBranch(
+                stack, lhs, base, length, &pNode) != PARSER_OK) {
+            Parser_SetError(PARSER_ERR_STACK,
+                            pCtx->current.line,
+                            pCtx->current.column,
+                            "语法树创建失败");
+            return PARSER_ERR_STACK;
+        }
+    } else {
+        switch (production) {
+{% else %}    switch (production) {
+{% endif %}{{ lr_action_cases }}
+{% if tree %}        default: return PARSER_ERR_SYNTAX;
+        }
+    }
+{% else %}        default: return PARSER_ERR_SYNTAX;
+    }
+{% endif %}    stack->top = (uint16_t)base;
+    if (stack->top == 0u) {
+        Parser_SetError(PARSER_ERR_STACK, pCtx->current.line,
+                        pCtx->current.column, "{{ lr_name }} 归约后栈为空");
+{% if tree %}        Parser_TreeFree(pNode);
+{% endif %}        return PARSER_ERR_STACK;
+    }
+    state = s_ParserGoto[stack->states[stack->top - 1u]][lhs];
+    if (state == UINT16_MAX) {
+{% if tree %}        Parser_TreeFree(pNode);
+{% endif %}        Parser_SetError(PARSER_ERR_SYNTAX, pCtx->current.line,
+                        pCtx->current.column, "{{ lr_name }} GOTO 表没有匹配项");
+        return PARSER_ERR_SYNTAX;
+    }
+    /* 归约压回的符号用统一编号（非终结符 + 终结符个数），见 ParserLRStack_T */
+    if (Parser_LRPush(stack, state, (uint16_t)(lhs + {{ terminal_count }}u),
+                      result.value, NULL) != PARSER_OK) {
+{% if tree %}        Parser_TreeFree(pNode);
+{% endif %}        return PARSER_ERR_STACK;
+    }
+{% if tree %}    stack->nodes[stack->top - 1u] = pNode;
+{% endif %}    return PARSER_OK;
+}
+
+#ifdef PARSER_HAS_SYNC_TOKENS
+/** 
+ * @brief panic reduce：%sync 恢复时先把栈顶状态上待归约的项做掉。 
+ *
+ * 语法错误常常出现在「归约到一半」的构造里（例如 `1 + + 2` 卡在 
+ * `expr PLUS . term`），这时栈上没有任何状态能直接移进同步 Token；沿着 
+ * 归约链做掉待归约的项，才能回到语句边界那种能移进同步 Token 的状态。 
+ * 空产生式归约不会缩短栈，这里跳过它以免原地打转。 
+ * @param pCtx 上下文。 
+ * @param pStack 分析栈。 
+ * @param state 栈顶状态。 
+ * @retval PARSER_OK 表示做掉了一次归约；其它值表示这个状态没有可归约的项。 
+ */
+static int32_t Parser_LRPanicReduce(ParserCtx_T *pCtx, ParserLRStack_T *pStack,
+                                    uint16_t state
+                                    {% if tree %},
+                                uint8_t treeMode{% endif %})
+{
+#if PARSER_LOOKAHEAD_K > 1
+    /* LR(k)：归约动作在第二层（按 k 元组展望符建列）。这里跟 k = 1 一样
+     * 「只要这个状态有可归约的项就做掉」，所以扫全部列而不是只查当前窗口
+     * 那一列——错误发生时窗口恰恰可能不在任何展望符集合里（那正是 LR(k)
+     * 提前发现错误的方式），只查当前列会找不到任何可归约的项。 */
+    uint32_t column = 0u;
+    for (column = 0u; column < PARSER_LOOKAHEAD_COLUMN_COUNT; column++)
+    {
+        const int32_t action = s_ParserReduce[state][column];
+        uint16_t production = 0u;
+        if (action >= 0) { continue; }
+        production = (uint16_t)(-action - 1);
+        if (s_ParserProductionLength[production] == 0u)
+        {
+            /* 空产生式归约不缩短栈：跳过它接着找别的项，不要直接放弃 */
+            continue;
+        }
+        if ((uint32_t)pStack->top < s_ParserProductionLength[production])
+        {
+            return PARSER_ERR_SYNTAX;
+        }
+        return Parser_LRReduce(pCtx, pStack, production
+                               {% if tree %}, treeMode{% endif %});
+    }
+    return PARSER_ERR_SYNTAX;
+#else
+    uint32_t terminal = 0u;
+    for (terminal = 0u; terminal < {{ terminal_count }}u; terminal++)
+    {
+        const int32_t action = s_ParserAction[state][terminal];
+        uint16_t production = 0u;
+        if (action >= 0) { continue; }
+        production = (uint16_t)(-action - 1);
+        if (s_ParserProductionLength[production] == 0u)
+        {
+            /* 空产生式归约不缩短栈：跳过它接着找别的项，不要直接放弃 */
+            continue;
+        }
+        if ((uint32_t)pStack->top < s_ParserProductionLength[production])
+        {
+            return PARSER_ERR_SYNTAX;
+        }
+        return Parser_LRReduce(pCtx, pStack, production
+                               {% if tree %}, treeMode{% endif %});
+    }
+    return PARSER_ERR_SYNTAX;
+#endif
+}
+#endif
+
+/** 
+ * @brief 语法错误恢复：error 产生式优先，%sync 兜底。 
+ *
+ * 返回 PARSER_OK 表示已经找到一个恢复点（主循环继续），其它值表示无法恢复。 
+ * @param pCtx 上下文。 
+ * @param pStack 分析栈。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_LRRecover(ParserCtx_T *pCtx, ParserLRStack_T *pStack
+                                {% if tree %},
+                                uint8_t treeMode{% endif %})
+{
+{% if tree %}    (void)treeMode;{% endif %}
+
+    /* ① 已经在错误状态里：先丢掉当前 lookahead 再试，避免同一处连续刷屏 */
+    if (pCtx->errorStatus > 0)
+    {
+        while (pCtx->current.type != TOKEN_END)
+        {
+#if PARSER_LOOKAHEAD_K > 1
+            if (Parser_AdvanceWindow(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+#else
+            if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+#endif
+#if PARSER_LOOKAHEAD_K > 1
+            if (((uint32_t)pCtx->current.type < {{ terminal_count }}u) &&
+                (Parser_LookupWindowAction(
+                     pCtx, pStack->states[pStack->top - 1u], -1) != 0))
+#else
+            if (((uint32_t)pCtx->current.type < {{ terminal_count }}u) &&
+                (s_ParserAction[pStack->states[pStack->top - 1u]]
+                               [pCtx->current.type] != 0))
+#endif
+            {
+                pCtx->errorStatus = (int32_t)PARSER_ERROR_RECOVERY_TOKENS;
+                return PARSER_OK;
+            }
+        }
+        return PARSER_ERR_SYNTAX;
+    }
+    /* ② error 产生式：弹栈到能移进 error 的状态，把 error 当伪 Token 移进
+     *    （不消耗 lookahead，继续用同一个 Token 走主循环） */
+#ifdef PARSER_TOKEN_ERROR
+    while (pStack->top > 0u)
+    {
+        /* 只看移进层：这里要的是「能不能把 error 移进」，不看按 k 元组展望符
+         * 的归约列（k = 1 时移进与归约本来就在同一层，行为一致） */
+        const int32_t action =
+            s_ParserAction[pStack->states[pStack->top - 1u]][PARSER_TOKEN_ERROR];
+        if (action > 0)
+        {
+            ParserValue_T placeholder;
+            PARSER_MEMSET(&placeholder, 0, sizeof(placeholder));
+            if (Parser_LRPush(pStack, (uint16_t)(action - 1u),
+                              (uint16_t)PARSER_TOKEN_ERROR, placeholder,
+                              "error") != PARSER_OK)
+            {
+                return PARSER_ERR_STACK;
+            }
+            pCtx->errorStatus = (int32_t)PARSER_ERROR_RECOVERY_TOKENS;
+            return PARSER_OK;
+        }
+        Parser_LRDiscardTop(pStack);
+    }
+#endif
+#ifdef PARSER_HAS_SYNC_TOKENS
+    /* ③ %sync panic mode：弹栈到能移进某个同步 Token 的状态，再丢输入到它。
+     *    弹栈之前先做掉栈顶状态上待归约的项（panic reduce），否则「归约到
+     *    一半」的错误（例如 `1 + + 2`）找不到任何能移进同步 Token 的状态。*/
+    {
+        uint32_t reduceBudget = 256u;
+        while (pStack->top > 0u)
+        {
+            const uint16_t state = pStack->states[pStack->top - 1u];
+            if (Parser_LRCanShiftSyncToken(state) != 0u)
+            {
+                while ((pCtx->current.type != TOKEN_END) &&
+                       (Parser_IsSyncToken((uint16_t)pCtx->current.type) == 0u))
+                {
+#if PARSER_LOOKAHEAD_K > 1
+                    if (Parser_AdvanceWindow(pCtx) != PARSER_OK)
+#else
+                    if (Parser_Advance(pCtx) != PARSER_OK)
+#endif
+                    {
+                        return PARSER_ERR_LEXER;
+                    }
+                }
+                if (pCtx->current.type == TOKEN_END)
+                {
+                    return PARSER_ERR_SYNTAX;
+                }
+                {
+                    /* 同上：同步 Token 只走移进层（CanShift 判据也是它） */
+                    const int32_t action =
+                        s_ParserAction[state][pCtx->current.type];
+                    if (action > 0)
+                    {
+                        if (Parser_LRShift(
+                                pCtx, pStack,
+                                (uint16_t)(action - 1u)
+                                    {% if tree %}, treeMode{% endif %}) != PARSER_OK)
+                        {
+                            return PARSER_ERR_STACK;
+                        }
+#if PARSER_LOOKAHEAD_K > 1
+                        if (Parser_AdvanceWindow(pCtx) != PARSER_OK)
+#else
+                        if (Parser_Advance(pCtx) != PARSER_OK)
+#endif
+                        {
+                            return PARSER_ERR_LEXER;
+                        }
+                        pCtx->errorStatus =
+                            (int32_t)PARSER_ERROR_RECOVERY_TOKENS;
+                        return PARSER_OK;
+                    }
+                }
+            }
+            else if ((reduceBudget > 0u) &&
+                     (Parser_LRPanicReduce(pCtx, pStack, state
+                                           {% if tree %}, treeMode{% endif %}) == PARSER_OK))
+            {
+                reduceBudget--;
+#if PARSER_LOOKAHEAD_K > 1
+                /* LR(k) 的窗口比单 Token 更「挑」：错误常常正好卡在一个待归约
+                 * 的项上（窗口不在它的展望符集合里），做掉这个归约之后栈顶
+                 * 可能已经能正常走了——那就直接回主循环，别继续弹栈把恢复点
+                 * 也弹掉（k = 1 时保持原样）。 */
+                if (Parser_LookupWindowAction(
+                        pCtx, pStack->states[pStack->top - 1u], -1) != 0)
+                {
+                    pCtx->errorStatus = (int32_t)PARSER_ERROR_RECOVERY_TOKENS;
+                    return PARSER_OK;
+                }
+#endif
+                continue;
+            }
+            Parser_LRDiscardTop(pStack);
+        }
+    }
+#endif
+    return PARSER_ERR_SYNTAX;
+}
+
+/** 
+ * @brief {{ lr_label }} 主循环：移进 / 归约 / 接受（custom）。 
+ * @param pCtx 上下文。 
+ * @param pOut 输出语义结果。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_ParseLoopLR(ParserCtx_T *pCtx, ParserValue_T *pOut{% if tree %},
+                                     ParserTree_T **ppTree{% endif %})
+{
+    ParserLRStack_T stack;
+    ParserValue_T initialValue;
+{% if tree %}    uint8_t treeMode = 0u;
+{% endif %}    PARSER_MEMSET(&stack, 0, sizeof(stack));
+    PARSER_MEMSET(&initialValue, 0, sizeof(initialValue));
+{% if tree %}    if (ppTree != NULL) { *ppTree = NULL; treeMode = 1u; }
+{% endif %}    if (Parser_LRPush(&stack, 0u, PARSER_INVALID_INDEX, initialValue, NULL)
+        != PARSER_OK) {
+        return PARSER_ERR_STACK;
+    }
+    for (;;) {
+        uint16_t state = stack.states[stack.top - 1u];
+        int32_t action = 0;
+        if ((state >= {{ lr_state_count }}u) ||
+            ((uint32_t)pCtx->current.type >= {{ terminal_count }}u)) {
+            Parser_SetError(PARSER_ERR_SYNTAX, pCtx->current.line,
+                            pCtx->current.column, "{{ lr_name }} 状态或 Token 越界");
+{% if has_discard_stack %}
+            Parser_LRDiscardStack(&stack);
+{% endif %}
+            return PARSER_ERR_SYNTAX;
+        }
+#if PARSER_LOOKAHEAD_K > 1
+        /* 两层查表：先按 k 元组展望符查归约列，再按窗口头查移进 */
+        action = Parser_LookupWindowAction(pCtx, state, -1);
+#else
+        action = s_ParserAction[state][pCtx->current.type];
+#endif
+        if (action == INT32_MAX) {
+            *pOut = stack.values[stack.top - 1u];
+{% if tree %}            if (ppTree != NULL) {
+                *ppTree = stack.nodes[stack.top - 1u];
+                stack.nodes[stack.top - 1u] = NULL;
+            }
+{% endif %}            return PARSER_OK;
+        }
+        if (action > 0) {
+            if (Parser_LRShift(pCtx, &stack, (uint16_t)(action - 1){% if tree %}, treeMode{% endif %})
+                != PARSER_OK) {
+                Parser_SetError(PARSER_ERR_STACK, pCtx->current.line,
+                                pCtx->current.column, "{{ lr_name }} 分析栈已满");
+{% if has_discard_stack %}
+            Parser_LRDiscardStack(&stack);
+{% endif %}
+                return PARSER_ERR_STACK;
+            }
+#if PARSER_LOOKAHEAD_K > 1
+            if (Parser_AdvanceWindow(pCtx) != PARSER_OK) {
+#else
+            if (Parser_Advance(pCtx) != PARSER_OK) {
+#endif
+{% if has_discard_stack %}
+            Parser_LRDiscardStack(&stack);
+{% endif %}
+                return PARSER_ERR_LEXER;
+            }
+            /* 3 Token 规则：恢复过程中每成功移进一个真实 Token 就递减，
+             * 降到 0 就退出错误状态（下一个错误重新上报） */
+            if (pCtx->errorStatus > 0) { pCtx->errorStatus--; }
+        } else if (action < 0) {
+            if (Parser_LRReduce(pCtx, &stack, (uint16_t)(-action - 1){% if tree %}, treeMode{% endif %})
+                != PARSER_OK) {
+{% if has_discard_stack %}
+            Parser_LRDiscardStack(&stack);
+{% endif %}
+                return PARSER_ERR_SYNTAX;
+            }
+        } else {
+            /* 已经在错误状态里就不再上报（bison 的 3 Token 规则 / yyerrok 就是
+             * 用来控制「什么时候重新开始报错」的） */
+            if (pCtx->errorStatus == 0) {
+                /* 带上「期望哪些 Token / 实际是哪个 / 状态号 / 词素」 */
+                Parser_SetSyntaxError(pCtx, (uint32_t)state);
+                /* 错误太多就放弃恢复（错误表满了之后也没什么可报的了） */
+                if (Parser_GetErrorCount() >= (uint32_t)PARSER_MAX_ERRORS) {
+{% if has_discard_stack %}
+            Parser_LRDiscardStack(&stack);
+{% endif %}
+                    return PARSER_ERR_SYNTAX;
+                }
+            }
+            if (Parser_LRRecover(pCtx, &stack{% if tree %}, treeMode{% endif %}) != PARSER_OK) {
+{% if has_discard_stack %}
+            Parser_LRDiscardStack(&stack);
+{% endif %}
+                return PARSER_ERR_SYNTAX;
+            }
+            continue;
+        }
+    }
+}
+
+/** 
+ * @brief 解析 Token 数组（{{ lr_name }} / custom）。 
+ * @param pTokens Token 数组。 
+ * @param count 数量。 
+ * @param pResult 输出语义结果。 
+ * @retval 状态码。 
+ */
+int32_t Parser_Run(const ParserToken_T *pTokens, uint32_t count,
+                   ParserValue_T *pResult)
+{
+    ParserCtx_T *pContext = &s_ParserContext;
+    int32_t status = PARSER_OK;
+    if (pResult == NULL) { return PARSER_ERR_SYNTAX; }
+    PARSER_MEMSET(pContext, 0, sizeof(*pContext));
+    Parser_ClearErrors();
+    pContext->pTokens = pTokens;
+    pContext->tokenCount = count;
+    pContext->line = 1u;
+    pContext->column = 1u;
+    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+#if PARSER_LOOKAHEAD_K > 1
+    if (Parser_FillLookaheadWindow(pContext) != PARSER_OK)
+    {
+        return PARSER_ERR_LEXER;
+    }
+#endif
+    status = Parser_ParseLoopLR(pContext, pResult{% if tree %}, NULL{% endif %});
+    return status;
+}
+
+/** 
+ * @brief 解析脚本文本（{{ lr_name }} / custom）。 
+ * @param pText 输入文本。 
+ * @param pResult 输出语义结果。 
+ * @retval 状态码。 
+ */
+int32_t Parser_RunText(const char *pText, ParserValue_T *pResult)
+{
+    ParserCtx_T *pContext = &s_ParserContext;
+    int32_t status = PARSER_OK;
+    if ((pText == NULL) || (pResult == NULL)) { return PARSER_ERR_SYNTAX; }
+    PARSER_MEMSET(pContext, 0, sizeof(*pContext));
+    Parser_ClearErrors();
+    pContext->pText = pText;
+    pContext->textMode = 1u;
+    pContext->line = 1u;
+    pContext->column = 1u;
+    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+#if PARSER_LOOKAHEAD_K > 1
+    if (Parser_FillLookaheadWindow(pContext) != PARSER_OK)
+    {
+        return PARSER_ERR_LEXER;
+    }
+#endif
+    status = Parser_ParseLoopLR(pContext, pResult{% if tree %}, NULL{% endif %});
+    return status;
+}

@@ -1,0 +1,17 @@
+{% for t in tokens %}
+    public const int TOKEN_{{ t.name }} = {{ t.id }};
+{% endfor %}
+    public const int TOKEN_INVALID = {{ token_count }};
+
+    // Token 名称表：下标就是 Token 类型的值（末尾多一个 INVALID）。
+    public static readonly string[] TOKEN_NAMES = {
+{% for t in tokens %}
+        {{ t.quoted }},
+{% endfor %}
+        "INVALID",
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, string> TOKEN_ALIASES = new() {
+{% for a in aliases %}
+        [{{ a.key }}] = {{ a.value }},
+{% endfor %}
+    };

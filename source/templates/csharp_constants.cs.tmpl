@@ -1,0 +1,17 @@
+    // Token 个数（含 END）/ 非终结符个数 / 起始非终结符编号。
+    private const int _TERMINAL_COUNT = {{ terminal_count }};
+    private const int _NONTERM_COUNT = {{ nonterm_count }};
+    private const int _START_ID = {{ start_id }};
+    private const int _STATE_COUNT = {{ state_count }};
+    private const int _LOOKAHEAD_K = {{ lookahead_k }};
+    private const int _LOOKAHEAD_COLUMN_COUNT = {{ lookahead_column_count }};
+    private const int _MAX_PATH_DEPTH = 64;
+    private const int _MAX_PATH_VISITS = 200000;
+    // 每一行「期望的 Token」：语法错误时用来填 expected。
+    private static readonly int[][] _EXPECTED = {
+{% for r in expected_rows %}
+        new int[] {{ r }},
+{% endfor %}
+    };
+    // 期望集为空时的兜底说明（LL 说「产生式」、LR 说「动作」）。
+    private const string _EXPECTED_FALLBACK = {{ expected_fallback }};

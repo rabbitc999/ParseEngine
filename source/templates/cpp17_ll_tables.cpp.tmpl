@@ -1,0 +1,30 @@
+/* 预测分析表：单元里的产生式编号，-1 表示没有可用产生式。 */
+inline constexpr std::int16_t kLlTable[{{ nonterm_count }}][{{ column_count }}] =
+{
+{% for row in table_rows %}{% if loop_first %}{% else %},
+{% endif %}    { {% for c in row %}{{ c }}{% if loop_last %}{% else %}, {% endif %}{% endfor %} }{% endfor %}
+};
+/// LL(k)：预测分析表的列编码（升序）与对应的列号。
+inline constexpr std::int64_t kLookaheadCode[{{ lookahead_count }}] =
+{
+    {% for v in code_list %}{{ v }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+inline constexpr std::uint16_t kLookaheadColumn[{{ lookahead_count }}] =
+{
+    {% for v in column_list %}{{ v }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+{% if ll0 %}/// LL(0) 没有可用的 FOLLOW 信息（占位；恢复在 LL(0) 下不启用）。
+inline constexpr bool kLlFollow[1][1] = {% raw %}{{false}}{% endraw %};
+
+{% else %}/// FOLLOW 集：true 表示这个终结符在该非终结符的 FOLLOW 里（LL 的错误恢复用）。
+inline constexpr bool kLlFollow[{{ nonterm_count }}][{{ terminal_count }}] =
+{
+{% for row in follow_rows %}{% if loop_first %}{% else %},
+{% endif %}    { {% for c in row %}{{ c }}{% if loop_last %}{% else %}, {% endif %}{% endfor %} }{% endfor %}
+};
+
+{% endif %}inline constexpr std::uint8_t kProductionIsLeftEmpty[] =
+{
+    {% for v in left_empty %}{{ v }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+

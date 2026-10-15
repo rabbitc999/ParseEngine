@@ -1,0 +1,25 @@
+## 运行
+
+Python 产物不需要编译，也没有构建步骤：
+
+```sh
+python3 main.py                  # 演示程序从标准输入读一行（读到换行或 EOF）
+printf '%s\n' {{ example_shell }} | python3 main.py
+python3 main.py < 输入.txt
+```
+
+演示程序打印 `解析输入: ...`，成功时打印 `解析成功`；`result` 不是 `None`
+时再多打一行 `解析结果: <repr>`，`%tree` 文法改为打印整棵语法树。
+
+只当解析库用时 `import parser` 即可（`parser.py` 里词法器、分析驱动与公开
+API 都齐了）：
+
+```python
+import parser
+
+engine = parser.Parser()          # 类名由 %class / --class 指定；缺省 Parser
+if engine.run_text({{ example_code }}) == parser.STATUS_OK:
+    print(engine.result)          # 语义结果（$$）
+else:
+    print(engine.last_error)      # 失败原因
+```

@@ -1,0 +1,27 @@
+{# 「IELR(1) 状态拆分」小节：只有 %mode ielr 才出现（靠 is_ielr 为假时整段不出现）。
+   变量：is_ielr（真假）、lalr_state_count / ielr_state_count / lr1_state_count /
+         action_count / transition_count（整数），
+         ielr_splits（数组；元素是对象，字段 lalr_state（整数）、parts（整数数组）、
+         token、kind、reason）。空数组时改写"未发生拆分"那句。 #}
+{% if is_ielr %}
+## IELR(1) 状态拆分
+
+| 项目 | 值 |
+| --- | --- |
+| LALR 状态数（拆分前） | {{ lalr_state_count }} |
+| IELR 状态数（拆分后） | {{ ielr_state_count }} |
+| 规范 LR(1) 状态数 | {{ lr1_state_count }} |
+| ACTION 表项数 | {{ action_count }} |
+| GOTO 转移数 | {{ transition_count }} |
+
+{% if ielr_splits %}
+拆分记录：
+
+{% for split in ielr_splits %}- LALR 状态 I{{ split.lalr_state }} -> {% for part in split.parts %}I{{ part }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}：Token {{ split.token }} 上的{{ split.kind }}；{{ split.reason }}
+{% endfor %}
+
+{% else %}
+未发生拆分：该文法的 LALR 表已无未消解冲突，IELR 表与 LALR 等价。
+
+{% endif %}
+{% endif %}

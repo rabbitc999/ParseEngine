@@ -1,0 +1,63 @@
+/* ============================================================
+ * JSON 文法 · LL(1) + %tree · 规则 | 分支写法
+ *
+ * 只用 '|' 罗列候选，整条规则以 ';' 结束；本文件不写语义动作，
+ * 动作合法性由 %tree 提供（只做语法分析并生成 CST）。
+ *
+ * LL(1) 要求消除左递归并提取左公因子，所以数组 / 对象的可选部分
+ * 都写成“尾链 + %empty”的形式：
+ *   opt_members   := members | %empty;
+ *   more_members  := COMMA members | %empty;
+ *
+ * 试用输入：
+ *   {}
+ *   {"a": [1, 2, {"b": true}], "c": null}
+ *   [[], [1, 2, 3], "x"]
+ * ============================================================ */
+
+%mode ll1
+%tree
+%example "{\"a\": [1,2]}"
+%start json
+
+%define LBRACE   "{"
+%define RBRACE   "}"
+%define LBRACKET "["
+%define RBRACKET "]"
+%define COLON    ":"
+%define COMMA    ","
+%define TRUE     "true"
+%define FALSE    "false"
+%define NULL     "null"
+
+json := value;
+
+value := object
+       | array
+       | STRING
+       | NUMBER
+       | TRUE
+       | FALSE
+       | NULL;
+
+object := LBRACE opt_members RBRACE;
+
+opt_members := members
+             | %empty;
+
+members := pair more_members;
+
+more_members := COMMA members
+              | %empty;
+
+pair := STRING COLON value;
+
+array := LBRACKET opt_elements RBRACKET;
+
+opt_elements := elements
+              | %empty;
+
+elements := value more_elements;
+
+more_elements := COMMA elements
+               | %empty;

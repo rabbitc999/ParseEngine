@@ -1,0 +1,9 @@
+{% if has_space_chars %}
+        if (ch == '\0')
+        {
+            return false;
+        }
+        return std::strchr({{ space_chars }}, static_cast<int>(ch)) != nullptr;
+{% else %}
+        return std::isspace(ch) != 0;
+{% endif %}

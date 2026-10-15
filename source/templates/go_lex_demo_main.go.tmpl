@@ -1,0 +1,27 @@
+import (
+	"fmt"
+	"io"
+	"os"
+)
+
+// main 读标准输入到 EOF，逐个打印 Token 的类型与词素。
+func main() {
+	text, _ := io.ReadAll(os.Stdin)
+	lexer := NewParser()
+	status, tokens := lexer.Tokenize(string(text))
+	for _, item := range tokens {
+		fmt.Printf("%-12s %-12s %d:%d\n",
+			TokenName(item.Type), "\""+item.Text+"\"", item.Line, item.Column)
+	}
+	if status != StatusOK {
+		if last := lexer.LastError(); last != nil {
+			fmt.Printf("词法错误: code=%d line=%d column=%d message=%s\n",
+				last.Code, last.Line, last.Column, last.Message)
+		} else {
+			fmt.Println("词法错误: " + StatusName(status))
+		}
+		os.Exit(1)
+	}
+	fmt.Printf("共 %d 个 Token\n", len(tokens)-1)
+	os.Exit(0)
+}

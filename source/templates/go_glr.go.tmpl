@@ -1,0 +1,487 @@
+// ---------- GLR（图结构栈）分析驱动 ----------
+
+// SetAmbiguityResolver 注册歧义解决函数；传 nil 恢复默认策略
+// （保留全部被接受路径的结果）。
+func (p *Parser) SetAmbiguityResolver(resolver AmbiguityResolver) {
+	p.glrResolver = resolver
+}
+
+func (p *Parser) glrClearResults() {
+	p.glrResults = nil
+	p.glrTrees = nil
+}
+
+// glrClear 清掉上一次解析留下的图与结果。
+func (p *Parser) glrClear() {
+	p.glrClearResults()
+	p.glrNodes = nil
+	p.glrEdges = nil
+	for pos := 0; pos < 2; pos++ {
+		p.glrNodeIDs[pos] = nil
+		p.glrNodeOf[pos] = map[int32]int{}
+	}
+	p.glrWork = nil
+	p.glrQueued = nil
+	p.glrNames = nil
+	p.glrPathVisits = 0
+	for index := 0; index < len(p.glrPathEdges); index++ {
+		p.glrPathEdges[index] = 0
+	}
+}
+
+// glrNodeFor 在指定输入位置取（或新建）状态对应的节点。
+func (p *Parser) glrNodeFor(pos int, state int32) int32 {
+	if found, ok := p.glrNodeOf[pos][state]; ok {
+		return int32(found)
+	}
+	index := len(p.glrNodes)
+	if index >= int(sParserInvalidIndex) {
+		return sParserInvalidIndex
+	}
+	p.glrNodes = append(p.glrNodes, &sGLRNode{state: state})
+	p.glrQueued = append(p.glrQueued, false)
+	p.glrNodeOf[pos][state] = index
+	p.glrNodeIDs[pos] = append(p.glrNodeIDs[pos], index)
+	return int32(index)
+}
+
+func (p *Parser) glrTreeEqual(left *Tree, right *Tree) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return left.String() == right.String()
+}
+
+// glrEdgeExists 目标节点上是否已经有这条归约边（路径合并的判定）。
+func (p *Parser) glrEdgeExists(target int, fromNode int, symbol int32, production int32, nodeTree *Tree, compareTree bool) bool {
+	for _, edgeID := range p.glrNodes[target].edges {
+		edge := p.glrEdges[edgeID]
+		if edge.fromNode == fromNode && edge.symbol == symbol && edge.production == production && (!compareTree || p.glrTreeEqual(edge.nodeTree, nodeTree)) {
+			return true
+		}
+	}
+	return false
+}
+
+// glrAddEdge 往目标节点加一条边；相同 (fromNode, symbol, production) 不重复加。
+func (p *Parser) glrAddEdge(target int, fromNode int, symbol int32, production int32, nameSlot int32, value {{ value_type }}, nodeTree *Tree, mergeExisting bool, compareTree bool) int32 {
+	if mergeExisting && p.glrEdgeExists(target, fromNode, symbol, production, nodeTree, compareTree) {
+		return 0
+	}
+	if len(p.glrEdges) >= int(sParserInvalidIndex) {
+		return -1
+	}
+	p.glrEdges = append(p.glrEdges, &sGLREdge{
+		fromNode:   fromNode,
+		symbol:     symbol,
+		production: production,
+		nameSlot:   nameSlot,
+		value:      value,
+		nodeTree:   nodeTree,
+	})
+	edgeID := len(p.glrEdges) - 1
+	p.glrNodes[target].edges = append(p.glrNodes[target].edges, edgeID)
+	return 1
+}
+
+func (p *Parser) glrQueue(node int) {
+	if p.glrQueued[node] {
+		return
+	}
+	p.glrQueued[node] = true
+	p.glrWork = append(p.glrWork, node)
+}
+
+func (p *Parser) glrDequeue() int {
+	node := p.glrWork[0]
+	p.glrWork = p.glrWork[1:]
+	p.glrQueued[node] = false
+	return node
+}
+
+func (p *Parser) glrStoreName(name string) int32 {
+	if name == "" || len(p.glrNames) >= int(sParserInvalidIndex) {
+		return sParserInvalidIndex
+	}
+	p.glrNames = append(p.glrNames, name)
+	return int32(len(p.glrNames) - 1)
+}
+
+// glrRecordResult 记录一条被接受的路径（有歧义解决函数时按它取舍）。
+func (p *Parser) glrRecordResult(value {{ value_type }}, nodeTree *Tree) {
+	if p.glrResolver != nil {
+		if len(p.glrResults) > 0 {
+			if !p.glrResolver(p.glrResults[0], value) {
+				return
+			}
+			p.glrClearResults()
+		}
+	}
+	p.glrResults = append(p.glrResults, value)
+	if nodeTree != nil {
+		p.glrTrees = append(p.glrTrees, nodeTree.Clone())
+	} else {
+		p.glrTrees = append(p.glrTrees, nil)
+	}
+}
+
+// glrReduceApply 用一条路径上的语义值执行一次归约，并按 GOTO 建一条边。
+func (p *Parser) glrReduceApply(pos int, startNode int, production int32, treeMode bool) int32 {
+	length := int(sParserProductionLength[production])
+	lhs := sParserProductionLHS[production]
+	target := sParserGoto[p.glrNodes[startNode].state][lhs]
+	if target == sParserInvalidState {
+		return StatusOK
+	}
+	node := p.glrNodeFor(pos, target)
+	if node == sParserInvalidIndex {
+		return StatusErrStack
+	}
+	symbol := sParserTerminalCount + lhs
+	if !treeMode && p.glrEdgeExists(int(node), startNode, symbol, production, nil, false) {
+		return StatusOK
+	}
+	var nodeTree *Tree
+	var zero {{ value_type }}
+	resultValue := zero
+	if treeMode {
+		branch := NewTree(sParserTreeName(lhs), "")
+		for index := 0; index < length; index++ {
+			edge := p.glrEdges[p.glrPathEdges[index]]
+			if edge.nodeTree != nil {
+				branch.AddChild(edge.nodeTree.Clone())
+			}
+		}
+		nodeTree = branch
+	} else {
+		for index := 0; index < length; index++ {
+			p.actionValues[index] = p.glrEdges[p.glrPathEdges[index]].value
+		}
+		result := &sHolder{}
+		if p.applyAction(production, p.actionValues[:length], result) != StatusOK {
+			return StatusErrSyntax
+		}
+		resultValue = result.value
+	}
+	added := p.glrAddEdge(int(node), startNode, symbol, production, sParserInvalidIndex, resultValue, nodeTree, true, treeMode)
+	if added < 0 {
+		return StatusErrStack
+	}
+	if added > 0 {
+		p.glrQueue(int(node))
+	}
+	return StatusOK
+}
+
+// glrReduceWalk 深度优先枚举长度为 length 的归约路径。
+func (p *Parser) glrReduceWalk(pos int, node int, depth int, length int, production int32, treeMode bool) int32 {
+	if depth == length {
+		return p.glrReduceApply(pos, node, production, treeMode)
+	}
+	p.glrPathVisits++
+	if p.glrPathVisits > sParserMaxPathVisits {
+		return StatusErrStack
+	}
+	if (length - 1 - depth) >= sParserMaxPathDepth {
+		return StatusErrStack
+	}
+	edgeCount := len(p.glrNodes[node].edges)
+	for offset := 0; offset < edgeCount; offset++ {
+		edgeID := p.glrNodes[node].edges[edgeCount-1-offset]
+		p.glrPathEdges[length-1-depth] = edgeID
+		status := p.glrReduceWalk(pos, p.glrEdges[edgeID].fromNode, depth+1, length, production, treeMode)
+		if status != StatusOK {
+			return status
+		}
+	}
+	return StatusOK
+}
+
+// glrApplyAction 在一个节点上执行一个候选动作（只处理归约）。
+func (p *Parser) glrApplyAction(pos int, node int, action int32, treeMode bool) int32 {
+	if action >= 0 {
+		return StatusOK
+	}
+	production := -action - 1
+	length := int(sParserProductionLength[production])
+	if length > sParserMaxPathDepth {
+		return StatusErrStack
+	}
+	return p.glrReduceWalk(pos, node, 0, length, production, treeMode)
+}
+
+// glrReduceNode 执行一个节点在当前 Token 上的全部归约动作（主动作 + 冲突候选）。
+func (p *Parser) glrReduceNode(pos int, node int, tokenKind int32, treeMode bool) int32 {
+	state := p.glrNodes[node].state
+	if state >= sParserStateCount || tokenKind >= sParserTerminalCount {
+		return StatusErrSyntax
+	}
+	status := p.glrApplyAction(pos, node, sParserAction[state][tokenKind], treeMode)
+	if status != StatusOK {
+		return status
+	}
+	count := sParserGlrExtraCount[state][tokenKind]
+	if count == 0 {
+		return StatusOK
+	}
+	start := int(sParserGlrExtraStart[state][tokenKind])
+	for index := 0; index < int(count); index++ {
+		status = p.glrApplyAction(pos, node, sParserGlrExtraData[start+index], treeMode)
+		if status != StatusOK {
+			return status
+		}
+	}
+	return StatusOK
+}
+
+// glrShiftRound 把本轮所有活跃节点在 Token 上移进，生成下一轮节点。
+func (p *Parser) glrShiftRound(cur int, nxt int, tokenKind int32, treeMode bool) int32 {
+	nodeIDs := make([]int, len(p.glrNodeIDs[cur]))
+	copy(nodeIDs, p.glrNodeIDs[cur])
+	for _, node := range nodeIDs {
+		state := p.glrNodes[node].state
+		if state >= sParserStateCount {
+			continue
+		}
+		count := sParserGlrExtraCount[state][tokenKind]
+		for slot := 0; slot <= int(count); slot++ {
+			var action int32
+			if slot == 0 {
+				action = sParserAction[state][tokenKind]
+			} else {
+				action = sParserGlrExtraData[int(sParserGlrExtraStart[state][tokenKind])+slot-1]
+			}
+			if action <= 0 {
+				continue
+			}
+			target := action - 1
+			value := p.current.Value
+			nameSlot := p.glrStoreName(p.current.Text)
+			var leaf *Tree
+			if treeMode {
+				leaf = sParserMakeLeaf(&p.current)
+			}
+			created := p.glrNodeFor(nxt, target)
+			if created == sParserInvalidIndex {
+				return StatusErrStack
+			}
+			if p.glrAddEdge(int(created), node, tokenKind, sParserInvalidIndex, nameSlot, value, leaf, true, false) < 0 {
+				return StatusErrStack
+			}
+		}
+	}
+	return StatusOK
+}
+
+// glrAcceptNode 在指定节点上检查接受动作，收集所有被接受路径的结果。
+func (p *Parser) glrAcceptNode(node int) int32 {
+	state := p.glrNodes[node].state
+	if state >= sParserStateCount {
+		return StatusOK
+	}
+	if sParserAction[state][TOKEN_END] != sParserAcceptAction {
+		return StatusOK
+	}
+	edgeCount := len(p.glrNodes[node].edges)
+	for offset := 0; offset < edgeCount; offset++ {
+		edge := p.glrEdges[p.glrNodes[node].edges[edgeCount-1-offset]]
+		if edge.symbol != sParserGlrStartSymbol {
+			continue
+		}
+		p.glrRecordResult(edge.value, edge.nodeTree)
+	}
+	return StatusOK
+}
+
+// glrExpectedTokens 拼一句「这个位置期望哪些 Token」的说明（最多列 4 个）。
+func (p *Parser) glrExpectedTokens(pos int) string {
+	var listed []string
+	for _, node := range p.glrNodeIDs[pos] {
+		if len(listed) >= 4 {
+			break
+		}
+		state := p.glrNodes[node].state
+		if state >= sParserStateCount {
+			continue
+		}
+		for kind := int32(0); kind < sParserTerminalCount; kind++ {
+			if len(listed) >= 4 {
+				break
+			}
+			if sParserAction[state][kind] == 0 {
+				continue
+			}
+			name := TokenName(kind)
+			found := false
+			for _, item := range listed {
+				if item == name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				listed = append(listed, name)
+			}
+		}
+	}
+	if len(listed) == 0 {
+		return "（未知）"
+	}
+	return strings.Join(listed, " / ")
+}
+
+// runGLRLoop GLR 主循环：按输入位置逐轮并行推进所有可能路径。
+func (p *Parser) runGLRLoop(treeMode bool) int32 {
+{% if chart %}	chartStatus := p.chartPrecheck()
+	if chartStatus != StatusOK {
+		return chartStatus
+	}
+{% endif %}	cur := 0
+	nxt := 1
+	deleted := 0
+	recovering := false
+	p.glrClear()
+	startNode := p.glrNodeFor(cur, 0)
+	if startNode == sParserInvalidIndex {
+		p.setError(StatusErrStack, p.current.Line, p.current.Column, "GSS 图容量不足")
+		return StatusErrStack
+	}
+	p.glrQueue(int(startNode))
+	for {
+		tokenKind := p.current.Type
+		for len(p.glrWork) > 0 {
+			node := p.glrDequeue()
+			status := p.glrReduceNode(cur, node, tokenKind, treeMode)
+			if status != StatusOK {
+				p.setError(status, p.current.Line, p.current.Column, "GLR 归约失败")
+				p.glrClearResults()
+				return status
+			}
+		}
+		if p.current.Type == TOKEN_END {
+			nodeIDs := make([]int, len(p.glrNodeIDs[cur]))
+			copy(nodeIDs, p.glrNodeIDs[cur])
+			for _, node := range nodeIDs {
+				status := p.glrAcceptNode(node)
+				if status != StatusOK {
+					p.setError(status, p.current.Line, p.current.Column, "GLR 接受阶段失败")
+					p.glrClearResults()
+					return status
+				}
+			}
+			break
+		}
+		p.glrNodeIDs[nxt] = nil
+		p.glrNodeOf[nxt] = map[int32]int{}
+		status := p.glrShiftRound(cur, nxt, tokenKind, treeMode)
+		if status != StatusOK {
+			p.setError(status, p.current.Line, p.current.Column, "GLR 移进失败")
+			p.glrClearResults()
+			return status
+		}
+		if len(p.glrNodeIDs[nxt]) == 0 {
+			if !recovering {
+				message := fmt.Sprintf("语法错误：遇到 %s，%d 条活跃路径都没有匹配动作（期望 %s）",
+					TokenName(p.current.Type), len(p.glrNodeIDs[cur]), p.glrExpectedTokens(cur))
+				p.setError(StatusErrSyntax, p.current.Line, p.current.Column, message)
+				if len(p.errors) >= sParserMaxErrors {
+					p.glrClearResults()
+					return StatusErrSyntax
+				}
+				recovering = true
+				deleted = 0
+			}
+			if p.current.Type == TOKEN_END {
+				p.glrClearResults()
+				return StatusErrSyntax
+			}
+			if len(sParserSyncTokens) > 0 && sParserIsSyncToken(p.current.Type) {
+				if p.advance() != StatusOK {
+					p.glrClearResults()
+					return StatusErrLexer
+				}
+				recovering = false
+				deleted = 0
+			} else {
+				if p.advance() != StatusOK {
+					p.glrClearResults()
+					return StatusErrLexer
+				}
+				deleted++
+				if deleted > sParserGlrMaxRecoveryDeletes {
+					p.glrClearResults()
+					return StatusErrSyntax
+				}
+			}
+			nodeIDs := make([]int, len(p.glrNodeIDs[cur]))
+			copy(nodeIDs, p.glrNodeIDs[cur])
+			for _, node := range nodeIDs {
+				p.glrQueue(node)
+			}
+			continue
+		}
+		cur, nxt = nxt, cur
+		recovering = false
+		deleted = 0
+		nodeIDs := make([]int, len(p.glrNodeIDs[cur]))
+		copy(nodeIDs, p.glrNodeIDs[cur])
+		for _, node := range nodeIDs {
+			p.glrQueue(node)
+		}
+		if p.advance() != StatusOK {
+			p.glrClearResults()
+			return StatusErrLexer
+		}
+	}
+	if len(p.glrResults) == 0 {
+		p.setError(StatusErrSyntax, p.current.Line, p.current.Column, "没有可接受的解析路径")
+		return StatusErrSyntax
+	}
+	// 把第 0 个结果写进公开字段（与 LR / LL 的收尾一致）。
+	if len(p.glrResults) > 0 {
+		p.resultValue = p.glrResults[0]
+		if treeMode && len(p.glrTrees) > 0 && p.glrTrees[0] != nil {
+			p.treeRoot = p.glrTrees[0].Clone()
+		}
+	}
+	return StatusOK
+}
+
+// RunGLR GLR 解析（文本入口）：按输入位置并行推进所有候选路径。
+func (p *Parser) RunGLR(text string) int32 {
+	if p.prepareText(text) != StatusOK {
+		return StatusErrLexer
+	}
+	return p.runGLRLoop(false)
+}
+
+// RunGLRTree GLR 解析并构建语法树（`%tree` 文法）。
+func (p *Parser) RunGLRTree(text string) int32 {
+	if p.prepareText(text) != StatusOK {
+		return StatusErrLexer
+	}
+	return p.runGLRLoop(true)
+}
+
+// GLRResultCount 本次 GLR 解析保留的结果个数。
+func (p *Parser) GLRResultCount() int {
+	return len(p.glrResults)
+}
+
+// GLRResult 取第 index 个结果；越界时第二个返回值为 false。
+func (p *Parser) GLRResult(index int) ({{ value_type }}, bool) {
+	if index < 0 || index >= len(p.glrResults) {
+		var zero {{ value_type }}
+		return zero, false
+	}
+	return p.glrResults[index], true
+}
+
+// GLRTree 取第 index 棵语法树；越界返回 nil。
+func (p *Parser) GLRTree(index int) *Tree {
+	if index < 0 || index >= len(p.glrTrees) {
+		return nil
+	}
+	return p.glrTrees[index]
+}
+

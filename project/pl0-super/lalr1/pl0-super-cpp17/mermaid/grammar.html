@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>文法自动机（IELR(1) 状态机） · ParseEngine 状态机图示</title>
+<style>
+body{font-family:-apple-system,'Segoe UI','Noto Sans CJK SC',sans-serif;margin:0 auto;max-width:1100px;padding:24px 24px 64px;color:#1f2937;background:#f8fafc;line-height:1.7;}h1{font-size:22px;margin:0 0 8px;}h2{font-size:18px;margin:32px 0 4px;}p.note{color:#475569;margin:4px 0;}p.tip{color:#0f172a;background:#e0f2fe;border-left:4px solid #0284c7;padding:8px 12px;border-radius:4px;}ul.links{list-style:none;padding:0;}ul.links li{margin:4px 0;}div.mermaid{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:8px 0;overflow-x:auto;}pre{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.5;}code{background:#eef2f7;padding:1px 4px;border-radius:3px;}table{border-collapse:collapse;margin:8px 0;font-size:14px;}th,td{border:1px solid #d7dee8;padding:3px 10px;text-align:left;}th{background:#eef2f7;}ul.legend{list-style:none;padding:0;}ul.legend li{margin:2px 0;}.sw{display:inline-block;width:12px;height:12px;margin-right:6px;border-radius:3px;border:1px solid #94a3b8;vertical-align:-1px;}.sw.shiftState{background:#dbeafe;}.sw.reduceState{background:#fef3c7;}.sw.acceptState{background:#dcfce7;}.sw.conflictState{background:#fee2e2;}.sw.plainState{background:#f1f5f9;}
+</style>
+</head>
+<body>
+<h1>文法自动机（IELR(1) 状态机）</h1>
+<p class="tip">页面用浏览器打开即可看图（图的渲染走 CDN 上的 Mermaid，首次打开需要联网）；图下面折叠的是 Mermaid 源码，同目录的 <code>.mmd</code> 里也有，可以贴到 Markdown 或 mermaid.live 里。</p>
+<p class="note">本图共 163 个状态、829 条转移。节点是 IELR(1) 自动机的状态（框里逐项列出 LR 项集，`lalr` / `lr1` / `ielr` 按教材写法把展望符一起写出来），边是 GOTO 转移：<code>开始</code> 指向初态 I0，终结符上标注的是移进、非终结符上另外标 <code>GOTO</code>；状态跑到 <code>接受</code> 说明该状态里有 <code>S' -&gt; S .</code>。每个状态框最后一行“动作：…”就是 ACTION 表里能填出的动作，和颜色一一对应：</p>
+<ul class="legend">
+<li><span class="sw shiftState"></span>蓝：有移进动作</li>
+<li><span class="sw reduceState"></span>黄：有归约动作（含完整项）</li>
+<li><span class="sw acceptState"></span>绿：接受状态</li>
+<li><span class="sw conflictState"></span>红：有未消解冲突（表项按移进优先写，冲突清单见分析报告的 <code>[未消解冲突]</code>）</li>
+<li><span class="sw plainState"></span>灰：只有 GOTO 转移</li>
+</ul><p class="note">注：虚拟起始符号 <code>__ielr_start</code> 就是教材里的 S'（增广文法新增的那条 <code>__ielr_start -&gt; ielr_start</code>）。</p>
+<div class="mermaid">
+flowchart LR
+    TOOBIG(["文法自动机（IELR#40;1#41; 状态机）：图太大，已省略"])
+    NOTE["163 个状态、829 条边，超过绘图上限（150 状态 / 400 条边 / 120000 字节），完整内容看分析报告与 --dump-lr-automaton 的输出。"]
+    TOOBIG --> NOTE
+</div>
+<details><summary>Mermaid 源码</summary>
+<pre>flowchart LR
+    TOOBIG([&quot;文法自动机（IELR#40;1#41; 状态机）：图太大，已省略&quot;])
+    NOTE[&quot;163 个状态、829 条边，超过绘图上限（150 状态 / 400 条边 / 120000 字节），完整内容看分析报告与 --dump-lr-automaton 的输出。&quot;]
+    TOOBIG --&gt; NOTE
+</pre>
+</details>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, theme: "neutral", maxEdges: 2000, maxTextSize: 2000000, flowchart: { htmlLabels: true, curve: "linear" } });
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+    // 预测分析表：单元里的产生式编号，-1 表示没有可用产生式。
+    private static readonly int[][] _LL_TABLE = {{ ll_table }};
+{% if has_lookahead %}
+    // LL(k)：分析表的列编码（升序）与对应的列号。
+    private static readonly long[] _LOOKAHEAD_CODE = {{ lookahead_code }};
+    private static readonly int[] _LOOKAHEAD_COLUMN = {{ lookahead_column }};
+{% else %}
+    private static readonly long[] _LOOKAHEAD_CODE = new long[0];
+    private static readonly int[] _LOOKAHEAD_COLUMN = new int[0];
+{% endif %}
+    private static readonly int[] _PRODUCTION_IS_LEFT_EMPTY = {{ production_is_left_empty }};
+{% if has_follow %}
+    // FOLLOW 集：错误恢复用。
+    private static readonly int[][] _LL_FOLLOW = {{ ll_follow }};
+{% else %}
+    // LL(0) 没有可用的 FOLLOW 信息（恢复在 LL(0) 下不启用）。
+    private static readonly int[][] _LL_FOLLOW = new int[0][];
+{% endif %}

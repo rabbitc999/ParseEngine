@@ -1,0 +1,17 @@
+{ 简化演示：常量折叠 / 代数化简 / 死分支三条都会踩到 }
+{ 期望: 46 }
+program simplify_demo;
+  const N := 3;
+  var x: int;
+  var y: int;
+begin
+  x := 2 + 3 * 4;                        { 折叠：3*4=12、2+12=14 }
+  x := x + 0;                            { 代数：x+0 → x }
+  x := x * 1;                            { 代数：x*1 → x }
+  y := 0;
+  if 1 = 1 then begin x := x + N * N end else begin x := 0 end;   { 折叠成真 → else 删掉 }
+  if 0 = 1 then begin y := 99 end;                                { 折叠成假 → then 删掉 }
+  while 0 = 1 do begin y := 1 end;                                { 折叠成假 → 整块删掉 }
+  x := x * 2;                            { (14+9)*2 = 46 }
+  write(x + y)
+end.

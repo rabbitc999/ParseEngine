@@ -1,0 +1,2 @@
+# 生成 / 编译产物（随时可重建：make grammar 出前端，make 出可执行）
+build/

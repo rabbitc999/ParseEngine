@@ -1,0 +1,7 @@
+/// Token 名称表：下标就是 TokenType 的值。
+inline constexpr const char *const kTokenNames[][2] =
+{
+{% for n in names %}{% if loop_first %}{% else %},
+{% endif %}    {% raw %}{{% endraw %}{{ n.name }}, {{ n.alias }}{% raw %}}{% endraw %}{% endfor %}
+};
+

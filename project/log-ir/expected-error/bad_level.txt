@@ -1,0 +1,1 @@
+第 1 行第 21 列：语法错误：期望 INFO / WARN / ERROR / DEBUG 之一，实际是 VARIABLE

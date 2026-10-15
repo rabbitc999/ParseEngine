@@ -1,0 +1,25 @@
+/* 故意写错的文法：用来看 lsp-server 的诊断、并验证快速修复。
+ * 预期诊断：
+ *   unknown-value      未知的生成模式 nope
+ *   unknown-directive  不认识的指令 %frobnicate
+ *   implicit-token     Token MISSING 没显式声明（按隐式 Token 处理，提示级）
+ *   undefined-symbol   未声明的非终结符 helper
+ *   unknown-sync       %sync 的 NOSUCH 不是已声明的 Token
+ *   unused-token       声明了没用的 Token UNUSED
+ */
+
+%mode nope
+%value_type double
+%frobnicate 1
+
+%define NUMBER "[0-9]+"
+%define PLUS "+"
+%token UNUSED
+%sync NOSUCH
+%start expr
+
+expr := expr PLUS term { $$ = $1 + $3; }
+      | term { $$ = $1; };
+
+term := term PLUS MISSING { $$ = $1; }
+      | helper { $$ = $1; };

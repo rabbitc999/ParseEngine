@@ -1,0 +1,87 @@
+/* ============================================================
+ * 条件编译示例（%if / %elif / %else / %endif，`%mode lalr`）
+ *
+ * 条件只来自命令行：--define NAME[=VALUE]，不传的变量一律为假。
+ *   --define LOG          调试版：多声明一个 `!` 后缀 Token + 每次读数字打一行日志
+ *   --define TRACE        打开 trace：`%if TRACE && !QUIET` 再打一行
+ *   --define QUIET=1      压掉 trace（演示 ! 与 && 的组合）
+ *
+ * 上面两个开关用 `%if LOG || TRACE` 组合：任一打开都会多声明 BANG Token。
+ *
+ * 试用输入（从标准输入喂进去）：
+ *   1+2*3    -> 7      （默认文法）
+ *   1+2!     -> 3      （要 --define LOG 或 --define TRACE，否则 `!` 不是 Token）
+ *
+ * 注意 %code ... %endcode 本身对 %if 是不透明的（里面的 %if 当普通 C 代码），
+ * 所以要按条件注入用户代码得把整块 %code 包在 %if 里。
+ *
+ * 另外：语义动作里目前不能写 C 注释（动作是按表达式语法翻译的），
+ * 所以下面动作里的说明都留在动作外面。
+ * ============================================================ */
+
+%mode lalr
+%value_type double
+
+%define PLUS   "+"
+%define STAR   "*"
+%define LPAREN "("
+%define RPAREN ")"
+
+/* %if 包住 %token 声明：调试版才多出一个 `!` 后缀 Token */
+%if LOG || TRACE
+%define BANG "!"
+%endif
+
+%code
+#include <stdio.h>
+
+/* 数字 Token 的语义值取自词法器解析好的 pToken->value */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+
+/* 演示程序（main.c）打印解析结果 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%g", *(pValue))
+
+/* 放在 %code 里、动作里调用的辅助函数必须是 static inline：
+ * 这个头会被 parser.c / parser_token.c 一起包含。 */
+static inline void IfDemoLog(double value)
+{
+    fprintf(stderr, "[if_demo] number = %g\n", value);
+}
+%endcode
+
+/* %if 包住整块用户代码：只有打开 TRACE 时才有这个函数定义 */
+%if TRACE
+%code
+#include <stdio.h>
+
+static inline void IfDemoTrace(double value)
+{
+    fprintf(stderr, "[if_demo] trace = %g\n", value);
+}
+%endcode
+%endif
+
+%start expr
+
+/* 动作片段也能用 %if 包：下面三个 IfDemo* 调用分别演示 LOG、TRACE && !QUIET
+ * 与（上面的）LOG || TRACE 三种条件写法 */
+expr := expr PLUS term { $$ = $1 + $3; }
+      | term            { $$ = $1; }
+%if LOG || TRACE
+      | expr BANG       { $$ = $1; }   /* %if 包住产生式：坏 `!` 直接丢掉，值不变 */
+%endif
+      ;
+
+term := term STAR factor { $$ = $1 * $3; }
+      | factor            { $$ = $1; };
+
+factor := NUMBER {
+    $$ = $1;
+%if LOG
+    IfDemoLog($1);
+%endif
+%if TRACE && !QUIET
+    IfDemoTrace($1);
+%endif
+}
+        | LPAREN expr RPAREN { $$ = $2; };

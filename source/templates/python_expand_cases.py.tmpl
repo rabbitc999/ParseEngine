@@ -1,0 +1,8 @@
+{# LL(1) 的产生式展开分支（`_ll_expand` 的 `if` 链）：一个产生式一串 `_ll_push`
+   （逆序压右部）；空尾规则只有一行注释。 #}
+{% for p in productions %}        if production == {{ p.id }}:
+{% if p.note %}            {{ p.note }}
+{% endif %}{% for c in p.pushes %}            if not self._ll_push({{ c.kind }}, {% if c.terminal %}TOKEN_{{ c.name }}{% else %}{{ c.id }}{% endif %}, frame_index, {{ c.slot }}):
+                return STATUS_ERR_STACK
+{% endfor %}            return STATUS_OK
+{% endfor %}

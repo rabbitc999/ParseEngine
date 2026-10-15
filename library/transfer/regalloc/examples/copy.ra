@@ -1,0 +1,7 @@
+; 复制链示例：mov 会被保守合并，不额外占寄存器。
+label entry
+  mov a, 1
+  mov b, a
+  mov c, b
+  add d, c, 1
+  store [out], d

@@ -1,0 +1,804 @@
+    /* ---------- LL(1) 分析驱动 ---------- */
+
+    /// 分析栈上的项目类型。
+    enum class ItemKind
+    {
+        Terminal,   ///< 终结符：与 lookahead 比对
+        Nonterm,    ///< 非终结符：查预测分析表展开
+        Action,     ///< 语义动作：执行后完成语义帧
+        ActionKeep, ///< 语义动作：执行后保留语义帧（左递归基线规则）
+        Forward,    ///< 转发语义槽：$n 就是本产生式的结果
+        LeftLoop,   ///< 左递归尾部：接着展开或收尾
+        TreeEnd     ///< 语法树：闭合当前节点
+    };
+
+    /// 分析栈项目。
+    struct StackItem
+    {
+        ItemKind kind = ItemKind::Terminal;
+        std::uint16_t symbol = 0u;
+        std::uint16_t frameIndex = kInvalidIndex;
+        std::uint16_t valueIndex = 0u;
+        std::uint16_t seedFrameIndex = kInvalidIndex;
+    };
+
+    /// 语义帧：一个非终结符展开期间的全部语义槽。
+    struct LlFrame
+    {
+        std::uint16_t parentFrameIndex = kInvalidIndex;
+        std::uint16_t parentValueIndex = 0u;
+        std::array<ParserValue_T, kValueSlots> values{};
+        std::array<ParserMemory::String, kValueSlots> names{};
+        ParserValue_T resultValue{};
+{% if has_destructors %}        std::array<std::uint16_t, kValueSlots> symbols{};
+        std::uint16_t resultSymbol = kInvalidIndex;
+        bool resultDone = false;
+{% endif %}        bool valuesDiscarded = false; ///< 错误恢复丢弃该帧时置位
+    };
+
+    /// 压入分析栈项目。
+    bool push(ItemKind kind, std::uint16_t symbol, std::uint16_t frameIndex,
+              std::uint16_t valueIndex, std::uint16_t seedFrameIndex)
+    {
+        if (m_llStack.size() >= kMaxStackDepth)
+        {
+            return false;
+        }
+        StackItem item;
+        item.kind = kind;
+        item.symbol = symbol;
+        item.frameIndex = frameIndex;
+        item.valueIndex = valueIndex;
+        item.seedFrameIndex = seedFrameIndex;
+        m_llStack.push_back(item);
+        return true;
+    }
+
+    /// 弹出分析栈项目。
+    StackItem pop()
+    {
+        const StackItem item = m_llStack.back();
+        m_llStack.pop_back();
+        return item;
+    }
+
+    /// 按产生式展开语义帧（生成的 case 各推一条产生式的右部）。
+    Status expandProduction(std::uint16_t production, std::uint16_t frameIndex)
+    {
+        (void)frameIndex;
+        switch (production)
+        {
+{{ ll_expand_cases }}
+        default: return Status::ErrSyntax;
+        }
+        return Status::Ok;
+    }
+
+    /// 执行一个产生式的语义动作（$n 读 values，$$ 写 result.value）。
+    Status executeAction(std::uint16_t production, std::uint16_t frameIndex)
+    {
+        LlFrame &frame = m_llFrames[frameIndex];
+        std::array<ParserValue_T, kValueSlots> &values = frame.values;
+        ParseResult result;
+        result.value = frame.resultValue;
+        (void)values;
+        switch (production)
+        {
+{{ ll_action_cases }}
+        default: return Status::ErrSyntax;
+        }
+        frame.resultValue = result.value;
+{% if has_destructors %}        frame.resultDone = true;
+{% endif %}        return Status::Ok;
+    }
+
+    /// 转发语义槽：把 $n 直接当作本产生式的结果值。
+    void forwardFrame(LlFrame &frame, std::uint16_t valueIndex)
+    {
+        frame.resultValue = frame.values[valueIndex];
+{% if has_destructors %}        frame.resultSymbol = frame.symbols[valueIndex];
+        frame.resultDone = true;
+        frame.symbols[valueIndex] = kInvalidIndex;
+{% endif %}    }
+
+    /// 完成语义帧：把结果交给父帧，或作为根结果。
+    Status completeFrame(std::uint16_t frameIndex)
+    {
+        LlFrame &frame = m_llFrames[frameIndex];
+        // 错误恢复丢掉的帧还留在栈顶（标了 valuesDiscarded）：先退掉它们，
+        // 否则后面的完成动作会看到「自己的帧不在栈顶」而误报栈错误
+        while ((m_llFrames.size() > (static_cast<std::size_t>(frameIndex) + 1u)) &&
+               m_llFrames.back().valuesDiscarded)
+        {
+            m_llFrames.pop_back();
+        }
+        if (m_llFrames.empty() || (frameIndex != (m_llFrames.size() - 1u)))
+        {
+            return Status::ErrStack;
+        }
+        if (frame.parentFrameIndex == kInvalidIndex)
+        {
+            m_rootResult = frame.resultValue;
+        }
+        else
+        {
+            LlFrame &parent = m_llFrames[frame.parentFrameIndex];
+            parent.values[frame.parentValueIndex] = frame.resultValue;
+{% if has_destructors %}            parent.symbols[frame.parentValueIndex] =
+                frame.resultSymbol;
+{% endif %}        }
+        m_llFrames.pop_back();
+        return Status::Ok;
+    }
+
+    /// 捕获终结符：记下词素，并把 Token 语义值写进槽位。
+    Status captureTerminal(std::uint16_t frameIndex, std::uint16_t valueIndex)
+    {
+        LlFrame &frame = m_llFrames[frameIndex];
+        if (valueIndex >= kValueSlots)
+        {
+            return Status::ErrStack;
+        }
+        frame.names[valueIndex].assign(m_current.text);
+        frame.values[valueIndex] = tokenValue(m_current);
+{% if has_destructors %}        frame.symbols[valueIndex] =
+            static_cast<std::uint16_t>(m_current.type);
+{% endif %}        return Status::Ok;
+    }
+
+    /// 栈顶项目能不能接受这个 Token（终结符相等，或非终结符的预测表里有它）。
+    /**
+     * @brief 取预测分析表的列号：LL(0) 恒为 0，LL(1) 用 Token 号，LL(k) 二分查 k 元组。
+     * @return 列号；LL(k) 找不到对应的 k 元组时返回 -1。
+     */
+    std::int32_t llTableColumn() const noexcept
+    {
+        if (kLookaheadK == 0u)
+        {
+            return 0;
+        }
+        if (kLookaheadK == 1u)
+        {
+            return static_cast<std::int32_t>(m_current.type);
+        }
+        std::uint64_t code = static_cast<std::uint64_t>(m_current.type);
+        std::uint64_t scale = kTerminalCount;
+        for (std::uint32_t index = 1u; index < kLookaheadK; ++index)
+        {
+            code +=
+                static_cast<std::uint64_t>(m_lookahead[index - 1u].type) * scale;
+            scale *= kTerminalCount;
+        }
+        std::int32_t low = 0;
+        std::int32_t high =
+            static_cast<std::int32_t>(kLookaheadColumnCount) - 1;
+        while (low <= high)
+        {
+            const std::int32_t mid = low + (high - low) / 2;
+            const std::uint64_t midCode =
+                static_cast<std::uint64_t>(kLookaheadCode[mid]);
+            if (midCode == code)
+            {
+                return static_cast<std::int32_t>(kLookaheadColumn[mid]);
+            }
+            if (midCode < code)
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+        return -1;
+    }
+
+    /// 栈上第 index 项能不能**取**当前 Token（主循环能接着走）。
+    ///
+    /// 终结符要相等；非终结符看预测表**这一列**上有没有条目（FIRST，或者可空
+    /// 非终结符的 FOLLOW——ε 产生式的那些列）。
+    bool llItemTakes(std::size_t index, std::int32_t column,
+                     std::uint16_t head) const noexcept
+    {
+        const StackItem &item = m_llStack[index];
+        if (item.kind == ItemKind::Terminal)
+        {
+            return item.symbol == head;
+        }
+        if ((item.kind == ItemKind::Nonterm) ||
+            (item.kind == ItemKind::LeftLoop))
+        {
+            if (item.symbol >= kNontermCount)
+            {
+                return false;
+            }
+            if ((column >= 0) && (kLlTable[item.symbol][column] >= 0))
+            {
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    /// 栈上第 index 项是不是「当前 Token 在它的 FOLLOW 里」。
+    ///
+    /// 非可空非终结符的 FOLLOW 不在预测表里：这个 Token 说明**这一层该结束了**，
+    /// 恢复时应当放弃这一层（弹掉它），而不是把 Token 丢掉。
+    bool llItemInFollow(std::size_t index, std::uint16_t head) const noexcept
+    {
+        const StackItem &item = m_llStack[index];
+        if ((item.kind != ItemKind::Nonterm) && (item.kind != ItemKind::LeftLoop))
+        {
+            return false;
+        }
+        if ((item.symbol >= kNontermCount) || (head >= kTerminalCount) ||
+            (kLookaheadK == 0u))
+        {
+            return false;
+        }
+        return kLlFollow[item.symbol][head];
+    }
+
+    /// 栈顶能不能取当前 Token。
+    bool llStackTakes(std::int32_t column, std::uint16_t head) const noexcept
+    {
+        if (m_llStack.empty())
+        {
+            return false;
+        }
+        return llItemTakes(m_llStack.size() - 1u, column, head);
+    }
+
+    /// 栈顶那一项是不是「当前 Token 在它的 FOLLOW 里」。
+    bool llStackInFollow(std::uint16_t head) const noexcept
+    {
+        if (m_llStack.empty())
+        {
+            return false;
+        }
+        return llItemInFollow(m_llStack.size() - 1u, head);
+    }
+
+    /// 栈顶**之下**还有没有哪一项能取当前 Token（FOLLOW 集恢复用）。
+    bool llDeeperTakes(std::int32_t column, std::uint16_t head) const noexcept
+    {
+        if (m_llStack.empty())
+        {
+            return false;
+        }
+        std::size_t index = m_llStack.size() - 1u;
+        while (index > 0u)
+        {
+            index--;
+            if (llItemTakes(index, column, head))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+{% if has_destructors %}    /// %destructor：丢弃一个语义帧里还活着的语义值（只清真的写过值的槽位）。
+    void discardFrameValues(LlFrame &frame)
+    {
+        for (std::size_t index = 0u;
+             index < frame.symbols.size(); ++index)
+        {
+            if (frame.symbols[index] != kInvalidIndex)
+            {
+                discardValueBySymbol(&frame.values[index],
+                                     frame.symbols[index]);
+                frame.symbols[index] = kInvalidIndex;
+            }
+        }
+        if (frame.resultDone)
+        {
+            discardValueBySymbol(&frame.resultValue,
+                                 frame.resultSymbol);
+            frame.resultDone = false;
+        }
+    }
+
+{% endif %}    /// 丢弃一个语义帧里还活着的语义值，并把它标成「已丢弃」。
+    void llDiscardFrame(LlFrame &frame)
+    {
+        if (frame.valuesDiscarded)
+        {
+            return;
+        }
+        frame.valuesDiscarded = true;
+{% if has_destructors %}        discardFrameValues(frame);
+{% endif %}    }
+
+    /// 把帧栈顶这些「已丢弃」的帧一起退掉（帧栈是严格 LIFO）。
+    void llUnwindFrames()
+    {
+        while (!m_llFrames.empty() && m_llFrames.back().valuesDiscarded)
+        {
+            m_llFrames.pop_back();
+        }
+    }
+
+    /// 放弃「第 frameIndex 个语义帧以及它里面已经展开的内层帧」。
+    ///
+    /// 错误恢复丢掉一个构造时用它：不能只清一项所属的帧，否则内层帧会留在帧栈
+    /// 上，后面外层的 completeFrame 会因为「自己的帧不在栈顶」误报栈错误。
+    void llDiscardFramesFrom(std::uint16_t frameIndex)
+    {
+        for (std::size_t index = frameIndex; index < m_llFrames.size(); ++index)
+        {
+            llDiscardFrame(m_llFrames[index]);
+        }
+        llUnwindFrames();
+    }
+
+    /// 弹掉栈顶一项，并丢弃它对应语义帧里的语义值。
+    void llDiscardTop()
+    {
+        if (m_llStack.empty())
+        {
+            return;
+        }
+        const StackItem item = pop();
+        if (item.frameIndex == kInvalidIndex)
+        {
+            return;
+        }
+        llDiscardFrame(m_llFrames[item.frameIndex]);
+        llUnwindFrames();
+    }
+
+    /**
+     * @brief LL 的错误恢复（panic mode）：对齐到「栈上某一项能接受当前 Token」。
+     *
+     * 每一步按这个顺序试：
+     *   ① 栈顶能取它（预测表这一列有产生式）→ 对齐完成，主循环继续；
+     *   ② 当前 Token 是 %sync 锚点 → 弹栈到能接受它的位置（写了 %sync 才有）；
+     *   ③ 栈顶那一项「该结束了」（当前 Token 在它的 FOLLOW 里），或者栈里更深处
+     *      有项能取它 → **放弃栈顶那一项所属的构造**（连它里面已展开的内层构造
+     *      一起弹掉，这就是 FOLLOW 集恢复）；
+     *   ④ 谁都不认它 → 丢掉这个 Token，接着看下一个。
+     * 弹栈与丢输入共用一份预算（256 步），病态输入也不会把解析拖死。
+     * @param failedItem 刚才出错、被主循环弹掉的那一项（先放回栈上再恢复：
+     *        「丢掉它」还是「丢掉 Token 后重试它」由下面几步自己决定）。
+     * @return Status::Ok 表示已经对齐（主循环继续）。
+     */
+    Status synchronizeLl(const StackItem &failedItem)
+    {
+        if (kLookaheadK == 0u)
+        {
+            // LL(0)：预测表只有 ε 一列，没有「当前 Token 属于谁」的信息，
+            // FOLLOW 恢复无从判起 → 保持「一错即停」
+            return Status::ErrSyntax;
+        }
+        // 出错的那一项是主循环弹出来的：放回去，让恢复逻辑统一处理
+        if (!push(failedItem.kind, failedItem.symbol, failedItem.frameIndex,
+                  failedItem.valueIndex, failedItem.seedFrameIndex))
+        {
+            return Status::ErrStack;
+        }
+        std::uint32_t budget = 256u;
+        while (budget > 0u)
+        {
+            const std::int32_t column = llTableColumn();
+            const std::uint16_t head =
+                static_cast<std::uint16_t>(m_current.type);
+            // ① 栈顶能取它 → 对齐完成（主循环能接着推进）
+            if (llStackTakes(column, head))
+            {
+                return Status::Ok;
+            }
+            // ② %sync 锚点：弹栈到能接受它的位置
+            if (kHasSyncTokens && (m_current.type != TokenType::TOKEN_END) &&
+                isSyncToken(head))
+            {
+                while ((budget > 0u) && !m_llStack.empty() &&
+                       !llStackTakes(column, head))
+                {
+                    llDiscardTop();
+                    budget--;
+                }
+                return m_llStack.empty() ? Status::ErrSyntax : Status::Ok;
+            }
+            // ③ FOLLOW 集恢复：栈顶那一项「该结束了」，或者更深处有项能取当前
+            //    Token → 放弃「栈顶那一项所属的构造」（连同它里面已经展开的内层
+            //    构造），把当前 Token 交给外层
+            if (!m_llStack.empty() &&
+                (llStackInFollow(head) || llDeeperTakes(column, head)))
+            {
+                const std::uint16_t frame = m_llStack.back().frameIndex;
+                if (frame == kInvalidIndex)
+                {
+                    llDiscardTop();
+                    budget--;
+                    continue;
+                }
+                llDiscardFramesFrom(frame);
+                while ((budget > 0u) && !m_llStack.empty() &&
+                       (m_llStack.back().frameIndex >= frame))
+                {
+                    llDiscardTop();
+                    budget--;
+                }
+                continue;
+            }
+            // ④ 没人能接受它：丢掉这个 Token
+            if (m_current.type == TokenType::TOKEN_END)
+            {
+                return Status::ErrSyntax;
+            }
+            if (advanceWindow() != Status::Ok)
+            {
+                return Status::ErrLexer;
+            }
+            budget--;
+        }
+        return Status::ErrSyntax;
+    }
+
+    /**
+     * @brief 非递归预测分析主循环。
+     * @param out 输出语义值；可为 nullptr。
+     * @return Status::Ok 表示成功。
+     */
+    Status parseLoopLl(ParserValue_T *out)
+    {
+        if (!push(ItemKind::Nonterm, kStartId, kInvalidIndex, 0u, kInvalidIndex))
+        {
+            return Status::ErrStack;
+        }
+        while (!m_llStack.empty())
+        {
+            const StackItem item = pop();
+            if (item.kind == ItemKind::Terminal)
+            {
+                if (static_cast<std::uint16_t>(m_current.type) != item.symbol)
+                {
+                    // 终结符不匹配：只期望这一个（与 C / Python 目标的文案一致）
+                    setExpectedOneError(item.symbol);
+                    if (synchronizeLl(item) != Status::Ok)
+                    {
+                        return Status::ErrSyntax;
+                    }
+                    continue;
+                }
+                if (captureTerminal(item.frameIndex, item.valueIndex) != Status::Ok)
+                {
+                    return Status::ErrStack;
+                }
+                if (advanceWindow() != Status::Ok)
+                {
+                    return Status::ErrLexer;
+                }
+                continue;
+            }
+            if (item.kind == ItemKind::Nonterm)
+            {
+                if ((static_cast<std::uint16_t>(m_current.type) >= kTerminalCount) ||
+                    (item.symbol >= kNontermCount))
+                {
+                    // 与 Python / C# / C 一致：报「期望…实际是…」
+                    setSyntaxError(static_cast<std::uint32_t>(item.symbol));
+                    if (synchronizeLl(item) != Status::Ok)
+                    {
+                        return Status::ErrSyntax;
+                    }
+                    continue;
+                }
+                const std::int16_t production =
+                    kLlTable[item.symbol][llTableColumn()];
+                if (production < 0)
+                {
+                    setSyntaxError(
+                        static_cast<std::uint32_t>(item.symbol));
+                    if (synchronizeLl(item) != Status::Ok)
+                    {
+                        return Status::ErrSyntax;
+                    }
+                    continue;
+                }
+                if (m_llFrames.size() >= kMaxStackDepth)
+                {
+                    setError(failCode(Status::ErrStack), m_current.line,
+                             m_current.column, "语义帧栈已满");
+                    return Status::ErrStack;
+                }
+                const std::uint16_t frameIndex =
+                    static_cast<std::uint16_t>(m_llFrames.size());
+                LlFrame frame;
+{% if has_destructors %}                frame.symbols.fill(kInvalidIndex);
+                frame.resultSymbol = static_cast<std::uint16_t>(kTerminalCount + item.symbol);
+                frame.resultDone = false;
+{% endif %}                frame.parentFrameIndex = item.frameIndex;
+                frame.parentValueIndex = item.valueIndex;
+                if (item.seedFrameIndex != kInvalidIndex)
+                {
+                    frame.values[1] =
+                        m_llFrames[item.seedFrameIndex].resultValue;
+                }
+                m_llFrames.push_back(std::move(frame));
+                if (expandProduction(static_cast<std::uint16_t>(production),
+                                     frameIndex) != Status::Ok)
+                {
+                    setError(failCode(Status::ErrStack), m_current.line,
+                             m_current.column, "分析栈已满");
+                    return Status::ErrStack;
+                }
+                continue;
+            }
+            if (item.kind == ItemKind::LeftLoop)
+            {
+                LlFrame &frame = m_llFrames[item.frameIndex];
+                if ((static_cast<std::uint16_t>(m_current.type) >= kTerminalCount) ||
+                    (item.symbol >= kNontermCount))
+                {
+                    setSyntaxError(static_cast<std::uint32_t>(item.symbol));
+                    if (synchronizeLl(item) != Status::Ok)
+                    {
+                        return Status::ErrSyntax;
+                    }
+                    continue;
+                }
+                const std::int16_t production =
+                    kLlTable[item.symbol][llTableColumn()];
+                if (production < 0)
+                {
+                    setSyntaxError(static_cast<std::uint32_t>(item.symbol));
+                    if (synchronizeLl(item) != Status::Ok)
+                    {
+                        return Status::ErrSyntax;
+                    }
+                    continue;
+                }
+                if (kProductionIsLeftEmpty[production])
+                {
+                    if (completeFrame(item.frameIndex) != Status::Ok)
+                    {
+                        return Status::ErrStack;
+                    }
+                }
+                else
+                {
+                    frame.values[1] = frame.resultValue;
+                    if (expandProduction(static_cast<std::uint16_t>(production),
+                                         item.frameIndex) != Status::Ok)
+                    {
+                        setError(failCode(Status::ErrStack), m_current.line,
+                                 m_current.column, "分析栈已满");
+                        return Status::ErrStack;
+                    }
+                }
+                continue;
+            }
+            // Action / ActionKeep / Forward：先跑动作，再看要不要收尾
+            if (item.kind == ItemKind::Forward)
+            {
+                forwardFrame(m_llFrames[item.frameIndex], item.valueIndex);
+            }
+            else if (executeAction(item.symbol, item.frameIndex) != Status::Ok)
+            {
+                return Status::ErrSyntax;
+            }
+            if ((item.kind != ItemKind::ActionKeep) &&
+                (completeFrame(item.frameIndex) != Status::Ok))
+            {
+                return Status::ErrStack;
+            }
+        }
+        if (m_current.type != TokenType::TOKEN_END)
+        {
+            setError(failCode(Status::ErrSyntax), m_current.line, m_current.column,
+                     "输入尚未完全消费");
+            return Status::ErrSyntax;
+        }
+        if (out != nullptr)
+        {
+            *out = m_rootResult;
+        }
+        return Status::Ok;
+    }
+
+    /**
+     * @brief 语法树解析主循环（%tree）：只按预测表建树，不跑语义动作。
+     * @param outTree 输出语法树根。
+     * @return Status::Ok 表示成功。
+     */
+    Status parseTreeLoopLl(ParserMemory::UniquePtr<Tree> *outTree)
+    {
+        if (!push(ItemKind::Nonterm, kStartId, kInvalidIndex, 0u, kInvalidIndex))
+        {
+            return Status::ErrStack;
+        }
+        while (!m_llStack.empty())
+        {
+            const StackItem item = pop();
+            if (item.kind == ItemKind::Terminal)
+            {
+                if (static_cast<std::uint16_t>(m_current.type) != item.symbol)
+                {
+                    setSyntaxError(
+                        static_cast<std::uint32_t>(item.symbol));
+                    return Status::ErrSyntax;
+                }
+                if (m_treePath.empty())
+                {
+                    return Status::ErrSyntax;
+                }
+                m_treePath.back()->addChild(makeLeaf(m_current));
+                if (advanceWindow() != Status::Ok)
+                {
+                    return Status::ErrLexer;
+                }
+                continue;
+            }
+            if (item.kind == ItemKind::Nonterm)
+            {
+                if ((static_cast<std::uint16_t>(m_current.type) >= kTerminalCount) ||
+                    (item.symbol >= kNontermCount))
+                {
+                    setSyntaxError(static_cast<std::uint32_t>(item.symbol));
+                    return Status::ErrSyntax;
+                }
+                const std::int16_t production =
+                    kLlTable[item.symbol][llTableColumn()];
+                if (production < 0)
+                {
+                    setSyntaxError(
+                        static_cast<std::uint32_t>(item.symbol));
+                    return Status::ErrSyntax;
+                }
+                if (m_treePath.size() >= kMaxStackDepth)
+                {
+                    setError(failCode(Status::ErrStack), m_current.line,
+                             m_current.column, "语法树节点栈已满");
+                    return Status::ErrStack;
+                }
+                ParserMemory::UniquePtr<Tree> node = ParserMemory::makeUnique<Tree>(
+                    treeTreeName(static_cast<std::uint16_t>(item.symbol)));
+                Tree *nodeRef = node.get();
+                if (m_treePath.empty())
+                {
+                    m_treeRoot = std::move(node);
+                }
+                else
+                {
+                    Tree *parent = m_treePath.back();
+                    parent->addChild(std::move(node));
+                    nodeRef = parent->child(parent->childCount() - 1u);
+                    if (nodeRef == nullptr)
+                    {
+                        return Status::ErrStack;
+                    }
+                }
+                if (!push(ItemKind::TreeEnd, 0u, kInvalidIndex, 0u, kInvalidIndex))
+                {
+                    setError(failCode(Status::ErrStack), m_current.line,
+                             m_current.column, "分析栈已满");
+                    return Status::ErrStack;
+                }
+                m_treePath.push_back(nodeRef);
+                const std::uint32_t rhsStart = treeProdStart[production];
+                const std::uint32_t rhsLength = treeProdLength[production];
+                for (std::uint32_t index = rhsLength; index > 0u; --index)
+                {
+                    const std::uint16_t symbol =
+                        treeProdSymbols[rhsStart + index - 1u];
+                    const bool terminal = (symbol < kTerminalCount);
+                    const std::uint16_t id =
+                        terminal ? symbol
+                                 : static_cast<std::uint16_t>(symbol -
+                                                              kTerminalCount);
+                    if (!push(terminal ? ItemKind::Terminal : ItemKind::Nonterm,
+                              id, kInvalidIndex, 0u, kInvalidIndex))
+                    {
+                        setError(failCode(Status::ErrStack), m_current.line,
+                                 m_current.column, "分析栈已满");
+                        return Status::ErrStack;
+                    }
+                }
+                continue;
+            }
+            if (item.kind == ItemKind::TreeEnd)
+            {
+                if (m_treePath.empty())
+                {
+                    setError(failCode(Status::ErrSyntax), m_current.line,
+                             m_current.column, "语法树闭合失败");
+                    return Status::ErrSyntax;
+                }
+                m_treePath.pop_back();
+                continue;
+            }
+            setError(failCode(Status::ErrSyntax), m_current.line, m_current.column,
+                     "语法树分析出现未知项目");
+            return Status::ErrSyntax;
+        }
+        if ((m_treeRoot == nullptr) || !m_treePath.empty() ||
+            (m_current.type != TokenType::TOKEN_END))
+        {
+            setError(failCode(Status::ErrSyntax), m_current.line, m_current.column,
+                     "输入尚未完全消费");
+            return Status::ErrSyntax;
+        }
+        if (outTree != nullptr)
+        {
+            *outTree = std::move(m_treeRoot);
+        }
+        return Status::Ok;
+    }
+
+    /**
+     * @brief LL(1) 入口：语义模式与 %tree 模式二选一。
+     * @param out 输出语义值；可为 nullptr。
+     * @param outTree 输出语法树；treeMode 为 true 时使用。
+     * @param treeMode 是否构建语法树。
+     * @return Status::Ok 表示成功。
+     */
+    Status runLoop(ParserValue_T *out, ParserMemory::UniquePtr<Tree> *outTree,
+                   bool treeMode = false)
+    {
+        m_llStack.clear();
+        m_llFrames.clear();
+        m_rootResult = ParserValue_T{};
+        if (treeMode)
+        {
+            m_treeRoot.reset();
+            m_treePath.clear();
+            return parseTreeLoopLl(outTree);
+        }
+{% if has_destructors %}        const Status status = parseLoopLl(out);
+        if (status != Status::Ok)
+        {
+            for (LlFrame &frame : m_llFrames)
+            {
+                discardFrameValues(frame);
+            }
+            m_llFrames.clear();
+        }
+        return status;
+{% else %}        return parseLoopLl(out);
+{% endif %}    }
+
+    /// LL 增量入口：当前版本按完整文本做保守失效。
+    ///
+    /// 命中时恢复上次解析的错误表、commit 表与语义结果，不再走词法/预测分析；
+    /// 文本变化时自动回退到完整解析并刷新缓存。
+    Status runTextIncremental(std::string_view text, ParserValue_T *out,
+                              IncrementalCache &cache)
+    {
+        if (cache.valid && (cache.text.size() == text.size()) &&
+            std::equal(cache.text.begin(), cache.text.end(), text.begin()))
+        {
+            m_errors = cache.errors;
+            m_commits = cache.commits;
+            if (out != nullptr)
+            {
+                *out = cache.result;
+            }
+            return cache.status;
+        }
+        ParserValue_T value{};
+        const Status status = runText(text, &value);
+        cache.valid = true;
+        cache.text.assign(text.data(), text.size());
+        cache.status = status;
+        cache.result = value;
+        cache.errors = m_errors;
+        cache.commits = m_commits;
+        if (out != nullptr)
+        {
+            *out = value;
+        }
+        return status;
+    }
+
+    /// LL 分析栈（跨次解析复用）。
+    ParserMemory::Vector<StackItem> m_llStack;
+    /// LL 语义帧栈。
+    ParserMemory::Vector<LlFrame> m_llFrames;
+    /// 根语义值。
+    ParserValue_T m_rootResult{};
+    /// %tree 的根节点与当前路径（路径节点的所有权在父节点 / 根手里）。
+    ParserMemory::UniquePtr<Tree> m_treeRoot;
+    ParserMemory::Vector<Tree *> m_treePath;

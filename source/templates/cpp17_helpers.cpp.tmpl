@@ -1,0 +1,108 @@
+/* ============ 内部常量、Token 语义值钩子与错误表 ============ */
+
+/// 文法里是否写了 error 产生式（写了才能把 error 当伪 Token 移进）。
+inline constexpr bool kHasErrorToken = {{ has_error_token }};
+/// error 伪终结符在终结符表里的列号（没写 error 产生式时是 0）。
+inline constexpr std::uint16_t kErrorTokenId = {{ error_token_id }}u;
+/// 文法里是否声明了 %sync。
+inline constexpr bool kHasSyncTokens = {{ has_sync_tokens }};
+
+/**
+ * @brief 一次归约的语义结果。
+ *
+ * 语义动作里的 `$$` 翻成 `result.value`（`$n` 翻成 `stack->values[...]`），
+ * LR / LL 两条驱动共用这一个壳子。
+ */
+struct ParseResult
+{
+    ParserValue_T value{}; ///< `$$`
+};
+
+/**
+ * @brief 把状态码转成错误码数值（与 C 目标的 PARSER_ERR_* 一一对应）。
+ * @param status 状态码。
+ * @return 数值形式。
+ */
+inline std::int32_t failCode(Status status) noexcept
+{
+    return static_cast<std::int32_t>(status);
+}
+
+/**
+ * @brief 取 Token 类型名（与 C 目标的 Parser_TokenName 同义，越界时 "UNKNOWN"）。
+ * @param type Token 类型。
+ * @return 只读名字。
+ */
+inline ParserMemory::String tokenTypeText(TokenType type)
+{
+    const char *name = tokenName(type);
+    return (name != nullptr) ? ParserMemory::String(name) : ParserMemory::String("UNKNOWN");
+}
+
+/**
+ * @brief 取 Token 的语义值。
+ *
+ * 用户定义了 PARSER_USER_TOKEN_VALUE(pToken) 就用用户的；没定义时按文法
+ * 选的语义值模型给零值（写了 %union 时词法器已经按 `%token <成员>` 把词素
+ * 写进 value，直接读 `pToken->value` 就是语义值）。
+ */
+inline ParserValue_T tokenValue(const Token &token)
+{
+#ifdef PARSER_USER_TOKEN_VALUE
+    return PARSER_USER_TOKEN_VALUE(&token);
+#else
+    (void)token;
+    return {{ token_value_fallback }};
+#endif
+}
+
+/**
+ * @brief 这是一个同步 Token 吗（`%sync`）。
+ *
+ * 没写 %sync 时恒为 false：错误恢复里那些 panic 代码仍然编译，但永远不生效。
+ */
+inline bool isSyncToken(std::uint16_t type) noexcept
+{
+    switch (type)
+    {
+{{ sync_cases }}    default: return false;
+    }
+}
+
+/* ---------- 文法规模（全部来自生成期，运行期只读） ---------- */
+
+/// 终结符个数（含 END）。
+inline constexpr std::uint32_t kTerminalCount = {{ terminal_count }}u;
+/// 非终结符个数。
+inline constexpr std::uint32_t kNontermCount = {{ nonterm_count }}u;
+/// 起始非终结符编号。
+inline constexpr std::uint16_t kStartId = {{ start_id }}u;
+/// LR 自动机状态个数（LL(1) 模式没有状态机，这里是 0）。
+inline constexpr std::uint32_t kStateCount = {{ lr_state_count }}u;
+/// ACTION 表里的「接受」标记。
+inline constexpr std::int32_t kAcceptAction = INT32_MAX;
+/// LR(k) / LALR(k) 的展望符长度 k（其余模式都是 1）。
+inline constexpr std::uint32_t kLookaheadK = {{ lookahead_k }}u;
+/**
+ * @brief 归约层的列数（k > 1 时才有归约层；k = 1 时为 0）。
+ *
+ * k > 1 时 ACTION 分两层：`kAction` 放移进，`kReduce` 按 k 元组展望符建列。
+ * k = 1 时归约都在 `kAction` 里，这一层不查。
+ */
+inline constexpr std::uint32_t kLookaheadColumnCount = {{ lookahead_column_count }}u;
+/// 无效下标（对应 C 目标的 PARSER_INVALID_INDEX）。
+inline constexpr std::uint16_t kInvalidIndex = 0xFFFFu;
+/// 无效状态（对应 C 目标的 UINT16_MAX）。
+inline constexpr std::uint16_t kInvalidState = 0xFFFFu;
+/// 每条错误最多记几个「期望 Token」；期望表按行（LR 状态 / LL 非终结符）排布。
+inline constexpr std::uint32_t kMaxExpected = {{ max_expected }}u;
+inline constexpr std::uint32_t kExpectedRowCount = {{ expected_row_count }}u;
+/// 期望集为空时的兜底说明（LL 说「产生式」、LR 说「动作」；五档同文案）。
+inline constexpr const char *kExpectedFallback = {{ expected_fallback }};
+/// 非终结符名表（%tree 建树用；LR 归约时把编号翻成名字）。
+inline constexpr const char *const kTreeNontermNames[] =
+{
+{% if has_tree_nonterms %}{% for n in tree_nonterm_names %}{% if loop_first %}{% else %},
+{% endif %}    {{ n }}{% endfor %}{% else %}{% if tree_nonterm_indent %}    nullptr{% else %}nullptr{% endif %}{% endif %}
+};
+{{ expected_tables }}

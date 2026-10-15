@@ -1,0 +1,14 @@
+# 名称: 直线赋值
+# 期望: 7
+# 期望 φ: 0
+# 期望 折叠: 1
+# 期望 不可达: 0
+# 期望 GVN: 0
+# 说明: 一条路径，没有汇合点：SCCP 把 add 折成常量，又把常量传进后面的 mov
+label entry
+  mov a, 3
+  mov b, 4
+  add c, a, b
+  mov d, c
+  print d
+  halt

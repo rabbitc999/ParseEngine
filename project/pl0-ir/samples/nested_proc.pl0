@@ -1,0 +1,21 @@
+{ 嵌套过程 + 同名遮蔽：外层 x 与 outer 里的局部 x 是两个符号 }
+var x;
+
+procedure outer;
+    var x;
+    procedure inner;
+        begin
+            x := x + 1;
+            write x
+        end;
+    begin
+        x := 10;
+        call inner;
+        call inner
+    end;
+
+begin
+    x := 1;
+    call outer;
+    write x
+end.

@@ -1,0 +1,17 @@
+Status Engine::runText(std::string_view text, ParserValue_T *result)
+{
+    return d->runText(text, result);
+}
+
+{% if incremental %}Status Engine::runTextIncremental(std::string_view text, ParserValue_T *result,
+                                  IncrementalCache &cache)
+{
+    return d->runTextIncremental(text, result, cache);
+}
+
+{% endif %}
+Status Engine::run(const ParserMemory::Vector<Token> &tokens, ParserValue_T *result)
+{
+    return d->runTokens(tokens, result);
+}
+

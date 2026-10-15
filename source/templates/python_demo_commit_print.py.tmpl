@@ -1,0 +1,9 @@
+{# 演示 main 里的 `%commit` 打印片段：行号 + 类型 + 原文 + 当前位置（没写 %commit 时整段不出现）。 #}
+    # %commit：打印收集到的片段（行号 + 类型 + 原文）与当前位置
+    print("commits: %d" % len({{ engine }}.commits))
+    for index, entry in enumerate({{ engine }}.commits):
+        print("  [%d] line=%d type=%s text=%s" %
+              (index, entry.line, entry.type, entry.text))
+    _location = {{ engine }}.current_location()
+    print("location: line=%d column=%d offset=%d" %
+          (_location.line, _location.column, _location.offset))

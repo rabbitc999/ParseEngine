@@ -1,0 +1,16 @@
+        // 标识符：%identifier 声明的正则（命中关键字时换成关键字 Token）。
+        int identLength = _lexRegexMatch(_IDENTIFIER_RE, _input, _textPos);
+        if (identLength > 0)
+        {
+            int identStart = _textPos;
+            for (int index = 0; index < identLength; index++)
+            {
+                _readChar();
+            }
+            _lexeme = _input.Substring(identStart, _textPos - identStart);
+            int keyword = _keywordType(_lexeme);
+            item.type = (keyword != TOKEN_INVALID) ? keyword : TOKEN_VARIABLE;
+            item.text = _lexeme;
+            item.value = _valueFromText(item.type, _lexeme);
+            return STATUS_OK;
+        }

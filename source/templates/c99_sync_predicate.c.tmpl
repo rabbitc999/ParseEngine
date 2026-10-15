@@ -1,0 +1,48 @@
+{# C99 %sync 的判定函数（`syncPredicateC` 的产物，插在两份 custom 运行时开头）。
+   变量：
+     tokens         —— 真的出现在终结符表里的同步 Token 名（数组；空数组 = 这段不发）
+     lr_mode        —— 是不是 LR 家族（「这个状态能不能移进同步 Token」只有 LR 用）
+     terminal_count —— 终结符个数（LR 那个循环的边界）
+   文档注释行尾**带空格**（`/** `、` * @brief …。 `），照原样保留，别顺手清掉。
+   生成器那头先判「有没有可用的同步 Token」，为空就整段不发。 #}
+/* %sync 声明的同步 Token：错误恢复用它做锚点 */
+#define PARSER_HAS_SYNC_TOKENS 1
+/** 
+ * @brief 判断一个 Token 类型是不是同步 Token。 
+ * @param type Token 类型。 
+ * @retval 是同步 Token 返回 1。 
+ */
+static uint8_t Parser_IsSyncToken(uint16_t type)
+{
+    switch (type)
+    {
+{% for token in tokens %}
+        case TOKEN_{{ token }}:
+{% endfor %}
+        return 1u;
+    default:
+        return 0u;
+    }
+}
+{% if lr_mode %}
+
+/** 
+ * @brief 这个状态能不能移进某个同步 Token。 
+ * @param state 状态编号。 
+ * @retval 能返回 1。 
+ */
+static uint8_t Parser_LRCanShiftSyncToken(uint16_t state)
+{
+    uint32_t token = 0u;
+    for (token = 0u; token < (uint32_t){{ terminal_count }}; token++)
+    {
+        if ((Parser_IsSyncToken((uint16_t)token) != 0u) &&
+            (s_ParserAction[state][token] > 0))
+        {
+            return 1u;
+        }
+    }
+    return 0u;
+}
+{% endif %}
+

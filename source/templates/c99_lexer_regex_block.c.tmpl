@@ -1,0 +1,104 @@
+    /* 固定字面量与 %token regex / %commit 的 DFA 一起做最长匹配，字面量优先。 */
+    {
+        uint32_t bestLength = 0u;
+        ParserTokenType_T bestType = TOKEN_INVALID;
+        uint8_t bestFromRegex = 0u;
+        uint8_t bestWildcard = 0u;
+        int32_t bestOrder = 0;
+        const char *pBestText = NULL;
+        for (index = 0u; index < (uint32_t)(sizeof(s_ParserLexRules) /
+                                            sizeof(s_ParserLexRules[0]));
+             index++) {
+            const ParserLexRule_T *pRule = &s_ParserLexRules[index];
+            if ((pRule->pText != NULL) &&
+                (Parser_LexRuleHit(pRule, pStart) != 0)) {
+                unsigned char last =
+                    (unsigned char)pRule->pText[pRule->length - 1u];
+                unsigned char next = (unsigned char)pStart[pRule->length];
+                if (((isalnum(last) != 0) || (last == '_')) &&
+                    ((isalnum(next) != 0) || (next == '_'))) {
+                    continue;
+                }
+                if ((uint32_t)pRule->length > bestLength) {
+                    bestLength = (uint32_t)pRule->length;
+                    bestType = pRule->type;
+                    bestFromRegex = 0u;
+                    bestWildcard = pRule->wildcard;
+                    pBestText = pRule->pText;
+                    bestOrder = pRule->order;
+                }
+            }
+        }
+{% if has_regex %}        for (uint32_t regexIndex = 0u;
+             regexIndex < PARSER_REGEX_COUNT;
+             regexIndex++) {
+            uint32_t matched = Parser_LexDfaMatch(
+                &s_ParserRegexDfas[regexIndex], pStart);
+            if (matched > bestLength) {
+                bestLength = matched;
+                bestType = s_ParserRegexTypes[regexIndex];
+                bestFromRegex = 1u;
+                bestOrder = s_ParserRegexOrders[regexIndex];
+            }
+        }
+{% endif %}        {
+            uint32_t commitLength = 0u;
+            uint32_t commitIndex = 0u;
+            for (index = 0u; index < PARSER_COMMIT_COUNT; index++) {
+                uint32_t matched = Parser_LexDfaMatch(
+                    &s_ParserCommitDfas[index], pStart);
+                if (matched > commitLength) {
+                    commitLength = matched;
+                    commitIndex = index;
+                }
+            }
+            /* %commit：与 Token 规则共用一份最长匹配；同长度时按声明序，
+             * 先声明优先（skip 命中不算 Token，直接丢掉）。 */
+            if ((commitLength != 0u) &&
+                ((commitLength > bestLength) ||
+                 ((commitLength == bestLength) &&
+                  ((bestType == TOKEN_INVALID) ||
+                   (s_ParserCommitOrders[commitIndex] < bestOrder))))) {
+                if (s_ParserCommitSkips[commitIndex] == 0u) {
+                    if (Parser_CommitAppend(pCtx, (int32_t)pToken->line,
+                                            s_ParserCommitTypes[commitIndex],
+                                            pStart,
+                                            commitLength) != PARSER_OK) {
+                        return PARSER_ERR_LEXER;
+                    }
+                }
+                for (length = 0u; length < commitLength; length++) {
+                    Parser_ReadChar(pCtx);
+                }
+                continue;
+            }
+        }
+        if (bestType != TOKEN_INVALID) {
+            if (bestLength >= sizeof(pCtx->lexeme)) { return PARSER_ERR_LEXER; }
+            for (length = 0u; length < bestLength; length++) {
+                Parser_ReadChar(pCtx);
+            }
+            pToken->type = bestType;
+            if (bestFromRegex != 0u) {
+                PARSER_MEMCPY(pCtx->lexeme, pStart, bestLength);
+                pCtx->lexeme[bestLength] = '\0';
+                pToken->pName = pCtx->lexeme;
+            } else if (bestWildcard != 0u) {
+                /* \b 通配命中：词素要按输入抄一份，不能直接指字面量 */
+                PARSER_MEMCPY(pCtx->lexeme, pStart, bestLength);
+                pCtx->lexeme[bestLength] = '\0';
+                pToken->pName = pCtx->lexeme;
+{% if regex_cases %}
+                switch ((int)bestType) {
+{% for c in regex_cases %}
+                case TOKEN_{{ c.token }}: pToken->value.{{ c.member }} = pCtx->lexeme; break;
+{% endfor %}
+                default: break;
+                }
+{% endif %}
+            } else {
+                pToken->pName = pBestText;
+            }
+            return PARSER_OK;
+        }
+    }

@@ -1,0 +1,21 @@
+{ 嵌套过程：内层读外层的局部变量（静态链那一层） }
+{ 期望: 10 }
+program nested_proc;
+  var total: int;
+  procedure outer;
+    var local: int;
+    procedure inner;
+    begin
+      total := total + local
+    end;
+  begin
+    local := 7;
+    call inner;
+    local := 3;
+    call inner
+  end;
+begin
+  total := 0;
+  call outer;
+  write(total)
+end.

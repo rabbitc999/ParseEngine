@@ -1,0 +1,247 @@
+{# 递归下降（DD）分析驱动（CodeGenGo 的 buildParserGo 里那一块）。
+   变量：value_type —— 语义值类型名。本模板自带行尾换行。
+
+   注意 Go 的两个坑（都写在注释里）：
+     * 行尾自动插分号 —— `} else if` 必须写在同一行；
+     * 局部变量 unused 是错误 —— 用不到的结果显式 `_ = …` 吃掉。 #}
+// ---------- 递归下降（DD，带回溯） ----------
+
+// sDdSlot 递归下降的语义槽：%tree 时装语法树节点，否则装一个语义值
+// （第 0 个槽位恒为空，与 LL 的语义帧同一个约定）。
+type sDdSlot struct {
+	isTree bool
+	value  {{ value_type }}
+	node   *Tree
+}
+
+// sDdMark 递归下降的「输入位置」快照（回溯用）。
+type sDdMark struct {
+	textPos  int
+	tokenPos int
+	line     int32
+	column   int32
+	bytePos  int
+	current  Token
+	depth    int
+}
+
+// sParserDdMaxRecoverySkips 整段解析失败时，最多往后跳几次同步 Token 再重试
+// （%sync 的 panic mode）。
+const sParserDdMaxRecoverySkips = 64
+
+// ddReset 复位「最远失败点」与递归深度。
+func (p *Parser) ddReset() {
+	p.ddDepth = 0
+	p.ddFrameDepth = 0
+	p.ddFarthestDepth = -1
+	p.ddFarthestTypes = p.ddFarthestTypes[:0]
+	p.ddFarthestToken = p.current
+}
+
+// ddMark 存一份「输入位置」快照。
+func (p *Parser) ddMark() sDdMark {
+	return sDdMark{
+		textPos:  p.textPos,
+		tokenPos: p.tokenPos,
+		line:     p.line,
+		column:   p.column,
+		bytePos:  p.bytePos,
+		current:  p.current,
+		depth:    p.ddDepth,
+	}
+}
+
+// ddRestore 回退到快照。
+func (p *Parser) ddRestore(mark sDdMark) {
+	p.textPos = mark.textPos
+	p.tokenPos = mark.tokenPos
+	p.line = mark.line
+	p.column = mark.column
+	p.bytePos = mark.bytePos
+	p.current = mark.current
+	p.ddDepth = mark.depth
+}
+
+// ddRecordFail 记一次「在最远处期望某个 Token」。
+//
+// 回溯**不**清这条记录：整段解析最终失败时，它给出的是「走得最远的那一次在
+// 期望什么」，比「最后一次尝试在期望什么」有用得多。
+func (p *Parser) ddRecordFail(expected int32) {
+	if p.ddDepth > p.ddFarthestDepth {
+		p.ddFarthestDepth = p.ddDepth
+		p.ddFarthestToken = p.current
+		p.ddFarthestTypes = p.ddFarthestTypes[:0]
+		p.ddFarthestTypes = append(p.ddFarthestTypes, expected)
+		return
+	}
+	if p.ddDepth != p.ddFarthestDepth {
+		return
+	}
+	for _, item := range p.ddFarthestTypes {
+		if item == expected {
+			return
+		}
+	}
+	p.ddFarthestTypes = append(p.ddFarthestTypes, expected)
+}
+
+// ddParse 解析一个非终结符：**按产生式声明顺序逐条试**，失败就回退输入位置。
+//
+// 这是递归下降的全部驱动逻辑，每个非终结符共用它——「一个非终结符一个解析
+// 函数」由 sParserDdProdStart / sParserDdProdCount 两张表表达。
+func (p *Parser) ddParse(nonterm int32, treeMode bool, requireEnd bool) (sDdSlot, bool) {
+	var zero sDdSlot
+	if p.ddFrameDepth >= sParserMaxStackDepth {
+		p.setError(StatusErrStack, p.current.Line, p.current.Column,
+			"递归太深（超过 max_stack_depth）")
+		return zero, false
+	}
+	p.ddFrameDepth++
+	mark := p.ddMark()
+	start := sParserDdProdStart[nonterm]
+	count := sParserDdProdCount[nonterm]
+	values := make([]sDdSlot, sParserDdProdSlots[nonterm])
+	for offset := int32(0); offset < count; offset++ {
+		production := start + offset
+		p.ddRestore(mark)
+		for index := range values {
+			values[index] = sDdSlot{}
+		}
+		if !p.ddMatch(production, treeMode, values) {
+			continue
+		}
+		if requireEnd && (p.current.Type != TOKEN_END) {
+			// 右部走完了但输入还有剩：按「这里该结束了」记一次最远失败，
+			// 然后试本非终结符的下一条产生式
+			p.ddRecordFail(TOKEN_END)
+			continue
+		}
+		built := p.ddBuild(production, nonterm, treeMode, values)
+		p.ddFrameDepth--
+		return built, true
+	}
+	p.ddRestore(mark)
+	p.ddFrameDepth--
+	return zero, false
+}
+
+// ddMatch 沿一条产生式的右部逐符号匹配。
+//
+// 终结符比对当前 Token（不等就记一次最远失败并返回 false），非终结符递归调用
+// ddParse。匹配成功的语义值写进 values[1..n]——第 0 个槽位留空，与 LL 的语义帧
+// 同一个约定（动作里的 `$n` 就是 values[n]）。
+func (p *Parser) ddMatch(production int32, treeMode bool, values []sDdSlot) bool {
+	base := sParserTreeProdStart[production]
+	length := sParserTreeProdLength[production]
+	for index := int32(0); index < length; index++ {
+		symbol := sParserTreeProdSymbols[base+index]
+		slot := int(index) + 1
+		if symbol < sParserTerminalCount {
+			if p.current.Type != symbol {
+				p.ddRecordFail(symbol)
+				return false
+			}
+			if treeMode {
+				values[slot].isTree = true
+				values[slot].node = sParserMakeLeaf(&p.current)
+			} else {
+				values[slot].value = p.current.Value
+			}
+			p.ddDepth++
+			if p.advance() != StatusOK {
+				return false
+			}
+			continue
+		}
+		child, ok := p.ddParse(symbol-sParserTerminalCount, treeMode, false)
+		if !ok {
+			return false
+		}
+		values[slot] = child
+	}
+	return true
+}
+
+// ddBuild 右部匹配完了：%tree 建分支节点，否则跑语义动作。
+func (p *Parser) ddBuild(production int32, nonterm int32, treeMode bool, values []sDdSlot) sDdSlot {
+	length := sParserTreeProdLength[production]
+	var out sDdSlot
+	if treeMode {
+		branch := NewTree(sParserTreeName(nonterm), "")
+		for index := int32(1); index <= length; index++ {
+			if values[index].isTree && (values[index].node != nil) {
+				branch.AddChild(values[index].node)
+				values[index].node = nil
+			}
+		}
+		out.isTree = true
+		out.node = branch
+		return out
+	}
+	plain := make([]{{ value_type }}, len(values))
+	for index := range values {
+		plain[index] = values[index].value
+	}
+	result := &sHolder{}
+	if p.applyAction(production, plain, result) != StatusOK {
+		return out
+	}
+	out.value = result.value
+	return out
+}
+
+// runDdLoop 递归下降主循环：从起始符号开始解析，要求把输入吃到 END。
+//
+// 解析失败时按「最远失败点」报一条错；文法写了 %sync 的话，再跳到下一个同步
+// Token 之后重试一段（panic mode），直到错误条数或跳过次数用完为止。
+func (p *Parser) runDdLoop(treeMode bool) int32 {
+	p.ddReset()
+	budget := sParserDdMaxRecoverySkips
+	for {
+		mark := p.ddMark()
+		p.ddDepth = 0
+		p.ddFrameDepth = 0
+		p.ddFarthestDepth = -1
+		p.ddFarthestTypes = p.ddFarthestTypes[:0]
+		if built, ok := p.ddParse(sParserStartID, treeMode, true); ok {
+			if treeMode {
+				p.treeRoot = built.node
+			} else {
+				p.resultValue = built.value
+			}
+			return StatusOK
+		}
+		// 失败：回到这一段起点，把「最远失败的那个 Token」摆到 current 上报错
+		// （报完再放回去，好接着往后找同步 Token）
+		p.ddRestore(mark)
+		if len(p.ddFarthestTypes) == 0 {
+			p.ddFarthestToken = p.current
+			p.ddFarthestTypes = append(p.ddFarthestTypes, TOKEN_END)
+		}
+		saved := p.current
+		p.current = p.ddFarthestToken
+		p.setSyntaxError(0, p.ddFarthestTypes)
+		p.current = saved
+		if (budget <= 0) || (len(p.errors) >= sParserMaxErrors) {
+			return StatusErrSyntax
+		}
+		// panic mode：往前找下一个同步 Token，吃掉它再试一段
+		found := false
+		for p.current.Type != TOKEN_END {
+			if sParserIsSyncToken(p.current.Type) {
+				found = true
+				break
+			}
+			if p.advance() != StatusOK {
+				return StatusErrLexer
+			}
+		}
+		if !found {
+			return StatusErrSyntax
+		}
+		if p.advance() != StatusOK {
+			return StatusErrLexer
+		}
+		budget--
+	}
+}

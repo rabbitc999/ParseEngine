@@ -1,0 +1,34 @@
+# GitHub Actions：ParseEngine 发布门禁。
+# 唯一的判据入口是 ci/run.sh（本地跑的就是它），这里只负责装工具链。
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  parseengine:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装工具链
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++ gcc make cmake python3
+
+      - name: 跑门禁（构建生成器 + ParseEngine 自己的 tests/*.py）
+        run: sh ci/run.sh
+
+      - name: 打包生成器
+        run: python tools/package_compiler.py ParseEngine
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parseengine-dist
+          path: |
+            ParseEngine-*.zip
+          if-no-files-found: warn

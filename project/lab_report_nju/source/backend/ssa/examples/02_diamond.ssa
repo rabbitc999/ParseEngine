@@ -1,0 +1,17 @@
+# 名称: 菱形汇合
+# 期望: 3
+# 期望 φ: 1
+# 期望 折叠: 0
+# 期望 不可达: 0
+# 期望 GVN: 0
+# 说明: y 在两条路径上各定义一次，汇合点插入 φ；条件来自 load，SCCP 折不动
+label entry
+  load x, [slot]
+  jz x, L1
+  mov y, 2
+  jmp L2
+label L1
+  mov y, 3
+label L2
+  print y
+  halt

@@ -1,0 +1,10 @@
+{# 递归下降的表（CodeGenRust 的 rustDdTables）：一维整数表正文。
+   变量：prod_start / prod_count / prod_slots。
+   产生式编号与 `_TREE_PROD_*` 同一套，所以右部符号不重发一份。
+   本模板自带行尾换行。 #}
+/// 每个非终结符的产生式区间：`_DD_PROD_START[i]` 起、`_DD_PROD_COUNT[i]` 条，
+/// 按声明顺序（回溯时依次试的就是这个顺序）。
+static _DD_PROD_START: &[i32] = &[{{ prod_start }}];
+static _DD_PROD_COUNT: &[i32] = &[{{ prod_count }}];
+/// 每个非终结符的语义槽位个数（它最长的右部 + 1；第 0 个槽位留空）。
+static _DD_PROD_SLOTS: &[i32] = &[{{ prod_slots }}];

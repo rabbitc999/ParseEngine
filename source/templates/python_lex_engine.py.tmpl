@@ -1,0 +1,131 @@
+def _lex_regex_match(pattern, text, start):
+    """用 Python 正则从 ``start`` 起匹配，返回匹配到的字符数（0 = 不匹配）。
+
+    与解析产物同一套实现：正则都在模块加载时 `re.compile` 好，贪心匹配给出的
+    就是最长匹配，多条规则之间谁长用谁、同长按声明序（由调用方比较）。
+
+    :param pattern: ``re.compile`` 出来的正则；``None`` 表示没声明。
+    :param text: 输入文本。
+    :param start: 起始下标。
+    :return: 匹配到的字符数（0 表示不匹配）。
+    """
+    if pattern is None:
+        return 0
+    match = pattern.match(text, start)
+    if match is None:
+        return 0
+    return match.end() - start
+
+
+class {{ class }}(object):
+    """词法模式的词法器（``%mode lex`` 产物，{{ mode_name }}）。
+
+    只有词法：没有分析表、分析栈，也没有解析入口。``tokenize(text)`` 把一段
+    文本切成 Token 列表（末尾带一个 ``TOKEN_END``）；词法错误写在 ``errors`` /
+    ``last_error`` 里，状态码与 C / C++17 产物一致。``%commit`` 收集到的片段
+    在 ``commits``（``ParserCommit`` 列表，按出现顺序）。
+    """
+
+    # 一次词法分析最多记录多少条错误（`%max_errors`）。
+    max_errors = {{ max_errors }}
+
+    def __init__(self):
+        # 错误表
+        self._errors = []
+        # %commit 收集到的片段（ParserCommit 列表；没有 %commit 时恒为空）
+        self.commits = []
+        # 输入与词法状态
+        self._input = ""
+        self._text_pos = 0
+        self._byte_pos = 0
+        self._line = 1
+        self._column = 1
+        self._lexeme = ""
+
+    # ---------- 只读查询 ----------
+
+    @property
+    def errors(self):
+        """本次词法分析累积的错误（``ParserError`` 列表）。"""
+        return self._errors
+
+    @property
+    def last_error(self):
+        """最近一条错误（``ParserError``）；没有错误时是 ``None``。"""
+        return self._errors[-1] if self._errors else None
+
+    def current_location(self):
+        """当前词法位置：行 / 列 1 起 + UTF-8 字节偏移（0 起）。
+
+        :return: ``ParserLocation(line, column, offset)``。
+        """
+        return ParserLocation(self._line, self._column, self._byte_pos)
+
+    def _set_error(self, code, line, column, message):
+        """往错误表里追加一条（表满就不再记）。"""
+        if len(self._errors) >= self.max_errors:
+            return
+        self._errors.append(ParserError(code, line, column, message))
+
+    # ---------- 词法状态 ----------
+
+    def _peek_char(self, offset=0):
+        """取输入里第 ``_text_pos + offset`` 个字符（越过末尾返回空串）。"""
+        index = self._text_pos + offset
+        if (index < 0) or (index >= len(self._input)):
+            return ""
+        return self._input[index]
+
+    def _read_char(self):
+        """读一个字符并维护行列号与 UTF-8 字节偏移。"""
+        ch = self._input[self._text_pos]
+        self._text_pos += 1
+        self._byte_pos += 1 if ord(ch) < 0x80 else len(ch.encode("utf-8"))
+        if ch == "\n":
+            self._line += 1
+            self._column = 1
+        else:
+            self._column += 1
+        return ch
+
+{{ lexer }}
+
+    # ---------- 公开入口 ----------
+
+    def tokenize(self, text):
+        """把 ``text`` 切成 Token 列表（末尾带一个 ``TOKEN_END``）。
+
+        :param text: 输入文本；``None`` 当空串。
+        :return: ``(状态码, Token 列表)``；状态码不是 ``STATUS_OK`` 时说明见
+            ``errors``（细分码：``STATUS_ERR_LEX_UNTERMINATED`` 字符串没有
+            闭合、``STATUS_ERR_LEX_CHAR`` 认不出来的字符）。
+        """
+        self._errors = []
+        self.commits = []
+        self._input = text if text is not None else ""
+        self._text_pos = 0
+        self._byte_pos = 0
+        self._line = 1
+        self._column = 1
+        self._lexeme = ""
+        tokens = []
+        while True:
+            status, token = self._lex_next()
+            if status != STATUS_OK:
+                # 按细分码给一句人话（与 C / C++17 产物一致）
+                if status == STATUS_ERR_LEX_UNTERMINATED:
+                    why = "字符串没有闭合"
+                elif status == STATUS_ERR_LEX_CHAR:
+                    why = "认不出来的字符"
+                else:
+                    why = "词法解析失败"
+                self._set_error(
+                    status if status in (STATUS_ERR_LEX_UNTERMINATED,
+                                         STATUS_ERR_LEX_CHAR)
+                    else STATUS_ERR_LEXER,
+                    token.line, token.column, why)
+                return status, tokens
+            tokens.append(token)
+            if token.type == TOKEN_END:
+                break
+        return STATUS_OK, tokens

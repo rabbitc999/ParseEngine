@@ -1,0 +1,113 @@
+    /* 小数点和指数决定 float，后缀 d 决定 double。 */
+    if ((isdigit((unsigned char)*pStart) != 0) ||
+        ((*pStart == '.') && (isdigit((unsigned char)pStart[1]) != 0))) {
+        char *pEnd = NULL;
+        uint8_t hasDot = 0u;
+        uint8_t hasExponent = 0u;
+        char suffix = '\0';
+        while (isdigit((unsigned char)pCtx->pText[pCtx->textPosition]) != 0) {
+            Parser_ReadChar(pCtx);
+        }
+        if (pCtx->pText[pCtx->textPosition] == '.') {
+            hasDot = 1u;
+            Parser_ReadChar(pCtx);
+            while (isdigit((unsigned char)pCtx->pText[pCtx->textPosition]) != 0) {
+                Parser_ReadChar(pCtx);
+            }
+        }
+        if ((pCtx->pText[pCtx->textPosition] == 'e') ||
+            (pCtx->pText[pCtx->textPosition] == 'E')) {
+            hasExponent = 1u;
+            Parser_ReadChar(pCtx);
+            if ((pCtx->pText[pCtx->textPosition] == '+') ||
+                (pCtx->pText[pCtx->textPosition] == '-')) {
+                Parser_ReadChar(pCtx);
+            }
+            if (isdigit((unsigned char)pCtx->pText[pCtx->textPosition]) == 0) {
+                return PARSER_ERR_LEXER;
+            }
+            while (isdigit((unsigned char)pCtx->pText[pCtx->textPosition]) != 0) {
+                Parser_ReadChar(pCtx);
+            }
+        }
+        if (isalpha((unsigned char)pCtx->pText[pCtx->textPosition]) != 0) {
+            suffix = Parser_ReadChar(pCtx);
+        }
+        if (isalpha((unsigned char)pCtx->pText[pCtx->textPosition]) != 0) {
+            return PARSER_ERR_LEXER;
+        }
+        length = (uint32_t)(&pCtx->pText[pCtx->textPosition] - pStart);
+        if (length >= sizeof(pCtx->lexeme)) { return PARSER_ERR_LEXER; }
+        PARSER_MEMCPY(pCtx->lexeme, pStart, length);
+        pCtx->lexeme[length] = '\0';
+        if (suffix != '\0') { pCtx->lexeme[length - 1u] = '\0'; }
+        errno = 0;
+        if ((suffix == 'u') || (suffix == 'U')) {
+            unsigned long value = 0ul;
+            if ((hasDot != 0u) || (hasExponent != 0u)) {
+                return PARSER_ERR_LEXER;
+            }
+            value = strtoul(pCtx->lexeme, &pEnd, 10);
+            if ((errno == ERANGE) || (*pEnd != '\0') || (value > UINT32_MAX)) {
+                return PARSER_ERR_LEXER;
+            }
+{% if number_member %}
+        pToken->value.{{ number_member }} = ((uint32_t)value);
+{% else %}
+{% if number_in_union %}
+{% else %}
+            pToken->value = (int32_t)((uint32_t)value);
+{% endif %}
+{% endif %}
+        } else if ((suffix == 'd') || (suffix == 'D')) {
+            double value = 0.0;
+            if ((hasDot == 0u) && (hasExponent == 0u)) {
+                return PARSER_ERR_LEXER;
+            }
+            value = strtod(pCtx->lexeme, &pEnd);
+            if ((errno == ERANGE) || (*pEnd != '\0') ||
+                (isfinite(value) == 0)) { return PARSER_ERR_LEXER; }
+{% if number_member %}
+        pToken->value.{{ number_member }} = (value);
+{% else %}
+{% if number_in_union %}
+{% else %}
+            pToken->value = (int32_t)(value);
+{% endif %}
+{% endif %}
+        } else if (suffix != '\0') {
+            return PARSER_ERR_LEXER;
+        } else if ((hasDot != 0u) || (hasExponent != 0u)) {
+            float value = strtof(pCtx->lexeme, &pEnd);
+            if ((errno == ERANGE) || (*pEnd != '\0') ||
+                (isfinite(value) == 0)) { return PARSER_ERR_LEXER; }
+{% if number_member %}
+        pToken->value.{{ number_member }} = (value);
+{% else %}
+{% if number_in_union %}
+{% else %}
+            pToken->value = (int32_t)(value);
+{% endif %}
+{% endif %}
+        } else {
+            /* 整数可以到 64 位：`Token::value` 只有 32 位，别拿它当准 ——
+             * 前端要用整数的话按词素原文（`token.text`）自己解析（`strtoll`）。 */
+            long long value = strtoll(pCtx->lexeme, &pEnd, 10);
+            if ((errno == ERANGE) || (*pEnd != '\0') ||
+                (value < INT64_MIN) || (value > INT64_MAX)) {
+                return PARSER_ERR_LEXER;
+            }
+{% if number_member %}
+        pToken->value.{{ number_member }} = (value);
+{% else %}
+{% if number_in_union %}
+{% else %}
+            pToken->value = (int32_t)(value);
+{% endif %}
+{% endif %}
+        }
+        pToken->type = TOKEN_NUMBER;
+        pToken->name = pCtx->lexeme;
+        return PARSER_OK;
+    }
+

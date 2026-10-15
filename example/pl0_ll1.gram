@@ -1,0 +1,111 @@
+/* ============================================================
+ * PL/0 文法 · LL(1) 版 · 纯解析测试
+ *
+ * 用途：只做语法分析并生成 CST（%tree），供上层转换器再加工。
+ * 本文件不写语义动作，动作合法性由 %tree 提供（动作与 %tree 至少选其一）。
+ * ============================================================ */
+
+%tree
+%mode ll1
+
+/* ---------- 关键字（词法层固定字面量） ---------- */
+%define CONST     "const"
+%define VAR       "var"
+%define PROCEDURE "procedure"
+%define BEGIN     "begin"
+%define END       "end"
+%define IF        "if"
+%define THEN      "then"
+%define WHILE     "while"
+%define DO        "do"
+%define CALL      "call"
+%define ODD       "odd"
+
+/* ---------- 运算符与分隔符 ---------- */
+%define PLUS   "+"
+%define MINUS  "-"
+%define STAR   "*"
+%define SLASH  "/"
+%define EQ     "="
+%define NE     "#"
+%define LT     "<"
+%define LE     "<="
+%define GT     ">"
+%define GE     ">="
+%define ASSIGN ":="
+%define COMMA  ","
+%define SEMI   ";"
+%define DOT    "."
+%define LPAREN "("
+%define RPAREN ")"
+
+%start program
+
+/* ---------- 程序与分程序 ---------- */
+program := block DOT
+
+block := const_part var_part proc_part statement_opt
+
+/* ---------- 常量 / 变量 / 过程声明（尾链标记 fold） ---------- */
+const_part := CONST VARIABLE EQ NUMBER const_tail SEMI
+const_part := %empty
+
+const_tail := COMMA VARIABLE EQ NUMBER const_tail
+const_tail := %empty
+
+var_part := VAR VARIABLE var_tail SEMI
+var_part := %empty
+
+var_tail := COMMA VARIABLE var_tail
+var_tail := %empty
+
+proc_part := PROCEDURE VARIABLE SEMI block SEMI proc_part
+proc_part := %empty
+
+/* ---------- 语句 ---------- */
+statement_opt := statement
+statement_opt := %empty
+
+statement := VARIABLE ASSIGN expression
+statement := CALL VARIABLE
+statement := BEGIN statement_list END
+statement := IF condition THEN statement
+statement := WHILE condition DO statement
+
+statement_list := statement statement_list_tail
+statement_list := %empty
+
+statement_list_tail := SEMI statement_list
+statement_list_tail := %empty
+
+/* ---------- 条件与关系（relational 标记 label，保留关系运算符） ---------- */
+condition := ODD expression
+condition := expression relational
+
+relational := EQ expression
+relational := NE expression
+relational := LT expression
+relational := LE expression
+relational := GT expression
+relational := GE expression
+
+/* ---------- 表达式（符号与包装层标记 skip，尾链标记 fold） ---------- */
+expression := sign term expr_tail
+
+sign := PLUS
+sign := MINUS
+sign := %empty
+
+expr_tail := PLUS term expr_tail
+expr_tail := MINUS term expr_tail
+expr_tail := %empty
+
+term := factor term_tail
+
+term_tail := STAR factor term_tail
+term_tail := SLASH factor term_tail
+term_tail := %empty
+
+factor := VARIABLE
+factor := NUMBER
+factor := LPAREN expression RPAREN

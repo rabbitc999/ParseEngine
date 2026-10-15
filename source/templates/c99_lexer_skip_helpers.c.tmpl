@@ -1,0 +1,50 @@
+{# C99 词法器的两个辅助函数（`generatorLexerSkipHelpersC` 的产物）。
+   变量：
+     has_skip_set —— 要不要发「这个字符该不该跳过」（写了 %space，或有以空白 / \b
+                     通配开头的固定字面量时才发）；false 时只发命中判断
+     space_chars  —— %space 的字符集做成的 C 字符串字面量（含引号，已转义过）；
+                     空串 = 没写 %space，那是内置 isspace 版本
+   两个函数的文档注释行尾**带空格**（`/** `、` * @brief …。 `），照原样保留。
+   本文件末尾就是最后一个 `}` + 换行，别在 `{% endif %}` 之后再补空行。 #}
+/** 
+ * @brief 固定字面量命中判断（\b 通配命中任意一个空白字符）。 
+ * @param pRule 词法规则。 
+ * @param pText 文本起点。 
+ * @retval 命中返回 1，否则 0。 
+ */
+static int32_t Parser_LexRuleHit(const ParserLexRule_T *pRule, const char *pText)
+{
+    uint32_t index = 0u;
+    if (pRule->wildcard == 0u) {
+        return (strncmp(pText, pRule->pText, pRule->length) == 0) ? 1 : 0;
+    }
+    for (index = 0u; index < pRule->length; index++) {
+        if (pRule->pText[index] == '\x1f') {
+            const unsigned char ch = (unsigned char)pText[index];
+            if ((ch != ' ') && (ch != '\t') && (ch != '\n') &&
+                (ch != '\v') && (ch != '\f') && (ch != '\r')) {
+                return 0;
+            }
+        } else if (pRule->pText[index] != pText[index]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+{% if has_skip_set %}
+
+/** 
+ * @brief 这个字符在取 Token 前要不要跳过（%space 决定的空白集合）。 
+ * @param ch 字符。 
+ * @retval 跳过返回 1，否则 0。 
+ */
+static int32_t Parser_LexIsSkipChar(unsigned char ch)
+{
+{% if space_chars %}
+    if (ch == '\0') { return 0; }
+    return (strchr({{ space_chars }}, (int)ch) != NULL) ? 1 : 0;
+{% else %}
+    return (isspace(ch) != 0) ? 1 : 0;
+{% endif %}
+}
+{% endif %}

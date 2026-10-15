@@ -1,0 +1,13 @@
+/**
+ * `%union` 的成员：C# 没有联合体，改成一个带成员字段的类。
+ *
+ * 成员声明原样贴进来（请按 C# 的类型写：`int ival;` /
+ * `string name;`），语义动作里的 `$n` / `$$` 会展开成
+ * `values[i].<成员>` / `result.value.<成员>`。
+ */
+public class ParserValue
+{
+{% for m in members %}
+    public {{ m }};
+{% endfor %}
+}

@@ -1,0 +1,27 @@
+# 名称: 重复表达式与冗余 φ
+# 期望: 24 24
+# 期望 φ: 1
+# 期望 折叠: 0
+# 期望 不可达: 0
+# 期望 GVN: 1
+# 说明: 两条路径上的 mov t, s 都归并到 s，φ 因此冗余；归并后 add q, s, s 与 add r, s, s 重复
+label entry
+  mov one, 7
+  store [x], one
+  mov two, 5
+  store [y], two
+  load a, [x]
+  load b, [y]
+  add s, a, b
+  load c, [slot]
+  jz c, L1
+  mov t, s
+  jmp L2
+label L1
+  mov t, s
+label L2
+  add r, t, s
+  add q, s, s
+  print r
+  print q
+  halt

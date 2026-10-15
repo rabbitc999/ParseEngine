@@ -1,0 +1,21 @@
+protocol Telemetry;
+endian little;
+
+enum MessageKind : u8 {
+    heartbeat = 1;
+    sample = 2;
+};
+
+packet Header {
+    u16 sequence;
+    MessageKind kind;
+    u8 flags;
+};
+
+packet Sample {
+    Header header;
+    u32 timestamp;
+    u16 payload_length;
+    bytes payload[payload_length];
+    u16 checksum;
+};

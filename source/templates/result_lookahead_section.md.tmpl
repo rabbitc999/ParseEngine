@@ -1,0 +1,26 @@
+{# 「<家族>(k) 展望符」小节：只有 lrk / lalrk / slrk / llk 这四种模式才出现。
+   变量：has_lookahead（真假）、lookahead_is_llk（真假，LL 家族与 LR 家族的表格不同）、
+         family（LR / LALR / SLR / LL）、k（整数）、
+         select_count（LL 档的 SELECT_k 表项数）、
+         lr1_state_count / action_state_count / lookahead_column_count / transition_count（LR 档的四个数）。 #}
+{% if has_lookahead %}
+## {{ family }}({{ k }}) 展望符
+
+| 项目 | 值 |
+| --- | --- |
+| k | {{ k }} |
+{% if lookahead_is_llk %}
+| SELECT_{{ k }} 表项数 | {{ select_count }} |
+
+预测分析表按「非终结符 × {{ k }} 元组展望符」建列：运行时先看 k 个 Token 才能决定展开哪条产生式，所以栈机之外还带一个 {{ k }} 个 Token 的窗口。
+
+{% else %}
+| 规范 LR({{ k }}) 状态数 | {{ lr1_state_count }} |
+| ACTION 表状态数 | {{ action_state_count }} |
+| 归约列（{{ k }} 元组展望符）数 | {{ lookahead_column_count }} |
+| GOTO 转移数 | {{ transition_count }} |
+
+ACTION 表分两层：移进 / 接受按单个 Token 建列，归约按 {{ k }} 元组展望符建列；运行时先查归约列，查不到再按下一个 Token查移进。
+
+{% endif %}
+{% endif %}

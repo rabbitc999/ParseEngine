@@ -1,0 +1,366 @@
+/* c89_subset.gram —— C89 子集文法，用于 ParseEngine 生成 LALR(1) + %tree */
+%mode lalr
+%tree
+%start translation_unit
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+
+/* ================= 优先级：从低到高 ================= */
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
+
+%right ASSIGN PLUSEQ MINUSEQ STAREQ SLASHEQ PERCENTEQ SHLEQ SHREQ AMPEQ PIPEEQ CARETEQ
+%right QUESTION COLON
+%left OROR
+%left ANDAND
+%left PIPE
+%left CARET
+%left AMP
+%left EQ NE
+%left LT GT LE GE
+%left SHL SHR
+%left PLUS MINUS
+%left STAR SLASH PERCENT
+%right UMINUS UPLUS
+%right INC DEC
+%right SIZEOF
+
+/* ================= 关键字 ================= */
+%define INT "int"
+%define CHAR "char"
+%define VOID "void"
+%define FLOAT "float"
+%define DOUBLE "double"
+%define SHORT "short"
+%define LONG "long"
+%define SIGNED "signed"
+%define UNSIGNED "unsigned"
+%define STRUCT "struct"
+%define UNION "union"
+%define ENUM "enum"
+%define CONST "const"
+%define VOLATILE "volatile"
+%define IF "if"
+%define ELSE "else"
+%define WHILE "while"
+%define DO "do"
+%define FOR "for"
+%define SWITCH "switch"
+%define CASE "case"
+%define DEFAULT "default"
+%define RETURN "return"
+%define BREAK "break"
+%define CONTINUE "continue"
+%define GOTO "goto"
+%define SIZEOF "sizeof"
+%define TYPEDEF "typedef"
+%define STATIC "static"
+%define EXTERN "extern"
+%define REGISTER "register"
+%define AUTO "auto"
+
+/* ================= 标点 ================= */
+%define LPAREN "("
+%define RPAREN ")"
+%define LBRACE "{"
+%define RBRACE "}"
+%define LBRACKET "["
+%define RBRACKET "]"
+%define SEMI ";"
+%define COMMA ","
+%define DOT "."
+%define ARROW "->"
+%define ELLIPSIS "..."
+%define COLON ":"
+%define QUESTION "?"
+%define ASSIGN "="
+%define PLUS "+"
+%define MINUS "-"
+%define STAR "*"
+%define SLASH "/"
+%define PERCENT "%"
+%define AMP "&"
+%define PIPE "\|"
+%define CARET "^"
+%define TILDE "~"
+%define BANG "!"
+%define LT "<"
+%define GT ">"
+%define LE "<="
+%define GE ">="
+%define EQ "=="
+%define NE "!="
+%define ANDAND "&&"
+%define OROR "\|\|"
+%define SHL "<<"
+%define SHR ">>"
+%define INC "++"
+%define DEC "--"
+%define PLUSEQ "+="
+%define MINUSEQ "-="
+%define STAREQ "*="
+%define SLASHEQ "/="
+%define PERCENTEQ "%="
+%define AMPEQ "&="
+%define PIPEEQ "\|="
+%define CARETEQ "^="
+%define SHLEQ "<<="
+%define SHREQ ">>="
+
+/* ================= 翻译单元 ================= */
+translation_unit := external_declaration
+translation_unit := translation_unit external_declaration
+
+external_declaration := function_definition
+external_declaration := declaration
+
+function_definition := declaration_specifiers declarator compound_statement
+
+declaration := declaration_specifiers SEMI
+declaration := declaration_specifiers init_declarator_list SEMI
+
+init_declarator_list := init_declarator
+init_declarator_list := init_declarator_list COMMA init_declarator
+
+init_declarator := declarator
+init_declarator := declarator ASSIGN initializer
+
+initializer := assignment_expression
+initializer := LBRACE initializer_list RBRACE
+initializer := LBRACE initializer_list COMMA RBRACE
+initializer := LBRACE RBRACE
+
+initializer_list := initializer
+initializer_list := initializer_list COMMA initializer
+
+/* ================= 声明说明符 ================= */
+declaration_specifiers := type_specifier
+declaration_specifiers := type_specifier declaration_specifiers
+declaration_specifiers := storage_class_specifier declaration_specifiers
+declaration_specifiers := type_qualifier declaration_specifiers
+
+storage_class_specifier := TYPEDEF
+storage_class_specifier := EXTERN
+storage_class_specifier := STATIC
+storage_class_specifier := AUTO
+storage_class_specifier := REGISTER
+
+type_qualifier := CONST
+type_qualifier := VOLATILE
+
+type_specifier := VOID
+type_specifier := CHAR
+type_specifier := SHORT
+type_specifier := INT
+type_specifier := LONG
+type_specifier := FLOAT
+type_specifier := DOUBLE
+type_specifier := SIGNED
+type_specifier := UNSIGNED
+type_specifier := struct_or_union_specifier
+type_specifier := enum_specifier
+
+/* ================= 结构体 / 联合体 ================= */
+struct_or_union_specifier := struct_or_union VARIABLE LBRACE struct_declaration_list RBRACE
+struct_or_union_specifier := struct_or_union VARIABLE
+struct_or_union_specifier := struct_or_union LBRACE struct_declaration_list RBRACE
+
+struct_or_union := STRUCT
+struct_or_union := UNION
+
+struct_declaration_list := struct_declaration
+struct_declaration_list := struct_declaration_list struct_declaration
+
+struct_declaration := declaration_specifiers struct_declarator_list SEMI
+
+struct_declarator_list := struct_declarator
+struct_declarator_list := struct_declarator_list COMMA struct_declarator
+
+struct_declarator := declarator
+struct_declarator := COLON constant_expression
+struct_declarator := declarator COLON constant_expression
+
+/* ================= 枚举 ================= */
+enum_specifier := ENUM VARIABLE LBRACE enumerator_list RBRACE
+enum_specifier := ENUM VARIABLE
+enum_specifier := ENUM LBRACE enumerator_list RBRACE
+
+enumerator_list := enumerator
+enumerator_list := enumerator_list COMMA enumerator
+
+enumerator := VARIABLE
+enumerator := VARIABLE ASSIGN constant_expression
+
+/* ================= 声明符 ================= */
+declarator := direct_declarator
+declarator := pointer direct_declarator
+
+pointer := STAR
+pointer := STAR type_qualifier_list
+pointer := STAR pointer
+pointer := STAR type_qualifier_list pointer
+
+type_qualifier_list := type_qualifier
+type_qualifier_list := type_qualifier_list type_qualifier
+
+direct_declarator := VARIABLE
+direct_declarator := LPAREN declarator RPAREN
+direct_declarator := direct_declarator LBRACKET constant_expression RBRACKET
+direct_declarator := direct_declarator LBRACKET RBRACKET
+direct_declarator := direct_declarator LPAREN parameter_type_list RPAREN
+direct_declarator := direct_declarator LPAREN RPAREN
+
+parameter_type_list := parameter_list
+parameter_type_list := parameter_list COMMA ELLIPSIS
+
+parameter_list := parameter_declaration
+parameter_list := parameter_list COMMA parameter_declaration
+
+parameter_declaration := declaration_specifiers declarator
+parameter_declaration := declaration_specifiers
+
+/* ================= 类型名 / 抽象声明符 ================= */
+type_name := declaration_specifiers
+type_name := declaration_specifiers abstract_declarator
+
+abstract_declarator := pointer
+abstract_declarator := pointer direct_abstract_declarator
+abstract_declarator := direct_abstract_declarator
+
+direct_abstract_declarator := LPAREN abstract_declarator RPAREN
+direct_abstract_declarator := direct_abstract_declarator LBRACKET constant_expression RBRACKET
+direct_abstract_declarator := direct_abstract_declarator LBRACKET RBRACKET
+direct_abstract_declarator := LBRACKET constant_expression RBRACKET
+direct_abstract_declarator := LBRACKET RBRACKET
+
+/* ================= 语句 ================= */
+statement := labeled_statement
+statement := compound_statement
+statement := expression_statement
+statement := selection_statement
+statement := iteration_statement
+statement := jump_statement
+
+labeled_statement := VARIABLE COLON statement
+labeled_statement := CASE constant_expression COLON statement
+labeled_statement := DEFAULT COLON statement
+
+compound_statement := LBRACE RBRACE
+compound_statement := LBRACE block_item_list RBRACE
+
+block_item_list := block_item
+block_item_list := block_item_list block_item
+
+block_item := declaration
+block_item := statement
+
+expression_statement := SEMI
+expression_statement := expression SEMI
+
+selection_statement := IF LPAREN expression RPAREN statement %prec LOWER_THAN_ELSE
+selection_statement := IF LPAREN expression RPAREN statement ELSE statement
+selection_statement := SWITCH LPAREN expression RPAREN statement
+
+iteration_statement := WHILE LPAREN expression RPAREN statement
+iteration_statement := DO statement WHILE LPAREN expression RPAREN SEMI
+iteration_statement := FOR LPAREN expression_statement expression_statement RPAREN statement
+iteration_statement := FOR LPAREN expression_statement expression_statement expression RPAREN statement
+iteration_statement := FOR LPAREN declaration expression_statement RPAREN statement
+iteration_statement := FOR LPAREN declaration expression_statement expression RPAREN statement
+
+jump_statement := GOTO VARIABLE SEMI
+jump_statement := CONTINUE SEMI
+jump_statement := BREAK SEMI
+jump_statement := RETURN SEMI
+jump_statement := RETURN expression SEMI
+
+/* ================= 表达式 ================= */
+expression := assignment_expression
+expression := expression COMMA assignment_expression
+
+assignment_expression := conditional_expression
+assignment_expression := unary_expression ASSIGN assignment_expression
+assignment_expression := unary_expression PLUSEQ assignment_expression
+assignment_expression := unary_expression MINUSEQ assignment_expression
+assignment_expression := unary_expression STAREQ assignment_expression
+assignment_expression := unary_expression SLASHEQ assignment_expression
+assignment_expression := unary_expression PERCENTEQ assignment_expression
+assignment_expression := unary_expression SHLEQ assignment_expression
+assignment_expression := unary_expression SHREQ assignment_expression
+assignment_expression := unary_expression AMPEQ assignment_expression
+assignment_expression := unary_expression PIPEEQ assignment_expression
+assignment_expression := unary_expression CARETEQ assignment_expression
+
+conditional_expression := logical_or_expression
+conditional_expression := logical_or_expression QUESTION expression COLON conditional_expression
+
+logical_or_expression := logical_and_expression
+logical_or_expression := logical_or_expression OROR logical_and_expression
+
+logical_and_expression := inclusive_or_expression
+logical_and_expression := logical_and_expression ANDAND inclusive_or_expression
+
+inclusive_or_expression := exclusive_or_expression
+inclusive_or_expression := inclusive_or_expression PIPE exclusive_or_expression
+
+exclusive_or_expression := and_expression
+exclusive_or_expression := exclusive_or_expression CARET and_expression
+
+and_expression := equality_expression
+and_expression := and_expression AMP equality_expression
+
+equality_expression := relational_expression
+equality_expression := equality_expression EQ relational_expression
+equality_expression := equality_expression NE relational_expression
+
+relational_expression := shift_expression
+relational_expression := relational_expression LT shift_expression
+relational_expression := relational_expression GT shift_expression
+relational_expression := relational_expression LE shift_expression
+relational_expression := relational_expression GE shift_expression
+
+shift_expression := additive_expression
+shift_expression := shift_expression SHL additive_expression
+shift_expression := shift_expression SHR additive_expression
+
+additive_expression := multiplicative_expression
+additive_expression := additive_expression PLUS multiplicative_expression
+additive_expression := additive_expression MINUS multiplicative_expression
+
+multiplicative_expression := cast_expression
+multiplicative_expression := multiplicative_expression STAR cast_expression
+multiplicative_expression := multiplicative_expression SLASH cast_expression
+multiplicative_expression := multiplicative_expression PERCENT cast_expression
+
+cast_expression := unary_expression
+cast_expression := LPAREN type_name RPAREN cast_expression
+
+unary_expression := postfix_expression
+unary_expression := INC unary_expression
+unary_expression := DEC unary_expression
+unary_expression := AMP cast_expression
+unary_expression := STAR cast_expression
+unary_expression := PLUS cast_expression
+unary_expression := MINUS cast_expression %prec UMINUS
+unary_expression := TILDE cast_expression
+unary_expression := BANG cast_expression
+unary_expression := SIZEOF unary_expression
+unary_expression := SIZEOF LPAREN type_name RPAREN
+
+postfix_expression := primary_expression
+postfix_expression := postfix_expression LBRACKET expression RBRACKET
+postfix_expression := postfix_expression LPAREN RPAREN
+postfix_expression := postfix_expression LPAREN argument_expression_list RPAREN
+postfix_expression := postfix_expression DOT VARIABLE
+postfix_expression := postfix_expression ARROW VARIABLE
+postfix_expression := postfix_expression INC
+postfix_expression := postfix_expression DEC
+
+primary_expression := VARIABLE
+primary_expression := NUMBER
+primary_expression := STRING
+primary_expression := LPAREN expression RPAREN
+
+argument_expression_list := assignment_expression
+argument_expression_list := argument_expression_list COMMA assignment_expression
+
+constant_expression := conditional_expression

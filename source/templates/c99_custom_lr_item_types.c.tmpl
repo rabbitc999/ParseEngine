@@ -1,0 +1,43 @@
+/* custom 运行时 {{ lr_label }} 专属结构：语义值类型 ParserValue_T 由用户提供。 */
+typedef struct __ParserLRStack_T
+{
+    uint16_t states[PARSER_MAX_STACK_DEPTH];
+    /* 栈上每个槽位的文法符号，用**统一编号**：终结符就是 Token 号
+     * （0 .. {{ terminal_count }}-1），非终结符是 {{ terminal_count }} + 非终结符
+     * 编号。两段不重叠，运行时光看这个数就能认出是哪个文法符号——%destructor
+     * 要靠它查「这个槽位绑的是哪个 %union 成员」。 */
+    uint16_t symbols[PARSER_MAX_STACK_DEPTH];
+    ParserValue_T values[PARSER_MAX_STACK_DEPTH];
+    char names[PARSER_MAX_STACK_DEPTH][PARSER_MAX_NAME_LENGTH];
+{{ custom_lr_node_field }}    uint16_t top;
+} ParserLRStack_T;
+
+typedef struct __ParserCtx_T
+{
+    const ParserToken_T *pTokens;
+    uint32_t tokenCount;
+    uint32_t tokenPosition;
+    const char *pText;
+    uint32_t textPosition;
+    uint32_t line;
+    uint32_t column;
+    uint8_t textMode;
+    uint8_t ownsCurrentValue;
+    int32_t errorStatus;   /* 错误恢复状态：>0 表示正处在恢复过程中 */
+    char lexeme[PARSER_MAX_STRING_LENGTH];
+    ParserToken_T current;
+#if PARSER_LOOKAHEAD_K > 1
+    /* LR(k) / LALR(k)：current 之后的 k-1 个 Token（窗口头是 current） */
+    ParserToken_T lookahead[PARSER_LOOKAHEAD_K - 1u];
+#endif
+} ParserCtx_T;
+
+typedef struct __ParserLexRule_T
+{
+    const char *pText;
+    uint32_t length;
+    ParserTokenType_T type;
+    uint8_t blankFirst;   /* 首字节是空白 / \b 通配：跳空白时要先看它能不能命中 */
+    uint8_t wildcard;     /* 含 \b 通配：命中后词素按输入抄一份 */
+    int32_t order;        /* 词法声明序（%commit 同长度比较用） */
+} ParserLexRule_T;

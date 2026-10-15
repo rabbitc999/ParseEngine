@@ -1,0 +1,14 @@
+{# 同步 Token / error 伪终结符 / 非终结符名表（CodeGenGo 的 goMiscTables）。
+   变量：sync_tokens —— 一维整数表正文；has_error_token —— 真假；
+         error_token_id —— 整数；nonterm_names —— 带引号的名字数组。
+   本模板自带行尾换行。开头那个空行是原来拼接里就有的。 #}
+
+// sParserSyncTokens %sync 声明的同步 Token；sParserErrorTokenID 是 error 伪终结符。
+var sParserSyncTokens = []int32{ {{ sync_tokens }} }
+const sParserHasErrorToken = {{ has_error_token }}
+const sParserErrorTokenID int32 = {{ error_token_id }}
+
+// sParserTreeNontermNames 非终结符名表（%tree 建内部分支节点用）。
+var sParserTreeNontermNames = []string{
+{% for n in nonterm_names %}	{{ n }},
+{% endfor %}}

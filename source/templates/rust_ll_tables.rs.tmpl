@@ -1,0 +1,20 @@
+{# LL 家族的预测分析表（CodeGenRust 的 rustLlTables）。
+   变量：
+     ll_table / follow             —— 二维整数表
+     left_empty / lookahead_code / lookahead_column —— 一维整数表正文
+     has_columns                   —— k >= 2（有列编码表）
+     has_follow                    —— k != 0（有 FOLLOW 集）
+   本模板自带行尾换行。 #}
+/// 预测分析表：单元里的产生式编号，-1 表示没有可用产生式。
+static _LL_TABLE: &[&[i32]] = {{ ll_table }};
+{% if has_columns %}/// LL(k)：分析表的列编码（升序）与对应的列号。
+static _LOOKAHEAD_CODE: &[i64] = &[{{ lookahead_code }}];
+static _LOOKAHEAD_COLUMN: &[i32] = &[{{ lookahead_column }}];
+{% else %}static _LOOKAHEAD_CODE: &[i64] = &[];
+static _LOOKAHEAD_COLUMN: &[i32] = &[];
+{% endif %}static _PRODUCTION_IS_LEFT_EMPTY: &[i32] = &[{{ left_empty }}];
+{% if has_follow %}/// FOLLOW 集：错误恢复用。
+static _LL_FOLLOW: &[&[i32]] = {{ follow }};
+{% else %}/// LL(0) 没有可用的 FOLLOW 信息（恢复在 LL(0) 下不启用）。
+static _LL_FOLLOW: &[&[i32]] = &[];
+{% endif %}

@@ -1,0 +1,4 @@
+{# 「生成信息」表里的一整行：正则 Token。
+   变量：regex_tokens（数组，元素是对象，字段 name = Token 名、pattern = 正则正文），
+   空数组时这一格写「未使用」。 #}
+| %token regex | {% if regex_tokens %}{% for r in regex_tokens %}{% if loop_first %}{% else %}；{% endif %}{{ r.name }}: {{ r.pattern }}{% endfor %}{% else %}未使用{% endif %} |

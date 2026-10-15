@@ -1,0 +1,53 @@
+/* ============================================================
+ * %code ... %endcode 示例（`%mode lalr`）
+ *
+ * `%code` 是唯一的用户代码块语法，用来写「进 parser_user.h 的用户代码」：
+ *
+ *   %code
+ *   typedef struct MyNode MyNode;
+ *   %endcode
+ *
+ * 规则：`%code` 与 `%endcode` 都单独成行（前后只允许空白），中间的内容原样收集、
+ * 不解析不转义；可以写多段，按出现顺序拼进 parser_user.h。代码段对条件编译层
+ * 是不透明区——段里的 `%if` 只是普通文本。
+ *
+ * 放什么：声明、typedef、宏、static inline 函数。**不要**把非 inline 的函数定义
+ * 写进来（parser_user.h 会被 parser.c / parser_token.c 一起 include，链接期会炸
+ * 重复定义）；函数定义请用 %epilogue。
+ *
+ * 试用输入：1+2*3 -> 7
+ * ============================================================ */
+
+%mode lalr
+%value_type double
+
+%define PLUS "+"
+%define STAR "*"
+
+%code
+#include <stdio.h>
+
+/* 自定义类型与声明放这里，语义动作里可以直接用 */
+typedef struct MyNode MyNode;
+struct MyNode
+{
+    double value;
+    MyNode *pNext;
+};
+
+/* 数字 Token 的语义值取自词法器解析好的 pToken->value */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+
+/* 演示程序（main.c）打印解析结果 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%g", *(pValue))
+%endcode
+
+%start expr
+
+expr := expr PLUS term { $$ = $1 + $3; }
+      | term            { $$ = $1; };
+
+term := term STAR factor { $$ = $1 * $3; }
+      | factor            { $$ = $1; };
+
+factor := NUMBER { $$ = $1; };

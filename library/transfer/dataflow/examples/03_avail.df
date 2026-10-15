@@ -1,0 +1,17 @@
+# 名称: 一条路径上算过的表达式
+# 说明: a + b 只在左分支算过，汇合点不可用（交集为空）；把它挪到分支之前就可用。
+# 期望 live entry in: {a, b}
+# 期望 avail B1 out: {[slot], a add b}
+# 期望 avail L2 in: {[slot]}
+# 期望 const L2 in: {t=0, x=⊥}
+label entry
+  load x, [slot]
+  jz x, L1
+  add t, a, b
+  jmp L2
+label L1
+  mov t, 0
+label L2
+  add r, t, 1
+  print r
+  halt

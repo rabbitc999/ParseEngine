@@ -1,0 +1,65 @@
+/* custom 运行时 LL(1) 专属结构：语义值类型 ParserValue_T 由用户提供。 */
+typedef enum __ParserItemKind_T
+{
+    PARSER_ITEM_TERMINAL = 0,
+    PARSER_ITEM_NONTERM,
+    PARSER_ITEM_ACTION,
+    PARSER_ITEM_ACTION_KEEP,
+    PARSER_ITEM_FORWARD,
+    PARSER_ITEM_LEFT_LOOP,
+    PARSER_ITEM_TREE_END
+} ParserItemKind_T;
+
+typedef struct __ParserStackItem_T
+{
+    ParserItemKind_T kind;
+    uint16_t symbol;
+    uint16_t frameIndex;
+    uint16_t valueIndex;
+    uint16_t seedFrameIndex;
+} ParserStackItem_T;
+
+typedef struct __ParserSemanticFrame_T
+{
+    uint16_t parentFrameIndex;
+    uint16_t parentValueIndex;
+    ParserValue_T values[PARSER_VALUE_SLOTS];
+    char names[PARSER_VALUE_SLOTS][PARSER_MAX_NAME_LENGTH];
+    ParserValue_T resultValue;
+{{ custom_ll_frame_symbols }}    uint8_t valuesDiscarded;   /* 错误恢复丢弃该语义帧时置 1，避免重复清理 */
+} ParserSemanticFrame_T;
+
+typedef struct __ParserCtx_T
+{
+    const ParserToken_T *pTokens;
+    uint32_t tokenCount;
+    uint32_t tokenPosition;
+    const char *pText;
+    uint32_t textPosition;
+    uint32_t line;
+    uint32_t column;
+    uint8_t textMode;
+    uint8_t ownsCurrentValue;
+    char lexeme[PARSER_MAX_STRING_LENGTH];
+    ParserToken_T current;
+    /* LL(k)：current 之后的 k-1 个 Token（窗口头是 current）。
+     * k <= 1 时用不到，留 1 个槽位让数组始终合法。 */
+    ParserToken_T lookahead[(PARSER_LOOKAHEAD_K > 1u)
+                                ? (PARSER_LOOKAHEAD_K - 1u)
+                                : 1u];
+    ParserStackItem_T stack[PARSER_MAX_STACK_DEPTH];
+    uint16_t stackTop;
+    ParserSemanticFrame_T frames[PARSER_MAX_STACK_DEPTH];
+    uint16_t frameTop;
+    ParserValue_T rootResult;
+{{ custom_ll_tree_fields }}} ParserCtx_T;
+
+typedef struct __ParserLexRule_T
+{
+    const char *pText;
+    uint32_t length;
+    ParserTokenType_T type;
+    uint8_t blankFirst;   /* 首字节是空白 / \b 通配：跳空白时要先看它能不能命中 */
+    uint8_t wildcard;     /* 含 \b 通配：命中后词素按输入抄一份 */
+    int32_t order;        /* 词法声明序（%commit 同长度比较用） */
+} ParserLexRule_T;

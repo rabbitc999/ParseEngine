@@ -1,0 +1,31 @@
+{# C99 LL 左递归展开的 case 表（`generatorExpandCases` 的产物，整段当值插进
+   `c99_custom_ll_runtime.c.tmpl` 的 `{{ expand_cases }}`）。
+   变量：
+     cases —— 每个产生式一项，字段：
+                id（产生式号）、left_loop / loop_symbol_id（左递归回环那一句）、
+                keep_action（保留动作那一句）、empty_tail（空尾规则那句注释）、
+                plain_action（普通 ACTION 那一句）、symbols（要压栈的符号，
+                每项 kind / symbol_id / slot）
+   一个 case 的多行之间没有空行；**case 之间恰好一个换行**，所以分隔符写在每轮
+   开头（`{% if loop_first %}{% else %}` 换行 `{% endif %}`），末尾不留换行
+   （`{% endfor %}` 收在最后一个 `}` 后面）——值结尾就是 `        }`。
+   改这个模板时别把 endfor 挪到单独一行。 #}
+{% for c in cases %}{% if loop_first %}{% else %}
+{% endif %}        case {{ c.id }}u:
+        {
+{% if c.left_loop %}
+            if (Parser_Push(pCtx, PARSER_ITEM_LEFT_LOOP, {{ c.loop_symbol_id }}, frameIndex, 0u, PARSER_INVALID_INDEX) != PARSER_OK) { return PARSER_ERR_STACK; }
+{% endif %}
+{% if c.keep_action %}
+            if (Parser_Push(pCtx, PARSER_ITEM_ACTION_KEEP, {{ c.id }}u, frameIndex, 0u, PARSER_INVALID_INDEX) != PARSER_OK) { return PARSER_ERR_STACK; }
+{% endif %}
+{% if c.empty_tail %}
+            /* 空尾规则由 LEFT_LOOP 直接完成。 */
+{% endif %}
+{% if c.plain_action %}
+            if (Parser_Push(pCtx, PARSER_ITEM_ACTION, {{ c.id }}u, frameIndex, 0u, PARSER_INVALID_INDEX) != PARSER_OK) { return PARSER_ERR_STACK; }
+{% endif %}
+{% for s in c.symbols %}
+            if (Parser_Push(pCtx, {{ s.kind }}, {{ s.symbol_id }}, frameIndex, {{ s.slot }}u, PARSER_INVALID_INDEX) != PARSER_OK) { return PARSER_ERR_STACK; }
+{% endfor %}            break;
+        }{% endfor %}

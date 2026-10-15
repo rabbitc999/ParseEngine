@@ -1,0 +1,160 @@
+{
+  "name": "gram-editor",
+  "displayName": "GramEditor - ParseEngine 文法",
+  "description": "编辑 ParseEngine .gram 文法；支持诊断、补全、Token 与语法树预览。（Magel .mgl 见 magel/vscode 插件，MetroLang .metro/.m 见 metro-lang/vscode 插件）",
+  "version": "1.0.0",
+  "publisher": "rabbitc999",
+  "author": {
+    "name": "小兔糖糖OvO",
+    "email": "rabbitc999@outlook.com"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters"
+  ],
+  "keywords": [
+    "gram",
+    "parser",
+    "parseengine",
+    "lalr",
+    "ielr"
+  ],
+  "main": "./extension.js",
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:gram"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "gram",
+        "aliases": [
+          "ParseEngine Grammar",
+          "gram"
+        ],
+        "extensions": [
+          ".gram"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "gram",
+        "scopeName": "source.gram",
+        "path": "./syntaxes/gram.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[gram]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false,
+        "editor.suggest.showWords": false,
+        "editor.formatOnSave": false,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true
+      }
+    },
+    "commands": [
+      {
+        "command": "gram.check",
+        "title": "Gram: 校验当前文法"
+      },
+      {
+        "command": "gram.generate",
+        "title": "Gram: 生成解析器…"
+      },
+      {
+        "command": "gram.preview",
+        "title": "Gram: 预览 Token 与语法树"
+      },
+      {
+        "command": "gram.restartServer",
+        "title": "Gram: 重启语言服务器"
+      },
+      {
+        "command": "gram.openDoc",
+        "title": "Gram: 打开文法指令手册"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "gram.preview",
+        "key": "f7",
+        "when": "editorLangId == gram"
+      }
+    ],
+    "configuration": {
+      "title": "GramEditor",
+      "properties": {
+        "gram.lspServerPath": {
+          "type": "string",
+          "default": "",
+          "description": "lsp-server 可执行文件路径；留空时在仓库里自动探测 build/lsp/lsp-server。"
+        },
+        "gram.parseEnginePath": {
+          "type": "string",
+          "default": "",
+          "description": "ParseEngine 可执行文件路径；留空时在仓库里自动探测 build/bin/ParseEngine。"
+        },
+        "gram.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "解析预览使用的 Python 3 命令或可执行文件路径；留空时依次尝试 python、python3、py -3。"
+        },
+        "gram.defaultMode": {
+          "type": "string",
+          "default": "ielr",
+          "enum": [
+            "ll1",
+            "lr0",
+            "slr",
+            "lalr",
+            "lr1",
+            "ielr",
+            "lrk",
+            "lalrk",
+            "slrk",
+            "llk",
+            "ll0",
+            "glr",
+            "earley",
+            "cyk",
+            "dd",
+            "lex"
+          ],
+          "description": "「生成解析器」对话框里默认选中的生成模式。"
+        },
+        "gram.defaultLang": {
+          "type": "string",
+          "default": "cpp17",
+          "enum": [
+            "c",
+            "cpp17",
+            "python",
+            "csharp",
+            "rust",
+            "go",
+            "gram"
+          ],
+          "description": "「生成解析器」对话框里默认选中的目标语言。"
+        },
+        "gram.traceServer": {
+          "type": "string",
+          "default": "off",
+          "enum": [
+            "off",
+            "messages"
+          ],
+          "description": "把与 lsp-server 的协议消息写进输出面板，排查问题时打开。"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "values": {},
+  "documents": [
+    {
+      "template": "project/document/templates/document.md.tmpl",
+      "output": "build/document/example.md",
+      "values": {
+        "title": "文档生成器使用示例",
+        "summary": "这篇文档展示统一技术文档模板的输出结构。内容来自 project/document/example.json。",
+        "scope": "适用于需要按同一结构维护的 Markdown 技术文档。公共构建说明使用独立的片段模板。",
+        "prerequisites": "Python 3.10 或更新版本。当前版本无需额外安装依赖，扩展时可以引入第三方库并记录安装步骤。命令在仓库根目录执行。",
+        "usage": "```sh\npython project/document/generate.py --config project/document/example.json\n```",
+        "outputs": "输入为 JSON 配置和 `.tmpl` 模板；输出为 `build/document/example.md`。正式文档应在配置中指定仓库内的维护路径。",
+        "validation": "运行 `python project/document/generate.py --config project/document/example.json --check`。退出码 0 表示文档与配置同步。",
+        "limitations": "生成器只替换命名字段，不自动读取代码推断功能；维护者负责核实内容。整篇生成的文档修改配置或模板后重新生成。",
+        "references": "参见仓库中的 `project/document/README.md` 和根目录 `doc/README.md`。"
+      }
+    }
+  ]
+}

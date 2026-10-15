@@ -1,0 +1,1390 @@
+// ============================================================
+// 状态码 / 容量常量（数值与 C / C++17 / Python / Java / C# 产物一致）
+// ============================================================
+
+pub const STATUS_OK: i32 = 0;
+pub const STATUS_ERR_STACK: i32 = -20;
+pub const STATUS_ERR_SYNTAX: i32 = -21;
+pub const STATUS_ERR_LEXER: i32 = -22;
+pub const STATUS_ERR_DUPLICATE: i32 = -23;
+pub const STATUS_ERR_UNDEFINED: i32 = -24;
+pub const STATUS_ERR_SYSTEM: i32 = -25;
+pub const STATUS_ERR_EXPECTED: i32 = -26;
+pub const STATUS_ERR_UNEXPECTED_EOF: i32 = -27;
+pub const STATUS_ERR_LEX_UNTERMINATED: i32 = -28;
+pub const STATUS_ERR_LEX_CHAR: i32 = -29;
+
+/// 分析栈最大深度（`%max_stack_depth`）。
+const MAX_STACK_DEPTH: usize = {{ max_stack_depth }};
+/// 一次解析最多记录多少条错误（`%max_errors`）。
+const MAX_ERRORS: usize = {{ max_errors }};
+/// 恢复成功后要连续移进多少个真实 Token 才退出错误状态。
+const ERROR_RECOVERY_TOKENS: i32 = {{ error_recovery_tokens }};
+/// 语义动作里 `$1..$n` 的槽位个数。
+const VALUE_SLOTS: usize = {{ value_slots }};
+{% if glr %}/// GLR：归约路径最大长度 / 单次解析最多访问多少条路径 / 死路时最多吞几个 Token。
+const _MAX_PATH_DEPTH: usize = 64;
+const _MAX_PATH_VISITS: usize = 200000;
+const _GLR_MAX_RECOVERY_DELETES: i32 = 256;
+{% endif %}
+
+const MAX_EXPECTED: usize = 8;
+const INVALID_STATE: i32 = 0xFFFF;
+const INVALID_INDEX: i32 = 0xFFFF;
+const ACCEPT_ACTION: i32 = 2147483647;
+
+{{ constants }}
+
+{{ tables }}
+
+/// 取状态码的名字（如 `"Ok"` / `"ErrSyntax"`）。
+pub fn status_name(status: i32) -> &'static str
+{
+    match status
+    {
+        STATUS_OK => "Ok",
+        STATUS_ERR_STACK => "ErrStack",
+        STATUS_ERR_SYNTAX => "ErrSyntax",
+        STATUS_ERR_LEXER => "ErrLexer",
+        STATUS_ERR_DUPLICATE => "ErrDuplicate",
+        STATUS_ERR_UNDEFINED => "ErrUndefined",
+        STATUS_ERR_SYSTEM => "ErrSystem",
+        _ => "Unknown",
+    }
+}
+
+// ============================================================
+// 解析错误 / 语法树
+// ============================================================
+
+/// 一条解析错误：一次解析可以累积多条（错误恢复时）。
+#[derive(Clone, Debug)]
+pub struct ParserError
+{
+    /// 错误码（`STATUS_*` 或细分码）。
+    pub code: i32,
+    /// 行号（1 起）。
+    pub line: u32,
+    /// 列号（1 起）。
+    pub column: u32,
+    /// 说明文本。
+    pub message: String,
+    /// 实际看到的 Token 类型（语法错误时有内容）。
+    pub token_kind: i32,
+    /// 实际看到的 Token 词素。
+    pub token_text: String,
+    /// LR 状态号 / LL 栈顶符号编号。
+    pub state: i32,
+    /// 这里期望的 Token 类型列表。
+    pub expected: Vec<i32>,
+}
+
+impl ParserError
+{
+    /// 建一条错误。
+    fn new(code: i32, line: u32, column: u32, message: &str) -> ParserError
+    {
+        ParserError {
+            code,
+            line,
+            column,
+            message: message.to_string(),
+            token_kind: TOKEN_INVALID,
+            token_text: String::new(),
+            state: 0,
+            expected: Vec::new(),
+        }
+    }
+}
+
+impl std::fmt::Display for ParserError
+{
+    fn fmt(&self, out: &mut std::fmt::Formatter) -> std::fmt::Result
+    {
+        write!(
+            out,
+            "第 {} 行第 {} 列：{}",
+            self.line, self.column, self.message
+        )
+    }
+}
+
+/// `%commit` 收集到的一条片段：行号 + 类型 + 原文。
+///
+/// `kind` 就是 `%commit` 的类型名（`type` 是 Rust 关键字，改名对齐 Token 的
+/// `kind` 习惯）；跳过 `%commit skip` / `%trivia` 的片段不进容器。
+#[derive(Clone, Debug)]
+pub struct ParserCommit
+{
+    /// 片段起始行号（1 起）。
+    pub line: i32,
+    /// `%commit` 的类型名（缺省 `"default"`）。
+    pub kind: String,
+    /// 匹配到的原文（含字面量本身）。
+    pub text: String,
+}
+
+{% if incremental %}{% if lr_incremental %}/// LR 增量友好的 Token 缓存项。
+#[derive(Clone, Debug)]
+pub struct IncrementalToken
+{
+    pub kind: i32,
+    pub value: {{ value_type }},
+    pub text: String,
+    pub line: u32,
+    pub column: u32,
+    pub offset: u32,
+}
+
+/// LR 前缀状态 checkpoint。
+///
+/// 当前版本只记录语义模式所需的 LR 栈；`parse_tree` 的节点栈不在 checkpoint 里。
+#[derive(Clone, Debug)]
+pub struct LrStackCheckpoint
+{
+    pub token_index: usize,
+    pub top: usize,
+    pub states: Vec<i32>,
+    pub symbols: Vec<i32>,
+    pub values: Vec<{{ value_type }}>,
+    pub names: Vec<String>,
+}
+
+{% endif %}/// LL / DD / LR 模式的增量解析缓存。
+///
+/// LL / DD 采用保守失效策略：输入文本完全一致时复用上次结果，文本变化时自动
+/// 完整重算并刷新缓存。确定性 LR 模式还会保存 token cache 与前缀栈 checkpoint，
+/// 文本变化后从公共 Token 前缀内最近的 checkpoint 恢复，恢复失败再完整重算。
+/// 这不是完整 LR 增量解析；状态栈局部修补、错误恢复延续、语义动作副作用纯度约束
+/// / 禁用策略以及 CST 修补属于后续完整方案。
+#[derive(Clone, Debug)]
+pub struct IncrementalCache
+{
+    /// 缓存是否可用。
+    pub valid: bool,
+    /// 上次解析的完整输入。
+    pub text: String,
+    /// 上次解析状态。
+    pub status: i32,
+    /// 上次语义结果。
+    pub result: {{ value_type }},
+    /// 上次错误表。
+    pub errors: Vec<ParserError>,
+    /// 上次 `%commit` 片段。
+    pub commits: Vec<ParserCommit>,
+{% if lr_incremental %}    /// 每移进多少个 Token 记录一个 LR 栈快照；0 表示不记录。
+    pub checkpoint_interval: usize,
+    /// 上次解析收集到的 Token 缓存。
+    pub tokens: Vec<IncrementalToken>,
+    /// 仍可复用的前缀栈快照。
+    pub checkpoints: Vec<LrStackCheckpoint>,
+{% endif %}
+}
+
+impl IncrementalCache
+{
+    /// 建一个空缓存。
+    pub fn new() -> IncrementalCache
+    {
+        IncrementalCache {
+            valid: false,
+            text: String::new(),
+            status: STATUS_ERR_SYSTEM,
+            result: Default::default(),
+            errors: Vec::new(),
+            commits: Vec::new(),
+{% if lr_incremental %}            checkpoint_interval: 32,
+            tokens: Vec::new(),
+            checkpoints: Vec::new(),
+{% endif %}
+        }
+    }
+
+    /// 清空缓存。
+    pub fn clear(&mut self)
+    {
+        self.valid = false;
+        self.text.clear();
+        self.status = STATUS_ERR_SYSTEM;
+        self.result = Default::default();
+        self.errors.clear();
+        self.commits.clear();
+{% if lr_incremental %}        self.tokens.clear();
+        self.checkpoints.clear();
+{% endif %}
+    }
+}
+
+impl Default for IncrementalCache
+{
+    fn default() -> Self
+    {
+        Self::new()
+    }
+}
+
+{% endif %}
+/// 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起）。
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ParserLocation
+{
+    /// 行号（1 起）。
+    pub line: i32,
+    /// 列号（1 起）。
+    pub column: i32,
+    /// UTF-8 字节偏移（0 起）。
+    pub offset: i32,
+}
+
+/// 语法树节点（`%tree` 文法）：名字 + 词素 + 子节点。
+#[derive(Clone, Debug)]
+pub struct Tree
+{
+    /// 符号名（终结符 / 非终结符）。
+    pub name: String,
+    /// 终结符词素；非终结符是空串。
+    pub text: String,
+    /// 节点位置；没有时用 `location()`（会退到第一个有位置的子节点）。
+    pub location: Option<ParserLocation>,
+    /// 子节点。
+    pub children: Vec<Tree>,
+}
+
+impl Tree
+{
+    /// 建一个节点。
+    pub fn new(name: &str, text: &str) -> Tree
+    {
+        Tree {
+            name: name.to_string(),
+            text: text.to_string(),
+            location: None,
+            children: Vec::new(),
+        }
+    }
+
+    /// 设置节点位置（叶节点创建时由词法器位置填入）。
+    pub fn set_location(&mut self, location: ParserLocation)
+    {
+        self.location = Some(location);
+    }
+
+    /// 取节点位置：自己的没有就退到第一个有位置的子节点（覆盖文本的起点）。
+    pub fn location(&self) -> Option<ParserLocation>
+    {
+        if self.location.is_some()
+        {
+            return self.location;
+        }
+        for child in &self.children
+        {
+            if let Some(found) = child.location()
+            {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    /// 子节点个数。
+    pub fn child_count(&self) -> usize
+    {
+        self.children.len()
+    }
+
+    /// 取第 `index` 个子节点；越界返回 `None`。
+    pub fn child(&self, index: usize) -> Option<&Tree>
+    {
+        self.children.get(index)
+    }
+
+    /// 追加一个子节点。
+    pub fn add_child(&mut self, node: Tree)
+    {
+        self.children.push(node);
+    }
+
+    /// 深拷贝整棵子树（`#[derive(Clone)]` 给的 `clone()` 同义，这里只为对齐）。
+    pub fn clone_tree(&self) -> Tree
+    {
+        self.clone()
+    }
+
+    /// 打印整棵树（写到标准输出）。
+    pub fn print(&self)
+    {
+        print!("{}", self);
+    }
+}
+
+impl std::fmt::Display for Tree
+{
+    /// 缩进文本（每层两个空格）。
+    fn fmt(&self, out: &mut std::fmt::Formatter) -> std::fmt::Result
+    {
+        fn walk(node: &Tree, depth: usize, out: &mut std::fmt::Formatter) -> std::fmt::Result
+        {
+            for _ in 0..depth
+            {
+                write!(out, "  ")?;
+            }
+            write!(out, "{}", node.name)?;
+            if !node.text.is_empty()
+            {
+                write!(out, "({})", node.text)?;
+            }
+            writeln!(out)?;
+            for child in &node.children
+            {
+                walk(child, depth + 1, out)?;
+            }
+            Ok(())
+        }
+        walk(self, 0, out)
+    }
+}
+
+/// 一次归约的语义结果壳：动作里的 `$$` 就是它的 `value`。
+struct Holder
+{
+    value: {{ value_type }},
+}
+
+/// LL 语义帧：一个非终结符展开期间的全部语义槽。
+{% if glr %}/// Pure 是调用方的纯度承诺；引擎不推断或重放副作用。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GlrSemanticReusePolicy { Disabled, Pure }
+
+#[derive(Clone, Debug)]
+pub struct GlrTokenSpan
+{
+    pub kind: i32,
+    pub text: String,
+    pub line: u32,
+    pub column: u32,
+    pub offset: u32,
+    pub length: usize,
+}
+
+/// 变更窗口使用半开 token 区间，不包含 EOF。
+#[derive(Clone, Debug, Default)]
+pub struct GlrTokenChange
+{
+    pub changed: bool,
+    pub old_begin: usize,
+    pub old_end: usize,
+    pub new_begin: usize,
+    pub new_end: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct GlrReduceEntry
+{
+    pub production: i32,
+    pub start_token: usize,
+    pub end_token: usize,
+    pub from_node: usize,
+    pub to_node: usize,
+    pub forest_node: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GlrForestAlternative
+{
+    pub production: i32,
+    pub children: Vec<u64>,
+}
+
+/// Packed symbol node；稳定 ID 在 clear() 前不复用，parents 为反向依赖。
+#[derive(Clone, Debug)]
+pub struct GlrForestNode
+{
+    pub id: u64,
+    pub symbol: i32,
+    pub start_token: usize,
+    pub end_token: usize,
+    pub terminal: bool,
+    pub text: String,
+    pub alternatives: Vec<GlrForestAlternative>,
+    pub parents: Vec<u64>,
+}
+
+struct GlrForestWork
+{
+    nodes: Vec<GlrForestNode>,
+    roots: Vec<u64>,
+    by_span: std::collections::HashMap<(i32, usize, usize), usize>,
+    by_id: std::collections::HashMap<u64, usize>,
+    seen: Vec<Vec<bool>>,
+    next_id: u64,
+    first_new_id: u64,
+}
+
+/// GLR 增量缓存：传递失效与 packed forest 局部修补；GSS 仍重新走表。
+#[derive(Clone, Debug)]
+pub struct GlrIncrementalCache
+{
+    pub semantic_reuse: GlrSemanticReusePolicy,
+    pub semantic_revision: u64,
+    pub semantic_results_reusable: bool,
+    pub cached_semantic_revision: u64,
+    pub reused_semantic_results: bool,
+    pub forest: Vec<GlrForestNode>,
+    pub forest_roots: Vec<u64>,
+    pub invalidated_forest_nodes: Vec<u64>,
+    pub next_forest_id: u64,
+    pub reused_forest_node_count: usize,
+    pub rebuilt_forest_node_count: usize,
+    pub valid: bool,
+    pub tree_mode: bool,
+    pub text: String,
+    pub status: i32,
+    pub errors: Vec<ParserError>,
+    pub commits: Vec<ParserCommit>,
+    pub tokens: Vec<GlrTokenSpan>,
+    pub token_change: GlrTokenChange,
+    pub results: Vec<{{ value_type }}>,
+    pub reduce_entries: Vec<GlrReduceEntry>,
+    /// 索引指向上一次解析的 reduce_entries，不是本次刷新后的条目。
+    pub invalidated_reduce_entries: Vec<usize>,
+    pub result_count: usize,
+    pub forest_node_count: usize,
+    /// 兼容旧 API：GSS 边数；packed forest 由 forest 字段持有。
+    pub forest_edge_count: usize,
+    pub invalidated_forest_edge_count: usize,
+    pub reduce_visit_count: usize,
+}
+
+impl Default for GlrIncrementalCache
+{
+    fn default() -> Self
+    {
+        Self {
+            semantic_reuse: GlrSemanticReusePolicy::Disabled,
+            semantic_revision: 0,
+            semantic_results_reusable: false,
+            cached_semantic_revision: 0,
+            reused_semantic_results: false,
+            forest: Vec::new(),
+            forest_roots: Vec::new(),
+            invalidated_forest_nodes: Vec::new(),
+            next_forest_id: 1,
+            reused_forest_node_count: 0,
+            rebuilt_forest_node_count: 0,
+            valid: false,
+            tree_mode: false,
+            text: String::new(),
+            status: STATUS_ERR_SYSTEM,
+            errors: Vec::new(),
+            commits: Vec::new(),
+            tokens: Vec::new(),
+            token_change: GlrTokenChange::default(),
+            results: Vec::new(),
+            reduce_entries: Vec::new(),
+            invalidated_reduce_entries: Vec::new(),
+            result_count: 0,
+            forest_node_count: 0,
+            forest_edge_count: 0,
+            invalidated_forest_edge_count: 0,
+            reduce_visit_count: 0,
+        }
+    }
+}
+
+impl GlrIncrementalCache
+{
+    pub fn new() -> Self { Self::default() }
+
+    /// 清空缓存，保留策略与调用方的语义环境版本。
+    pub fn clear(&mut self)
+    {
+        *self = Self {
+            semantic_reuse: self.semantic_reuse,
+            semantic_revision: self.semantic_revision,
+            ..Self::default()
+        };
+    }
+}
+
+/// GSS 的一条边：从 from_node 指向本边所属节点。
+struct GlrEdge
+{
+    from_node: usize,
+    symbol: i32,
+    production: i32,
+    name_slot: i32,
+    value: {{ value_type }},
+    node_tree: Option<Tree>,
+    forest_node: u64,
+    start_token: usize,
+    end_token: usize,
+}
+
+/// GSS 的一个节点：状态 + 入边表。
+struct GlrNode
+{
+    state: i32,
+    edges: Vec<usize>,
+}
+
+{% endif %}struct LlFrame
+{
+    parent_frame: i32,
+    parent_value: i32,
+    values: Vec<{{ value_type }}>,
+    names: Vec<String>,
+    result_value: {{ value_type }},
+    discarded: bool,
+}
+
+{% if dd %}/// 递归下降的语义槽：`%tree` 时装语法树节点，否则装一个语义值
+/// （第 0 个槽位恒为 `Empty`，与 LL 的语义帧同一个约定）。
+enum DdSlot
+{
+    Empty,
+    Value({{ value_type }}),
+    Node(Tree),
+}
+
+/// 递归下降的「输入位置」快照（回溯用）。
+struct DdMark
+{
+    text_pos: usize,
+    token_pos: usize,
+    line: u32,
+    column: u32,
+    byte_pos: usize,
+    current: Token,
+    depth: usize,
+}
+
+{% endif %}
+// ============================================================
+// 解析器
+// ============================================================
+
+/// {{ mode_name }} 解析器：一次解析的全部状态都在这里。
+///
+/// 同一个解析器实例可以连续解析多次：每次 `run_text` / `run` / `parse_tree`
+/// 都会先清空上一次的错误表与结果。
+pub struct Parser
+{
+    errors: Vec<ParserError>,
+    result_value: {{ value_type }},
+
+    input: Vec<char>,
+    /// 原始输入文本：词法正则走官方的 `regex`（以**字节**定位），
+    /// 表里存的是字符，所以这里再留一份原文给 `lex_regex_match` 用。
+    text: String,
+    text_pos: usize,
+    text_mode: bool,
+    tokens: Vec<Token>,
+    token_pos: usize,
+    current: Token,
+    lookahead: Vec<Token>,
+    line: u32,
+    column: u32,
+    byte_pos: usize,
+    lexeme: String,
+    commits: Vec<ParserCommit>,
+    error_status: i32,
+
+    // LR 分析栈：状态 / 符号 / 语义值 / 变量名 / 语法树节点
+    states: Vec<i32>,
+    symbols: Vec<i32>,
+    values: Vec<{{ value_type }}>,
+    names: Vec<String>,
+    nodes: Vec<Option<Tree>>,
+    top: usize,
+    action_values: Vec<{{ value_type }}>,
+{% if lr_incremental %}    lr_incremental_recording: bool,
+    lr_incremental_interval: usize,
+    lr_incremental_tokens: Vec<IncrementalToken>,
+    lr_incremental_checkpoints: Vec<LrStackCheckpoint>,
+{% endif %}
+
+    // LL：分析栈 / 语义帧栈 / 根语义值 / 建树路径
+    ll_stack: Vec<[i32; 5]>,
+    ll_frames: Vec<LlFrame>,
+    root_result: {{ value_type }},
+    tree_root: Option<Tree>,
+    tree_path: Vec<Tree>,
+{% if glr %}    // GLR：GSS 节点 / 边 / 两个输入位置的活跃节点集 / 工作表与结果
+    glr_nodes: Vec<GlrNode>,
+    glr_edges: Vec<GlrEdge>,
+    glr_node_ids: [Vec<usize>; 2],
+    glr_node_of: [std::collections::HashMap<i32, usize>; 2],
+    glr_work: Vec<usize>,
+    glr_queued: Vec<bool>,
+    glr_names: Vec<String>,
+    glr_results: Vec<{{ value_type }}>,
+    glr_trees: Vec<Tree>,
+    glr_result_count: usize,
+    glr_resolver: Option<Box<dyn FnMut(&{{ value_type }}, &{{ value_type }}) -> bool>>,
+    glr_path_edges: Vec<usize>,
+    glr_path_visits: usize,
+    glr_token_index: usize,
+    glr_reduce_entries: Vec<GlrReduceEntry>,
+    glr_forest: Option<GlrForestWork>,
+{% endif %}
+{% if dd %}    // DD：递归深度 / 已匹配的终结符数 / 最远失败点（回溯时不清它）
+    dd_frame_depth: usize,
+    dd_depth: usize,
+    dd_farthest_depth: isize,
+    dd_farthest_types: Vec<i32>,
+    dd_farthest_token: Token,
+{% endif %}
+
+}
+
+impl Parser
+{
+    /// 建一个解析器（状态在每次解析开始时复位）。
+    pub fn new() -> Parser
+    {
+        Parser {
+            errors: Vec::new(),
+            result_value: Default::default(),
+            input: Vec::new(),
+            text: String::new(),
+            text_pos: 0,
+            text_mode: true,
+            tokens: Vec::new(),
+            token_pos: 0,
+            current: Token::new(),
+            lookahead: Vec::new(),
+            line: 1,
+            column: 1,
+            byte_pos: 0,
+            lexeme: String::new(),
+            commits: Vec::new(),
+            error_status: 0,
+            states: Vec::new(),
+            symbols: Vec::new(),
+            values: Vec::new(),
+            names: Vec::new(),
+            nodes: Vec::new(),
+            top: 0,
+            action_values: vec![Default::default(); VALUE_SLOTS + 1],
+{% if lr_incremental %}            lr_incremental_recording: false,
+            lr_incremental_interval: 32,
+            lr_incremental_tokens: Vec::new(),
+            lr_incremental_checkpoints: Vec::new(),
+{% endif %}
+            ll_stack: Vec::new(),
+            ll_frames: Vec::new(),
+            root_result: Default::default(),
+            tree_root: None,
+            tree_path: Vec::new(),
+{% if glr %}            glr_nodes: Vec::new(),
+            glr_edges: Vec::new(),
+            glr_node_ids: [Vec::new(), Vec::new()],
+            glr_node_of: [
+                std::collections::HashMap::new(),
+                std::collections::HashMap::new(),
+            ],
+            glr_work: Vec::new(),
+            glr_queued: Vec::new(),
+            glr_names: Vec::new(),
+            glr_results: Vec::new(),
+            glr_trees: Vec::new(),
+            glr_result_count: 0,
+            glr_resolver: None,
+            glr_path_edges: vec![0; _MAX_PATH_DEPTH],
+            glr_path_visits: 0,
+            glr_token_index: 0,
+            glr_reduce_entries: Vec::new(),
+            glr_forest: None,
+{% endif %}
+{% if dd %}            dd_frame_depth: 0,
+            dd_depth: 0,
+            dd_farthest_depth: -1,
+            dd_farthest_types: Vec::new(),
+            dd_farthest_token: Token::new(),
+{% endif %}        }
+    }
+
+    // ---------- 只读查询 ----------
+
+    /// 本次解析累积的错误。
+    pub fn errors(&self) -> &Vec<ParserError>
+    {
+        &self.errors
+    }
+
+    /// 最近一条错误；没有错误时返回 `None`。
+    pub fn last_error(&self) -> Option<&ParserError>
+    {
+        self.errors.last()
+    }
+
+    /// `%commit` 收集到的片段（按出现顺序；没写 `%commit` 时恒为空）。
+    pub fn commits(&self) -> &Vec<ParserCommit>
+    {
+        &self.commits
+    }
+
+    /// 当前 lookahead 的位置（行 / 列 1 起，`offset` 是 UTF-8 字节偏移）。
+    ///
+    /// 语义动作里的 `$line` / `$column` 读的就是这里的值。
+    pub fn current_location(&self) -> ParserLocation
+    {
+        ParserLocation {
+            line: self.current.line as i32,
+            column: self.current.column as i32,
+            offset: self.current.offset as i32,
+        }
+    }
+
+    /// 最近一次解析的语义结果（语义值是 `Copy` 的，直接返回值）。
+    pub fn result(&self) -> {{ value_type }}
+    {
+        self.result_value
+    }
+
+    /// `$line` 用的当前行号。
+    fn current_line(&self) -> u32
+    {
+        self.current_location().line as u32
+    }
+
+    /// `$column` 用的当前列号。
+    fn current_column(&self) -> u32
+    {
+        self.current_location().column as u32
+    }
+
+    /// `$token` 用的当前词素。
+    fn current_token_text(&self) -> String
+    {
+        self.current.text.clone()
+    }
+
+    /// `$code` 用的最近一条错误码。
+    fn last_error_code(&self) -> i32
+    {
+        match self.errors.last()
+        {
+            Some(item) => item.code,
+            None => 0,
+        }
+    }
+
+    /// `$message` 用的最近一条错误说明。
+    fn last_error_message(&self) -> String
+    {
+        match self.errors.last()
+        {
+            Some(item) => item.message.clone(),
+            None => String::new(),
+        }
+    }
+
+    /// `yyerrok`：清掉「正在恢复」状态。
+    fn yy_err_ok(&mut self)
+    {
+        self.error_status = 0;
+    }
+
+    /// `yyclearin`：丢掉当前 lookahead。
+    fn yy_clearin(&mut self)
+    {
+        if self.current.kind != TOKEN_END
+        {
+            self.advance();
+        }
+    }
+
+    // ---------- 错误记录 ----------
+
+    fn set_error(&mut self, code: i32, line: u32, column: u32, message: &str)
+    {
+        if self.errors.len() >= MAX_ERRORS
+        {
+            return;
+        }
+        self.errors.push(ParserError::new(code, line, column, message));
+    }
+
+    fn set_expected_one_error(&mut self, expected_kind: i32)
+    {
+        if self.errors.len() >= MAX_ERRORS
+        {
+            return;
+        }
+        let message = format!(
+            "语法错误：期望 {}，实际是 {}",
+            Token::token_name(expected_kind),
+            Token::token_name(self.current.kind)
+        );
+        let mut item = ParserError::new(
+            STATUS_ERR_EXPECTED,
+            self.current.line,
+            self.current.column,
+            &message,
+        );
+        item.token_kind = self.current.kind;
+        item.token_text = self.current.text.clone();
+        item.expected = vec![expected_kind];
+        self.errors.push(item);
+    }
+
+    fn set_syntax_error(&mut self, row: i32, expected_kinds: &[i32])
+    {
+        if self.errors.len() >= MAX_ERRORS
+        {
+            return;
+        }
+        let total = expected_kinds.len();
+        let count = std::cmp::min(total, MAX_EXPECTED);
+        let expected: Vec<i32> = expected_kinds[..count].to_vec();
+        let listed = std::cmp::min(count, 4);
+        let mut names = String::new();
+        for index in 0..listed
+        {
+            if index != 0
+            {
+                names.push_str(" / ");
+            }
+            names.push_str(Token::token_name(expected[index]));
+        }
+        let actual = Token::token_name(self.current.kind);
+        let message = if total == 0
+        {
+            format!("语法错误：{}", _EXPECTED_FALLBACK)
+        }
+        else if total == 1
+        {
+            format!("语法错误：期望 {}，实际是 {}", names, actual)
+        }
+        else
+        {
+            let mut text = format!("语法错误：期望 {}", names);
+            if total > listed
+            {
+                text.push_str(&format!(" 等 {} 个之一", total));
+            }
+            else
+            {
+                text.push_str(" 之一");
+            }
+            text.push_str(&format!("，实际是 {}", actual));
+            text
+        };
+        let code = if total == 0
+        {
+            STATUS_ERR_SYNTAX
+        }
+        else if self.current.kind == TOKEN_END
+        {
+            STATUS_ERR_UNEXPECTED_EOF
+        }
+        else
+        {
+            STATUS_ERR_EXPECTED
+        };
+        let mut item =
+            ParserError::new(code, self.current.line, self.current.column, &message);
+        item.token_kind = self.current.kind;
+        item.token_text = self.current.text.clone();
+        item.state = row;
+        item.expected = expected;
+        self.errors.push(item);
+    }
+
+    // ---------- 解析入口 ----------
+
+    fn prepare_text(&mut self, text: &str) -> i32
+    {
+        self.input = text.chars().collect();
+        self.text = text.to_string();
+        self.text_pos = 0;
+        self.text_mode = true;
+        self.prepare_common()
+    }
+
+    fn prepare_tokens(&mut self, tokens: Vec<Token>) -> i32
+    {
+        self.tokens = tokens;
+        self.token_pos = 0;
+        self.text_mode = false;
+        self.input.clear();
+        self.text.clear();
+        self.text_pos = 0;
+        self.prepare_common()
+    }
+
+    fn prepare_common(&mut self) -> i32
+    {
+        self.errors.clear();
+        self.commits.clear();
+        self.lexeme.clear();
+        self.error_status = 0;
+        self.line = 1;
+        self.column = 1;
+        self.byte_pos = 0;
+        self.current = Token::new();
+        self.result_value = Default::default();
+        if self.advance() != STATUS_OK
+        {
+            return STATUS_ERR_LEXER;
+        }
+        self.fill_lookahead_window()
+    }
+
+    fn fill_lookahead_window(&mut self) -> i32
+    {
+        self.lookahead.clear();
+        if _LOOKAHEAD_K <= 1
+        {
+            return STATUS_OK;
+        }
+        let head = self.current.clone();
+        for _ in 1.._LOOKAHEAD_K
+        {
+            let status = self.advance();
+            if status != STATUS_OK
+            {
+                return status;
+            }
+            self.lookahead.push(self.current.clone());
+        }
+        self.current = head;
+        STATUS_OK
+    }
+
+    fn advance_window(&mut self) -> i32
+    {
+        if _LOOKAHEAD_K <= 1
+        {
+            return self.advance();
+        }
+        let status = self.advance();
+        if status != STATUS_OK
+        {
+            return status;
+        }
+        let fresh = self.current.clone();
+        self.current = self.lookahead[0].clone();
+        for index in 0..self.lookahead.len() - 1
+        {
+            self.lookahead[index] = self.lookahead[index + 1].clone();
+        }
+        let last = self.lookahead.len() - 1;
+        self.lookahead[last] = fresh;
+        STATUS_OK
+    }
+
+    fn peek(&self, offset: usize) -> Option<char>
+    {
+        let index = self.text_pos.checked_add(offset)?;
+        self.input.get(index).copied()
+    }
+
+    fn read_char(&mut self) -> char
+    {
+        let ch = self.input[self.text_pos];
+        self.text_pos += 1;
+        // UTF-8 字节偏移（与 C99 / 其它四档对齐）
+        self.byte_pos += ch.len_utf8();
+        if ch == '\n'
+        {
+            self.line += 1;
+            self.column = 1;
+        }
+        else
+        {
+            self.column += 1;
+        }
+        ch
+    }
+
+    fn advance(&mut self) -> i32
+    {
+        if !self.text_mode
+        {
+            if self.token_pos < self.tokens.len()
+            {
+                self.current = self.tokens[self.token_pos].clone();
+                self.token_pos += 1;
+            }
+            else
+            {
+                self.current = Token::with_kind(TOKEN_END);
+            }
+            return STATUS_OK;
+        }
+        let mut item = Token::at(TOKEN_INVALID, "", self.line, self.column);
+        let status = self.lex_next(&mut item);
+        if status != STATUS_OK
+        {
+            let why = if status == STATUS_ERR_LEX_UNTERMINATED
+            {
+                "字符串没有闭合"
+            }
+            else if status == STATUS_ERR_LEX_CHAR
+            {
+                "认不出来的字符"
+            }
+            else
+            {
+                "词法解析失败"
+            };
+            let code = if (status == STATUS_ERR_LEX_UNTERMINATED)
+                || (status == STATUS_ERR_LEX_CHAR)
+            {
+                status
+            }
+            else
+            {
+                STATUS_ERR_LEXER
+            };
+            let (line, column) = (item.line, item.column);
+            self.set_error(code, line, column, why);
+            item.kind = TOKEN_INVALID;
+            self.current = item;
+            return status;
+        }
+        self.current = item;
+        STATUS_OK
+    }
+
+    /// 解析一段文本。语义结果读 `result()`。
+    pub fn run_text(&mut self, text: &str) -> i32
+    {
+        if self.prepare_text(text) != STATUS_OK
+        {
+            return STATUS_ERR_LEXER;
+        }
+        self.run_loop(false)
+    }
+
+{% if incremental %}{% if lr_incremental %}    fn prepare_incremental_lex(&mut self, text: &str) -> i32
+    {
+        self.input = text.chars().collect();
+        self.text = text.to_string();
+        self.text_pos = 0;
+        self.text_mode = true;
+        self.tokens.clear();
+        self.token_pos = 0;
+        self.errors.clear();
+        self.commits.clear();
+        self.lexeme.clear();
+        self.error_status = 0;
+        self.line = 1;
+        self.column = 1;
+        self.byte_pos = 0;
+        self.current = Token::new();
+        self.lookahead.clear();
+        self.result_value = Default::default();
+        STATUS_OK
+    }
+
+    fn collect_incremental_tokens(&mut self, text: &str)
+        -> (i32, Vec<IncrementalToken>, Vec<ParserError>, Vec<ParserCommit>)
+    {
+        let mut items = Vec::new();
+        let ready = self.prepare_incremental_lex(text);
+        if ready != STATUS_OK
+        {
+            return (STATUS_ERR_LEXER, items, self.errors.clone(), self.commits.clone());
+        }
+        loop
+        {
+            let status = self.advance();
+            if status != STATUS_OK
+            {
+                return (status, items, self.errors.clone(), self.commits.clone());
+            }
+            if self.current.kind == TOKEN_END
+            {
+                return (STATUS_OK, items, self.errors.clone(), self.commits.clone());
+            }
+            items.push(IncrementalToken {
+                kind: self.current.kind,
+                value: self.current.value,
+                text: self.current.text.clone(),
+                line: self.current.line,
+                column: self.current.column,
+                offset: self.current.offset,
+            });
+        }
+    }
+
+    fn same_incremental_token(left: &IncrementalToken, right: &IncrementalToken) -> bool
+    {
+        (left.kind == right.kind) && (left.text == right.text)
+    }
+
+    fn common_token_prefix(old_tokens: &[IncrementalToken],
+                           new_tokens: &[IncrementalToken]) -> usize
+    {
+        let limit = std::cmp::min(old_tokens.len(), new_tokens.len());
+        let mut index = 0;
+        while (index < limit)
+            && Self::same_incremental_token(&old_tokens[index], &new_tokens[index])
+        {
+            index += 1;
+        }
+        index
+    }
+
+    fn best_checkpoint_index(cache: &IncrementalCache,
+                             common_prefix: usize) -> Option<usize>
+    {
+        let mut best = None;
+        for (index, checkpoint) in cache.checkpoints.iter().enumerate()
+        {
+            if checkpoint.token_index <= common_prefix
+            {
+                best = Some(index);
+            }
+            else
+            {
+                break;
+            }
+        }
+        best
+    }
+
+    fn token_from_incremental(item: &IncrementalToken) -> Token
+    {
+        Token {
+            kind: item.kind,
+            text: item.text.clone(),
+            value: item.value,
+            line: item.line,
+            column: item.column,
+            offset: item.offset,
+        }
+    }
+
+    fn replay_tokens_from(items: &[IncrementalToken], start: usize) -> Vec<Token>
+    {
+        let mut tokens = Vec::new();
+        if start < items.len()
+        {
+            tokens.reserve(items.len() - start);
+        }
+        for item in items.iter().skip(start)
+        {
+            tokens.push(Self::token_from_incremental(item));
+        }
+        tokens
+    }
+
+    fn restore_lr_checkpoint(&mut self, checkpoint: &LrStackCheckpoint)
+    {
+        self.top = checkpoint.top;
+        self.states = checkpoint.states.clone();
+        self.symbols = checkpoint.symbols.clone();
+        self.values = checkpoint.values.clone();
+        self.names = checkpoint.names.clone();
+        self.nodes.clear();
+        self.nodes.resize_with(checkpoint.top, || None);
+    }
+
+    fn parse_incremental_from_checkpoint(&mut self,
+                                         checkpoint: &LrStackCheckpoint,
+                                         new_tokens: &[IncrementalToken],
+                                         lex_commits: &[ParserCommit]) -> i32
+    {
+        let replay = Self::replay_tokens_from(new_tokens, checkpoint.token_index);
+        if self.prepare_tokens(replay) != STATUS_OK
+        {
+            return STATUS_ERR_LEXER;
+        }
+        self.restore_lr_checkpoint(checkpoint);
+        self.commits = lex_commits.to_vec();
+        self.continue_lr_loop(false)
+    }
+
+    fn run_incremental_full_from_tokens(&mut self,
+                                        new_tokens: &[IncrementalToken],
+                                        lex_commits: &[ParserCommit],
+                                        cache: &mut IncrementalCache) -> i32
+    {
+        self.lr_incremental_recording = true;
+        self.lr_incremental_interval = cache.checkpoint_interval;
+        self.lr_incremental_tokens.clear();
+        self.lr_incremental_checkpoints.clear();
+        let replay = Self::replay_tokens_from(new_tokens, 0);
+        let ready = self.prepare_tokens(replay);
+        let status = if ready == STATUS_OK
+        {
+            self.run_loop(false)
+        }
+        else
+        {
+            STATUS_ERR_LEXER
+        };
+        self.lr_incremental_recording = false;
+        self.commits = lex_commits.to_vec();
+        cache.tokens = std::mem::take(&mut self.lr_incremental_tokens);
+        cache.checkpoints = std::mem::take(&mut self.lr_incremental_checkpoints);
+        status
+    }
+
+{% endif %}{% endif %}
+{% if incremental %}    /// LL / DD / LR 模式的增量文本解析。
+    ///
+    /// 缓存命中时复用上次状态、错误表、commit 表与语义结果；LR 文本变化时优先从
+    /// 公共 Token 前缀内最近的 checkpoint 恢复，失败再完整重算。
+    pub fn run_text_incremental(&mut self, text: &str,
+                                cache: &mut IncrementalCache) -> i32
+    {
+        if cache.valid && (cache.text == text)
+        {
+            self.errors = cache.errors.clone();
+            self.commits = cache.commits.clone();
+            self.result_value = cache.result;
+            return cache.status;
+        }
+{% if lr_incremental %}        let (lex_status, new_tokens, lex_errors, lex_commits) =
+            self.collect_incremental_tokens(text);
+        if lex_status != STATUS_OK
+        {
+            cache.valid = true;
+            cache.text = text.to_string();
+            cache.status = lex_status;
+            cache.result = Default::default();
+            cache.errors = lex_errors;
+            cache.commits = lex_commits;
+            cache.tokens.clear();
+            cache.checkpoints.clear();
+            self.result_value = Default::default();
+            return lex_status;
+        }
+
+        let common_prefix = if cache.valid
+        {
+            Self::common_token_prefix(&cache.tokens, &new_tokens)
+        }
+        else
+        {
+            0
+        };
+        if let Some(checkpoint_index) = Self::best_checkpoint_index(cache, common_prefix)
+        {
+            let checkpoint = cache.checkpoints[checkpoint_index].clone();
+            let status = self.parse_incremental_from_checkpoint(
+                &checkpoint,
+                &new_tokens,
+                &lex_commits,
+            );
+            if status == STATUS_OK
+            {
+                let keep_to = checkpoint.token_index;
+                cache.valid = true;
+                cache.text = text.to_string();
+                cache.status = status;
+                cache.result = self.result_value;
+                cache.errors = self.errors.clone();
+                cache.commits = self.commits.clone();
+                cache.tokens = new_tokens;
+                cache.checkpoints.retain(|item| item.token_index <= keep_to);
+                return status;
+            }
+        }
+
+        let status = self.run_incremental_full_from_tokens(
+            &new_tokens,
+            &lex_commits,
+            cache,
+        );
+{% else %}        let status = self.run_text(text);
+{% endif %}
+        cache.valid = true;
+        cache.text = text.to_string();
+        cache.status = status;
+        cache.result = self.result_value;
+        cache.errors = self.errors.clone();
+        cache.commits = self.commits.clone();
+        status
+    }
+
+{% endif %}
+    /// 解析已经切好的 Token 序列。
+    pub fn run(&mut self, tokens: Vec<Token>) -> i32
+    {
+        if self.prepare_tokens(tokens) != STATUS_OK
+        {
+            return STATUS_ERR_LEXER;
+        }
+        self.run_loop(false)
+    }
+
+    /// 解析文本并构建语法树（只建树，不跑语义动作）。
+    pub fn parse_tree(&mut self, text: &str) -> Option<Tree>
+    {
+        self.tree_root = None;
+        if self.prepare_text(text) != STATUS_OK
+        {
+            return None;
+        }
+        if self.run_loop(true) != STATUS_OK
+        {
+            return None;
+        }
+        self.tree_root.take()
+    }
+
+{{ run_loop }}
+
+    fn reset_states(&mut self)
+    {
+        self.states.clear();
+        self.symbols.clear();
+        self.values.clear();
+        self.names.clear();
+        self.nodes.clear();
+        self.states.push(0);
+        self.symbols.push(INVALID_INDEX);
+        self.values.push(Default::default());
+        self.names.push(String::new());
+        self.nodes.push(None);
+        self.top = 1;
+    }
+
+{{ lexer }}
+{{ lr }}
+{{ ll }}{{ dd_body }}
+}
+
+// ============================================================
+// 模块级辅助函数（词法 DFA / 语义值转换 / 关键字表）
+// ============================================================
+
+/// 非终结符编号 -> 名字（`%tree` 建内部分支节点用）。
+fn tree_name(symbol_id: i32) -> &'static str
+{
+    if (symbol_id >= 0) && ((symbol_id as usize) < _TREE_NONTERM_NAMES.len())
+    {
+        return _TREE_NONTERM_NAMES[symbol_id as usize];
+    }
+    "?"
+}
+
+/// 建一个终结符叶子节点。
+fn make_leaf(item: &Token) -> Tree
+{
+    let mut node = Tree::new(Token::token_name(item.kind), &item.text);
+    node.set_location(ParserLocation {
+        line: item.line as i32,
+        column: item.column as i32,
+        offset: item.offset as i32,
+    });
+    node
+}
+
+/// 这个 Token 是不是同步锚点（`%sync`）。
+fn is_sync_token(kind: i32) -> bool
+{
+    _SYNC_TOKENS.contains(&kind)
+}
+
+{{ lexer_helpers }}
+
+{{ value_helpers }}
+
+{{ keyword_method }}

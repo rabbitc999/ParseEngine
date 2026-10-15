@@ -1,0 +1,54 @@
+/* ============================================================
+ * %namespace 示例（`%mode lalr`，C++17 产物）
+ *
+ *   %namespace myapp
+ *
+ * C++17 产物会变成带前缀的一套文件，命名空间也用这个名字：
+ *
+ *   myapp_parser.hpp  myapp_parser.cpp  myapp_main.cpp  myapp_parser_user.h
+ *   （Makefile / CMakeLists.txt / RESULT.md 不加前缀，%copy 的文件保持原名）
+ *
+ *   namespace myapp { ... }         // 生成器产出的符号都在这里
+ *   myapp::Engine（runText / errors）/ myapp::Token / myapp::Error
+ *   myapp_main.cpp 里是 using namespace myapp;
+ *
+ * 命令行 --namespace NAME 覆盖这里写的名字（与 --mode 覆盖 %mode 一致）；
+ * 不写 %namespace 也不传 --namespace 时退化成现状：文件不带前缀、命名空间
+ * 就叫 Parser。C99 产物（--lang c）没有命名空间这个概念：写了 %namespace
+ * 再配 --lang c 会直接报错（不静默忽略）。
+ *
+ * 想同时链接两个解析器就生成两份、用不同的名字：
+ *   ParseEngine --grammar-file namespace_demo.gram --out-dir a --namespace alpha
+ *   ParseEngine --grammar-file namespace_demo.gram --out-dir b --namespace beta
+ * 两个头可以一起 include，alpha::Engine 与 beta::Engine 互不冲突
+ * （头文件保护宏也会按产物名生成，例如 ALPHA_PARSER_HPP）。
+ *
+ * 试用输入：1+2*3 -> 7
+ * ============================================================ */
+
+%mode lalr
+%namespace myapp
+%value_type double
+
+%define PLUS "+"
+%define STAR "*"
+
+%code
+#include <stdio.h>
+
+/* 数字 Token 的语义值取自词法器解析好的 pToken->value */
+#define PARSER_USER_TOKEN_VALUE(pToken) ((ParserValue_T)((pToken)->value))
+
+/* 演示程序（main.c）打印解析结果 */
+#define PARSER_USER_DEMO_PRINT_VALUE(pValue) printf("%g", *(pValue))
+%endcode
+
+%start expr
+
+expr := expr PLUS term { $$ = $1 + $3; }
+      | term            { $$ = $1; };
+
+term := term STAR factor { $$ = $1 * $3; }
+      | factor            { $$ = $1; };
+
+factor := NUMBER { $$ = $1; };

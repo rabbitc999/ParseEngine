@@ -1,0 +1,4 @@
+{# 一维整数表的正文（**不带方括号**）：`br` 为真表示这个元素前要换行（生成器按
+   「每行 perLine 个」算好），续行用 `indent`，元素之间一律 `, `。 #}
+{% for v in values %}{% if v.br %},
+{{ indent }}{% else %}{% if loop_first %}{% else %}, {% endif %}{% endif %}{{ v.value }}{% endfor %}

@@ -1,0 +1,140 @@
+/**
+ * lexer.h —— 词法模式（%mode lex）公开 API：把输入文本切成 Token
+ * 由 ParseEngine 自动生成（{{ mode_name }}）
+ *
+ * 这份产物只有一个词法器：没有分析栈、没有分析表、也没有解析入口。
+ * Token 类型 / ParserToken_T / Parser_TokenName / Parser_TokenText 在
+ * parser_token.h 里，这里给的是「喂一段文本，逐个取 Token」的入口。
+ *
+ * 用法：
+ *   ParserLexer_T lexer;
+ *   ParserToken_T token;
+ *   Parser_LexInit(&lexer, "a + 12");
+ *   while ((status = Parser_NextToken(&lexer, &token)) == PARSER_OK) {
+ *       if (token.type == TOKEN_END) { break; }
+ *       printf("%s\n", Parser_TokenName(token.type));
+ *   }
+ */
+
+#ifndef LEXER_H
+#define LEXER_H
+
+#include <stdint.h>
+
+{{ user_include }}
+#include "parser_token.h"
+
+{{ defines }}
+{{ error_type }}
+/**
+ * @brief 词法器状态（调用方在栈上分配即可，生命周期内不用释放）。
+ *
+ * 字段是「生成器自用 + 调用方只读」：调用方只读 `line` / `column` 与最近一次
+ * 取出的 Token（回调参数里给），不要在两次 Parser_NextToken 之间改它们。
+ */
+/**
+ * @brief `%commit` 收集到的一条片段：行号 + 类型 + 原文。
+ *
+ * `type` 指向静态字符串（来自文法，不要 free）；`text` 是堆内存，由
+ * `Parser_LexFreeCommits()` 释放。
+ */
+typedef struct __ParserLexCommit_T
+{
+    int         line; /**< 片段起始行号（1 起）。 */
+    const char *type; /**< `%commit` 的类型名；skip 不进容器。 */
+    char       *text; /**< 匹配到的原文（堆分配）。 */
+} ParserCommit;
+
+/** @brief `%commit` 容器：一条动态数组。 */
+typedef struct __ParserLexCommitList_T
+{
+    ParserCommit *items;    /**< 元素（堆分配，由 Parser_LexFreeCommits 释放）。 */
+    int           count;    /**< 元素个数。 */
+    int           capacity; /**< 已分配容量（生成器自用）。 */
+} ParserCommitList;
+
+/** @brief 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起）。 */
+typedef struct __ParserLexLocation_T
+{
+    int line;   /**< 行号（1 起）。 */
+    int column; /**< 列号（1 起）。 */
+    int offset; /**< UTF-8 字节偏移（0 起）。 */
+} ParserLocation;
+
+typedef struct __ParserLexer_T
+{
+    const char *pText;      /* 输入文本（以 '\0' 结束） */
+    uint32_t textPosition;  /* 已经消费到的字节位置 */
+    uint32_t line;          /* 下一个 Token 的行号（1 起） */
+    uint32_t column;        /* 下一个 Token 的列号（1 起） */
+    uint8_t textMode;       /* 词法模式恒为 1（没有 Token 数组模式） */
+    char lexeme[PARSER_MAX_STRING_LENGTH]; /* 当前词素缓冲区（内部复用） */
+    ParserToken_T current;  /* 最近一次取出的 Token */
+} ParserLexer_T;
+
+/**
+ * @brief 初始化词法器：把输入文本挂上去，清空错误表。
+ * @param pLexer 词法器（调用方提供存储）。
+ * @param pText 输入文本（以 '\0' 结束）；调用方保证它在整个词法分析期间有效。
+ * @retval 无。
+ */
+void Parser_LexInit(ParserLexer_T *pLexer, const char *pText);
+
+/**
+ * @brief 取下一个 Token。
+ *
+ * 取到输入末尾时返回 PARSER_OK 且 `pToken->type` 是 TOKEN_END（再调还是
+ * TOKEN_END）。词法错误返回负的错误码（PARSER_ERR_LEX_CHAR 认不出来的字符 /
+ * PARSER_ERR_LEX_UNTERMINATED 字符串没有闭合），用 Parser_GetLastError() 取
+ * 说明与行列号。
+ * @param pLexer 词法器。
+ * @param pToken 输出 Token（成功时写入）。
+ * @retval PARSER_OK 或负的错误码。
+ */
+int32_t Parser_NextToken(ParserLexer_T *pLexer, ParserToken_T *pToken);
+
+/**
+ * @brief 取最近一次词法错误。
+ * @retval 只读错误结构（错误表为空时返回内部静态的一条空记录）。
+ */
+const ParserError_T *Parser_GetLastError(void);
+
+/**
+ * @brief 取本次词法分析累积的错误条数。
+ * @retval 错误条数；0 表示没有错误。
+ */
+uint32_t Parser_GetErrorCount(void);
+
+/**
+ * @brief 取第 index 条词法错误。
+ * @param index 下标（0 起）。
+ * @retval 只读错误结构；越界返回 NULL。
+ */
+const ParserError_T *Parser_GetError(uint32_t index);
+
+/**
+ * @brief 取本次词法分析收集到的 `%commit` 片段（按出现顺序）。
+ *
+ * 返回的是词法器内部的只读容器：不要 free，要清理用
+ * `Parser_LexFreeCommits()`；下一次 `Parser_LexInit` 也会自动释放上一次的
+ * 内容。文法里没写 `%commit` 时 `count` 恒为 0。
+ * @param pLexer 词法器。
+ * @retval 只读容器（非 NULL）。
+ */
+const ParserCommitList *Parser_LexGetCommits(const ParserLexer_T *pLexer);
+
+/**
+ * @brief 释放 `Parser_LexGetCommits()` 里那些片段占的内存。
+ * @param pLexer 词法器。
+ * @retval 无。
+ */
+void Parser_LexFreeCommits(ParserLexer_T *pLexer);
+
+/**
+ * @brief 取当前 lookahead 的位置（行 / 列 1 起，offset 是 UTF-8 字节偏移）。
+ * @param pLexer 词法器。
+ * @retval 位置（值返回）。
+ */
+ParserLocation Parser_LexCurrentLocation(const ParserLexer_T *pLexer);
+
+#endif /* LEXER_H */

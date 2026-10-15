@@ -1,0 +1,20 @@
+{# 静态文案：整段贴进 RESULT.md。里面的花括号对是文法写法不是模板标签，所以包了 raw #}
+## 运行时与语义值
+
+- 语义值：**任意 Python 对象**。动作里 `$$` 写 `result.value`，`$n` 读
+  `values[n-1]`（`$1` 就是 `values[0]`）；没有动作的产生式结果是 `None`。
+- 词法器给出的 Token 语义值：字符串 Token 是去掉引号并解好转义的 `str`，
+  数字 Token 是 `int` / `float`，标识符与固定字面量是词素文本，EOF 与
+  `error` 伪 Token 是 `None`。
+- 内存：全部由 Python 自己管，没有分配器 / 释放钩子，也没有析构回调。
+- 语法树（`%tree`）：节点是 `Tree`（名字 + 词素 + `children` 列表），
+  整棵树随引用计数释放；要复制用 `Tree.clone()`。
+- 用户代码：`%code … %endcode` / `%code … %endcode` 的正文插在 `parser.py`
+  的 import 之后（缩进按 Python 规则归一化：去掉公共缩进、行首 tab 换成
+  4 个空格），`%epilogue` 追加到模块末尾，`%main` 替换 `main.py` 的演示体。
+- 演示程序：解析成功且 `result` 不是 `None` 时会多打一行
+  `解析结果: <repr>`。
+- Python 产物不支持 `%value_type` / `%union` / `%token <成员>` /
+  `%namespace`：这些是 C 系列的语义值模型，Python 里写生成器会直接报错
+  （不静默忽略）。
+

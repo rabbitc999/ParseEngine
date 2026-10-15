@@ -1,0 +1,14 @@
+{ 花括号注释 }
+(* Pascal 风格注释 *)
+var x;
+begin
+    ;
+    x := 1;            { 行尾注释 }
+    ? x;
+    ! x;
+    read x;
+    write x;
+    read(x);
+    write(x);
+    begin end
+end.

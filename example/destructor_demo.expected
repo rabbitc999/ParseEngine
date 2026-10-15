@@ -1,0 +1,4 @@
+[a b ; c ;] status=0 strDiscarded=0 numDiscarded=0
+[a b )] status=-21 strDiscarded=1 numDiscarded=0
+[12 )] status=-21 strDiscarded=0 numDiscarded=1
+[a ; ; b ;] status=-21 strDiscarded=0 numDiscarded=1

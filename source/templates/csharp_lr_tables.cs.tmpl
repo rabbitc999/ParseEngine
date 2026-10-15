@@ -1,0 +1,17 @@
+    // ACTION：0 出错，>0 移进到 action-1，<0 归约 -action-1；
+    // GOTO：INVALID_STATE 出错。
+    private static readonly int[][] _ACTION = {{ action }};
+    private static readonly int[][] _GOTO = {{ goto_table }};
+{% if has_lookahead %}
+    // LR(k) / LALR(k) 的第二层 ACTION（按 k 元组展望符建列）。
+    private static readonly int[][] _REDUCE = {{ reduce }};
+    private static readonly long[] _LOOKAHEAD_CODE = {{ lookahead_code }};
+    private static readonly int[] _LOOKAHEAD_COLUMN = {{ lookahead_column }};
+{% else %}
+    // k = 1：没有第二层（占位让常量始终存在）。
+    private static readonly int[][] _REDUCE = new int[0][];
+    private static readonly long[] _LOOKAHEAD_CODE = new long[0];
+    private static readonly int[] _LOOKAHEAD_COLUMN = new int[0];
+{% endif %}
+    private static readonly int[] _PRODUCTION_LENGTH = {{ production_length }};
+    private static readonly int[] _PRODUCTION_LHS = {{ production_lhs }};

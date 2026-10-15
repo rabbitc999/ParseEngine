@@ -1,0 +1,13 @@
+文法是纯 `%tree`（不写语义动作）时 `run_text` 与 `parse_tree` 没有求值结果，
+演示程序会自动改打印语法树。Python 产物的语法树节点是 `Tree`：节点用
+`str` 存符号名与 Token 词素（不保存语义值），子节点放在 `children` 里，
+整棵树随引用计数释放。
+
+```python
+import parser
+
+tree = parser.Parser().parse_tree({{ example_code }})
+if tree is not None:
+    tree.print()          # 或者自己走 child(i) / child_count
+```
+

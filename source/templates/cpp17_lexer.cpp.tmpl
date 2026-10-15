@@ -1,0 +1,39 @@
+{{ lex_skip_helpers }}
+    /* ---------- 词法器 ---------- */
+
+    /**
+     * @brief 取下一个词法单元。
+     *
+     * 顺序与 C 目标一致：双引号字符串（内建，或用户自己声明了 STRING 的词法
+     * 时跳过）→ %token regex 与固定字面量一起做最长匹配（字面量优先）→ 数字
+     * → 标识符（%identifier 的 DFA 或默认的 C 风格标识符）。固定字面量命中时
+     * 词素直接指向字面量本身，所以 Token::text() 不会失效。
+     * @param token 输出词法单元（失败时也会带上行列号）。
+     * @return Status::Ok 表示取到；ErrLexer 表示词法错误。
+     */
+    Status lexNext(Token &token)
+    {
+        /* %commit 命中时是「吃掉这段原文（收进容器或丢掉）再继续取 Token」，
+         * 不是 Token，所以整段套一个循环。 */
+        for (;;)
+        {
+            token = Token();
+{{ lex_skip_loop }}
+            token.line = m_line;
+            token.column = m_column;
+            const char *pStart = &m_text[m_textPos];
+            token.offset = static_cast<std::uint32_t>(m_textPos);
+            if (*pStart == '\0')
+            {
+                token.type = TokenType::TOKEN_END;
+                return Status::Ok;
+            }
+
+{{ lex_string_block }}
+{{ lex_match_block }}
+            {{ lex_number_block }}
+            {{ lex_identifier_block }}
+            /* 一条规则都没命中：认不出来的字符（细分码） */
+            return Status::ErrLexChar;
+        }
+    }

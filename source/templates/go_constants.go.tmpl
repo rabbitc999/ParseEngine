@@ -1,0 +1,32 @@
+{# 容量常量与「期望 Token」表（CodeGenGo 的 goConstants）。
+   变量：terminal_count / nonterm_count / start_id / state_count /
+         lookahead_k / lookahead_column_count —— 整数
+         expected_rows —— 二维整数表（已渲染好的 `[][]int32{…}` 字面量）
+         expected_fallback —— 带引号的兜底说明字符串
+   本模板自带行尾换行。 #}
+// sParserTerminalCount Token 个数（含 END）/ 非终结符个数 / 起始非终结符编号。
+const sParserTerminalCount = {{ terminal_count }}
+const sParserNontermCount = {{ nonterm_count }}
+const sParserStartID int32 = {{ start_id }}
+// sParserStateCount LR 自动机状态个数（LL 模式没有状态机，这里是 0）。
+const sParserStateCount = {{ state_count }}
+// sParserLookaheadK / sParserLookaheadColumnCount：LR(k)、LALR(k) 的展望符长度与归约列数。
+const sParserLookaheadK int32 = {{ lookahead_k }}
+const sParserLookaheadColumnCount = {{ lookahead_column_count }}
+
+// LL 分析栈上的项目类型（只有 LL 模式用得上）。
+const (
+	sItemTerminal   int32 = 0
+	sItemNonterm    int32 = 1
+	sItemAction     int32 = 2
+	sItemActionKeep int32 = 3
+	sItemForward    int32 = 4
+	sItemLeftLoop   int32 = 5
+	sItemTreeEnd    int32 = 6
+)
+
+// sParserExpected 每一行「期望的 Token」：语法错误时用来填 Expected。
+var sParserExpected = [][]int32{{ expected_rows }}
+
+// sParserExpectedFallback 期望集为空时的兜底说明（LL 说「产生式」、LR 说「动作」）。
+const sParserExpectedFallback = {{ expected_fallback }}

@@ -1,0 +1,17 @@
+解析输入: a + b * c
+解析成功
+语法树:
+stmt
+  expr
+    expr
+      term
+        factor
+          VARIABLE(a)
+    PLUS(+)
+    term
+      term
+        factor
+          VARIABLE(b)
+      STAR(*)
+      factor
+        VARIABLE(c)

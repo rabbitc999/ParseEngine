@@ -1,0 +1,2 @@
+解析输入: a b c d
+解析失败: code=-26 line=1 column=3 message=语法错误：期望 E，实际是 B

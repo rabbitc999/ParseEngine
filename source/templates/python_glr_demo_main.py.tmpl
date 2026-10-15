@@ -1,0 +1,73 @@
+
+{% if draw %}def _demo_option(name):
+    """取命令行选项 ``--name <值>`` / ``--name=<值>`` 的值；没给返回 ``None``。
+
+    :param name: 选项名（含前导 ``--``）。
+    :return: 参数值；选项没出现时返回 ``None``。
+    """
+    args = sys.argv[1:]
+    for index in range(len(args)):
+        item = args[index]
+        if item == name:
+            if (index + 1) < len(args):
+                return args[index + 1]
+            return ""
+        if item.startswith(name + "="):
+            return item[(len(name) + 1):]
+    return None
+
+
+def _demo_drawings(engine, svg_path, dot_path):
+    """``--svg <路径>`` / ``--dot <路径>``：把语法图（GSS + 各结果树）写成文件。
+
+    图就用这次解析留下的 GSS 与结果（不再重新解析），所以解析失败时画的是一张
+    走到半路的图 —— 那正是排查歧义 / 死路时想看的。没给选项时一行都不会多打。
+
+    :param engine: 解析器实例（已经跑过一次 ``run_glr`` / ``run_glr_tree``）。
+    :param svg_path: ``--svg`` 的值；没给是 ``None``。
+    :param dot_path: ``--dot`` 的值；没给是 ``None``。
+    :return: 要打印的行（列表）。
+    """
+    lines = []
+    if svg_path is not None:
+        lines.append("已写出 SVG 语法图: " +
+                     engine.write_syntax_graph_svg(svg_path))
+    if dot_path is not None:
+        lines.append("已写出 DOT 语法图: " +
+                     engine.write_syntax_graph_dot(dot_path))
+    return lines
+
+
+{% endif %}def _read_line():
+    """从标准输入读一行（读到换行或 EOF 为止，去掉行尾换行）。"""
+    line = sys.stdin.readline()
+    if line.endswith("\n"):
+        line = line[:-1]
+    if line.endswith("\r"):
+        line = line[:-1]
+    return line
+
+
+def main():
+    """GLR 演示程序入口：读一行输入后解析，并打印全部结果。
+
+    :return: 0 表示成功，1 表示解析失败。
+    """
+    input_text = _read_line()
+    print("解析输入: " + input_text)
+    engine = Parser()
+    status = {{ glr_run }}
+    if status != parser.STATUS_OK:
+        error = engine.last_error
+        if error is not None:
+            print("解析失败: code=%d line=%d column=%d message=%s" % (
+                error.code, error.line, error.column, error.message))
+        else:
+            print("解析失败: " + parser.status_name(status))
+        return 1
+    print("解析成功，共 %d 个结果（歧义路径数）" % engine.glr_result_count())
+{{ glr_print }}{{ demo_commits }}{{ demo_drawings }}    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

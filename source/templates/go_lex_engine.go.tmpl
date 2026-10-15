@@ -1,0 +1,208 @@
+{# 词法模式（`%mode lex`）的引擎主体（CodeGenGo 的 lexerGo）。
+   变量：max_errors / constants / tables / lexer_helpers / value_helpers /
+         keyword_method / lexer —— 各段（都已渲染好）。
+   本模板自带行尾换行。 #}
+// ============================================================
+// 状态码 / 容量常量（数值与其它目标一致）
+// ============================================================
+
+const (
+	StatusOK                 int32 = 0
+	StatusErrLexer           int32 = -22
+	StatusErrLexUnterminated int32 = -28
+	StatusErrLexChar         int32 = -29
+)
+
+// sParserMaxErrors 一次词法分析最多记录多少条错误（`%max_errors`）。
+const sParserMaxErrors = {{ max_errors }}
+
+{{ constants }}
+
+{{ tables }}
+
+// StatusName 取状态码的名字（如 "Ok" / "ErrLexer"）。
+func StatusName(status int32) string {
+	switch status {
+	case StatusOK:
+		return "Ok"
+	case StatusErrLexer:
+		return "ErrLexer"
+	case StatusErrLexUnterminated:
+		return "ErrLexUnterminated"
+	case StatusErrLexChar:
+		return "ErrLexChar"
+	default:
+		return "Unknown"
+	}
+}
+
+// ParserError 一条词法错误。
+type ParserError struct {
+	// Code 错误码（`Status*` 或细分码）。
+	Code int32
+	// Line 行号（1 起）。
+	Line int32
+	// Column 列号（1 起）。
+	Column int32
+	// Message 说明文本。
+	Message string
+}
+
+// Error 实现 error 接口。
+func (e *ParserError) Error() string {
+	return e.String()
+}
+
+// String 取错误的可读文本。
+func (e *ParserError) String() string {
+	return fmt.Sprintf("第 %d 行第 %d 列：%s", e.Line, e.Column, e.Message)
+}
+
+// ParserCommit `%commit` 收集到的一条片段：行号 + 类型 + 原文。
+type ParserCommit struct {
+	// Line 片段起始行号（1 起）。
+	Line int32
+	// Type `%commit` 的类型名（缺省 "default"；skip 不进容器）。
+	Type string
+	// Text 匹配到的原文（含字面量本身）。
+	Text string
+}
+
+// ParserLocation 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起）。
+type ParserLocation struct {
+	// Line 行号（1 起）。
+	Line int32
+	// Column 列号（1 起）。
+	Column int32
+	// Offset UTF-8 字节偏移（0 起）。
+	Offset int32
+}
+
+// Parser `%mode lex` 的词法器：只有词法，没有分析表 / 分析栈 / 解析入口。
+type Parser struct {
+	errors []*ParserError
+	input  []rune
+	// text 原始输入文本：词法正则走标准库的 `regexp`（以**字节**定位），
+	// 表里存的是 rune，所以这里再留一份原文给 sParserLexRegexMatch 用。
+	text    string
+	textPos int
+	line    int32
+	column  int32
+	bytePos int
+	lexeme  string
+	commits []ParserCommit
+}
+
+// NewParser 建一个词法器。
+func NewParser() *Parser {
+	return &Parser{line: 1, column: 1}
+}
+
+// Errors 本次词法分析累积的错误。
+func (p *Parser) Errors() []*ParserError {
+	return p.errors
+}
+
+// LastError 最近一条错误；没有错误时返回 nil。
+func (p *Parser) LastError() *ParserError {
+	if len(p.errors) == 0 {
+		return nil
+	}
+	return p.errors[len(p.errors)-1]
+}
+
+// Commits `%commit` 收集到的片段（按出现顺序；没写 %commit 时恒为空）。
+func (p *Parser) Commits() []ParserCommit {
+	return p.commits
+}
+
+// CurrentLocation 当前词法位置：行 / 列 1 起 + UTF-8 字节偏移（0 起）。
+func (p *Parser) CurrentLocation() ParserLocation {
+	return ParserLocation{
+		Line:   p.line,
+		Column: p.column,
+		Offset: int32(p.bytePos),
+	}
+}
+
+func (p *Parser) setError(code int32, line int32, column int32, message string) {
+	if len(p.errors) >= sParserMaxErrors {
+		return
+	}
+	p.errors = append(p.errors, &ParserError{
+		Code: code, Line: line, Column: column, Message: message,
+	})
+}
+
+// Tokenize 把 text 切成 Token 列表（末尾带一个 `TOKEN_END`）。
+//
+// 返回 (状态码, Token 列表)；状态码不是 StatusOK 时说明见 Errors()。
+func (p *Parser) Tokenize(text string) (int32, []Token) {
+	p.errors = nil
+	p.input = []rune(text)
+	p.text = text
+	p.textPos = 0
+	p.line = 1
+	p.column = 1
+	p.bytePos = 0
+	p.commits = nil
+	p.lexeme = ""
+	var tokens []Token
+	for {
+		item := NewTokenAt(TOKEN_INVALID, "", p.line, p.column)
+		status := p.lexNext(&item)
+		if status != StatusOK {
+			why := "词法解析失败"
+			code := StatusErrLexer
+			if status == StatusErrLexUnterminated {
+				why = "字符串没有闭合"
+				code = status
+			} else if status == StatusErrLexChar {
+				why = "认不出来的字符"
+				code = status
+			}
+			p.setError(code, item.Line, item.Column, why)
+			return status, tokens
+		}
+		tokens = append(tokens, item)
+		if item.Type == TOKEN_END {
+			break
+		}
+	}
+	return StatusOK, tokens
+}
+
+// peekRune 取输入里第 textPos+offset 个字符；越界返回 -1。
+func (p *Parser) peekRune(offset int) int32 {
+	index := p.textPos + offset
+	if index < 0 || index >= len(p.input) {
+		return -1
+	}
+	return int32(p.input[index])
+}
+
+func (p *Parser) readChar() rune {
+	ch := p.input[p.textPos]
+	p.textPos++
+	// UTF-8 字节偏移（与其它目标对齐）
+	p.bytePos += len(string(ch))
+	if ch == '\n' {
+		p.line++
+		p.column = 1
+	} else {
+		p.column++
+	}
+	return ch
+}
+
+{{ lexer }}
+
+// ============================================================
+// 模块级辅助函数（词法 / 语义值转换 / 关键字表）
+// ============================================================
+
+{{ lexer_helpers }}
+
+{{ value_helpers }}
+
+{{ keyword_method }}

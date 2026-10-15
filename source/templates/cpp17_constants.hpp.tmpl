@@ -1,0 +1,8 @@
+{% if lex %}/// 语义动作里 `$1..$n` 的槽位个数（词法模式没有动作，保留同名字）。{% else %}/// 语义动作里 `$1..$n` 的槽位个数。{% endif %}
+inline constexpr std::size_t kValueSlots = {{ value_slots }}u;
+/// 分析栈最大深度（`%max_stack_depth`）。
+inline constexpr std::size_t kMaxStackDepth = {{ max_stack_depth }}u;
+{% if lex %}/// 一次词法分析最多记录多少条错误（`%max_errors`）。{% else %}/// 一次解析最多记录多少条错误（`%max_errors`）。{% endif %}
+inline constexpr std::size_t kMaxErrors = {{ max_errors }}u;
+{% if lex %}/// 恢复 Token 数（词法模式用不到，保留同名字与缺省值）。{% else %}/// 恢复成功后要连续移进多少个真实 Token 才退出错误状态（`%error_recovery_tokens`）。{% endif %}
+inline constexpr std::size_t kErrorRecoveryTokens = {{ recovery_tokens }}u;

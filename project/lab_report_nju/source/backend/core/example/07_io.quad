@@ -1,0 +1,18 @@
+# 名称: 输入输出指令（read / write / print / putc / getc）
+# 输入: 7 Z
+# 期望: 14 7
+# 期望文本: n=|Z|!
+# 说明: read 取一个按类型解析的输入项；getc 取输入项首个字符的编码；
+#       print/putc 输出到文本通道，write 输出到数值通道。
+0: (decl, u16, global, n)
+1: (decl, u8, global, c)
+2: (read, _, _, n)
+3: (<<:u16, n, 1, t)
+4: (write:u16, t, _, _)
+5: (print, "n=", _, _)
+6: (write:u16, n, _, _)
+7: (getc, _, _, c)
+8: (print, "|", _, _)
+9: (putc, c, _, _)
+10: (print, "|!", _, _)
+11: (halt, _, _, _)

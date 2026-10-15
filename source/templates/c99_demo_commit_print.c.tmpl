@@ -1,0 +1,23 @@
+    /* %commit：打印收集到的片段（行号 + 类型 + 原文）与当前位置 */
+    {
+        const ParserCommitList *pCommits = Parser_GetCommits();
+        ParserLocation location;
+        int commitIndex = 0;
+        printf("commits: %d\n",
+               (pCommits != NULL) ? pCommits->count : 0);
+        if (pCommits != NULL) {
+            for (commitIndex = 0; commitIndex < pCommits->count;
+                 commitIndex++) {
+                const ParserCommit *pEntry = &pCommits->items[commitIndex];
+                printf("  [%d] line=%d type=%s text=%s\n",
+                       commitIndex, pEntry->line,
+                       (pEntry->type != NULL) ? pEntry->type : "?",
+                       (pEntry->text != NULL) ? pEntry->text : "");
+            }
+        }
+        location = Parser_CurrentLocation();
+        printf("location: line=%d column=%d offset=%d\n",
+               location.line, location.column, location.offset);
+        /* C99 没有 RAII：片段文本要显式释放（下一次解析也会自动清） */
+        Parser_FreeCommits();
+    }

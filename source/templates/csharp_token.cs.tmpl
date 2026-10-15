@@ -1,0 +1,94 @@
+/* Token.cs —— Token 类型与词法单元（C# 产物）
+ *
+ * 由 ParseEngine 自动生成，请勿手工修改。
+ *
+ * 目标语言是 C#（只用标准库，没有第三方依赖）：
+ *   - Token 类型是一组 int 常量（`TOKEN_<名字>`），TOKEN_NAMES 是名字表；
+ *   - `value` 的类型由文法的 `%value_type` / `%union` 决定；两者都没写时
+ *     是 `object`（词法器给出 int / double / string）；
+ *   - 类型名首字母大写（Token / Parser / Tree），成员与方法名统一为
+ *     PascalCase / camelCase 的固定写法。
+ */
+{{ package }}
+
+public class Token
+{
+{{ token_types }}
+    /** Token 类型（TOKEN_* 常量）。 */
+    public int type;
+    /** Token 词素。 */
+    public string text;
+    /** Token 语义值（%value_type / %union 决定类型；没写时是 object）。 */
+    public {{ value_type }} value;
+    /** 词素起始行号（1 起）。 */
+    public int line;
+    /** 词素起始列号（1 起）。 */
+    public int column;
+    /** 词素起点的 UTF-8 字节偏移（0 起）。 */
+    public int offset;
+
+    /** 建一个空 Token（类型 TOKEN_INVALID、词素空串、位置 1:1）。 */
+    public Token()
+    {
+        this.type = TOKEN_INVALID;
+        this.text = "";
+        this.value = default({{ value_type }});
+        this.line = 1;
+        this.column = 1;
+        this.offset = 0;
+    }
+
+    /** 建一个只带类型的 Token。 */
+    public Token(int type)
+    {
+        this.type = type;
+        this.text = "";
+        this.value = default({{ value_type }});
+        this.line = 1;
+        this.column = 1;
+        this.offset = 0;
+    }
+
+    /** 建一个带类型 / 词素 / 位置的 Token。 */
+    public Token(int type, string text, int line, int column)
+    {
+        this.type = type;
+        this.text = text;
+        this.value = default({{ value_type }});
+        this.line = line;
+        this.column = column;
+        this.offset = 0;
+    }
+
+    /** 取 Token 类型名；越界返回 "INVALID"。 */
+    public static string tokenName(int type)
+    {
+        if ((type < 0) || (type >= TOKEN_NAMES.Length))
+        {
+            return "INVALID";
+        }
+        string name = TOKEN_NAMES[type];
+        return TOKEN_ALIASES.TryGetValue(name, out string alias) && !string.IsNullOrEmpty(alias)
+            ? name + "(" + alias + ")" : name;
+    }
+
+    /** 取 Token 的显示文本：优先词素，没有词素时退回类型名。 */
+    public static string tokenText(Token item)
+    {
+        if (item == null)
+        {
+            return "";
+        }
+        if ((item.text != null) && (item.text.Length > 0))
+        {
+            return item.text;
+        }
+        return tokenName(item.type);
+    }
+
+    public override string ToString()
+    {
+        return "Token(type=" + tokenName(type) + ", text=\"" + text +
+               "\", line=" + line + ", column=" + column + ")";
+    }
+}

@@ -1,0 +1,22 @@
+{ 结构体数组（按字段扁平化）+ 引用指向数组元素的字段 }
+{ 期望: 6 8 }
+program struct_array;
+  struct Pair ( a: int; b: float; );
+  const N := 3;
+  var i: int;
+  var total: int;
+  array ps[N]: Pair;
+  ref r := ps[2].a;        { 引用：绑定一次，能读能写，不能改绑定 }
+begin
+  for i := 0 to N - 1 do begin
+    ps[i].a := i * 2;
+    ps[i].b := float(i) + 0.5
+  end;
+  total := 0;
+  for i := 0 to N - 1 do begin
+    total := total + ps[i].a
+  end;
+  write(total);
+  r := r + 4;
+  write(ps[2].a)
+end.

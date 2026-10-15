@@ -1,0 +1,35 @@
+        /* 内建双引号字符串：词法阶段完成反转义，结果写进 m_lexeme。 */
+        if (*pStart == '"')
+        {
+            m_lexeme.clear();
+            readChar();
+            while ((m_text[m_textPos] != '\0') && (m_text[m_textPos] != '"'))
+            {
+                char ch = readChar();
+                if (ch == '\\')
+                {
+                    const char escaped = readChar();
+                    switch (escaped)
+                    {
+                    case 'n': ch = '\n'; break;
+                    case 'r': ch = '\r'; break;
+                    case 't': ch = '\t'; break;
+                    case '\\': ch = '\\'; break;
+                    case '"': ch = '"'; break;
+                    default: return Status::ErrLexer;
+                    }
+                }
+                m_lexeme.push_back(ch);
+            }
+            if (m_text[m_textPos] != '"')
+            {
+                /* 读到输入末尾还没等到收尾的引号 */
+                return Status::ErrLexUnterminated;
+            }
+            readChar();
+            token.type = TokenType::TOKEN_STRING;
+            token.text = m_lexeme;
+            token.name = m_lexeme.c_str();
+{% if union_member %}            token.value.{{ union_member }} = m_lexeme.data();{% endif %}
+            return Status::Ok;
+        }

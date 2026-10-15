@@ -1,0 +1,33 @@
+{# 容量常量与「期望 Token」表（CodeGenRust 的 rustConstants）。
+   变量：terminal_count / nonterm_count / start_id / state_count /
+         lookahead_k / lookahead_column_count —— 整数
+         expected_rows —— 二维整数表（每项一个 RustIntRow）
+         expected_fallback —— 带引号的兜底说明字符串
+   本模板自带行尾换行。 #}
+/// Token 个数（含 END）/ 非终结符个数 / 起始非终结符编号。
+const _TERMINAL_COUNT: usize = {{ terminal_count }};
+const _NONTERM_COUNT: usize = {{ nonterm_count }};
+const _START_ID: i32 = {{ start_id }};
+/// LR 自动机状态个数（LL 模式没有状态机，这里是 0）。
+const _STATE_COUNT: usize = {{ state_count }};
+/// LR(k) / LALR(k) 的展望符长度与归约列数。
+const _LOOKAHEAD_K: i32 = {{ lookahead_k }};
+const _LOOKAHEAD_COLUMN_COUNT: usize = {{ lookahead_column_count }};
+/// LL 分析栈上的项目类型（只有 LL 模式用得上）。
+const _ITEM_TERMINAL: i32 = 0;
+const _ITEM_NONTERM: i32 = 1;
+const _ITEM_ACTION: i32 = 2;
+const _ITEM_ACTION_KEEP: i32 = 3;
+const _ITEM_FORWARD: i32 = 4;
+const _ITEM_LEFT_LOOP: i32 = 5;
+const _ITEM_TREE_END: i32 = 6;
+/// 每一行「期望的 Token」：语法错误时用来填 `expected`。
+static _EXPECTED: &[&[i32]] = &[
+{% for r in expected_rows %}    &[{% for v in r.items %}{% if v.br %},
+      {% else %}{% if loop_first %}{% else %}, {% endif %}{% endif %}{{ v.value }}{% endfor %}],
+{% endfor %}];
+/// 期望集为空时的兜底说明（LL 说「产生式」、LR 说「动作」）。
+const _EXPECTED_FALLBACK: &str = {{ expected_fallback }};
+{% if dd %}/// DD：整段解析失败时，最多往后跳几次同步 Token 再重试（%sync 的 panic mode）。
+const _DD_MAX_RECOVERY_SKIPS: i32 = 64;
+{% endif %}

@@ -1,0 +1,7 @@
+{# 图太大时只画一句说明（Mermaid::oversizeSource）。
+   变量：what（图名，已转义）、detail（说明文本，已转义）。
+   本模板自带行尾换行。 #}
+flowchart LR
+    TOOBIG(["{{ what }}：图太大，已省略"])
+    NOTE["{{ detail }}"]
+    TOOBIG --> NOTE

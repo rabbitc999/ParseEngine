@@ -1,0 +1,2 @@
+# 生成物：`make generate`（ParseEngine）与 `make` 的产物，随时可重建。
+build/

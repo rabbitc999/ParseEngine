@@ -1,0 +1,45 @@
+{% if has_keywords %}/// 关键字表项。
+struct Keyword
+{
+    const char *text; ///< 字面量
+    TokenType type;   ///< 对应的 Token
+};
+
+/// 关键字表：%define / %token 里像标识符的字面量。
+inline constexpr Keyword kKeywords[] =
+{
+{% for k in keywords %}{% if loop_first %}{% else %},
+{% endif %}    { {{ k.text }}, {{ k.token }} }{% endfor %}
+};
+
+/**
+ * @brief 关键字查表。
+ * @param pText 文本。
+ * @return 关键字对应的 Token；不是关键字时返回 TOKEN_INVALID。
+ */
+inline TokenType keywordType(const char *pText)
+{
+    if (pText == nullptr)
+    {
+        return TokenType::TOKEN_INVALID;
+    }
+    for (const Keyword &entry : kKeywords)
+    {
+        if (std::strcmp(pText, entry.text) == 0)
+        {
+            return entry.type;
+        }
+    }
+    return TokenType::TOKEN_INVALID;
+}
+
+{% else %}/// 关键字查表：本文法没有像标识符的字面量，恒返回 TOKEN_INVALID。
+/// @param pText 文本。
+/// @return 关键字对应的 Token；不是关键字时返回 TOKEN_INVALID。
+[[maybe_unused]] inline TokenType keywordType(const char *pText)
+{
+    (void)pText;
+    return TokenType::TOKEN_INVALID;
+}
+
+{% endif %}

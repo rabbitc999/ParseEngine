@@ -1,0 +1,48 @@
+        // 内建双引号字符串：词法阶段完成反转义，结果就是语义值。
+        if (_peekChar(0) == '"')
+        {
+            _lexeme = "";
+            _readChar();
+            while ((_peekChar(0) >= 0) && (_peekChar(0) != '"'))
+            {
+                char ch = _readChar();
+                if (ch == '\\')
+                {
+                    char escaped = _readChar();
+                    if (escaped == 'n')
+                    {
+                        ch = '\n';
+                    }
+                    else if (escaped == 'r')
+                    {
+                        ch = '\r';
+                    }
+                    else if (escaped == 't')
+                    {
+                        ch = '\t';
+                    }
+                    else if (escaped == '\\')
+                    {
+                        ch = '\\';
+                    }
+                    else if (escaped == '"')
+                    {
+                        ch = '"';
+                    }
+                    else
+                    {
+                        return STATUS_ERR_LEXER;
+                    }
+                }
+                _lexeme += ch;
+            }
+            if (_peekChar(0) != '"')
+            {
+                return STATUS_ERR_LEX_UNTERMINATED;
+            }
+            _readChar();
+            item.type = TOKEN_STRING;
+            item.text = _lexeme;
+            item.value = _valueFromText(TOKEN_STRING, _lexeme);
+            return STATUS_OK;
+        }

@@ -1,0 +1,14 @@
+# 名称: 内存的读与写
+# 说明: 可用表达式把 [slot] 也当成表达式：store 之后它不再可用；到达定值不管内存，
+#       所以 load 出来的 sum 只有一个定值（自己的）。
+# 期望 live entry out: {}
+# 期望 reach entry out: {one@1, sum@3}
+# 期望 avail entry out: {one add sum}
+# 期望 const entry out: {one=1, sum=⊥}
+label entry
+  load sum, [slot]
+  mov one, 1
+  store [slot], one
+  add sum, sum, one
+  print sum
+  halt

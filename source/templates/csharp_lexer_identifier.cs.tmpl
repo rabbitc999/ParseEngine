@@ -1,0 +1,14 @@
+        // 标识符：没有 %identifier 时的内建 C 风格规则。
+        if (_isAlpha(_peekChar(0)) || (_peekChar(0) == '_'))
+        {
+            int identStart = _textPos;
+            while (_isWord(_peekChar(0)))
+            {
+                _readChar();
+            }
+            _lexeme = _input.Substring(identStart, _textPos - identStart);
+            item.type = TOKEN_VARIABLE;
+            item.text = _lexeme;
+            item.value = _valueFromText(TOKEN_VARIABLE, _lexeme);
+            return STATUS_OK;
+        }

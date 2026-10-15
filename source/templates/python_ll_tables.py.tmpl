@@ -1,0 +1,21 @@
+{# 预测分析表与 FOLLOW 集（LL 家族）。模板第一行是空行——它与上一节的词法表之间的
+   分隔空行；上面那行注释会被引擎丢掉，不产出字节。 #}
+
+# ---------- 分析表 ----------
+# 预测分析表：单元里的产生式编号，-1 表示没有可用产生式。
+# 列：k = 1 是 Token 号；k = 0 只有一列；k >= 2 是 _LOOKAHEAD_COLUMN 里的列号。
+_LL_TABLE = {{ ll_table }}
+{% if has_columns %}# LL(k)：分析表的列编码（升序）与对应的列号。
+_LOOKAHEAD_CODE = [
+            {{ lookahead_code }}]
+_LOOKAHEAD_COLUMN = [
+            {{ lookahead_column }}]
+{% endif %}_PRODUCTION_IS_LEFT_EMPTY = [
+            {{ left_empty }}]
+{% if has_follow %}# FOLLOW 集：每个非终结符的 FOLLOW（Token 号集合），错误恢复用。
+_LL_FOLLOW = (
+{% for row in follow %}    frozenset({% if row.empty %}{% else %}({% for t in row.members %}TOKEN_{{ t }}{% if loop_last %}{% else %}, {% endif %}{% endfor %},){% endif %}),
+{% endfor %})
+{% else %}# LL(0) 没有可用的 FOLLOW 信息（占位；恢复在 LL(0) 下不启用）。
+_LL_FOLLOW = ()
+{% endif %}

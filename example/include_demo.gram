@@ -1,0 +1,41 @@
+/* ============================================================
+ * `include "…"` 示例：段正文放到外部文件里，.gram 只留文法
+ *
+ * 两种写法是等价的（都进 parser_user.h 的用户代码区）：
+ *
+ *   %code … %endcode           `%endcode` 单独成行收尾
+ *   %code include "路径"       正文从文件读，**不用**写 %endcode（本例用这个）
+ *
+ * `%epilogue` / `%main` / `%class_body` 同样支持 include：
+ *
+ *   %epilogue include "epilogue.cpp"  等价于把文件的正文写成 %epilogue 段
+ *   %main include "main.cpp"          等价于把文件的正文写成 %main 段
+ *
+ * 相对路径以**文法文件所在目录**为基准（与 `%copy` 同一套规则）；也接受
+ * `include="路径"` 这种带等号的写法。被 include 的文件按原样收进产物，
+ * 不参与 `%if` 条件编译，也不会再被当成 .gram 递归解析。
+ *
+ * 试用输入：1+2*3 -> 13（2*3 先被 IncludeDemoScale 乘了 2）
+ * ============================================================ */
+
+%mode lalr
+%value_type double
+
+%define PLUS "+"
+%define STAR "*"
+
+%code include "include_demo_user.h"
+
+%epilogue include "include_demo_epilogue.cpp"
+
+%start expr
+
+expr := expr PLUS term { $$ = $1 + $3; }
+      | term            { $$ = $1; };
+
+term := term STAR factor { $$ = IncludeDemoScale($1 * $3); }
+      | factor            { $$ = $1; };
+
+factor := NUMBER { $$ = $1; };
+
+%main include "include_demo_main.cpp"

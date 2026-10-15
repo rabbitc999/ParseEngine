@@ -1,0 +1,22 @@
+// ---------- Earley / CYK 图表解析数据 ----------
+
+const (
+	sParserChartStart           = {{ start }}
+	sParserChartTerminalCount   = {{ terminal_count }}
+	sParserChartNontermCount    = {{ nonterm_count }}
+	sParserChartProductionCount = {{ production_count }}
+	sParserChartUnaryCount      = {{ unary_count }}
+	sParserChartBinaryCount     = {{ binary_count }}
+	sParserChartAcceptsEmpty    = {% if accepts_empty %}true{% else %}false{% endif %}
+)
+
+var sParserChartLHS = []int32{ {{ lhs }} }
+var sParserChartRHSStart = []int32{ {{ rhs_start }} }
+var sParserChartRHSLength = []int32{ {{ rhs_length }} }
+var sParserChartRHSSymbols = []int32{ {{ rhs_symbols }} }
+var sParserChartUnaryLHS = []int32{ {{ unary_lhs }} }
+var sParserChartUnaryToken = []int32{ {{ unary_token }} }
+var sParserChartBinaryLHS = []int32{ {{ binary_lhs }} }
+var sParserChartBinaryLeft = []int32{ {{ binary_left }} }
+var sParserChartBinaryRight = []int32{ {{ binary_right }} }
+

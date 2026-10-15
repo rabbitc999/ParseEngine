@@ -1,0 +1,35 @@
+{# 状态机图示的 HTML 页面骨架（Mermaid::htmlPage）。
+   变量：title / title_escaped（标题与它转义后的样子）、intro（页面导语，
+   已是 HTML 片段）、page_style（CSS 原文）、
+   links（数组，元素 {href, desc}）、
+   diagrams（数组，元素 {title, note, source, source_escaped, show_title}）。
+   本模板自带行尾换行。 #}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{{ title_escaped }} · ParseEngine 状态机图示</title>
+<style>
+{{ page_style }}
+</style>
+</head>
+<body>
+<h1>{{ title_escaped }}</h1>
+{{ intro }}{% if links %}<ul class="links">
+{% for link in links %}<li><a href="{{ link.href }}">{{ link.href }}</a>：{{ link.desc }}</li>
+{% endfor %}</ul>
+{% endif %}<p class="tip">页面用浏览器打开即可看图（图的渲染走 CDN 上的 Mermaid，首次打开需要联网）；图下面折叠的是 Mermaid 源码，同目录的 <code>.mmd</code> 里也有，可以贴到 Markdown 或 mermaid.live 里。</p>
+{% for diagram in diagrams %}{% if diagram.show_title %}<h2>{{ diagram.title }}</h2>
+{% endif %}{{ diagram.note }}
+<div class="mermaid">
+{{ diagram.source }}</div>
+<details><summary>Mermaid 源码</summary>
+<pre>{{ diagram.source_escaped }}</pre>
+</details>
+{% endfor %}<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, theme: "neutral", maxEdges: 2000, maxTextSize: 2000000, flowchart: { htmlLabels: true, curve: "linear" } });
+</script>
+</body>
+</html>

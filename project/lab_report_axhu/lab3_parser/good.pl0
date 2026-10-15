@@ -1,0 +1,8 @@
+var x, y, m, t;
+const b = 10;
+procedure mod;
+begin
+    t := x / y;
+    t := t * y;
+    m := x - t;
+end.

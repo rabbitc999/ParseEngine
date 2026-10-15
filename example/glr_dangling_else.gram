@@ -1,0 +1,36 @@
+/* ============================================================
+ * GLR 示例 · 悬空 else 二义（%tree，看两棵不同的语法树）
+ *
+ *   stmt := IF expr THEN stmt
+ *         | IF expr THEN stmt ELSE stmt
+ *         | OTHER;
+ *
+ * 输入 `if cond then if cond then other else other` 时，else 既可以
+ * 结合到内层 if（移进），也可以结合到外层 if（归约）。LALR(1) 会报
+ * 移进/归约冲突；GLR 不消解冲突，而是把两条路径都保留下来，因此
+ * Parser_RunGLRTreeText() 会得到 2 棵语法树。
+ *
+ * 本文件用 %tree：custom 运行时下只建语法树、不写语义动作，
+ * 正好用来观察两条解析路径的树形差异。
+ *
+ * 试用输入：
+ *   if cond then other
+ *   if cond then if cond then other else other   -> 2 棵树
+ *   if cond then other else if cond then other
+ * ============================================================ */
+
+%mode glr
+%tree
+%start stmt
+
+%define IF    "if"
+%define THEN  "then"
+%define ELSE  "else"
+%define OTHER "other"
+%define COND  "cond"
+
+stmt := IF expr THEN stmt
+      | IF expr THEN stmt ELSE stmt
+      | OTHER;
+
+expr := COND;

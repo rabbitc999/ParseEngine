@@ -1,0 +1,19 @@
+{ 过程 + 递归（无参过程靠全局变量传东西）：5 的阶乘 }
+{ 期望: 120 }
+program proc_rec;
+  var n: int;
+  var result: int;
+  procedure fact;
+  begin
+    if n > 1 then begin
+      result := result * n;
+      n := n - 1;
+      call fact
+    end
+  end;
+begin
+  n := 5;
+  result := 1;
+  call fact;
+  write(result)
+end.

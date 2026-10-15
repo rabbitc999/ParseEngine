@@ -1,0 +1,19 @@
+# 名称: 数据区三件套 addr / load / store（simple_ast 的 .data.bin + .layout）
+# 数据: example/21_data_area.data.bin
+# 布局: example/21_data_area.layout
+# 期望: 30 30
+# 说明: 数据区是一串 8 字节槽位（arr[0]=7、arr[1]=15、arr[2]=30、arr[3]=60）：
+#       addr 取符号基址，(*:i64) 按 stride=8 算槽位偏移，load 按地址读 8 字节；
+#       再把读到的 30 用 store 写回 arr[1]（原来是 15），重新 load 验证写入生效。
+#       三条指令的语义与 library/stackvm 的 ADDR / LOADAT / STOREAT 相同。
+0: (decl, i32, global, b)
+1: (addr, arr_1, _, base)
+2: (*:i64, 2, 8, offset)
+3: (+:i64, base, offset, slot)
+4: (load, slot, _, loaded)
+5: (:=, loaded, _, b)
+6: (write, b, _, _)
+7: (store, base, b, _)
+8: (load, base, _, reread)
+9: (write, reread, _, _)
+10: (halt, _, _, _)

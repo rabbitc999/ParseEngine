@@ -1,0 +1,17 @@
+{ 两个引用换值（引用是别名：写引用就是写被引对象） }
+{ 期望: 2 1 }
+program ref_swap;
+  var x: int;
+  var y: int;
+  var t: int;
+  ref rx := x;
+  ref ry := y;
+begin
+  x := 1;
+  y := 2;
+  t := rx;
+  rx := ry;
+  ry := t;
+  write(x);
+  write(y)
+end.

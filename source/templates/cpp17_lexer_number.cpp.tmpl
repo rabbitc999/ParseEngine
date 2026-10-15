@@ -1,0 +1,122 @@
+        /* 小数点和指数决定 float，后缀 d 决定 double；后缀 u 只用于整数。 */
+        if ((std::isdigit(static_cast<unsigned char>(*pStart)) != 0) ||
+            ((*pStart == '.') &&
+             (std::isdigit(static_cast<unsigned char>(pStart[1])) != 0)))
+        {
+            char *pEnd = nullptr;
+            bool hasDot = false;
+            bool hasExponent = false;
+            char suffix = '\0';
+            double parsed = 0.0;
+            while (std::isdigit(
+                       static_cast<unsigned char>(m_text[m_textPos])) != 0)
+            {
+                readChar();
+            }
+            if (m_text[m_textPos] == '.')
+            {
+                hasDot = true;
+                readChar();
+                while (std::isdigit(
+                           static_cast<unsigned char>(m_text[m_textPos])) != 0)
+                {
+                    readChar();
+                }
+            }
+            if ((m_text[m_textPos] == 'e') || (m_text[m_textPos] == 'E'))
+            {
+                hasExponent = true;
+                readChar();
+                if ((m_text[m_textPos] == '+') || (m_text[m_textPos] == '-'))
+                {
+                    readChar();
+                }
+                if (std::isdigit(
+                        static_cast<unsigned char>(m_text[m_textPos])) == 0)
+                {
+                    return Status::ErrLexer;
+                }
+                while (std::isdigit(
+                           static_cast<unsigned char>(m_text[m_textPos])) != 0)
+                {
+                    readChar();
+                }
+            }
+            if (std::isalpha(
+                    static_cast<unsigned char>(m_text[m_textPos])) != 0)
+            {
+                suffix = readChar();
+            }
+            if (std::isalpha(
+                    static_cast<unsigned char>(m_text[m_textPos])) != 0)
+            {
+                return Status::ErrLexer;
+            }
+            const std::size_t length =
+                static_cast<std::size_t>(&m_text[m_textPos] - pStart);
+            m_lexeme.assign(pStart, length);
+            if (suffix != '\0')
+            {
+                m_lexeme.resize(length - 1u);
+            }
+            errno = 0;
+            if ((suffix == 'u') || (suffix == 'U'))
+            {
+                unsigned long value = 0ul;
+                if (hasDot || hasExponent)
+                {
+                    return Status::ErrLexer;
+                }
+                value = std::strtoul(m_lexeme.c_str(), &pEnd, 10);
+                if ((errno == ERANGE) || (*pEnd != '\0') ||
+                    (value > UINT32_MAX))
+                {
+                    return Status::ErrLexer;
+                }
+                parsed = static_cast<double>(static_cast<std::uint32_t>(value));
+            }
+            else if ((suffix == 'd') || (suffix == 'D'))
+            {
+                if (!hasDot && !hasExponent)
+                {
+                    return Status::ErrLexer;
+                }
+                parsed = std::strtod(m_lexeme.c_str(), &pEnd);
+                if ((errno == ERANGE) || (*pEnd != '\0') ||
+                    (std::isfinite(parsed) == 0))
+                {
+                    return Status::ErrLexer;
+                }
+            }
+            else if (suffix != '\0')
+            {
+                return Status::ErrLexer;
+            }
+            else if (hasDot || hasExponent)
+            {
+                const float value = std::strtof(m_lexeme.c_str(), &pEnd);
+                if ((errno == ERANGE) || (*pEnd != '\0') ||
+                    (std::isfinite(value) == 0))
+                {
+                    return Status::ErrLexer;
+                }
+                parsed = static_cast<double>(value);
+            }
+            else
+            {
+                /* 整数可以到 64 位：`Token::value` 只有 32 位，所以**别拿它当准**，
+                 * 前端要用整数的话按词素原文（`token.text`）自己解析（`strtoll`）。 */
+                const long long value = std::strtoll(m_lexeme.c_str(), &pEnd, 10);
+                if ((errno == ERANGE) || (*pEnd != '\0') ||
+                    (value < INT64_MIN) || (value > INT64_MAX))
+                {
+                    return Status::ErrLexer;
+                }
+                parsed = static_cast<double>(value);
+            }
+            token.type = TokenType::TOKEN_NUMBER;
+            token.text = m_lexeme;
+            token.name = m_lexeme.c_str();
+{% if union_number %}{% if number_member %}            token.value.{{ number_member }} = static_cast<decltype(token.value.{{ number_member }})>(parsed);{% else %}            /* %union：NUMBER 未绑成员，数字词素不写进 Token 语义值 */{% endif %}{% else %}            token.value = static_cast<std::int32_t>(parsed);{% endif %}
+            return Status::Ok;
+        }

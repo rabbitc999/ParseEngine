@@ -1,0 +1,15 @@
+{ 浮点：算术、int() / float()、比较 }
+{ 期望: 7.5 7 1 }
+program float_ops;
+  var x: float;
+  var y: float;
+  var n: int;
+begin
+  x := 3.0;
+  y := 2.5;
+  x := x + y + 2.0;
+  write(x);
+  n := int(x);
+  write(n);
+  if x > 7.0 then begin write(1) end else begin write(0) end
+end.

@@ -1,0 +1,20 @@
+{# 「同步 Token（%sync）」小节：没有 %sync 时整段不出现（靠 sync_tokens 空数组为假）。
+   变量：sync_tokens（数组，元素是 Token 名）、
+         max_errors_name（这一档"最多几条错"的常量名，**不带反引号**——
+         `PARSER_MAX_ERRORS` / `Parser::kMaxErrors` / `Parser.max_errors`，反引号在模板里）、
+         is_ll1（真假：LL(1) 与 LR 家族对这一节的解释不同）。 #}
+{% if sync_tokens %}
+## 同步 Token（%sync）
+
+运行时遇到语法错误时，按「弹栈到能移进某个同步 Token 的状态、再丢输入到那个 Token」的固定策略恢复，一次解析可以报多个错（上限 `{{ max_errors_name }}`）。声明顺序如下：
+
+{% for token in sync_tokens %}- `{{ token }}`
+{% endfor %}
+
+{% if is_ll1 %}
+LL(1) 下同步集合 = 栈顶非终结符的 FOLLOW ∪ 上面这些 Token。
+{% else %}
+LR 家族下这是第二层恢复：只有当前状态没有可用的 error 列动作时才用它兜底（写了 error 产生式时以 error 为准）。
+{% endif %}
+
+{% endif %}

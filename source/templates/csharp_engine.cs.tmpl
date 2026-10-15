@@ -1,0 +1,893 @@
+    // ============================================================
+    // 状态码 / 容量常量（数值与 C / C++17 / Python 产物一致）
+    // ============================================================
+
+    public const int STATUS_OK = 0;
+    public const int STATUS_ERR_STACK = -20;
+    public const int STATUS_ERR_SYNTAX = -21;
+    public const int STATUS_ERR_LEXER = -22;
+    public const int STATUS_ERR_DUPLICATE = -23;
+    public const int STATUS_ERR_UNDEFINED = -24;
+    public const int STATUS_ERR_SYSTEM = -25;
+    public const int STATUS_ERR_EXPECTED = -26;
+    public const int STATUS_ERR_UNEXPECTED_EOF = -27;
+    public const int STATUS_ERR_LEX_UNTERMINATED = -28;
+    public const int STATUS_ERR_LEX_CHAR = -29;
+
+    /** 分析栈最大深度（`%max_stack_depth`）。 */
+    public const int MAX_STACK_DEPTH = {{ max_stack_depth }};
+    /** 一次解析最多记录多少条错误（`%max_errors`）。 */
+    public const int MAX_ERRORS = {{ max_errors }};
+    /** 恢复成功后要连续移进多少个真实 Token 才退出错误状态。 */
+    public const int ERROR_RECOVERY_TOKENS = {{ error_recovery_tokens }};
+    /** 语义动作里 `$1..$n` 的槽位个数。 */
+    public const int VALUE_SLOTS = {{ value_slots }};
+
+    private const int MAX_EXPECTED = 8;
+    private const int INVALID_STATE = 0xFFFF;
+    private const int INVALID_INDEX = 0xFFFF;
+    private const int ACCEPT_ACTION = 2147483647;
+    /** `_lexNextRaw` 的内部哨兵：%commit 命中（吃掉原文后继续取 Token）。 */
+    private const int _LEX_COMMIT_CONSUMED = 1;
+
+    // Token 类型别名（常量表在 Token.cs 里）
+    private const int TOKEN_INVALID = Token.TOKEN_INVALID;
+    private const int TOKEN_END = Token.TOKEN_END;
+    private const int TOKEN_STRING = Token.TOKEN_STRING;
+    private const int TOKEN_NUMBER = Token.TOKEN_NUMBER;
+    private const int TOKEN_VARIABLE = Token.TOKEN_VARIABLE;
+
+{{ constants }}
+
+{{ lex_tables }}
+    // ---------- 分析表 ----------
+{{ analysis_tables }}
+{% if is_ll %}
+    // ---------- 语法树表 ----------
+{{ tree_tables }}
+{% endif %}{{ misc_tables }}
+
+    /** 取状态码的名字（如 "Ok" / "ErrSyntax"）。 */
+    public static string statusName(int status)
+    {
+        switch (status)
+        {
+        case STATUS_OK: return "Ok";
+        case STATUS_ERR_STACK: return "ErrStack";
+        case STATUS_ERR_SYNTAX: return "ErrSyntax";
+        case STATUS_ERR_LEXER: return "ErrLexer";
+        case STATUS_ERR_DUPLICATE: return "ErrDuplicate";
+        case STATUS_ERR_UNDEFINED: return "ErrUndefined";
+        case STATUS_ERR_SYSTEM: return "ErrSystem";
+        default: return "Unknown";
+        }
+    }
+
+    // ============================================================
+    // 解析错误 / 语法树
+    // ============================================================
+
+    /** 一条解析错误：一次解析可以累积多条（错误恢复时）。 */
+    public class ParserError
+    {
+        /** 错误码（STATUS_* 或细分码）。 */
+        public int code;
+        /** 行号（1 起）。 */
+        public int line;
+        /** 列号（1 起）。 */
+        public int column;
+        /** 说明文本。 */
+        public string message;
+        /** 实际看到的 Token 类型（语法错误时有内容）。 */
+        public int tokenType;
+        /** 实际看到的 Token 词素。 */
+        public string tokenText;
+        /** LR 状态号 / LL 栈顶符号编号。 */
+        public int state;
+        /** 这里期望的 Token 类型列表。 */
+        public int[] expected;
+
+        /** 建一条错误。 */
+        public ParserError(int code, int line, int column, string message)
+        {
+            this.code = code;
+            this.line = line;
+            this.column = column;
+            this.message = message;
+            this.tokenType = TOKEN_INVALID;
+            this.tokenText = "";
+            this.state = 0;
+            this.expected = new int[0];
+        }
+
+        public override string ToString()
+        {
+            return "第 " + line + " 行第 " + column + " 列：" + message;
+        }
+    }
+
+    /** `%commit` 收集到的一条片段：行号 + 类型 + 原文（不可变）。 */
+    public sealed class Commit
+    {
+        /** 片段起始行号（1 起）。 */
+        public int Line { get; }
+        /** `%commit` 的类型名（缺省 "default"；skip 不进容器）。 */
+        public string Type { get; }
+        /** 匹配到的原文（含字面量本身）。 */
+        public string Text { get; }
+
+        /** 建一条片段。 */
+        public Commit(int line, string type, string text)
+        {
+            Line = line;
+            Type = type;
+            Text = text;
+        }
+    }
+
+    /** 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起，值类型）。 */
+    public readonly struct Location
+    {
+        /** 行号（1 起）。 */
+        public int Line { get; }
+        /** 列号（1 起）。 */
+        public int Column { get; }
+        /** UTF-8 字节偏移（0 起）。 */
+        public int Offset { get; }
+
+        /** 建一个位置。 */
+        public Location(int line, int column, int offset)
+        {
+            Line = line;
+            Column = column;
+            Offset = offset;
+        }
+    }
+
+    /** 语法树节点（`%tree` 文法）：名字 + 词素 + 子节点。 */
+    public class Tree
+    {
+        /** 符号名（终结符 / 非终结符）。 */
+        public string name;
+        /** 终结符词素；非终结符是空串。 */
+        public string text;
+        /** 子节点。 */
+        public readonly List<Tree> children = new List<Tree>();
+        /** 节点位置（私有后备字段；外面用 Location 属性取）。 */
+        private Location _location;
+        /** 位置是否已设置（Location 是值类型，用 bool 单独记）。 */
+        private bool _hasLocation = false;
+
+        /** 建一个节点。 */
+        public Tree(string name, string text)
+        {
+            this.name = name;
+            this.text = text;
+        }
+
+        /** 子节点个数。 */
+        public int childCount()
+        {
+            return children.Count;
+        }
+
+        /** 取第 index 个子节点；越界返回 null。 */
+        public Tree child(int index)
+        {
+            if ((index < 0) || (index >= children.Count))
+            {
+                return null;
+            }
+            return children[index];
+        }
+
+        /** 追加一个子节点（null 会被忽略）。 */
+        public void addChild(Tree node)
+        {
+            if (node != null)
+            {
+                children.Add(node);
+            }
+        }
+
+        /** 设置节点位置（叶节点创建时由词法器位置填入）。 */
+        public void SetLocation(Location location)
+        {
+            _location = location;
+            _hasLocation = true;
+        }
+
+        /**
+         * 节点位置：自己的没有就退到第一个有位置的子节点（覆盖文本的起点）。
+         */
+        public Location Location
+        {
+            get
+            {
+                if (_hasLocation)
+                {
+                    return _location;
+                }
+                for (int index = 0; index < children.Count; index++)
+                {
+                    if (children[index]._hasLocation ||
+                        (children[index].children.Count > 0))
+                    {
+                        return children[index].Location;
+                    }
+                }
+                return default(Location);
+            }
+        }
+
+        /** 深拷贝整棵子树。 */
+        public Tree clone()
+        {
+            Tree copy = new Tree(name, text);
+            copy._location = _location;
+            copy._hasLocation = _hasLocation;
+            for (int index = 0; index < children.Count; index++)
+            {
+                copy.children.Add(children[index].clone());
+            }
+            return copy;
+        }
+
+        /** 取整棵树的缩进文本（每层两个空格）。 */
+        public override string ToString()
+        {
+            System.Text.StringBuilder outText = new System.Text.StringBuilder();
+            _appendText(this, 0, outText);
+            return outText.ToString();
+        }
+
+        /** 打印整棵树（写到标准输出）。 */
+        public void print()
+        {
+            System.Console.Out.Write(ToString());
+            System.Console.Out.Flush();
+        }
+
+        private static void _appendText(Tree node, int depth,
+                                        System.Text.StringBuilder outText)
+        {
+            for (int index = 0; index < depth; index++)
+            {
+                outText.Append("  ");
+            }
+            outText.Append(node.name);
+            if ((node.text != null) && (node.text.Length > 0))
+            {
+                outText.Append("(").Append(node.text).Append(")");
+            }
+            outText.Append("\n");
+            for (int index = 0; index < node.children.Count; index++)
+            {
+                _appendText(node.children[index], depth + 1, outText);
+            }
+        }
+    }
+
+    /** 一次归约的语义结果壳：动作里的 `$$` 就是它的 value。 */
+    private class _Holder
+    {
+        public {{ value_type }} value = _newValue();
+    }
+
+    /** LL 语义帧：一个非终结符展开期间的全部语义槽。 */
+    private class _LlFrame
+    {
+        public int parentFrame = INVALID_INDEX;
+        public int parentValue = 0;
+        public readonly {{ value_type }}[] values =
+            new {{ value_type }}[VALUE_SLOTS + 1];
+        public readonly string[] names = new string[VALUE_SLOTS + 1];
+        public {{ value_type }} resultValue = _newValue();
+        public bool discarded = false;
+    }
+
+    // ============================================================
+    // 解析状态
+    // ============================================================
+
+    private readonly List<ParserError> _errors = new List<ParserError>();
+    private {{ value_type }} _result;
+
+    private string _input = "";
+    private int _textPos = 0;
+    private bool _textMode = true;
+    private readonly List<Token> _tokens = new List<Token>();
+    private int _tokenPos = 0;
+    private Token _current = new Token();
+    private readonly List<Token> _lookahead = new List<Token>();
+    private int _line = 1;
+    private int _column = 1;
+    /** 当前输入位置的 UTF-8 字节偏移（0 起；CurrentLocation 用）。 */
+    private int _bytePos = 0;
+    /** 上一字符是（已经按 4 字节计过的）代理对的高位，下一位不再重复计。 */
+    private bool _bytePosPairPending = false;
+    private string _lexeme = "";
+    private int _errorStatus = 0;
+    /** `%commit` 收集到的片段（按出现顺序）。 */
+    private readonly List<Commit> _commits = new List<Commit>();
+
+    // LR 分析栈
+    private readonly int[] _states = new int[MAX_STACK_DEPTH + 8];
+    private readonly int[] _symbols = new int[MAX_STACK_DEPTH + 8];
+    private readonly {{ value_type }}[] _values =
+        new {{ value_type }}[MAX_STACK_DEPTH + 8];
+    private readonly string[] _names = new string[MAX_STACK_DEPTH + 8];
+    private readonly Tree[] _nodes = new Tree[MAX_STACK_DEPTH + 8];
+    private int _top = 0;
+    private readonly {{ value_type }}[] _actionValues =
+        new {{ value_type }}[VALUE_SLOTS + 1];
+
+    // LL
+    private readonly List<int[]> _llStack = new List<int[]>();
+    private readonly List<_LlFrame> _llFrames = new List<_LlFrame>();
+    private {{ value_type }} _rootResult;
+    private Tree _treeRoot = null;
+    private readonly List<Tree> _treePath = new List<Tree>();
+{% if dd %}
+    // DD：递归深度 / 已匹配的终结符数 / 最远失败点（回溯时不清它）
+    private int _ddFrameDepth = 0;
+    private int _ddDepth = 0;
+    private int _ddFarthestDepth = -1;
+    private readonly List<int> _ddFarthestTypes = new List<int>();
+    private int _ddFarthestTokenType = TOKEN_INVALID;
+    private string _ddFarthestTokenText = "";
+    private int _ddFarthestLine = 1;
+    private int _ddFarthestColumn = 1;
+{% endif %}
+
+    /** 建一个解析器（状态在每次解析开始时复位）。 */
+    public Parser()
+    {
+        _resetStates();
+    }
+
+    // ---------- 只读查询 ----------
+
+    /** 本次解析累积的错误。 */
+    public List<ParserError> errors()
+    {
+        return _errors;
+    }
+
+    /** 最近一条错误；没有错误时返回 null。 */
+    public ParserError lastError()
+    {
+        return (_errors.Count == 0) ? null : _errors[_errors.Count - 1];
+    }
+
+    /** `%commit` 收集到的片段（按出现顺序；没写 %commit 时恒为空）。 */
+    public IReadOnlyList<Commit> Commits
+    {
+        get { return _commits; }
+    }
+
+    /**
+     * 当前 lookahead 的位置（行 / 列 1 起，Offset 是 UTF-8 字节偏移）。
+     * 语义动作里的 `$line` / `$column` 读的就是这里的值。
+     */
+    public Location CurrentLocation
+    {
+        get { return new Location(_current.line, _current.column,
+                                  _current.offset); }
+    }
+
+    /** 最近一次解析的语义结果。 */
+    public {{ value_type }} result()
+    {
+        return _result;
+    }
+
+    /** `$line` 用的当前行号。 */
+    public int currentLine()
+    {
+        return _current.line;
+    }
+
+    /** `$column` 用的当前列号。 */
+    public int currentColumn()
+    {
+        return _current.column;
+    }
+
+    /** `$token` 用的当前词素。 */
+    public string currentTokenText()
+    {
+        return (_current.text == null) ? "" : _current.text;
+    }
+
+    /** `$code` 用的最近一条错误码。 */
+    public int lastErrorCode()
+    {
+        return (_errors.Count == 0) ? 0 : _errors[_errors.Count - 1].code;
+    }
+
+    /** `$message` 用的最近一条错误说明。 */
+    public string lastErrorMessage()
+    {
+        return (_errors.Count == 0) ? ""
+                                    : _errors[_errors.Count - 1].message;
+    }
+
+    /** `yyerrok`：清掉「正在恢复」状态。 */
+    public void yyErrOk()
+    {
+        _errorStatus = 0;
+    }
+
+    /** `yyclearin`：丢掉当前 lookahead。 */
+    public void yyClearIn()
+    {
+        if (_current.type != TOKEN_END)
+        {
+            _advance();
+        }
+    }
+
+    // ---------- 错误记录 ----------
+
+    private void _setError(int code, int line, int column, string message)
+    {
+        if (_errors.Count >= MAX_ERRORS)
+        {
+            return;
+        }
+        _errors.Add(new ParserError(code, line, column, message));
+    }
+
+    private void _setExpectedOneError(int expectedType)
+    {
+        if (_errors.Count >= MAX_ERRORS)
+        {
+            return;
+        }
+        ParserError item = new ParserError(
+            STATUS_ERR_EXPECTED, _current.line, _current.column,
+            "语法错误：期望 " + Token.tokenName(expectedType) + "，实际是 " +
+                Token.tokenName(_current.type));
+        item.tokenType = _current.type;
+        item.tokenText = (_current.text == null) ? "" : _current.text;
+        item.expected = new int[] {expectedType};
+        _errors.Add(item);
+    }
+
+    private void _setSyntaxError(int row, int[] expectedTypes)
+    {
+        if (_errors.Count >= MAX_ERRORS)
+        {
+            return;
+        }
+        int count = System.Math.Min(expectedTypes.Length, MAX_EXPECTED);
+        int[] expected = new int[count];
+        System.Array.Copy(expectedTypes, 0, expected, 0, count);
+        int total = expectedTypes.Length;
+        int listed = System.Math.Min(count, 4);
+        System.Text.StringBuilder names = new System.Text.StringBuilder();
+        for (int index = 0; index < listed; index++)
+        {
+            if (index != 0)
+            {
+                names.Append(" / ");
+            }
+            names.Append(Token.tokenName(expected[index]));
+        }
+        string message;
+        if (total == 0)
+        {
+            message = "语法错误：" + _EXPECTED_FALLBACK;
+        }
+        else if (total == 1)
+        {
+            message = "语法错误：期望 " + names + "，实际是 " +
+                      Token.tokenName(_current.type);
+        }
+        else
+        {
+            message = "语法错误：期望 " + names;
+            if (total > listed)
+            {
+                message += " 等 " + total + " 个";
+                message += "之一";
+            }
+            else
+            {
+                message += " 之一";
+            }
+            message += "，实际是 " + Token.tokenName(_current.type);
+        }
+        int code = (total == 0)
+                       ? STATUS_ERR_SYNTAX
+                       : ((_current.type == TOKEN_END)
+                              ? STATUS_ERR_UNEXPECTED_EOF
+                              : STATUS_ERR_EXPECTED);
+        ParserError item = new ParserError(code, _current.line,
+                                           _current.column, message);
+        item.tokenType = _current.type;
+        item.tokenText = (_current.text == null) ? "" : _current.text;
+        item.state = row;
+        item.expected = expected;
+        _errors.Add(item);
+    }
+
+    // ---------- 解析入口 ----------
+
+    private int _prepareText(string text)
+    {
+        _input = (text == null) ? "" : text;
+        _textPos = 0;
+        _textMode = true;
+        return _prepareCommon();
+    }
+
+    private int _prepareTokens(List<Token> tokens)
+    {
+        _tokens.Clear();
+        if (tokens != null)
+        {
+            _tokens.AddRange(tokens);
+        }
+        _tokenPos = 0;
+        _textMode = false;
+        _input = "";
+        _textPos = 0;
+        return _prepareCommon();
+    }
+
+    private int _prepareCommon()
+    {
+        _errors.Clear();
+        _commits.Clear();
+        _lexeme = "";
+        _errorStatus = 0;
+        _line = 1;
+        _column = 1;
+        _bytePos = 0;
+        _bytePosPairPending = false;
+        _current = new Token();
+        _result = _defaultValue();
+        if (_advance() != STATUS_OK)
+        {
+            return STATUS_ERR_LEXER;
+        }
+        return _fillLookaheadWindow();
+    }
+
+    /** 语义值的缺省值（值类型是 0 / false，引用类型是 null）。 */
+    private static {{ value_type }} _defaultValue()
+    {
+        return default({{ value_type }});
+    }
+
+    private int _fillLookaheadWindow()
+    {
+        _lookahead.Clear();
+        if (_LOOKAHEAD_K <= 1)
+        {
+            return STATUS_OK;
+        }
+        Token head = _current;
+        for (int index = 1; index < _LOOKAHEAD_K; index++)
+        {
+            int status = _advance();
+            if (status != STATUS_OK)
+            {
+                return status;
+            }
+            _lookahead.Add(_current);
+        }
+        _current = head;
+        return STATUS_OK;
+    }
+
+    private int _advanceWindow()
+    {
+        if (_LOOKAHEAD_K <= 1)
+        {
+            return _advance();
+        }
+        int status = _advance();
+        if (status != STATUS_OK)
+        {
+            return status;
+        }
+        Token fresh = _current;
+        _current = _lookahead[0];
+        for (int index = 0; index + 1 < _lookahead.Count; index++)
+        {
+            _lookahead[index] = _lookahead[index + 1];
+        }
+        _lookahead[_lookahead.Count - 1] = fresh;
+        return STATUS_OK;
+    }
+
+    private int _peekChar(int offset)
+    {
+        int index = _textPos + offset;
+        if ((index < 0) || (index >= _input.Length))
+        {
+            return -1;
+        }
+        return _input[index];
+    }
+
+    private char _readChar()
+    {
+        char ch = _input[_textPos];
+        _textPos++;
+        // UTF-8 字节偏移：ASCII 1、两字节 2、三字节 3、代理对 4（与 C99 对齐）
+        if (_bytePosPairPending)
+        {
+            _bytePosPairPending = false;
+        }
+        else if ((ch >= 0xD800) && (ch <= 0xDBFF) &&
+                 (_textPos < _input.Length) &&
+                 (_input[_textPos] >= 0xDC00) && (_input[_textPos] <= 0xDFFF))
+        {
+            _bytePos += 4;
+            _bytePosPairPending = true;
+        }
+        else if (ch < 0x80)
+        {
+            _bytePos += 1;
+        }
+        else if (ch < 0x800)
+        {
+            _bytePos += 2;
+        }
+        else
+        {
+            _bytePos += 3;
+        }
+        if (ch == '\n')
+        {
+            _line++;
+            _column = 1;
+        }
+        else
+        {
+            _column++;
+        }
+        return ch;
+    }
+
+    private int _advance()
+    {
+        if (!_textMode)
+        {
+            if (_tokenPos < _tokens.Count)
+            {
+                _current = _tokens[_tokenPos];
+                _tokenPos++;
+            }
+            else
+            {
+                _current = new Token(TOKEN_END);
+            }
+            return STATUS_OK;
+        }
+        Token item = new Token(TOKEN_INVALID, "", _line, _column);
+        int status = _lexNext(item);
+        if (status != STATUS_OK)
+        {
+            string why = (status == STATUS_ERR_LEX_UNTERMINATED)
+                             ? "字符串没有闭合"
+                             : ((status == STATUS_ERR_LEX_CHAR)
+                                    ? "认不出来的字符"
+                                    : "词法解析失败");
+            _setError((status == STATUS_ERR_LEX_UNTERMINATED) ||
+                              (status == STATUS_ERR_LEX_CHAR)
+                          ? status
+                          : STATUS_ERR_LEXER,
+                      item.line, item.column, why);
+            item.type = TOKEN_INVALID;
+            _current = item;
+            return status;
+        }
+        _current = item;
+        return STATUS_OK;
+    }
+
+    /** 解析一段文本。语义结果读 result()。 */
+    public int runText(string text)
+    {
+{% if glr %}        _glrClear();
+{% endif %}
+        if (_prepareText(text) != STATUS_OK)
+        {
+            return STATUS_ERR_LEXER;
+        }
+        return _runLoop(false);
+    }
+
+    /** 解析已经切好的 Token 序列。 */
+    public int run(List<Token> tokens)
+    {
+{% if glr %}        _glrClear();
+{% endif %}
+        if (_prepareTokens(tokens) != STATUS_OK)
+        {
+            return STATUS_ERR_LEXER;
+        }
+        return _runLoop(false);
+    }
+
+    /** 解析文本并构建语法树（只建树，不跑语义动作）。 */
+    public Tree parseTree(string text)
+    {
+        _treeRoot = null;
+{% if glr %}        _glrClear();
+{% endif %}
+        if (_prepareText(text) != STATUS_OK)
+        {
+            return null;
+        }
+        if (_runLoop(true) != STATUS_OK)
+        {
+            return null;
+        }
+        return _treeRoot;
+    }
+
+{{ run_loop }}
+
+    private void _resetStates()
+    {
+        _states[0] = 0;
+        _symbols[0] = INVALID_INDEX;
+        _values[0] = _defaultValue();
+        _names[0] = "";
+        _nodes[0] = null;
+        _top = 1;
+    }
+
+    private static string _tokenTypeText(int type)
+    {
+        return Token.tokenName(type);
+    }
+
+    private static bool _isDigit(int ch)
+    {
+        return (ch >= '0') && (ch <= '9');
+    }
+
+    private static bool _isAlpha(int ch)
+    {
+        return ((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z'));
+    }
+
+    private static bool _isAlnum(int ch)
+    {
+        return _isAlpha(ch) || _isDigit(ch);
+    }
+
+    private static bool _isWord(int ch)
+    {
+        return _isAlnum(ch) || (ch == '_');
+    }
+
+    private static bool _isSpace(int ch)
+    {
+        return (ch == ' ') || (ch == '\t') || (ch == '\n') || (ch == '\v') ||
+               (ch == '\f') || (ch == '\r');
+    }
+
+    /** 字面量里的 \b 占位符（生成期写成 0x1F）。 */
+    private const char _BLANK_WILDCARD = '\u001f';
+
+    private static bool _lexRuleHit(string rule, string text, int start)
+    {
+        for (int offset = 0; offset < rule.Length; offset++)
+        {
+            int code = ((start + offset) < text.Length)
+                           ? text[start + offset]
+                           : -1;
+            char ch = rule[offset];
+            if (ch == _BLANK_WILDCARD)
+            {
+                if (!_isSpace(code))
+                {
+                    return false;
+                }
+            }
+            else if (code != ch)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool _lexBlankRuleHit(string text, int start)
+    {
+        for (int index = 0; index < _LEX_RULES_TEXT.Length; index++)
+        {
+            if ((_LEX_RULES_BLANK[index] == 1) &&
+                _lexRuleHit(_LEX_RULES_TEXT[index], text, start))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool _lexIsSkipChar(int ch)
+    {
+        return (ch >= 0) && (_LEX_SKIP_CHARS.IndexOf((char) ch) >= 0);
+    }
+
+    /** 用 .NET 的 Regex 从 start 起匹配，返回匹配到的字符数（0 = 不匹配）。
+     *
+     * 词法器要的是「这个位置能匹配多长就匹配多长」，`Regex` 的贪婪匹配给出的就是
+     * 最长匹配（`%token regex` / `%identifier` / `%commit` 的正则都放在静态字段里，
+     * 只构造一次）。注意 `Regex.Match(text, start)` 是**从 start 往后找**、并不锚定
+     * 在 start 上，所以要自己确认 `Match.Index == start`。
+     */
+    private static int _lexRegexMatch(Regex pattern, string text, int start)
+    {
+        if (pattern == null)
+        {
+            return 0;
+        }
+        Match match = pattern.Match(text, start);
+        if (!match.Success || (match.Index != start))
+        {
+            return 0;
+        }
+        return match.Length;
+    }
+
+    private static string _treeName(int symbolId)
+    {
+        if (symbolId < _NONTERM_COUNT)
+        {
+            return _TREE_NONTERM_NAMES[symbolId];
+        }
+        return "?";
+    }
+
+    private static Tree _makeLeaf(Token item)
+    {
+        Tree node = new Tree(_tokenTypeText(item.type),
+                             (item.text == null) ? "" : item.text);
+        node.SetLocation(new Location(item.line, item.column, item.offset));
+        return node;
+    }
+
+    private static Tree _makeBranch(Tree[] nodes, string name, int baseIndex,
+                                    int length)
+    {
+        Tree node = new Tree(name, "");
+        for (int index = 0; index < length; index++)
+        {
+            Tree child = nodes[baseIndex + index];
+            if (child != null)
+            {
+                node.addChild(child);
+            }
+        }
+        return node;
+    }
+
+    private static bool _isSyncToken(int type)
+    {
+        for (int index = 0; index < _SYNC_TOKENS.Length; index++)
+        {
+            if (_SYNC_TOKENS[index] == type)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+{{ value_helpers }}
+
+{{ keyword_method }}
+
+{{ lexer }}
+{{ lr }}
+{{ ll }}{{ dd_body }}{{ glr_body }}

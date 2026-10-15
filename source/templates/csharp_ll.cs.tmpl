@@ -1,0 +1,558 @@
+    // ---------- LL 分析驱动 ----------
+
+    // LL 分析栈上的项目类型
+    private const int _ITEM_TERMINAL = 0;
+    private const int _ITEM_NONTERM = 1;
+    private const int _ITEM_ACTION = 2;
+    private const int _ITEM_ACTION_KEEP = 3;
+    private const int _ITEM_FORWARD = 4;
+    private const int _ITEM_LEFT_LOOP = 5;
+    private const int _ITEM_TREE_END = 6;
+
+    private bool _llPush(int kind, int symbol, int frameIndex,
+                         int valueIndex, int seedFrame)
+    {
+        if (_llStack.Count >= MAX_STACK_DEPTH)
+        {
+            return false;
+        }
+        _llStack.Add(new int[] {kind, symbol, frameIndex, valueIndex,
+                                seedFrame});
+        return true;
+    }
+
+    private int[] _llPop()
+    {
+        int[] item = _llStack[_llStack.Count - 1];
+        _llStack.RemoveAt(_llStack.Count - 1);
+        return item;
+    }
+
+    /** 按产生式展开语义帧（生成期算好的分支各推一条右部）。 */
+    private int _llExpand(int production, int frameIndex)
+    {
+{{ ll_expand_cases }}
+        return STATUS_ERR_SYNTAX;
+    }
+
+    /** 执行一个产生式的语义动作（`$n` 读 values，`$$` 写 result.value）。 */
+    private int _llExecute(int production, int frameIndex)
+    {
+        _LlFrame frame = _llFrames[frameIndex];
+        _Holder result = new _Holder();
+        result.value = frame.resultValue;
+        if (_applyAction(production, frame.values, result) != STATUS_OK)
+        {
+            return STATUS_ERR_SYNTAX;
+        }
+        frame.resultValue = result.value;
+        return STATUS_OK;
+    }
+
+    /** 转发语义槽。 */
+    private void _llForward(_LlFrame frame, int valueIndex)
+    {
+        frame.resultValue = frame.values[valueIndex];
+    }
+
+    /** 完成语义帧：把结果交给父帧，或作为根结果。 */
+    private int _llComplete(int frameIndex)
+    {
+        while ((_llFrames.Count > (frameIndex + 1)) &&
+               _llFrames[_llFrames.Count - 1].discarded)
+        {
+            _llFrames.RemoveAt(_llFrames.Count - 1);
+        }
+        if ((_llFrames.Count == 0) ||
+            (frameIndex != (_llFrames.Count - 1)))
+        {
+            return STATUS_ERR_STACK;
+        }
+        _LlFrame frame = _llFrames[frameIndex];
+        if (frame.parentFrame == INVALID_INDEX)
+        {
+            _rootResult = frame.resultValue;
+        }
+        else
+        {
+            _LlFrame parent = _llFrames[frame.parentFrame];
+            parent.values[frame.parentValue] = frame.resultValue;
+        }
+        _llFrames.RemoveAt(_llFrames.Count - 1);
+        return STATUS_OK;
+    }
+
+    /** 捕获终结符：记下词素，并把 Token 语义值写进槽位。 */
+    private int _llCapture(int frameIndex, int valueIndex)
+    {
+        if (valueIndex >= VALUE_SLOTS)
+        {
+            return STATUS_ERR_STACK;
+        }
+        _LlFrame frame = _llFrames[frameIndex];
+        frame.names[valueIndex] = _current.text;
+        frame.values[valueIndex] = _current.value;
+        return STATUS_OK;
+    }
+
+    /** 取预测分析表的列号。 */
+    private int _llTableColumn()
+    {
+        if (_LOOKAHEAD_K == 0)
+        {
+            return 0;
+        }
+        if (_LOOKAHEAD_K == 1)
+        {
+            return _current.type;
+        }
+        long code = _current.type;
+        long scale = _TERMINAL_COUNT;
+        for (int index = 1; index < _LOOKAHEAD_K; index++)
+        {
+            code += (long) _lookahead[index - 1].type * scale;
+            scale *= _TERMINAL_COUNT;
+        }
+        int low = 0;
+        int high = _LOOKAHEAD_COLUMN_COUNT - 1;
+        while (low <= high)
+        {
+            int mid = low + ((high - low) / 2);
+            long midCode = _LOOKAHEAD_CODE[mid];
+            if (midCode == code)
+            {
+                return _LOOKAHEAD_COLUMN[mid];
+            }
+            if (midCode < code)
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+        return -1;
+    }
+
+    private bool _llItemTakes(int index, int column, int head)
+    {
+        int[] item = _llStack[index];
+        int kind = item[0];
+        if (kind == _ITEM_TERMINAL)
+        {
+            return item[1] == head;
+        }
+        if ((kind == _ITEM_NONTERM) || (kind == _ITEM_LEFT_LOOP))
+        {
+            if (item[1] >= _NONTERM_COUNT)
+            {
+                return false;
+            }
+            return (column >= 0) && (_LL_TABLE[item[1]][column] >= 0);
+        }
+        return false;
+    }
+
+    private bool _llItemInFollow(int index, int head)
+    {
+        int[] item = _llStack[index];
+        int kind = item[0];
+        if ((kind != _ITEM_NONTERM) && (kind != _ITEM_LEFT_LOOP))
+        {
+            return false;
+        }
+        if ((item[1] >= _NONTERM_COUNT) || (head >= _TERMINAL_COUNT))
+        {
+            return false;
+        }
+        int[] follow = _LL_FOLLOW[item[1]];
+        for (int index2 = 0; index2 < follow.Length; index2++)
+        {
+            if (follow[index2] == head)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool _llStackTakes(int column, int head)
+    {
+        if (_llStack.Count == 0)
+        {
+            return false;
+        }
+        return _llItemTakes(_llStack.Count - 1, column, head);
+    }
+
+    private bool _llStackInFollow(int head)
+    {
+        if (_llStack.Count == 0)
+        {
+            return false;
+        }
+        return _llItemInFollow(_llStack.Count - 1, head);
+    }
+
+    private bool _llDeeperTakes(int column, int head)
+    {
+        int index = _llStack.Count - 1;
+        while (index > 0)
+        {
+            index--;
+            if (_llItemTakes(index, column, head))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void _llDiscardFrame(_LlFrame frame)
+    {
+        frame.discarded = true;
+    }
+
+    private void _llUnwindFrames()
+    {
+        while ((_llFrames.Count > 0) &&
+               _llFrames[_llFrames.Count - 1].discarded)
+        {
+            _llFrames.RemoveAt(_llFrames.Count - 1);
+        }
+    }
+
+    private void _llDiscardFramesFrom(int frameIndex)
+    {
+        for (int index = frameIndex; index < _llFrames.Count; index++)
+        {
+            _llDiscardFrame(_llFrames[index]);
+        }
+        _llUnwindFrames();
+    }
+
+    private void _llDiscardTop()
+    {
+        if (_llStack.Count == 0)
+        {
+            return;
+        }
+        int[] item = _llPop();
+        int frameIndex = item[2];
+        if ((frameIndex == INVALID_INDEX) || (frameIndex >= _llFrames.Count))
+        {
+            return;
+        }
+        _llDiscardFrame(_llFrames[frameIndex]);
+        _llUnwindFrames();
+    }
+
+    /** LL 的错误恢复（panic mode）：对齐到「栈上某一项能接受当前 Token」。 */
+    private int _llSynchronize(int[] failedItem)
+    {
+        if (_LOOKAHEAD_K == 0)
+        {
+            return STATUS_ERR_SYNTAX;
+        }
+        _llStack.Add(failedItem);
+        int budget = 256;
+        while (budget > 0)
+        {
+            int column = _llTableColumn();
+            int head = _current.type;
+            if (_llStackTakes(column, head))
+            {
+                return STATUS_OK;
+            }
+            if ((_SYNC_TOKENS.Length > 0) && (_current.type != TOKEN_END) &&
+                _isSyncToken(_current.type))
+            {
+                while ((budget > 0) && (_llStack.Count > 0) &&
+                       !_llStackTakes(column, head))
+                {
+                    _llDiscardTop();
+                    budget--;
+                }
+                return (_llStack.Count == 0) ? STATUS_ERR_SYNTAX : STATUS_OK;
+            }
+            if ((_llStack.Count > 0) &&
+                (_llStackInFollow(head) || _llDeeperTakes(column, head)))
+            {
+                int frame = _llStack[_llStack.Count - 1][2];
+                if (frame == INVALID_INDEX)
+                {
+                    _llDiscardTop();
+                    budget--;
+                    continue;
+                }
+                _llDiscardFramesFrom(frame);
+                while ((budget > 0) && (_llStack.Count > 0) &&
+                       (_llStack[_llStack.Count - 1][2] >= frame))
+                {
+                    _llDiscardTop();
+                    budget--;
+                }
+                continue;
+            }
+            if (_current.type == TOKEN_END)
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            if (_advanceWindow() != STATUS_OK)
+            {
+                return STATUS_ERR_LEXER;
+            }
+            budget--;
+        }
+        return STATUS_ERR_SYNTAX;
+    }
+
+    /** 非递归预测分析主循环（`%tree` 时只建树、不跑语义动作）。 */
+    private int _runLlLoop(bool treeMode)
+    {
+        _llStack.Clear();
+        _llFrames.Clear();
+        _rootResult = _defaultValue();
+        if (treeMode)
+        {
+            _treeRoot = null;
+            _treePath.Clear();
+            return _runLlTreeLoop();
+        }
+        if (!_llPush(_ITEM_NONTERM, _START_ID, INVALID_INDEX, 0, INVALID_INDEX))
+        {
+            return STATUS_ERR_STACK;
+        }
+        while (_llStack.Count > 0)
+        {
+            int[] item = _llPop();
+            int kind = item[0];
+            if (kind == _ITEM_TERMINAL)
+            {
+                if (_current.type != item[1])
+                {
+                    _setExpectedOneError(item[1]);
+                    if (_llSynchronize(item) != STATUS_OK)
+                    {
+                        return STATUS_ERR_SYNTAX;
+                    }
+                    continue;
+                }
+                if (_llCapture(item[2], item[3]) != STATUS_OK)
+                {
+                    return STATUS_ERR_STACK;
+                }
+                if (_advanceWindow() != STATUS_OK)
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                continue;
+            }
+            if ((kind == _ITEM_NONTERM) || (kind == _ITEM_LEFT_LOOP))
+            {
+                int column = _llTableColumn();
+                int[] expected = (item[1] < _NONTERM_COUNT)
+                                     ? _EXPECTED[item[1]]
+                                     : new int[0];
+                if ((_current.type >= _TERMINAL_COUNT) ||
+                    (item[1] >= _NONTERM_COUNT) || (column < 0))
+                {
+                    _setSyntaxError(item[1], expected);
+                    if (_llSynchronize(item) != STATUS_OK)
+                    {
+                        return STATUS_ERR_SYNTAX;
+                    }
+                    continue;
+                }
+                int production = _LL_TABLE[item[1]][column];
+                if (production < 0)
+                {
+                    _setSyntaxError(item[1], expected);
+                    if (_llSynchronize(item) != STATUS_OK)
+                    {
+                        return STATUS_ERR_SYNTAX;
+                    }
+                    continue;
+                }
+                if (kind == _ITEM_LEFT_LOOP)
+                {
+                    if (_PRODUCTION_IS_LEFT_EMPTY[production] != 0)
+                    {
+                        if (_llComplete(item[2]) != STATUS_OK)
+                        {
+                            return STATUS_ERR_STACK;
+                        }
+                    }
+                    else
+                    {
+                        // C# 不允许内层作用域重名（外层的 frame 在后面声明）
+                        _LlFrame loopFrame = _llFrames[item[2]];
+                        loopFrame.values[1] = loopFrame.resultValue;
+                        if (_llExpand(production, item[2]) != STATUS_OK)
+                        {
+                            _setError(STATUS_ERR_STACK, _current.line,
+                                      _current.column, "分析栈已满");
+                            return STATUS_ERR_STACK;
+                        }
+                    }
+                    continue;
+                }
+                if (_llFrames.Count >= MAX_STACK_DEPTH)
+                {
+                    _setError(STATUS_ERR_STACK, _current.line, _current.column,
+                              "语义帧栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                int frameIndex = _llFrames.Count;
+                _LlFrame frame = new _LlFrame();
+                frame.parentFrame = item[2];
+                frame.parentValue = item[3];
+                if (item[4] != INVALID_INDEX)
+                {
+                    frame.values[1] = _llFrames[item[4]].resultValue;
+                }
+                _llFrames.Add(frame);
+                if (_llExpand(production, frameIndex) != STATUS_OK)
+                {
+                    _setError(STATUS_ERR_STACK, _current.line, _current.column,
+                              "分析栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                continue;
+            }
+            if (kind == _ITEM_FORWARD)
+            {
+                _llForward(_llFrames[item[2]], item[3]);
+            }
+            else if (_llExecute(item[1], item[2]) != STATUS_OK)
+            {
+                return STATUS_ERR_SYNTAX;
+            }
+            if ((kind != _ITEM_ACTION_KEEP) &&
+                (_llComplete(item[2]) != STATUS_OK))
+            {
+                return STATUS_ERR_STACK;
+            }
+        }
+        if (_current.type != TOKEN_END)
+        {
+            _setError(STATUS_ERR_SYNTAX, _current.line, _current.column,
+                      "输入尚未完全消费");
+            return STATUS_ERR_SYNTAX;
+        }
+        _result = _rootResult;
+        return STATUS_OK;
+    }
+
+    /** 语法树解析主循环（`%tree`）：只按预测表建树，不跑语义动作。 */
+    private int _runLlTreeLoop()
+    {
+        if (!_llPush(_ITEM_NONTERM, _START_ID, INVALID_INDEX, 0, INVALID_INDEX))
+        {
+            return STATUS_ERR_STACK;
+        }
+        while (_llStack.Count > 0)
+        {
+            int[] item = _llPop();
+            int kind = item[0];
+            if (kind == _ITEM_TERMINAL)
+            {
+                if (_current.type != item[1])
+                {
+                    _setExpectedOneError(item[1]);
+                    return STATUS_ERR_SYNTAX;
+                }
+                if (_treePath.Count == 0)
+                {
+                    return STATUS_ERR_SYNTAX;
+                }
+                _treePath[_treePath.Count - 1].addChild(_makeLeaf(_current));
+                if (_advanceWindow() != STATUS_OK)
+                {
+                    return STATUS_ERR_LEXER;
+                }
+                continue;
+            }
+            if (kind == _ITEM_NONTERM)
+            {
+                int column = _llTableColumn();
+                int[] expected = (item[1] < _NONTERM_COUNT)
+                                     ? _EXPECTED[item[1]]
+                                     : new int[0];
+                if ((_current.type >= _TERMINAL_COUNT) ||
+                    (item[1] >= _NONTERM_COUNT) || (column < 0))
+                {
+                    _setSyntaxError(item[1], expected);
+                    return STATUS_ERR_SYNTAX;
+                }
+                int production = _LL_TABLE[item[1]][column];
+                if (production < 0)
+                {
+                    _setSyntaxError(item[1], expected);
+                    return STATUS_ERR_SYNTAX;
+                }
+                if (_treePath.Count >= MAX_STACK_DEPTH)
+                {
+                    _setError(STATUS_ERR_STACK, _current.line, _current.column,
+                              "语法树节点栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                Tree node = new Tree(_treeName(item[1]), "");
+                if (_treePath.Count == 0)
+                {
+                    _treeRoot = node;
+                }
+                else
+                {
+                    _treePath[_treePath.Count - 1].addChild(node);
+                }
+                if (!_llPush(_ITEM_TREE_END, 0, INVALID_INDEX, 0, INVALID_INDEX))
+                {
+                    _setError(STATUS_ERR_STACK, _current.line, _current.column,
+                              "分析栈已满");
+                    return STATUS_ERR_STACK;
+                }
+                _treePath.Add(node);
+                int rhsStart = _TREE_PROD_START[production];
+                int rhsLength = _TREE_PROD_LENGTH[production];
+                for (int index = rhsLength; index > 0; index--)
+                {
+                    int symbol = _TREE_PROD_SYMBOLS[rhsStart + index - 1];
+                    bool terminal = symbol < _TERMINAL_COUNT;
+                    int symbolId = terminal ? symbol
+                                            : (symbol - _TERMINAL_COUNT);
+                    if (!_llPush(terminal ? _ITEM_TERMINAL : _ITEM_NONTERM,
+                                 symbolId, INVALID_INDEX, 0, INVALID_INDEX))
+                    {
+                        _setError(STATUS_ERR_STACK, _current.line,
+                                  _current.column, "分析栈已满");
+                        return STATUS_ERR_STACK;
+                    }
+                }
+                continue;
+            }
+            if (kind == _ITEM_TREE_END)
+            {
+                if (_treePath.Count == 0)
+                {
+                    _setError(STATUS_ERR_SYNTAX, _current.line, _current.column,
+                              "语法树闭合失败");
+                    return STATUS_ERR_SYNTAX;
+                }
+                _treePath.RemoveAt(_treePath.Count - 1);
+                continue;
+            }
+            _setError(STATUS_ERR_SYNTAX, _current.line, _current.column,
+                      "语法树分析出现未知项目");
+            return STATUS_ERR_SYNTAX;
+        }
+        if ((_treeRoot == null) || (_treePath.Count > 0) ||
+            (_current.type != TOKEN_END))
+        {
+            _setError(STATUS_ERR_SYNTAX, _current.line, _current.column,
+                      "输入尚未完全消费");
+            return STATUS_ERR_SYNTAX;
+        }
+        return STATUS_OK;
+    }

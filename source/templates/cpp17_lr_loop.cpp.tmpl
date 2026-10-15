@@ -1,0 +1,800 @@
+    /**
+     * @brief `yyerrok`：清掉「正在恢复」状态，后面的语法错误照常上报。
+     *
+     * 只给语义动作用（生成期把动作里的 `yyerrok;` 翻成本调用）。
+     */
+    void yyErrOk() noexcept
+    {
+        m_errorStatus = 0;
+    }
+
+    /**
+     * @brief `yyclearin`：丢掉当前 lookahead（下一个 Token 由主循环再取）。
+     */
+    void yyClearIn()
+    {
+        if (m_current.type != TokenType::TOKEN_END)
+        {
+            (void)advanceWindow();
+        }
+    }
+
+    /**
+     * @brief 把 k 个 Token 的窗口编成一个整数（低位是窗口头）。
+     * @param headType 覆盖窗口头的 Token 号；负数表示用 current。
+     * @return 打包后的编码（与生成期的列编码一致）。
+     */
+    std::uint32_t lookaheadCode(std::int32_t headType) const noexcept
+    {
+        std::uint64_t code = static_cast<std::uint64_t>(
+            (headType >= 0) ? headType : static_cast<std::int32_t>(m_current.type));
+        std::uint64_t scale = kTerminalCount;
+        for (std::size_t index = 1u; index < kLookaheadK; ++index)
+        {
+            code += static_cast<std::uint64_t>(m_lookahead[index - 1u].type) *
+                    scale;
+            scale *= kTerminalCount;
+        }
+        return code;
+    }
+
+    /**
+     * @brief 二分查找窗口对应的归约列。
+     * @param code lookaheadCode 的结果。
+     * @return 列号；没有这一列返回 -1。
+     */
+    std::int32_t findLookaheadColumn(std::uint64_t code) const noexcept
+    {
+        std::int32_t low = 0;
+        std::int32_t high =
+            static_cast<std::int32_t>(kLookaheadColumnCount) - 1;
+        while (low <= high)
+        {
+            const std::int32_t mid = low + (high - low) / 2;
+            const std::uint64_t midCode =
+                static_cast<std::uint64_t>(kLookaheadCode[mid]);
+            if (midCode == code)
+            {
+                return static_cast<std::int32_t>(kLookaheadColumn[mid]);
+            }
+            if (midCode < code)
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * @brief 两层查表：先按 k 元组展望符查归约列，再按窗口首个 Token 查移进。
+     *
+     * k = 1 时只有一层（与从前完全一致）。
+     * @param state 当前状态。
+     * @param headType 覆盖窗口头的 Token 号；负数表示用 current。
+     * @return ACTION 表项。
+     */
+    std::int32_t lookupWindowAction(std::uint16_t state,
+                                    std::int32_t headType) const noexcept
+    {
+        const std::uint32_t head = static_cast<std::uint32_t>(
+            (headType >= 0) ? headType : static_cast<std::int32_t>(m_current.type));
+        if (kLookaheadK <= 1u)
+        {
+            return kAction[state][head];
+        }
+        const std::int32_t column = findLookaheadColumn(lookaheadCode(headType));
+        if (column >= 0)
+        {
+            const std::int32_t reduced = kReduce[state][column];
+            if (reduced != 0)
+            {
+                return reduced;
+            }
+        }
+        return kAction[state][head];
+    }
+
+    /**
+     * @brief 移进：把当前 Token 压栈；%tree 时顺带建一个叶子节点。
+     * @param stack 分析栈。
+     * @param state 移进目标状态。
+     * @param treeMode 是否构建语法树。
+     * @return Status::Ok 表示成功。
+     */
+    Status lrShift(LrStack &stack, std::uint16_t state, bool treeMode)
+    {
+        if (!stack.push(state, static_cast<std::uint16_t>(m_current.type),
+                        tokenValue(m_current), m_current.text))
+        {
+            return Status::ErrStack;
+        }
+        #ifdef PARSER_USER_REDUCTION_LINE
+        stack.sourceLines[stack.top - 1u] = m_current.line;
+        #endif
+        if (treeMode)
+        {
+            stack.nodes[stack.top - 1u] = makeLeaf(m_current);
+        }
+        if (!treeMode)
+        {
+            lrRecordIncrementalPoint(stack);
+        }
+        return Status::Ok;
+    }
+
+    /// LR 增量友好记录：保存本次移进的 Token，并按间隔保存前缀栈快照。
+    void lrRecordIncrementalPoint(const LrStack &stack)
+    {
+        if (m_lrIncrementalCache == nullptr)
+        {
+            return;
+        }
+        IncrementalToken token;
+        token.type = m_current.type;
+        token.value = tokenValue(m_current);
+        token.rawValue = m_current.value;
+        token.text.assign(m_current.text.data(), m_current.text.size());
+        token.line = m_current.line;
+        token.column = m_current.column;
+        token.offset = m_current.offset;
+        m_lrIncrementalCache->tokens.push_back(std::move(token));
+        const std::size_t interval = m_lrIncrementalCache->checkpointInterval;
+        const std::size_t tokenIndex = m_lrIncrementalCache->tokens.size();
+        if ((interval == 0u) || ((tokenIndex % interval) != 0u))
+        {
+            return;
+        }
+        LrStackCheckpoint checkpoint;
+        checkpoint.tokenIndex = tokenIndex;
+        checkpoint.top = stack.top;
+        checkpoint.states.assign(stack.states.begin(),
+                                 stack.states.begin() + static_cast<std::ptrdiff_t>(stack.top));
+        checkpoint.symbols.assign(stack.symbols.begin(),
+                                  stack.symbols.begin() + static_cast<std::ptrdiff_t>(stack.top));
+        checkpoint.values.assign(stack.values.begin(),
+                                 stack.values.begin() + static_cast<std::ptrdiff_t>(stack.top));
+        checkpoint.names.assign(stack.names.begin(),
+                                stack.names.begin() + static_cast<std::ptrdiff_t>(stack.top));
+        m_lrIncrementalCache->checkpoints.push_back(std::move(checkpoint));
+    }
+
+    /**
+     * @brief 归约：执行语义动作、弹出右部、按 GOTO 压回结果。
+     * @param production 产生式编号。
+     * @param treeMode 是否构建语法树（建树时不执行语义动作）。
+     * @return Status::Ok 表示成功。
+     */
+    Status lrReduce(std::uint16_t production, bool treeMode)
+    {
+        LrStack &stack = m_lrStack;
+        const std::uint32_t length = kProductionLength[production];
+        const std::uint16_t lhs = kProductionLhs[production];
+        ParseResult result;
+        ParserMemory::UniquePtr<Tree> node;
+        if (length > stack.top)
+        {
+            return Status::ErrStack;
+        }
+        const std::size_t base = stack.top - length;
+#ifdef PARSER_USER_REDUCTION_LINE
+        const std::size_t sourceLine = length && base < stack.sourceLines.size() && stack.sourceLines[base] ? stack.sourceLines[base] : m_current.line;
+        PARSER_USER_REDUCTION_LINE(sourceLine);
+#endif
+        if (treeMode)
+        {
+            node = makeBranch(stack.nodes, treeTreeName(lhs), base, length);
+        }
+        else if (applyActionCode(production, &stack, result) != Status::Ok)
+        {
+            return Status::ErrSyntax;
+        }
+        stack.popTo(base);
+        if (stack.top == 0u)
+        {
+            setError(failCode(Status::ErrStack), m_current.line, m_current.column,
+                     "{{ lr_name }} 归约后栈为空");
+            return Status::ErrStack;
+        }
+        const std::uint16_t state =
+            kGoto[stack.states[stack.top - 1u]][lhs];
+        if (state == kInvalidState)
+        {
+            setError(failCode(Status::ErrSyntax), m_current.line,
+                     m_current.column, "{{ lr_name }} GOTO 表没有匹配项");
+            return Status::ErrSyntax;
+        }
+        // 归约压回的符号用**统一编号**（终结符个数 + 非终结符编号）：与移进压的
+        // Token 号不重叠，%destructor 光看 symbols[top] 就能认出是哪个文法符号
+        // （符号号在运行时里只写不读，这次改动零行为变化）
+        if (!stack.push(state,
+                        static_cast<std::uint16_t>(kTerminalCount + lhs),
+                        result.value, std::string_view()))
+        {
+            return Status::ErrStack;
+        }
+#ifdef PARSER_USER_REDUCTION_LINE
+        stack.sourceLines[stack.top - 1u] = sourceLine;
+#endif
+        if (treeMode)
+        {
+            stack.nodes[stack.top - 1u] = std::move(node);
+        }
+        return Status::Ok;
+    }
+
+    /**
+     * @brief panic reduce：%sync 恢复时先把栈顶状态上待归约的项做掉。
+     *
+     * 语法错误常常出现在「归约到一半」的构造里（例如 `1 + + 2` 卡在
+     * `expr PLUS . term`），这时栈上没有任何状态能直接移进同步 Token；沿着
+     * 归约链做掉待归约的项，才能回到语句边界那种能移进同步 Token 的状态。
+     * 空产生式归约不会缩短栈，跳过它以免原地打转。
+     * @param state 栈顶状态。
+     * @param treeMode 是否构建语法树。
+     * @return Status::Ok 表示做掉了一次归约。
+     */
+    Status lrPanicReduce(std::uint16_t state, bool treeMode)
+    {
+        if (kLookaheadK > 1u)
+        {
+            // LR(k)：归约在第二层（按 k 元组展望符建列）。跟 k = 1 一样
+            // 「只要这个状态有可归约的项就做掉」，所以扫全部列——错误发生时
+            // 窗口恰恰可能不在任何展望符集合里（那正是 LR(k) 提前发现错误的
+            // 方式），只查当前窗口那一列会找不到任何可归约的项。
+            for (std::uint32_t column = 0u;
+                 column < kLookaheadColumnCount; ++column)
+            {
+                const std::int32_t action = kReduce[state][column];
+                if (action >= 0)
+                {
+                    continue;
+                }
+                const std::uint16_t production =
+                    static_cast<std::uint16_t>(-action - 1);
+                const std::uint32_t length = kProductionLength[production];
+                if (length == 0u)
+                {
+                    // 空产生式归约不缩短栈：跳过它接着找别的项，不要直接放弃
+                    continue;
+                }
+                if (length > m_lrStack.top)
+                {
+                    return Status::ErrSyntax;
+                }
+                return lrReduce(production, treeMode);
+            }
+            return Status::ErrSyntax;
+        }
+        for (std::uint32_t terminal = 0u; terminal < kTerminalCount; ++terminal)
+        {
+            const std::int32_t action = kAction[state][terminal];
+            if (action >= 0)
+            {
+                continue;
+            }
+            const std::uint16_t production =
+                static_cast<std::uint16_t>(-action - 1);
+            const std::uint32_t length = kProductionLength[production];
+            if (length == 0u)
+            {
+                // 空产生式归约不缩短栈：跳过它接着找别的项，不要直接放弃
+                continue;
+            }
+            if (length > m_lrStack.top)
+            {
+                return Status::ErrSyntax;
+            }
+            return lrReduce(production, treeMode);
+        }
+        return Status::ErrSyntax;
+    }
+
+    /// 栈顶状态能不能移进某个同步 Token。
+    bool lrCanShiftSyncToken(std::uint16_t state) const noexcept
+    {
+        if (!kHasSyncTokens)
+        {
+            return false;
+        }
+        for (std::uint32_t token = 0u; token < kTerminalCount; ++token)
+        {
+            if (isSyncToken(static_cast<std::uint16_t>(token)) &&
+                (kAction[state][token] > 0))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @brief 语法错误恢复：error 产生式优先，%sync 兜底。
+     * @param stack 分析栈。
+     * @param treeMode 是否构建语法树。
+     * @return Status::Ok 表示找到了恢复点（主循环继续）。
+     */
+    Status lrRecover(LrStack &stack, bool treeMode)
+    {
+        // ① 已经在错误状态里：先丢掉当前 lookahead 再试，避免同一处连续刷屏
+        if (m_errorStatus > 0)
+        {
+            while (m_current.type != TokenType::TOKEN_END)
+            {
+                if (advanceWindow() != Status::Ok)
+                {
+                    return Status::ErrLexer;
+                }
+                const std::uint32_t token =
+                    static_cast<std::uint32_t>(m_current.type);
+                if ((token < kTerminalCount) &&
+                    (lookupWindowAction(stack.states[stack.top - 1u], -1) != 0))
+                {
+                    m_errorStatus = static_cast<std::int32_t>(kErrorRecoveryTokens);
+                    return Status::Ok;
+                }
+            }
+            return Status::ErrSyntax;
+        }
+        // ② error 产生式：弹栈到能移进 error 的状态，把 error 当伪 Token 移进
+        //    （不消耗 lookahead，继续用同一个 Token 走主循环）
+        if (kHasErrorToken)
+        {
+            while (stack.top > 0u)
+            {
+                const std::int32_t action =
+                    kAction[stack.states[stack.top - 1u]][kErrorTokenId];
+                if (action > 0)
+                {
+                    ParserValue_T placeholder{};
+                    if (!stack.push(static_cast<std::uint16_t>(action - 1u),
+                                    kErrorTokenId, placeholder, "error"))
+                    {
+                        return Status::ErrStack;
+                    }
+                    m_errorStatus = static_cast<std::int32_t>(kErrorRecoveryTokens);
+                    return Status::Ok;
+                }
+                stack.discardTop();
+            }
+        }
+        // ③ %sync panic mode：弹栈到能移进某个同步 Token 的状态，再丢输入到它。
+        //    弹栈之前先做掉栈顶状态上待归约的项（panic reduce），否则「归约到
+        //    一半」的错误（例如 `1 + + 2`）找不到任何能移进同步 Token 的状态。
+        if (kHasSyncTokens)
+        {
+            std::uint32_t reduceBudget = 256u;
+            while (stack.top > 0u)
+            {
+                const std::uint16_t state = stack.states[stack.top - 1u];
+                if (lrCanShiftSyncToken(state))
+                {
+                    while ((m_current.type != TokenType::TOKEN_END) &&
+                           !isSyncToken(static_cast<std::uint16_t>(m_current.type)))
+                    {
+                        if (advanceWindow() != Status::Ok)
+                        {
+                            return Status::ErrLexer;
+                        }
+                    }
+                    if (m_current.type == TokenType::TOKEN_END)
+                    {
+                        return Status::ErrSyntax;
+                    }
+                    const std::int32_t action =
+                        kAction[state][static_cast<std::uint32_t>(m_current.type)];
+                    if (action > 0)
+                    {
+                        if (lrShift(stack, static_cast<std::uint16_t>(action - 1u),
+                                    treeMode) != Status::Ok)
+                        {
+                            return Status::ErrStack;
+                        }
+                        if (advanceWindow() != Status::Ok)
+                        {
+                            return Status::ErrLexer;
+                        }
+                        m_errorStatus = static_cast<std::int32_t>(kErrorRecoveryTokens);
+                        return Status::Ok;
+                    }
+                }
+                else if ((reduceBudget > 0u) &&
+                         (lrPanicReduce(state, treeMode) == Status::Ok))
+                {
+                    --reduceBudget;
+                    if (kLookaheadK > 1u)
+                    {
+                        // LR(k) 的窗口比单 Token 更「挑」：错误常常正好卡在一个
+                        // 待归约的项上（窗口不在它的展望符集合里），做掉这个归约
+                        // 之后栈顶可能已经能正常走了——那就直接回主循环。
+                        if (lookupWindowAction(stack.states[stack.top - 1u],
+                                               -1) != 0)
+                        {
+                            m_errorStatus =
+                                static_cast<std::int32_t>(kErrorRecoveryTokens);
+                            return Status::Ok;
+                        }
+                    }
+                    continue;
+                }
+                stack.discardTop();
+            }
+        }
+        return Status::ErrSyntax;
+    }
+
+    /**
+     * @brief LR 主循环：移进 / 归约 / 接受。
+     * @param out 输出语义值；可为 nullptr。
+     * @param outTree 输出语法树；treeMode 为 true 时使用。
+     * @param treeMode 是否构建语法树。
+     * @return Status::Ok 表示成功。
+     */
+    Status runLoop(ParserValue_T *out, ParserMemory::UniquePtr<Tree> *outTree,
+                   bool treeMode = false)
+    {
+        LrStack &stack = m_lrStack;
+        stack = LrStack();
+{% if has_destructors %}        struct DiscardGuard
+        {
+            LrStack *pStack;
+            bool keep = false;
+            ~DiscardGuard()
+            {
+                if (!keep) { pStack->discardAll(); }
+            }
+        } discardGuard{&stack};
+{% endif %}        ParserValue_T initial{};
+        if (!stack.push(0u, kInvalidIndex, initial, std::string_view()))
+        {
+            return Status::ErrStack;
+        }
+        const Status status = continueLrLoop(out, outTree, treeMode);
+{% if has_destructors %}        if (status == Status::Ok)
+        {
+            discardGuard.keep = true;
+        }
+{% endif %}        return status;
+    }
+
+    /// 从当前 lookahead 与现有 LR 栈继续主循环。
+    Status continueLrLoop(ParserValue_T *out, ParserMemory::UniquePtr<Tree> *outTree,
+                          bool treeMode)
+    {
+        LrStack &stack = m_lrStack;
+        for (;;)
+        {
+            const std::uint16_t state = stack.states[stack.top - 1u];
+            const std::uint32_t token = static_cast<std::uint32_t>(m_current.type);
+            if ((state >= kStateCount) || (token >= kTerminalCount))
+            {
+                setError(failCode(Status::ErrSyntax), m_current.line,
+                         m_current.column, "{{ lr_name }} 状态或 Token 越界");
+                return Status::ErrSyntax;
+            }
+            const std::int32_t action = lookupWindowAction(state, -1);
+            if (action == kAcceptAction)
+            {
+                if (out != nullptr)
+                {
+                    *out = stack.values[stack.top - 1u];
+                }
+                if (outTree != nullptr)
+                {
+                    *outTree = std::move(stack.nodes[stack.top - 1u]);
+                }
+                return Status::Ok;
+            }
+            if (action > 0)
+            {
+                if (lrShift(stack, static_cast<std::uint16_t>(action - 1), treeMode)
+                    != Status::Ok)
+                {
+                    setError(failCode(Status::ErrStack), m_current.line,
+                             m_current.column, "{{ lr_name }} 分析栈已满");
+                    return Status::ErrStack;
+                }
+                if (advanceWindow() != Status::Ok)
+                {
+                    return Status::ErrLexer;
+                }
+                // 3 Token 规则：恢复过程中每成功移进一个真实 Token 就递减，
+                // 降到 0 就退出错误状态（下一个错误重新上报）
+                if (m_errorStatus > 0)
+                {
+                    --m_errorStatus;
+                }
+            }
+            else if (action < 0)
+            {
+                if (lrReduce(static_cast<std::uint16_t>(-action - 1), treeMode)
+                    != Status::Ok)
+                {
+                    return Status::ErrSyntax;
+                }
+            }
+            else
+            {
+                // 已经在错误状态里就不再上报（bison 的 3 Token 规则 / yyerrok
+                // 就是用来控制「什么时候重新开始报错」的）
+                if (m_errorStatus == 0)
+                {
+                    setSyntaxError(state);
+                    // 错误太多就放弃恢复
+                    if (m_errors.size() >= kMaxErrors)
+                    {
+                        return Status::ErrSyntax;
+                    }
+                }
+                if (lrRecover(stack, treeMode) != Status::Ok)
+                {
+                    return Status::ErrSyntax;
+                }
+                continue;
+            }
+        }
+    }
+
+    static bool sameIncrementalToken(const IncrementalToken &left,
+                                     const IncrementalToken &right)
+    {
+        return (left.type == right.type) && (left.text == right.text);
+    }
+
+    Token tokenFromIncremental(const IncrementalToken &item)
+    {
+        Token token;
+        token.type = item.type;
+        token.value = item.rawValue;
+        token.text = item.text;
+        token.name = item.text.empty() ? nullptr : item.text.c_str();
+        token.pName = item.text.empty() ? nullptr : item.text.c_str();
+        token.line = item.line;
+        token.column = item.column;
+        token.offset = item.offset;
+        return token;
+    }
+
+    /// 为增量 Token 收集准备文本输入，但不预读 LR(k) lookahead 窗口。
+    Status prepareIncrementalLex(std::string_view text)
+    {
+        m_input.assign(text);
+        m_text = m_input.c_str();
+        m_textPos = 0u;
+        m_tokenArray = nullptr;
+        m_tokenCount = 0u;
+        m_tokenPos = 0u;
+        m_textMode = true;
+        m_errors.clear();
+        m_commits.clear();
+        m_lexeme.clear();
+        m_errorStatus = 0;
+        m_line = 1u;
+        m_column = 1u;
+        m_current = Token();
+        m_lookahead.clear();
+        return Status::Ok;
+    }
+
+    Status collectIncrementalTokens(std::string_view text,
+                                    ParserMemory::Vector<IncrementalToken> &items)
+    {
+        items.clear();
+        const Status ready = prepareIncrementalLex(text);
+        if (ready != Status::Ok)
+        {
+            return Status::ErrLexer;
+        }
+        for (;;)
+        {
+            const Status status = advance();
+            if (status != Status::Ok)
+            {
+                return status;
+            }
+            if (m_current.type == TokenType::TOKEN_END)
+            {
+                return Status::Ok;
+            }
+            IncrementalToken item;
+            item.type = m_current.type;
+            item.value = tokenValue(m_current);
+            item.rawValue = m_current.value;
+            item.text.assign(m_current.text.data(), m_current.text.size());
+            item.line = m_current.line;
+            item.column = m_current.column;
+            item.offset = m_current.offset;
+            items.push_back(std::move(item));
+        }
+    }
+
+    std::size_t commonTokenPrefix(const ParserMemory::Vector<IncrementalToken> &oldTokens,
+                                  const ParserMemory::Vector<IncrementalToken> &newTokens) const
+    {
+        const std::size_t limit = std::min(oldTokens.size(), newTokens.size());
+        std::size_t index = 0u;
+        while ((index < limit) && sameIncrementalToken(oldTokens[index], newTokens[index]))
+        {
+            ++index;
+        }
+        return index;
+    }
+
+    const LrStackCheckpoint *bestCheckpoint(
+        const IncrementalCache &cache, std::size_t commonPrefix) const
+    {
+        const LrStackCheckpoint *best = nullptr;
+        for (const LrStackCheckpoint &checkpoint : cache.checkpoints)
+        {
+            if (checkpoint.tokenIndex <= commonPrefix)
+            {
+                best = &checkpoint;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return best;
+    }
+
+    void restoreCheckpoint(const LrStackCheckpoint &checkpoint)
+    {
+        LrStack &stack = m_lrStack;
+        stack = LrStack();
+        stack.top = checkpoint.top;
+        stack.states = checkpoint.states;
+        stack.symbols = checkpoint.symbols;
+        stack.values = checkpoint.values;
+        stack.names = checkpoint.names;
+        stack.nodes.resize(checkpoint.top);
+    }
+
+    ParserMemory::Vector<Token> replayTokensFrom(
+        const ParserMemory::Vector<IncrementalToken> &items, std::size_t start)
+    {
+        ParserMemory::Vector<Token> tokens;
+        tokens.reserve((start < items.size()) ? (items.size() - start) : 0u);
+        for (std::size_t index = start; index < items.size(); ++index)
+        {
+            tokens.push_back(tokenFromIncremental(items[index]));
+        }
+        return tokens;
+    }
+
+    Status parseIncrementalFromCheckpoint(
+        const LrStackCheckpoint &checkpoint,
+        const ParserMemory::Vector<IncrementalToken> &newTokens,
+        const ParserMemory::Vector<ParserCommit> &lexCommits,
+        ParserValue_T *out)
+    {
+        ParserMemory::Vector<Token> replay = replayTokensFrom(newTokens, checkpoint.tokenIndex);
+        const Status ready = prepareTokens(replay);
+        if (ready != Status::Ok)
+        {
+            return Status::ErrLexer;
+        }
+        restoreCheckpoint(checkpoint);
+        m_commits = lexCommits;
+{% if has_destructors %}        struct DiscardGuard
+        {
+            LrStack *pStack;
+            bool keep = false;
+            ~DiscardGuard()
+            {
+                if (!keep) { pStack->discardAll(); }
+            }
+        } discardGuard{&m_lrStack};
+{% endif %}        const Status status = continueLrLoop(out, nullptr, false);
+{% if has_destructors %}        if (status == Status::Ok)
+        {
+            discardGuard.keep = true;
+        }
+{% endif %}        return status;
+    }
+
+    /// LR 增量友好入口：文本未变时复用结果；文本变化时完整重算并填充 Token / checkpoint 缓存。
+    Status runTextIncremental(std::string_view text, ParserValue_T *out,
+                              IncrementalCache &cache)
+    {
+        if (cache.valid && (cache.text.size() == text.size()) &&
+            std::equal(cache.text.begin(), cache.text.end(), text.begin()))
+        {
+            m_errors = cache.errors;
+            m_commits = cache.commits;
+            if (out != nullptr)
+            {
+                *out = cache.result;
+            }
+            return cache.status;
+        }
+        ParserValue_T value{};
+        ParserMemory::Vector<IncrementalToken> newTokens;
+        const Status lexStatus = collectIncrementalTokens(text, newTokens);
+        const ParserMemory::Vector<Error> lexErrors = m_errors;
+        const ParserMemory::Vector<ParserCommit> lexCommits = m_commits;
+        if (lexStatus != Status::Ok)
+        {
+            cache.valid = true;
+            cache.text.assign(text.data(), text.size());
+            cache.status = lexStatus;
+            cache.result = ParserValue_T{};
+            cache.errors = lexErrors;
+            cache.commits = lexCommits;
+            cache.tokens.clear();
+            cache.checkpoints.clear();
+            if (out != nullptr)
+            {
+                *out = ParserValue_T{};
+            }
+            return lexStatus;
+        }
+        const std::size_t commonPrefix =
+            cache.valid ? commonTokenPrefix(cache.tokens, newTokens) : 0u;
+        const LrStackCheckpoint *checkpoint =
+            cache.valid ? bestCheckpoint(cache, commonPrefix) : nullptr;
+        if (checkpoint != nullptr)
+        {
+            value = ParserValue_T{};
+            const Status resumed =
+                parseIncrementalFromCheckpoint(*checkpoint, newTokens, lexCommits,
+                                               &value);
+            if (resumed == Status::Ok)
+            {
+                const std::size_t checkpointTokenIndex = checkpoint->tokenIndex;
+                cache.valid = true;
+                cache.text.assign(text.data(), text.size());
+                cache.status = resumed;
+                cache.result = value;
+                cache.errors = m_errors;
+                cache.commits = m_commits;
+                cache.tokens = std::move(newTokens);
+                cache.checkpoints.erase(
+                    std::remove_if(cache.checkpoints.begin(),
+                                   cache.checkpoints.end(),
+                                   [checkpointTokenIndex](const LrStackCheckpoint &item) {
+                                       return item.tokenIndex > checkpointTokenIndex;
+                                   }),
+                    cache.checkpoints.end());
+                if (out != nullptr)
+                {
+                    *out = value;
+                }
+                return resumed;
+            }
+        }
+        cache.tokens.clear();
+        cache.checkpoints.clear();
+        struct RecordGuard
+        {
+            IncrementalCache *&slot;
+            ~RecordGuard() { slot = nullptr; }
+        } guard{m_lrIncrementalCache};
+        m_lrIncrementalCache = &cache;
+        ParserMemory::Vector<Token> replay = replayTokensFrom(newTokens, 0u);
+        const Status ready = prepareTokens(replay);
+        const Status status = (ready == Status::Ok)
+                                  ? runLoop(&value, nullptr, false)
+                                  : Status::ErrLexer;
+        m_commits = lexCommits;
+        cache.valid = true;
+        cache.text.assign(text.data(), text.size());
+        cache.status = status;
+        cache.result = value;
+        cache.errors = (ready == Status::Ok) ? m_errors : lexErrors;
+        cache.commits = m_commits;
+        cache.tokens = std::move(newTokens);
+        if (out != nullptr)
+        {
+            *out = value;
+        }
+        return status;
+    }
+
+    /// LR 分析栈（跨次解析复用，避免反复分配）。
+    LrStack m_lrStack;
+    /// runTextIncremental 期间指向调用方缓存；普通 runText 为 nullptr。
+    IncrementalCache *m_lrIncrementalCache = nullptr;

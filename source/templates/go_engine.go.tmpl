@@ -1,0 +1,711 @@
+{# 解析模式的引擎主体（CodeGenGo 的 buildParserGo）。
+   变量：
+     mode_name / max_stack_depth / max_errors / error_recovery_tokens /
+     value_slots —— 常量与模式名
+     constants / tables / lexer_helpers / value_helpers / keyword_method /
+     run_loop / lexer / lr / ll —— 各段（都已渲染好）
+     value_type —— 语义值类型名
+   本模板自带行尾换行。 #}
+// ============================================================
+// 状态码 / 容量常量（数值与 C / C++17 / Python / C# / Rust 产物一致）
+// ============================================================
+
+const (
+	StatusOK                 int32 = 0
+	StatusErrStack           int32 = -20
+	StatusErrSyntax          int32 = -21
+	StatusErrLexer           int32 = -22
+	StatusErrDuplicate       int32 = -23
+	StatusErrUndefined       int32 = -24
+	StatusErrSystem          int32 = -25
+	StatusErrExpected        int32 = -26
+	StatusErrUnexpectedEOF   int32 = -27
+	StatusErrLexUnterminated int32 = -28
+	StatusErrLexChar         int32 = -29
+)
+
+const (
+	// sParserMaxStackDepth 分析栈最大深度（`%max_stack_depth`）。
+	sParserMaxStackDepth = {{ max_stack_depth }}
+	// sParserMaxErrors 一次解析最多记录多少条错误（`%max_errors`）。
+	sParserMaxErrors = {{ max_errors }}
+	// sParserErrorRecoveryTokens 恢复成功后要连续移进多少个真实 Token。
+	sParserErrorRecoveryTokens int32 = {{ error_recovery_tokens }}
+	// sParserValueSlots 语义动作里 `$1..$n` 的槽位个数。
+	sParserValueSlots = {{ value_slots }}
+
+
+	sParserMaxExpected  = 8
+	sParserInvalidState int32 = 0xFFFF
+	sParserInvalidIndex int32 = 0xFFFF
+	sParserAcceptAction int32 = 2147483647
+)
+
+{{ constants }}
+
+{{ tables }}
+
+// StatusName 取状态码的名字（如 "Ok" / "ErrSyntax"）。
+func StatusName(status int32) string {
+	switch status {
+	case StatusOK:
+		return "Ok"
+	case StatusErrStack:
+		return "ErrStack"
+	case StatusErrSyntax:
+		return "ErrSyntax"
+	case StatusErrLexer:
+		return "ErrLexer"
+	case StatusErrDuplicate:
+		return "ErrDuplicate"
+	case StatusErrUndefined:
+		return "ErrUndefined"
+	case StatusErrSystem:
+		return "ErrSystem"
+	default:
+		return "Unknown"
+	}
+}
+
+// ============================================================
+// 解析错误 / 语法树
+// ============================================================
+
+// ParserError 一条解析错误：一次解析可以累积多条（错误恢复时）。
+type ParserError struct {
+	// Code 错误码（`Status*` 或细分码）。
+	Code int32
+	// Line 行号（1 起）。
+	Line int32
+	// Column 列号（1 起）。
+	Column int32
+	// Message 说明文本。
+	Message string
+	// TokenKind 实际看到的 Token 类型（语法错误时有内容）。
+	TokenKind int32
+	// TokenText 实际看到的 Token 词素。
+	TokenText string
+	// State LR 状态号 / LL 栈顶符号编号。
+	State int32
+	// Expected 这里期望的 Token 类型列表。
+	Expected []int32
+}
+
+// Error 实现 error 接口（`fmt.Println(err)` 直接出「第 N 行第 M 列：…」）。
+func (e *ParserError) Error() string {
+	return e.String()
+}
+
+// String 取错误的可读文本。
+func (e *ParserError) String() string {
+	return fmt.Sprintf("第 %d 行第 %d 列：%s", e.Line, e.Column, e.Message)
+}
+
+// ParserCommit `%commit` 收集到的一条片段：行号 + 类型 + 原文。
+//
+// Type 就是 `%commit` 的类型名（缺省 `"default"`）；跳过 `%commit skip` /
+// `%trivia` 的片段不进容器。
+type ParserCommit struct {
+	// Line 片段起始行号（1 起）。
+	Line int32
+	// Type `%commit` 的类型名（缺省 "default"；skip 不进容器）。
+	Type string
+	// Text 匹配到的原文（含字面量本身）。
+	Text string
+}
+
+// ParserLocation 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起）。
+type ParserLocation struct {
+	// Line 行号（1 起）。
+	Line int32
+	// Column 列号（1 起）。
+	Column int32
+	// Offset UTF-8 字节偏移（0 起）。
+	Offset int32
+}
+
+// Tree 语法树节点（`%tree` 文法）：名字 + 词素 + 子节点。
+type Tree struct {
+	// Name 符号名（终结符 / 非终结符）。
+	Name string
+	// Text 终结符词素；非终结符是空串。
+	Text string
+	// Children 子节点。
+	Children []*Tree
+	// location 节点位置（私有；外面用 Location() 取，会退到第一个子节点）。
+	location    ParserLocation
+	hasLocation bool
+}
+
+// NewTree 建一个节点。
+func NewTree(name string, text string) *Tree {
+	return &Tree{Name: name, Text: text}
+}
+
+// ChildCount 子节点个数。
+func (t *Tree) ChildCount() int {
+	return len(t.Children)
+}
+
+// Child 取第 index 个子节点；越界返回 nil。
+func (t *Tree) Child(index int) *Tree {
+	if index < 0 || index >= len(t.Children) {
+		return nil
+	}
+	return t.Children[index]
+}
+
+// AddChild 追加一个子节点（nil 会被忽略）。
+func (t *Tree) AddChild(node *Tree) {
+	if node != nil {
+		t.Children = append(t.Children, node)
+	}
+}
+
+// SetLocation 设置节点位置（叶节点创建时由词法器位置填入）。
+func (t *Tree) SetLocation(location ParserLocation) {
+	t.location = location
+	t.hasLocation = true
+}
+
+// Location 取节点位置：自己的没有就退到第一个有位置的子节点（覆盖文本的起点）。
+func (t *Tree) Location() ParserLocation {
+	if t.hasLocation {
+		return t.location
+	}
+	for _, child := range t.Children {
+		found := child.Location()
+		if found.Line != 0 {
+			return found
+		}
+	}
+	return ParserLocation{}
+}
+
+// Clone 深拷贝整棵子树。
+func (t *Tree) Clone() *Tree {
+	copied := NewTree(t.Name, t.Text)
+	copied.location = t.location
+	copied.hasLocation = t.hasLocation
+	for _, child := range t.Children {
+		copied.AddChild(child.Clone())
+	}
+	return copied
+}
+
+// String 取整棵树的缩进文本（每层两个空格）。
+func (t *Tree) String() string {
+	var out strings.Builder
+	sParserAppendTree(&out, t, 0)
+	return out.String()
+}
+
+// Print 打印整棵树（写到标准输出）。
+func (t *Tree) Print() {
+	fmt.Print(t.String())
+}
+
+func sParserAppendTree(out *strings.Builder, node *Tree, depth int) {
+	for index := 0; index < depth; index++ {
+		out.WriteString("  ")
+	}
+	out.WriteString(node.Name)
+	if node.Text != "" {
+		out.WriteString("(")
+		out.WriteString(node.Text)
+		out.WriteString(")")
+	}
+	out.WriteString("\n")
+	for _, child := range node.Children {
+		sParserAppendTree(out, child, depth+1)
+	}
+}
+
+// sHolder 一次归约的语义结果壳：动作里的 `$$` 就是它的 value 字段。
+{% if glr %}// AmbiguityResolver GLR 的歧义解决函数类型：返回 true 采用新结果，
+// 返回 false 保留已有结果（Go 的函数值）。
+type AmbiguityResolver func(existing, candidate {{ value_type }}) bool
+
+// sGLREdge GSS 的一条边：从 fromNode 指向本边所属节点。
+type sGLREdge struct {
+	fromNode   int
+	symbol     int32
+	production int32
+	nameSlot   int32
+	value      {{ value_type }}
+	nodeTree   *Tree
+}
+
+// sGLRNode GSS 的一个节点：状态 + 入边表。
+type sGLRNode struct {
+	state int32
+	edges []int
+}
+
+{% endif %}type sHolder struct {
+	value {{ value_type }}
+}
+
+// sLLFrame LL 语义帧：一个非终结符展开期间的全部语义槽。
+type sLLFrame struct {
+	parentFrame int32
+	parentValue int32
+	values      []{{ value_type }}
+	names       []string
+	resultValue {{ value_type }}
+	discarded   bool
+}
+
+// ============================================================
+// 解析器
+// ============================================================
+
+// Parser {{ mode_name }} 解析器：一次解析的全部状态都在这里。
+//
+// 同一个解析器实例可以连续解析多次：每次 RunText / Run / ParseTree
+// 都会先清空上一次的错误表与结果。
+type Parser struct {
+	errors      []*ParserError
+	resultValue {{ value_type }}
+
+	input    []rune
+	// text 原始输入文本：词法正则走标准库的 `regexp`（以**字节**定位），
+	// 表里存的是 rune，所以这里再留一份原文给 sParserLexRegexMatch 用。
+	text       string
+	textPos    int
+	textMode   bool
+	tokens     []Token
+	tokenPos   int
+	current    Token
+	lookahead  []Token
+	line       int32
+	column     int32
+	bytePos    int
+	lexeme     string
+	errorState int32
+	commits    []ParserCommit
+
+	// LR 分析栈：状态 / 符号 / 语义值 / 变量名 / 语法树节点
+	states       []int32
+	symbols      []int32
+	values       []{{ value_type }}
+	names        []string
+	nodes        []*Tree
+	top          int
+	actionValues []{{ value_type }}
+
+	// LL：分析栈 / 语义帧栈 / 根语义值 / 建树路径
+	llStack    [][5]int32
+	llFrames   []*sLLFrame
+	rootResult {{ value_type }}
+	treeRoot   *Tree
+{% if glr %}	// GLR：GSS 节点 / 边 / 两个输入位置的活跃节点集 / 工作表与结果
+	glrNodes      []*sGLRNode
+	glrEdges      []*sGLREdge
+	glrNodeIDs    [2][]int
+	glrNodeOf     [2]map[int32]int
+	glrWork       []int
+	glrQueued     []bool
+	glrNames      []string
+	glrResults    []{{ value_type }}
+	glrTrees      []*Tree
+	glrResolver   AmbiguityResolver
+	glrPathEdges  []int
+	glrPathVisits int
+{% endif %}
+{% if dd %}	// DD：递归深度 / 已匹配的终结符数 / 最远失败点（回溯时不清它）
+	ddFrameDepth    int
+	ddDepth         int
+	ddFarthestDepth int
+	ddFarthestTypes []int32
+	ddFarthestToken Token
+{% endif %}
+	treePath   []*Tree
+}
+
+// NewParser 建一个解析器（状态在每次解析开始时复位）。
+func NewParser() *Parser {
+	p := &Parser{
+		actionValues: make([]{{ value_type }}, sParserValueSlots+1),
+{% if glr %}		glrPathEdges: make([]int, sParserMaxPathDepth),{% endif %}
+	}
+	sParserResetStates(p)
+	return p
+}
+
+// ---------- 只读查询 ----------
+
+// Errors 本次解析累积的错误。
+func (p *Parser) Errors() []*ParserError {
+	return p.errors
+}
+
+// LastError 最近一条错误；没有错误时返回 nil。
+func (p *Parser) LastError() *ParserError {
+	if len(p.errors) == 0 {
+		return nil
+	}
+	return p.errors[len(p.errors)-1]
+}
+
+// Commits `%commit` 收集到的片段（按出现顺序；没写 %commit 时恒为空）。
+func (p *Parser) Commits() []ParserCommit {
+	return p.commits
+}
+
+// CurrentLocation 当前 lookahead 的位置（行 / 列 1 起，Offset 是 UTF-8 字节偏移）。
+//
+// 语义动作里的 `$line` / `$column` 读的就是这里的值。
+func (p *Parser) CurrentLocation() ParserLocation {
+	return ParserLocation{
+		Line:   p.current.Line,
+		Column: p.current.Column,
+		Offset: p.current.Offset,
+	}
+}
+
+// Result 最近一次解析的语义结果。
+func (p *Parser) Result() {{ value_type }} {
+	return p.resultValue
+}
+
+// CurrentLine `$line` 用的当前行号。
+func (p *Parser) CurrentLine() int32 {
+	return p.CurrentLocation().Line
+}
+
+// CurrentColumn `$column` 用的当前列号。
+func (p *Parser) CurrentColumn() int32 {
+	return p.CurrentLocation().Column
+}
+
+// CurrentTokenText `$token` 用的当前词素。
+func (p *Parser) CurrentTokenText() string {
+	return p.current.Text
+}
+
+// LastErrorCode `$code` 用的最近一条错误码。
+func (p *Parser) LastErrorCode() int32 {
+	if last := p.LastError(); last != nil {
+		return last.Code
+	}
+	return 0
+}
+
+// LastErrorMessage `$message` 用的最近一条错误说明。
+func (p *Parser) LastErrorMessage() string {
+	if last := p.LastError(); last != nil {
+		return last.Message
+	}
+	return ""
+}
+
+// YyErrOk `yyerrok`：清掉「正在恢复」状态。
+func (p *Parser) YyErrOk() {
+	p.errorState = 0
+}
+
+// YyClearIn `yyclearin`：丢掉当前 lookahead。
+func (p *Parser) YyClearIn() {
+	if p.current.Type != TOKEN_END {
+		p.advance()
+	}
+}
+
+// ---------- 错误记录 ----------
+
+func (p *Parser) setError(code int32, line int32, column int32, message string) {
+	if len(p.errors) >= sParserMaxErrors {
+		return
+	}
+	p.errors = append(p.errors, &ParserError{
+		Code: code, Line: line, Column: column, Message: message,
+		TokenKind: TOKEN_INVALID, TokenText: "", State: 0,
+	})
+}
+
+func (p *Parser) setExpectedOneError(expectedKind int32) {
+	if len(p.errors) >= sParserMaxErrors {
+		return
+	}
+	message := fmt.Sprintf("语法错误：期望 %s，实际是 %s",
+		TokenName(expectedKind), TokenName(p.current.Type))
+	p.errors = append(p.errors, &ParserError{
+		Code:      StatusErrExpected,
+		Line:      p.current.Line,
+		Column:    p.current.Column,
+		Message:   message,
+		TokenKind: p.current.Type,
+		TokenText: p.current.Text,
+		State:     0,
+		Expected:  []int32{expectedKind},
+	})
+}
+
+func (p *Parser) setSyntaxError(row int32, expectedKinds []int32) {
+	if len(p.errors) >= sParserMaxErrors {
+		return
+	}
+	total := len(expectedKinds)
+	count := total
+	if count > sParserMaxExpected {
+		count = sParserMaxExpected
+	}
+	expected := make([]int32, count)
+	copy(expected, expectedKinds[:count])
+	var names strings.Builder
+	listed := count
+	if listed > 4 {
+		listed = 4
+	}
+	for index := 0; index < listed; index++ {
+		if index != 0 {
+			names.WriteString(" / ")
+		}
+		names.WriteString(TokenName(expected[index]))
+	}
+	actual := TokenName(p.current.Type)
+	var message string
+	switch {
+	case total == 0:
+		message = "语法错误：" + sParserExpectedFallback
+	case total == 1:
+		message = fmt.Sprintf("语法错误：期望 %s，实际是 %s",
+			names.String(), actual)
+	default:
+		suffix := " 之一"
+		if total > listed {
+			suffix = fmt.Sprintf(" 等 %d 个之一", total)
+		}
+		message = fmt.Sprintf("语法错误：期望 %s%s，实际是 %s",
+			names.String(), suffix, actual)
+	}
+	code := StatusErrSyntax
+	if total > 0 {
+		if p.current.Type == TOKEN_END {
+			code = StatusErrUnexpectedEOF
+		} else {
+			code = StatusErrExpected
+		}
+	}
+	p.errors = append(p.errors, &ParserError{
+		Code:      code,
+		Line:      p.current.Line,
+		Column:    p.current.Column,
+		Message:   message,
+		TokenKind: p.current.Type,
+		TokenText: p.current.Text,
+		State:     row,
+		Expected:  expected,
+	})
+}
+
+// ---------- 解析入口 ----------
+
+func (p *Parser) prepareText(text string) int32 {
+	p.input = []rune(text)
+	p.text = text
+	p.textPos = 0
+	p.textMode = true
+	return p.prepareCommon()
+}
+
+func (p *Parser) prepareTokens(tokens []Token) int32 {
+	p.tokens = tokens
+	p.tokenPos = 0
+	p.textMode = false
+	p.input = nil
+	p.text = ""
+	p.textPos = 0
+	return p.prepareCommon()
+}
+
+func (p *Parser) prepareCommon() int32 {
+	p.errors = nil
+	p.commits = nil
+	p.lexeme = ""
+	p.errorState = 0
+	p.line = 1
+	p.column = 1
+	p.bytePos = 0
+	p.current = NewToken()
+	var zero {{ value_type }}
+	p.resultValue = zero
+	if p.advance() != StatusOK {
+		return StatusErrLexer
+	}
+	return p.fillLookaheadWindow()
+}
+
+func (p *Parser) fillLookaheadWindow() int32 {
+	p.lookahead = nil
+	if sParserLookaheadK <= 1 {
+		return StatusOK
+	}
+	head := p.current
+	for index := int32(1); index < sParserLookaheadK; index++ {
+		if p.advance() != StatusOK {
+			return StatusErrLexer
+		}
+		p.lookahead = append(p.lookahead, p.current)
+	}
+	p.current = head
+	return StatusOK
+}
+
+func (p *Parser) advanceWindow() int32 {
+	if sParserLookaheadK <= 1 {
+		return p.advance()
+	}
+	if p.advance() != StatusOK {
+		return StatusErrLexer
+	}
+	fresh := p.current
+	p.current = p.lookahead[0]
+	for index := 0; index+1 < len(p.lookahead); index++ {
+		p.lookahead[index] = p.lookahead[index+1]
+	}
+	p.lookahead[len(p.lookahead)-1] = fresh
+	return StatusOK
+}
+
+// peekRune 取输入里第 textPos+offset 个字符；越界返回 -1。
+func (p *Parser) peekRune(offset int) int32 {
+	index := p.textPos + offset
+	if index < 0 || index >= len(p.input) {
+		return -1
+	}
+	return int32(p.input[index])
+}
+
+func (p *Parser) readChar() rune {
+	ch := p.input[p.textPos]
+	p.textPos++
+	// UTF-8 字节偏移（与 C99 / 其它四档对齐）
+	p.bytePos += len(string(ch))
+	if ch == '\n' {
+		p.line++
+		p.column = 1
+	} else {
+		p.column++
+	}
+	return ch
+}
+
+func (p *Parser) advance() int32 {
+	if !p.textMode {
+		if p.tokenPos < len(p.tokens) {
+			p.current = p.tokens[p.tokenPos]
+			p.tokenPos++
+		} else {
+			p.current = NewTokenWithKind(TOKEN_END)
+		}
+		return StatusOK
+	}
+	item := NewTokenAt(TOKEN_INVALID, "", p.line, p.column)
+	status := p.lexNext(&item)
+	if status != StatusOK {
+		why := "词法解析失败"
+		code := StatusErrLexer
+		if status == StatusErrLexUnterminated {
+			why = "字符串没有闭合"
+			code = status
+		} else if status == StatusErrLexChar {
+			why = "认不出来的字符"
+			code = status
+		}
+		p.setError(code, item.Line, item.Column, why)
+		item.Type = TOKEN_INVALID
+		p.current = item
+		return status
+	}
+	p.current = item
+	return StatusOK
+}
+
+// RunText 解析一段文本。语义结果读 Result()。
+func (p *Parser) RunText(text string) int32 {
+	if p.prepareText(text) != StatusOK {
+		return StatusErrLexer
+	}
+	return p.runLoop(false)
+}
+
+// Run 解析已经切好的 Token 序列。
+func (p *Parser) Run(tokens []Token) int32 {
+	if p.prepareTokens(tokens) != StatusOK {
+		return StatusErrLexer
+	}
+	return p.runLoop(false)
+}
+
+// ParseTree 解析文本并构建语法树（只建树，不跑语义动作）。
+func (p *Parser) ParseTree(text string) *Tree {
+	p.treeRoot = nil
+	if p.prepareText(text) != StatusOK {
+		return nil
+	}
+	if p.runLoop(true) != StatusOK {
+		return nil
+	}
+	tree := p.treeRoot
+	p.treeRoot = nil
+	return tree
+}
+
+{{ run_loop }}
+
+func sParserResetStates(p *Parser) {
+	p.states = []int32{0}
+	p.symbols = []int32{sParserInvalidIndex}
+	var zero {{ value_type }}
+	p.values = []{{ value_type }}{zero}
+	p.names = []string{""}
+	p.nodes = []*Tree{nil}
+	p.top = 1
+}
+
+{{ lexer }}
+
+{{ lr }}
+
+{{ ll }}{{ dd_body }}
+
+// ============================================================
+// 模块级辅助函数（词法 / 语义值转换 / 关键字表）
+// ============================================================
+
+// sParserTreeName 非终结符编号 -> 名字（`%tree` 建内部分支节点用）。
+func sParserTreeName(symbolID int32) string {
+	if symbolID >= 0 && int(symbolID) < len(sParserTreeNontermNames) {
+		return sParserTreeNontermNames[symbolID]
+	}
+	return "?"
+}
+
+// sParserMakeLeaf 建一个终结符叶子节点。
+func sParserMakeLeaf(item *Token) *Tree {
+	node := NewTree(TokenName(item.Type), item.Text)
+	node.SetLocation(ParserLocation{
+		Line:   item.Line,
+		Column: item.Column,
+		Offset: item.Offset,
+	})
+	return node
+}
+
+// sParserIsSyncToken 这个 Token 是不是同步锚点（`%sync`）。
+func sParserIsSyncToken(kind int32) bool {
+	for _, token := range sParserSyncTokens {
+		if token == kind {
+			return true
+		}
+	}
+	return false
+}
+
+{{ lexer_helpers }}
+
+{{ value_helpers }}
+
+{{ keyword_method }}

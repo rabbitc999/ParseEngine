@@ -1,0 +1,51 @@
+
+/** 
+ * @brief 移进：为当前 Token 建叶子节点（custom，只存词素）。 
+ * @param pCtx 上下文。
+ * @param ppLeaf 输出叶子节点。 
+ * @retval 状态码。 
+ */
+static int32_t Parser_TreeMakeLeaf(ParserCtx_T *pCtx, ParserTree_T **ppLeaf)
+{
+    char textBuffer[96];
+    ParserTree_T *pLeaf = NULL;
+    if ((pCtx == NULL) || (ppLeaf == NULL)) { return PARSER_ERR_SYNTAX; }
+    Parser_TokenText(&pCtx->current, textBuffer,
+                     (uint32_t)sizeof(textBuffer));
+    pLeaf = Parser_TreeCreateNode(Parser_TokenName(pCtx->current.type),
+                                  textBuffer);
+    if (pLeaf == NULL) { return PARSER_ERR_STACK; }
+    /* 叶节点的位置就是 Token 的起点（行 / 列 1 起，offset 是字节偏移） */
+    pLeaf->location.line = (int)pCtx->current.line;
+    pLeaf->location.column = (int)pCtx->current.column;
+    pLeaf->location.offset = (int)pCtx->current.offset;
+    *ppLeaf = pLeaf;
+    return PARSER_OK;
+}
+
+/** @brief 归约：把弹出的 k 个子节点合成左部节点（custom）。
+ *  @param pStack LR 分析栈。 @param lhs 左部非终结符编号。
+ *  @param base 首个右部符号的槽位。 @param length 右部长度。
+ *  @param ppNode 输出父节点。 @retval 状态码。 */
+static int32_t Parser_TreeMakeBranch(ParserLRStack_T *pStack, uint16_t lhs,
+                                     uint32_t base, uint32_t length,
+                                     ParserTree_T **ppNode)
+{
+    ParserTree_T *pNode = NULL;
+    uint32_t index = 0u;
+    if (ppNode == NULL) { return PARSER_ERR_SYNTAX; }
+    pNode = Parser_TreeCreateNode(s_ParserTreeNontermNames[lhs], NULL);
+    if (pNode == NULL) { return PARSER_ERR_STACK; }
+    for (index = 0u; index < length; index++) {
+        ParserTree_T *pChild = pStack->nodes[base + index];
+        if (pChild == NULL) { continue; }
+        if (Parser_TreeAttach(pNode, pChild) != PARSER_OK) {
+            Parser_TreeFree(pNode);
+            return PARSER_ERR_STACK;
+        }
+        pStack->nodes[base + index] = NULL;
+    }
+    *ppNode = pNode;
+    return PARSER_OK;
+}
+

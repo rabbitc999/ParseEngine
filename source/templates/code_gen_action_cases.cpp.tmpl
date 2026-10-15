@@ -1,0 +1,19 @@
+{# 语义动作分支：每个产生式一个 case（C 与 C++17 共用，见 CodeGen::actionCases）。
+   变量：
+     cases  —— 产生式数组，每项有 id / has_line / line / empty / action 五个字段；
+     cpp17  —— 目标语言是不是 C++17（决定空动作的默认语句怎么写）；
+     indent —— 动作体的缩进（12 空格；那行"只有缩进"的续行也用它，
+               免得模板里出现一行纯空白）。
+   两条 case 之间由每轮结尾的换行分隔，所以返回值末尾会多一个换行，
+   调用方收掉它（原实现的返回值结尾不带换行）。 #}
+{% for c in cases %}        case {{ c.id }}u:
+        {
+{% if c.has_line %}#line {{ c.line }} "@@SE_GRAMMAR_FILE@@"
+{% endif %}{% if c.empty %}{% if cpp17 %}            result.value = ParserValue_T{};
+{% else %}            memset(&result.value, 0, sizeof(result.value));
+{% endif %}{% else %}            {{ c.action }}
+{% endif %}{% if c.has_line %}#line @@SE_LINE_BACK@@ "parser.c"
+{{ indent }}
+{% endif %}            break;
+        }
+{% endfor %}

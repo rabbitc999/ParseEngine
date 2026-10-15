@@ -1,0 +1,23 @@
+# 名称: 双寄存器乘法 / 除法（u16 / i16）
+# 期望: 54464 1 -3 -1
+# 说明: 机器字长内的乘除直接用固定寄存器对：乘法给高低半，
+#       除法给商和余数（MIPS LO/HI、8086 AX/DX、ARM regLo/regHi）。
+0: (decl, u16, global, a)
+1: (decl, u16, global, b)
+2: (decl, u16, global, lo)
+3: (decl, u16, global, hi)
+4: (decl, i16, global, sa)
+5: (decl, i16, global, sb)
+6: (decl, i16, global, q)
+7: (decl, i16, global, r)
+8: (:=, 40000, _, a)
+9: (:=, 3, _, b)
+10: (mul:u16, a, b, lo, hi)
+11: (write:u16, lo, _, _)
+12: (write:u16, hi, _, _)
+13: (:=, -7, _, sa)
+14: (:=, 2, _, sb)
+15: (div:i16, sa, sb, q, r)
+16: (write, q, _, _)
+17: (write, r, _, _)
+18: (halt, _, _, _)

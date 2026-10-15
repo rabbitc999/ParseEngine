@@ -1,0 +1,25 @@
+    # ---------- 语义动作 ----------
+
+    def _apply_action(self, production, values, result):
+        """执行一个产生式的语义动作（`$n` 读 values，`$$` 写 result.value）。
+
+        :param production: 产生式编号。
+        :param values: 右部语义值列表（{{ slot_note }}）。
+        :param result: 语义结果（动作写它的 ``value``）。
+        :return: ``STATUS_OK`` 表示成功。
+        """
+{{ lr_action_cases }}
+        return STATUS_ERR_SYNTAX
+
+{% if yy_helpers %}    # ---------- yyerrok / yyclearin ----------
+
+    def _yy_err_ok(self):
+        """`yyerrok`：清掉「正在恢复」状态，后面的语法错误照常上报。"""
+        self._error_status = 0
+
+    def _yy_clearin(self):
+        """`yyclearin`：丢掉当前 lookahead（下一个 Token 由主循环再取）。"""
+        if self._current.type != TOKEN_END:
+            self._advance()
+
+{% endif %}
