@@ -1,20 +1,17 @@
-# `.gram` / `.mgl` 语言服务器（`library/lsp`）
+# `.gram` 语言服务器（`library/lsp`）
 
 给 ParseEngine 的文法文件用的 **LSP（Language Server Protocol）服务器**：
 编辑器打开 `.gram` 就能得到诊断、悬停说明、补全、跳转定义、文档大纲、
 语义高亮、保守格式化和快速修复。只用 C++17 标准库，自带最小 JSON 与
 `Content-Length` 帧实现，不依赖任何第三方库。
 
-打开 `.mgl` 时使用独立的 Magel 文档模型：识别 `$macro NAME(x, y)` / `$end_macro`
-（宏名前的 `!` 与形参名前的反引号都只是展开修饰，不算名字的一部分），
-以及单行宏 `$replace NAME(x, y) 宏体` / `$replace NAME 宏体`（没有 `$end_macro`），两者共用同一套宏模型，
-提供宏块配对、参数列表与调用参数数目的诊断，以及宏补全、悬停、跳转定义、大纲和
-语义 token；也认得 `$match` / `$when` / `$else` 与它们的 `$end_*`（高亮 + 补全 +
-"只能写在 `$macro` 体内"的诊断，分支配对的细节由编译器报）。
-它只做编辑期检查；实际宏展开与完整 Magel 编译错误仍由 magel 驱动负责。
-`--check` 命令仍用于 `.gram` 文法。
-`.gram` 的 `%mode` 校验、补全和悬停已包含全部 16 种模式（含 `earley` / `cyk`）；
-LSP 只校验模式名，目标语言组合仍由生成器检查。
+这一份**只服务 `.gram`**：语言模型按 `.gram` 文法构建，只声明、只处理 `.gram`
+一个后缀。`.gram` 的 `%mode` 校验、补全和悬停已包含全部 16 种模式
+（含 `earley` / `cyk`）；LSP 只校验模式名，目标语言组合仍由生成器检查。
+
+同一份源码还**内嵌进 ParseEngine 生成器**（`source/` 的构建把 `json/grammar/lsp.cpp`
+一起编进去）：`ParseEngine lsp --stdio` / `ParseEngine lsp --check FILE...` 与独立
+`lsp-server` 的参数、退出码和输出完全一致，VS Code 插件默认就用它（见「用法」）。
 
 > 设计与实现的完整说明（架构图、协议时序、位置换算公式、实测结果）见
 > [`技术报告.md`](技术报告.md)。
@@ -54,6 +51,13 @@ GCC 下加 `-finput-charset=UTF-8 -fexec-charset=UTF-8`，Windows 下标准输�
 lsp-server --stdio            在标准输入输出上跑 LSP（编辑器默认用法）
 lsp-server --check FILE...    直接校验文法，输出 FILE:行:列: 级别: 消息（CI 用）
 lsp-server --version / --help
+```
+
+内嵌在生成器里时把 `lsp-server` 换成 `ParseEngine lsp`，其余参数一模一样：
+
+```text
+ParseEngine lsp --stdio
+ParseEngine lsp --check FILE...
 ```
 
 把它接到任何支持 LSP 的编辑器（stdio 传输），把 `.gram` 关联到语言 id `gram` 即可；

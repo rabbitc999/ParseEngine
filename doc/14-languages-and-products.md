@@ -437,7 +437,7 @@ head -n 30 out/pl0.analysis.md  # 冲突消解 / 未消解冲突 / 分析报告
 | `main.c` | 演示 `main`：从标准输入读一行，再调 `Parser_RunText` |
 | `Makefile` | 构建脚本：`make` 出 `libparser.a` + `parser_demo`，另有 `lib` / `demo` / `run` / `clean` |
 | `CMakeLists.txt` | CMake 构建脚本（与 `Makefile` 等价）：`cmake -S . -B build && cmake --build build` |
-| `RESULT.md` | 生成信息、产物清单、编译运行说明、冲突消解记录、文法分析报告 |
+| `RESULT.md` | 生成信息、产物清单、编译运行说明、冲突消解与未消解冲突（分析报告全文要加 `--full-report`，见 [`08-generated-code.md`](08-generated-code.md#17-resultmd默认简化版)） |
 | `mermaid/*` | 状态机图示：`index.html` / `grammar.html` / `lexer.html` 与 `.mmd` 源码；**只在开了 `%mermaid` / `--mermaid` 时生成**（与教学模式无关），见[状态机图示](13-modes.md#状态机图示mermaid) |
 
 ### 模板（`source/templates/`）

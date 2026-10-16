@@ -12,8 +12,7 @@
  *   6. 语言级编辑器默认值 `[gram]` 已声明。
  *   7. 图标 `icon.png` 存在、是 PNG、且不小于 128×128（市场要求）。
  *
- * 另外确认**没有**重复声明 `magel`（`.mgl` 归 `magel/vscode/` 那个插件）与
- * `metro-lang`（`.metro` / `.m` 归 metro-lang 独立仓库的 `vscode/`）。
+ * 另外确认这个插件**只**注册 `.gram` 一种语言：不跟别的插件抢同一批扩展名。
  *
  * 用法（在仓库任意目录执行都可以）：
  *   node vscode/tools/check-manifest.js
@@ -159,18 +158,25 @@ function main() {
   check('F7 绑定解析预览', keybindings.some((item) =>
     item.command === 'gram.preview' && String(item.key).toLowerCase() === 'f7'));
 
-  // `.mgl`（Magel）整个搬到了 `magel/vscode/`：这里不该再声明它，否则两个插件抢同一后缀。
-  check('没有重复声明 magel（`.mgl` 归 magel/vscode 插件）',
-    !languages.some((item) => item && (item.extensions || []).includes('.mgl')));
-  check('没有重复注册 magel 语法',
-    !grammars.some((item) => item && item.language === 'magel'));
-
-  // `.metro` / `.m`（MetroLang）整个搬到了 metro-lang 独立仓库的 `vscode/`：
-  // 这里不该再声明它，否则两个插件抢同一后缀。
-  check('没有重复声明 metro-lang（`.metro` / `.m` 归 metro-lang/vscode 插件）',
-    !languages.some((item) => item && (item.extensions || []).some((ext) => ext === '.metro' || ext === '.m')));
-  check('没有重复注册 metro-lang 语法',
-    !grammars.some((item) => item && item.language === 'metro-lang'));
+  // 这个插件只认 `.gram`：多注册一种语言就会跟别的插件抢同一批扩展名。
+  check('只注册了一种语言', languages.length === 1, `实际 ${languages.length} 种`);
+  check(
+    '所有语言的扩展名都只有 .gram',
+    languages.every(
+      (item) =>
+        Array.isArray(item && item.extensions) &&
+        item.extensions.length === 1 &&
+        item.extensions[0] === LANGUAGE_EXTENSION,
+    ),
+    languages.map((item) => (item && item.extensions) || []).join('、'),
+  );
+  check('只注册了一条语法高亮', grammars.length === 1, `实际 ${grammars.length} 条`);
+  check(
+    '没有声明除 .gram 之外的扩展名',
+    !languages.some((item) =>
+      (item && item.extensions ? item.extensions : []).some((ext) => ext !== LANGUAGE_EXTENSION),
+    ),
+  );
 
   // 7. 图标：声明了、存在、是 PNG、够大（市场最低 128×128）。
   const iconRelative = typeof pkg.icon === 'string' ? pkg.icon : '';
@@ -192,7 +198,7 @@ function main() {
     }
   }
 
-  console.log(failures === 0 ? '\n清单检查通过：gram 注册完整（.mgl 归 magel/vscode，.metro/.m 归 metro-lang/vscode）'
+  console.log(failures === 0 ? '\n清单检查通过：只注册 .gram（语言、扩展名与语法各一条）'
                              : `\n清单检查失败 ${failures} 项`);
   process.exit(failures === 0 ? 0 : 1);
 }

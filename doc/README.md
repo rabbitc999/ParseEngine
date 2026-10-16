@@ -1,11 +1,14 @@
 # 仓库文档
 
+> **中文（默认）** · [English](en/README.md) —— 英文版与中文版内容对应；中文版优先维护，
+> 两处说法有出入时以中文版为准。尚无独立英文译文的页面由英文索引链到中文原文。
+
 > **Magel 的那段光辉历史**：这门语言早期就在本仓库里长大——生成器、StackVM、标准库、
 > 胶水与反射都是在这里一起打磨出来的（下面这些 Magel 文档就是那段记录）。它现已拆分为
 > 独立仓库 <https://gitee.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
 > 同名文档。
 
-ParseEngine 的[中英日显示、Windows 编码和 Python ZIP 发布说明](16-i18n-and-packaging.md)覆盖 `--ui-lang`、控制台与管道、两个工具的独立打包脚本。
+ParseEngine 的[中英日显示、内嵌手册与语言服务器、发布说明](16-i18n-and-packaging.md)覆盖 `--ui-lang`、`man` 与 `lsp` 子命令、控制台与管道、两个工具的独立打包脚本。
 
 Magel 1.0.0 的名称、`.mgl` 工程布局与中文／英文／日语语言选择见[Magel 名称与三语说明](https://gitee.com/rabbitc999/magel/blob/master/doc/32-naming-i18n.md)。
 Magel 的[文档索引](https://gitee.com/rabbitc999/magel/blob/master/doc/README.md)结合正式 example 源码、expected 输出与错误边界逐步讲解。初学者从 [08 基础程序](https://gitee.com/rabbitc999/magel/blob/master/doc/08-first-programs.md) 开始，专项环境和验收范围见 [28 样例验证](https://gitee.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)。
@@ -25,8 +28,8 @@ Magel 当前语言基线：**1.0.0**，当前版本：**1.2.0**。
 | [01 仓库文档总览](01-overview.md) | 各工程、附加库及全部文档的入口 |
 | [02 满级文法](02-gram-legend.md) | 跨解析器、Magel、Hydra86 和课程实验的虚构外传，续写 Magel 1.0、迭代链与多数据库验收 |
 | [03 架构](03-architecture.md) | 生成器的模块、数据流与代码约定 |
+| [04 一份 .gram，八种语言](04-parseengine-story.md) | ParseEngine 生成器的演进故事 |
 | [05 文法](05-grammar.md) | `.gram` 语法规范与生成期校验 |
-| [05 一份 .gram，八种语言](05-parseengine-story.md) | ParseEngine 生成器的演进故事 |
 | [06 分析](06-analysis.md) | LL、LR、IELR 等算法 |
 | [07 代码生成](07-codegen.md) | 模板系统与语言后端 |
 | [08 生成代码](08-generated-code.md) | 产物清单与 API |
@@ -38,7 +41,7 @@ Magel 当前语言基线：**1.0.0**，当前版本：**1.2.0**。
 | [13 生成模式](13-modes.md) | 十六种生成模式与运行时 |
 | [14 目标语言与产物](14-languages-and-products.md) | 后端选择与产物形态 |
 | [15 支持矩阵](15-language-mode-support.md) | 语言、模式与增量 API 的当前范围 |
-| [16 三语、Windows 编码与 ZIP 发布](16-i18n-and-packaging.md) | 显示选项、Unicode 控制台、独立 Python 打包脚本 |
+| [16 三语、内嵌资产与发布](16-i18n-and-packaging.md) | 显示选项、内嵌手册与语言服务器、Unicode 控制台、独立 Python 打包脚本 |
 | [Magel EBNF 语法参考](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) | 当前词法、全部产生式、匿名函数类型、泛型入口与语义检查边界 |
 | [Magel 语言哲学](https://gitee.com/rabbitc999/magel/blob/master/doc/00-philosophy.md) | 简单编写，到处运行；值语义、显式引用、资源管理与没有移动语义 |
 | [文档维护规范](../project/document/README.md) | 统一口径、技术文档模板、文档生成器与同步检查 |

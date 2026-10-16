@@ -1,7 +1,10 @@
 'use strict';
 
 /**
- * 最小 LSP 客户端：用 stdio 驱动 `lsp-server`。
+ * 最小 LSP 客户端：用 stdio 驱动语言服务器。
+ *
+ * 服务器通常是内嵌在生成器里的那份，启动命令是 `ParseEngine lsp --stdio`；
+ * 想换成独立编译的 `lsp-server`，把 command/args 换成该可执行文件与 `['--stdio']` 即可。
  *
  * 协议要点：
  *   - 帧格式 `Content-Length: N\r\n\r\n` + UTF-8 正文；
@@ -79,7 +82,7 @@ class LspClient extends EventEmitter {
       child.stderr.on('data', (chunk) => this.emit('log', chunk.toString('utf8').trimEnd()));
       child.on('exit', (code) => {
         this.stopped = true;
-        this._failAll(new Error(`lsp-server 已退出（code=${code}）`));
+        this._failAll(new Error(`语言服务器已退出（code=${code}）`));
         this.emit('exit', code);
       });
     });
@@ -95,7 +98,7 @@ class LspClient extends EventEmitter {
   request(method, params) {
     return new Promise((resolve, reject) => {
       if (!this.running) {
-        reject(new Error('lsp-server 没有运行'));
+        reject(new Error('语言服务器没有运行'));
         return;
       }
 

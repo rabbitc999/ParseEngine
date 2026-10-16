@@ -1,9 +1,10 @@
 'use strict';
 
 /**
- * 调用 ParseEngine / lsp-server 的命令行封装。
+ * 调用 ParseEngine 的命令行封装：生成解析器、跑一次文法校验。
  *
- * 同样不依赖 `vscode`，可以在纯 Node 下测试。
+ * 语言服务器内嵌在生成器里（`ParseEngine lsp --stdio`），所以这里只有生成与
+ * `--check` 两条路；两者都不依赖 `vscode`，可以在纯 Node 下测试。
  */
 
 const fs = require('node:fs');
@@ -94,7 +95,7 @@ function runProcess(exe, args, options) {
 }
 
 /**
- * 解析 `lsp-server --check` 的输出。
+ * 解析 `--check` 的输出。
  *
  * @param {string} output 原始输出。
  * @returns {Array<{file: string, line: number, column: number, severity: number, message: string}>}
@@ -111,9 +112,11 @@ function parseCheckOutput(output) {
     const match = DIAGNOSTIC_LINE.exec(line);
     if (!match || !match.groups) continue;
 
-    // 2. 级别：警告按 2，其余按 1（与 LSP 的 severity 对齐）。
+    // 2. 级别：警告按 2、提示按 3，其余按 1（与 LSP 的 severity 对齐）。
+    //    `--check` 会输出 error / warning / info 三档，info 是"能编但值得看一眼"，
+    //    别把它算成错误，否则问题面板会给干净文法报红。
     const level = match.groups.level;
-    const severity = /警|warn/i.test(level) ? 2 : 1;
+    const severity = /info|提示/i.test(level) ? 3 : (/警|warn/i.test(level) ? 2 : 1);
 
     diagnostics.push({
       file: match.groups.file,
@@ -130,12 +133,13 @@ function parseCheckOutput(output) {
 /**
  * 跑一次文法校验。
  *
- * @param {string} lspServer lsp-server 路径。
+ * @param {string} command 可执行文件（ParseEngine 或独立 lsp-server）。
+ * @param {string[]} args 前置子命令参数，如 `['lsp', '--check']`。
  * @param {string} file 文法文件。
  * @returns {Promise<{code: number, output: string, diagnostics: Array<object>}>}
  */
-async function checkGrammar(lspServer, file) {
-  const result = await runProcess(lspServer, ['--check', file], {
+async function checkGrammar(command, args, file) {
+  const result = await runProcess(command, [...(args || []), file], {
     cwd: path.dirname(file),
     timeoutMs: 60000,
   });

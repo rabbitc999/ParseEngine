@@ -439,8 +439,10 @@ C 的 `#line` 完全一致：
   `parser.cpp`，头文件 `parser.hpp` / `parser_user.h`），由
   `generatorMakefileCpp17` / `generatorCMakeCpp17` 生成，产物名按 `%namespace`
   前缀替换。
-- `source/templates/RESULT.md.tmpl`：生成信息表、产物清单、各可选小节、冲突消解
-  记录、文法分析报告；产物清单用 `{% for file in product_files %}` 展开。
+- `source/templates/RESULT.md.tmpl`：生成信息表、产物清单、各可选小节、冲突消解与
+  未消解冲突；产物清单用 `{% for file in product_files %}` 展开，末尾的
+  「文法分析报告」（`{{ report }}`）由 `{% if full_report %}` 把着，只有
+  `--full-report` 时才输出（见 [`08-generated-code.md`](08-generated-code.md#17-resultmd默认简化版)）。
 
   它的章节有两种来源：
 

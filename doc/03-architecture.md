@@ -84,7 +84,7 @@ flowchart TB
 
 | 模块 | 主要类型 / 函数 | 职责 |
 | --- | --- | --- |
-| `source/src/main.cpp` | `CommandLine`、`printUsage`、`main` | 解析 `--grammar-file` / `--out-dir` / `--mode` / `--lang` / `--class` / `--teach` / `--no-teach` / `--mermaid` / `--no-mermaid` / `--report` / `--dump-*`；命令行覆盖 `%mode` / `%lang` / `%class` / `%teach` / `%mermaid`，目标语言缺省 `cpp17`；`--class` 只配 Python 产物，`%namespace` 只配 C++17 产物，配错在进生成前就报错 |
+| `source/src/main.cpp` | `CommandLine`、`printUsage`、`main` | 解析 `--grammar-file` / `--out-dir` / `--mode` / `--lang` / `--class` / `--teach` / `--no-teach` / `--mermaid` / `--no-mermaid` / `--report` / `--full-report` / `--dump-*`；命令行覆盖 `%mode` / `%lang` / `%class` / `%teach` / `%mermaid`，目标语言缺省 `cpp17`；`--class` 只配 Python 产物，`%namespace` 只配 C++17 产物，配错在进生成前就报错 |
 | `source/include/ParseEngine/error.hpp` | `Error`、`fail`、`fatalInternal` | 生成器的错误值（说明 + 原文件行号）与「内部错误」兜底；所有失败路径共用的错误槽 |
 | `source/include/ParseEngine/grammar_types.hpp` | `OrderedMap`、`Grammar`、`Production`、`PriorityConfig`、`LexSpec`、`CopySpec`、`GrammarConfig` | 纯数据模型，不依赖其它模块 |
 | `source/src/grammar_loader.cpp` | `GrammarLoader`、内部 `GramParser` | `.gram` 词法/语法解析、指令处理、全部生成期校验、字面量与正则解码；`%class` 按标识符规则 + Python 关键字表校验，`%lang` 接受 `c` / `cpp17` / `python` / `csharp` / `rust` / `go` / `gram`，并解析 C# / Rust / Go 的 `%package` / `%import` / `%class_body … %endbody` |

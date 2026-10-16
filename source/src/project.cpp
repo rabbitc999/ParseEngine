@@ -894,6 +894,9 @@ std::string generatorResultMd(const ProjectRequest &request,
          {"resolutions", resolutionsText},
          {"unresolved", unresolvedText},
          {"report", rstripWhitespace(request.reportText)},
+         // RESULT.md 默认是简化版（到「未消解冲突」收尾）：末尾那一节
+         // `## 文法分析报告` 只在 --full-report 时输出，模板里用 {% if %} 把关。
+         {"full_report", request.fullReport},
          // 下面三个不直接出现在 RESULT.md 里，是给 include 进来的
          // 「编译运行」片段用的——片段按模板渲染，用的是同一个上下文。
          {"main_file", mainFileName},
@@ -1014,6 +1017,29 @@ void appendEpilogue(const ProjectRequest &request, const std::string &outName,
         content += "#line " + std::string(CodeGen::lineBackPlaceholder()) +
                    " \"" + outName + "\"\n";
     }
+}
+
+/**
+ * @brief 手写后端的 RESULT.md 末尾按 `--full-report` 附上分析报告。
+ *
+ * C# / Rust / Go 三档的 RESULT.md 是逐行拼出来的字符串，**不走 `RESULT.md`
+ * 模板**，模板里那把 `{% if full_report %}` 管不到它们；`--full-report` 要生效
+ * 就得在这里补一次，语义与模板档一致（同一份报告原文、同一节标题）。
+ *
+ * @param request 组装入参。
+ * @param text 已经拼好的 RESULT.md。
+ * @return 追加了报告一节（未开开关时原样）的文本。
+ */
+std::string appendFullReport(const ProjectRequest &request, std::string text)
+{
+    if (!request.fullReport)
+    {
+        return text;
+    }
+    text += "\n## 文法分析报告\n\n```text\n";
+    text += rstripWhitespace(request.reportText);
+    text += "\n```\n";
+    return text;
 }
 
 /**
@@ -1165,9 +1191,10 @@ std::string generatorCsharpResultMd(
     text += "  `// 继续 <产物文件> 的正文` 说明后面回到产物自己的正文。\n";
     text += "- 边界：不做嵌套 `%union`、不支持 `%destructor`、不做复杂类型跨"
             "语言映射。\n";
-    text += "- 详细的分析报告（产生式 / FIRST / FOLLOW / 冲突）见生成器终端"
-            "输出或 `--report`。\n";
-    return text;
+    text += "- 详细的分析报告（产生式 / FIRST / FOLLOW / 冲突）加 "
+            "`--full-report` 会写在本文档末尾，也可以用 `--report FILE` "
+            "单独导出一份。\n";
+    return appendFullReport(request, std::move(text));
 }
 
 /**
@@ -1524,9 +1551,10 @@ std::string generatorRustResultMd(const ProjectRequest &request,
     text += "  `// 继续 <产物文件> 的正文` 说明后面回到产物自己的正文。\n";
     text += "- 边界：不做嵌套 `%union`、不支持 `%destructor`、不做复杂类型跨"
             "语言映射。\n";
-    text += "- 详细的分析报告（产生式 / FIRST / FOLLOW / 冲突）见生成器终端"
-            "输出或 `--report`。\n";
-    return text;
+    text += "- 详细的分析报告（产生式 / FIRST / FOLLOW / 冲突）加 "
+            "`--full-report` 会写在本文档末尾，也可以用 `--report FILE` "
+            "单独导出一份。\n";
+    return appendFullReport(request, std::move(text));
 }
 
 /**
@@ -1888,9 +1916,10 @@ std::string generatorGoResultMd(const ProjectRequest &request,
             "（`%commit`\n  相关的表只在文法里写了 `%commit` 时才出现）。\n";
     text += "- 边界：不做嵌套 `%union`、不支持 `%destructor`、不做复杂类型跨"
             "语言映射。\n";
-    text += "- 详细的分析报告（产生式 / FIRST / FOLLOW / 冲突）见生成器终端"
-            "输出或 `--report`。\n";
-    return text;
+    text += "- 详细的分析报告（产生式 / FIRST / FOLLOW / 冲突）加 "
+            "`--full-report` 会写在本文档末尾，也可以用 `--report FILE` "
+            "单独导出一份。\n";
+    return appendFullReport(request, std::move(text));
 }
 
 /**

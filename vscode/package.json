@@ -1,7 +1,7 @@
 {
   "name": "gram-editor",
   "displayName": "GramEditor - ParseEngine 文法",
-  "description": "编辑 ParseEngine .gram 文法；支持诊断、补全、Token 与语法树预览。（Magel .mgl 见 magel/vscode 插件，MetroLang .metro/.m 见 metro-lang/vscode 插件）",
+  "description": "编辑 ParseEngine .gram 文法；自带编译器与内嵌语言服务器，支持诊断、补全、Token 与语法树预览、一键生成解析器。",
   "version": "1.0.0",
   "publisher": "rabbitc999",
   "author": {
@@ -96,12 +96,12 @@
         "gram.lspServerPath": {
           "type": "string",
           "default": "",
-          "description": "lsp-server 可执行文件路径；留空时在仓库里自动探测 build/lsp/lsp-server。"
+          "description": "【一般不用填】独立构建的 lsp-server 可执行文件路径。留空时用 ParseEngine 内嵌的语言服务器（ParseEngine lsp --stdio）。"
         },
         "gram.parseEnginePath": {
           "type": "string",
           "default": "",
-          "description": "ParseEngine 可执行文件路径；留空时在仓库里自动探测 build/bin/ParseEngine。"
+          "description": "ParseEngine 可执行文件路径；留空时依次用仓库里的 build/bin/（开发态）、插件自带的 bin/、PATH 里的 ParseEngine。"
         },
         "gram.pythonPath": {
           "type": "string",
@@ -152,7 +152,7 @@
             "off",
             "messages"
           ],
-          "description": "把与 lsp-server 的协议消息写进输出面板，排查问题时打开。"
+          "description": "把与语言服务器的协议消息写进输出面板，排查问题时打开。"
         }
       }
     }

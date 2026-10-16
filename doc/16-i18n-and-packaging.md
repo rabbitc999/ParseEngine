@@ -1,4 +1,4 @@
-# 显示语言、Windows 编码与 ZIP 发布
+# 显示语言、内嵌资产与发布
 
 ParseEngine 命令行支持中文、英文和日语。代码生成目标仍由 `--lang cpp17` 等选项控制；显示语言使用独立的 `--ui-lang`。
 
@@ -14,6 +14,54 @@ ParseEngine example/calc.gram --lang cpp17 --out-dir build/calc --ui-lang ja
 帮助、命令行参数检查、生成完成与清理提示、打包结果及已登记的常见诊断使用三语表。专门分析诊断未收录译文时保留完整原文；分析报告、生成源码注释和模板维持原有文本。显示选项不修改文法、标识符、源码片段及生成代码。
 
 权威消息表为 `source/i18n/messages.tsv`，运行 `python tools/embed_parseengine_i18n.py` 生成静态 C++ 表。消息随可执行文件内嵌，运行时不读语言资源文件。Make 和 CMake 在消息或发布脚本变化后同步生成内嵌资产；没有 Python 的构建环境可以使用已入库的生成头文件，但更改资产后须先在有 Python 的环境重新生成。
+
+## 内嵌手册（`ParseEngine man`）
+
+命令行带一份**内嵌手册**：`doc/` 与 `doc/en/` 的正文在构建期被 `tools/embed_manual.py` 压缩内联进 `source/src/manual_data.cpp`，运行时**不读仓库文件**，把可执行文件单独拷到别处也照样能查。
+
+```sh
+ParseEngine man                     # 目录：18 页文档 + 指令 / 模式 / 语言 / 示例清单
+ParseEngine man 12-grammar-usage    # 看某一页（`man 12`、`man %token` 也行）
+ParseEngine man directives          # 全部 %指令（含每条的一句话说明）
+ParseEngine man modes               # 16 种生成模式：用法 + 一句话说明
+ParseEngine man languages           # 目标语言与各自支持的模式数
+ParseEngine man examples            # example/ 里的示例文法一览
+ParseEngine man --search 展望符      # 全文搜关键词（页正文 / 指令 / 模式 / 语言）
+ParseEngine man --json              # 机器可读（编辑器 / 脚本用）
+ParseEngine man --lang en 04        # 正文语言：zh / en / ja / auto（缺省自动检测）
+```
+
+| 要点 | 说明 |
+| --- | --- |
+| 数据来源 | `doc/*.md` + `doc/en/*.md` + `example/manifest.tsv`；**不含** `09-build-and-test.md` 与 `09-extra.md`（那两页是仓库自己的构建与实验记录，不该随安装在别处的编译器一起发出去） |
+| 重新内联 | 改完 `doc/` 后跑 `make -C source manual`（等价 `python tools/embed_manual.py`），再编译 |
+| 体积 | 约 1.3 MB Markdown 用 `library/lztext` 压到约 0.4 MB（比率 ≈ 0.29），生成 2 MB 量级的 C++ 字节数组 |
+| 中英对照 | 有英文版的页在目录里标 `[en]`，页脚写 `来源：doc/<名字>` / `英文版：doc/en/<名字>`；`--lang en` 或有英文版且区域是英文时取英文正文 |
+| 分页与颜色 | 正文超过一屏且找得到 `less` 时用 `less -R` 分页；重定向或设了 `NO_COLOR` 时不出 ANSI 颜色 |
+| 退出码 | 0 = 命中；1 = 没找到目标 / 搜索无结果；2 = 参数非法（与 `lsp` 的 `--check` 同口径） |
+
+## 内嵌语言服务器与插件自带的编译器
+
+`library/lsp` 的 `.gram` 语言服务器（`json` / `grammar` / `lsp` 三份源码）**一起编进生成器**，所以同一个可执行文件既是解析器生成器、又是语言服务器：
+
+```sh
+ParseEngine lsp --stdio              # 起 LSP（Content-Length 帧 + JSON-RPC）
+ParseEngine lsp --check FILE...      # 只做一次校验，诊断打到标准输出
+ParseEngine lsp --version            # parseengine-lsp 1.0.0
+```
+
+参数、退出码与诊断格式与独立构建的 `build/lsp/lsp-server[.exe]` 完全一致——`library/lsp` 仍然可以单独构建（`make -C library/lsp`），`lsp --check` 干净文法退出 0、有错退出 1。**VS Code 插件默认就用内嵌的这份**，并把编译器打进 `.vsix`：
+
+| 环节 | 做法 |
+| --- | --- |
+| 找编译器 | `vscode/src/serverLocator.js` 按「设置 `gram.parseEnginePath` → 仓库 `build/bin` → 插件自带 `bin/` → `PATH`」依次找 `ParseEngine[.exe]` |
+| 起服务器 | `ParseEngine lsp --stdio`（`gram.lspServerPath` 填了独立 `lsp-server` 就改用它，参数回到 `--stdio`） |
+| 校验文法 | `ParseEngine lsp --check FILE`；诊断按 `error` / `warning` / `info` 映射到问题面板的三档 |
+| 自带编译器 | 打包时 `vscode/tools/embed-compiler.js` 把 `ParseEngine[.exe]` 拷进 `vscode/bin/`（内容一致就跳过；`vscode/bin/` 不入库） |
+| 平台标记 | `vscode/tools/package.js` 给 `.vsix` 的 `Identity` 写 `TargetPlatform`（如 `win32-x64`）并把同样的后缀缀进文件名；`--universal` 可以产出不带标记的通用包 |
+| 打开手册 | `Gram: 打开文法指令手册` 优先打开仓库里的 `doc/12-grammar-usage.md`；仓库不在旁边时改用 `ParseEngine man 12-grammar-usage`，把同一份正文显示在编辑器里 |
+
+插件自身的目录、命令与打包细节见 [`vscode/README.md`](../vscode/README.md)。
 
 ## Windows 编码
 

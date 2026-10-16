@@ -1,7 +1,17 @@
 #include "lsp.hpp"
 
 #include <algorithm>
+#include <cstdio>
+#include <fstream>
+#include <iostream>
 #include <sstream>
+#include <string>
+#include <vector>
+
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 
 namespace lsp {
 namespace {
@@ -139,7 +149,9 @@ void Server::openDocument(const std::string& uri, const std::string& text,
                           const std::string& languageId) {
     Document& doc = documents_[uri];
     doc.text = text;
-    (void)languageId;   // 这一份只服务 `.gram`；`.mgl` 的宏模型在 magel/lsp
+    // 这一份只服务 `.gram`：语言模型按 `.gram` 文法建，`languageId` 仅作记录
+    // （参数照 LSP 的 didOpen 形状保留）。
+    (void)languageId;
     doc.model.setText(text);
 }
 
@@ -394,6 +406,107 @@ int runStdioServer(Server& server, std::istream& in, std::ostream& out, std::ost
         }
     }
     return server.exitCode();
+}
+
+namespace {
+
+/**
+ * Windows 上把标准输入输出切成二进制模式：LSP 的 `Content-Length` 帧不能做换行转换。
+ */
+void useBinaryStdio() {
+#ifdef _WIN32
+    _setmode(_fileno(stdin), _O_BINARY);
+    _setmode(_fileno(stdout), _O_BINARY);
+#endif
+}
+
+/**
+ * 读整个文件（去掉 UTF-8 BOM）。
+ *
+ * @param path 文件路径。
+ * @param text 读出时写入文件内容。
+ * @return 读成功为 true；打不开为 false（`text` 保持为空）。
+ */
+bool readWholeFile(const std::string& path, std::string& text) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        text.clear();
+        return false;
+    }
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    text = buffer.str();
+    if (text.size() >= 3 && static_cast<unsigned char>(text[0]) == 0xEF &&
+        static_cast<unsigned char>(text[1]) == 0xBB && static_cast<unsigned char>(text[2]) == 0xBF) {
+        text.erase(0, 3);
+    }
+    return true;
+}
+
+/**
+ * 打印命令行帮助（`lsp-server --help` 与 `ParseEngine lsp --help` 共用）。
+ */
+void printCommandLineHelp() {
+    std::cout << "parseengine-lsp 1.0.0 —— `.gram` 文法语言服务器\n"
+                 "\n"
+                 "用法：\n"
+                 "  lsp-server --stdio            在标准输入输出上跑 LSP（编辑器默认用法）\n"
+                 "  lsp-server --check FILE...    直接校验文法，输出 FILE:行:列: 级别: 消息\n"
+                 "  lsp-server --version          版本\n"
+                 "  lsp-server --help             本帮助\n"
+                 "\n"
+                 "内嵌在生成器里时用 `ParseEngine lsp <同样的选项>`。\n"
+                 "\n"
+                 "能力：诊断、悬停、补全、跳转定义、文档大纲、语义高亮、保守格式化、快速修复。\n";
+}
+
+} // namespace
+
+int runCommandLine(int argc, char** argv) {
+    useBinaryStdio();
+    std::string mode = "--stdio";
+    std::vector<std::string> files;
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "--help" || arg == "-h") {
+            printCommandLineHelp();
+            return 0;
+        }
+        if (arg == "--version" || arg == "-v") {
+            std::cout << "parseengine-lsp 1.0.0\n";
+            return 0;
+        }
+        if (arg == "--check") {
+            mode = "--check";
+            continue;
+        }
+        if (arg == "--stdio") {
+            mode = "--stdio";
+            continue;
+        }
+        files.push_back(arg);
+    }
+    if (mode == "--check") {
+        if (files.empty()) {
+            std::cerr << "用法：lsp-server --check FILE...\n";
+            return 2;
+        }
+        int errors = 0;
+        for (const std::string& file : files) {
+            std::string text;
+            if (!readWholeFile(file, text)) {
+                std::cout << file << ": error: 无法读取文件\n";
+                ++errors;
+                continue;
+            }
+            const std::string report = Server::checkText(text, file);
+            std::cout << report;
+            if (report.find(": error:") != std::string::npos) ++errors;
+        }
+        return errors == 0 ? 0 : 1;
+    }
+    Server server;
+    return runStdioServer(server, std::cin, std::cout, std::cerr);
 }
 
 } // namespace lsp

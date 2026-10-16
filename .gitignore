@@ -74,6 +74,9 @@ Thumbs.db
 # VS Code 插件的打包产物
 /vscode/dist/
 
+# 内嵌进插件的编译器：打包前由 vscode/tools/embed-compiler.js 从 build/bin/ 拷过来
+/vscode/bin/
+
 # Rust 构建产物：`library/transfer-rust/target/` 是「从仓库根跑 cargo」时的落点；
 # 在 crate 目录里跑时按它的 .cargo/config.toml 落到 /build/transfer/rust（/build/ 已忽略）
 /library/transfer-rust/target/

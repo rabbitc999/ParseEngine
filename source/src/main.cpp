@@ -28,12 +28,14 @@
 #include "ParseEngine/chart_grammar.hpp"
 #include "ParseEngine/error.hpp"
 #include "ParseEngine/grammar_loader.hpp"
+#include "ParseEngine/manual.hpp"
 #include "ParseEngine/mermaid.hpp"
 #include "ParseEngine/preprocessor.hpp"
 #include "ParseEngine/project.hpp"
 #include "ParseEngine/utils.hpp"
 #include "ParseEngine/i18n.hpp"
 #include "ParseEngine/package.hpp"
+#include "lsp/lsp.hpp"
 
 namespace
 {
@@ -63,6 +65,8 @@ struct CommandLine
     bool preprocessOnly = false;      ///< [调试] 只跑条件编译预处理并打印结果
     bool dumpSections = false;        ///< [调试] 只打印收集到的 %epilogue / %main 段
     bool syntaxOnly = false;          ///< 只保留词法/产生式，供解析预览生成纯语法树
+    /// RESULT.md 里带完整分析报告（--full-report；缺省简化版，省略末尾那一节）
+    bool fullReport = false;
     bool clearCommand = false;        ///< 使用位置子命令 clear
     bool help = false;                ///< 是否请求帮助
 };
@@ -88,6 +92,9 @@ void printUsage(const std::string &program)
         << "  --out-dir 目录        输出目录（默认 . 当前目录）\n"
         << "  --grammar-file 文件   文法文件（与位置参数等价，二者只能给一个）\n"
         << "  --report 文件         把文法分析报告另存为 UTF-8 文本\n"
+        << "  --full-report         RESULT.md 里带上完整分析报告：默认是简化版，写到\n"
+        << "                        「未消解冲突」就收尾，省略末尾的「## 文法分析报告」\n"
+        << "                        （那一节的正文随时可以用 --report 文件单独导出）\n"
         << "  --mode {ll1,lr0,slr,lalr,lr1,ielr,lrk,lalrk,glr,earley,cyk,dd} 生成模式（默认 ielr）\n"
         << "                        文法没写 %mode 时用它。lr0 / lr1 算规范 LR(0) / LR(1)\n"
         << "                        自动机与分析表，不用任何开关就能用，未消解冲突\n"
@@ -148,6 +155,11 @@ void printUsage(const std::string &program)
         << "  --dump-mermaid        打印 Mermaid 状态机图（文法 LR 自动机与词法 DFA）\n"
         << "  -h, --help            显示本帮助\n"
         << "  --ui-lang zh|en|ja|auto 显示语言；默认自动检测，与 --lang 目标语言独立\n"
+        << "  lsp [--stdio|--check FILE...]  内嵌的 `.gram` 语言服务器（编辑器用法；\n"
+        << "                        与 library/lsp 独立构建的 lsp-server 同参数同输出）\n"
+        << "  man [目标] [--json]   内嵌手册：列出文档页、文法指令、生成模式、目标语言\n"
+        << "                        与示例；`man <页>` 显示正文，`man --search <文本>` 搜\n"
+        << "                        关键词，`man --help` 看全部用法（--lang 选正文语言）\n"
         << "  zip [out FILE.zip]    调用 Python 3.11+ 发布脚本打包当前可执行文件\n"
         << "\n"
         << "文法指令（%token / %define / %mode / %if …，含 %token NAME include \"csv\"\n"
@@ -287,6 +299,10 @@ bool parseArguments(int argc, char **argv, CommandLine &parsed)
         else if (arg == "--no-teach")
         {
             parsed.teach = false;
+        }
+        else if (arg == "--full-report")
+        {
+            parsed.fullReport = true;
         }
         else if (arg.rfind("--out-dir", 0) == 0)
         {
@@ -489,6 +505,22 @@ int main(int argc, char **argv)
         if(argc==4 && (arguments[2]=="out" || arguments[2]=="--out"))output=arguments[3];
         else if(argc!=2){std::cerr<<PE_TEXT("错误：zip 只接受 out FILE.zip 或 --out FILE.zip\n");return 2;}
         return ParseEngine::packageExecutable(argv[0],output);
+    }
+    // LSP 内嵌在生成器里：library/lsp 的 json/grammar/lsp 三份源码一起编进这个
+    // 可执行文件，`ParseEngine lsp --stdio` 就是一份完整的 `.gram` 语言服务器，
+    // 参数、退出码与独立 lsp-server 一致（见 library/lsp/README.md）。放在
+    // parseArguments 之前：`lsp` 是场景子命令，后面的选项归它自己解析。
+    //
+    // 传参要错开一位：lsp::runCommandLine 是按"argv[0] 是可执行文件名"写的，
+    // 从 argv[1] 开始扫选项。整体传进去的话它会把 `lsp` 当成待校验的文件名，
+    // 于是多报一条"lsp: error: 无法读取文件"、退出码也永远是 1。
+    if(argc>1 && arguments[1]=="lsp"){
+        return lsp::runCommandLine(argc-1,argv+1);
+    }
+    // 内嵌手册同理：doc/ 的正文在构建期被 tools/embed_manual.py 压进
+    // source/src/manual_data.cpp，`ParseEngine man` 运行时不需要 doc/ 目录。
+    if(argc>1 && arguments[1]=="man"){
+        return ParseEngine::Manual::runCommandLine(argc,argv);
     }
     CommandLine options;
     if (!parseArguments(argc, argv, options))
@@ -1424,6 +1456,10 @@ int main(int argc, char **argv)
         lineInfo.mainLines = &cfg.mainBlockLines;
         request.lines = &lineInfo;
         request.reportText = report;
+        // RESULT.md 默认是简化版（到「未消解冲突」为止）；--full-report 才把
+        // 分析报告全文也钉进文档末尾。报告本身照旧生成：--report 要写文件、
+        // 教学提示的终端提醒也看它。
+        request.fullReport = options.fullReport;
         // --lang gram：把文法原文件导出到产物目录，所以这里留一份原文
         // （读的是 --grammar-file / 位置参数给的原始文件；没给文件时就是
         // 内建的 default_grammar.gram）。别的目标语言不用这一份。

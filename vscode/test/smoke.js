@@ -5,7 +5,11 @@
  *
  * 覆盖两条链路：
  *   1. LSP：握手 → 打开文档 → 诊断 → 悬停 / 补全 / 跳转 / 大纲 / 格式化 / 快速修复；
- *   2. 生成：ParseEngine 产出 Python 与 C++17 产物，以及 `lsp-server --check` 的输出解析。
+ *   2. 生成：ParseEngine 产出 Python 与 C++17 产物，以及 `ParseEngine lsp --check` 的输出解析。
+ *
+ * 语言服务器已内嵌进生成器，所以这里只需要一个 ParseEngine 可执行文件；
+ * 想测独立构建的 `lsp-server` 时，把路径塞进环境变量 `LSP_SERVER` 即可
+ * （此时改用原来的 `--stdio` / `--check` 参数形状）。
  *
  * 用法：
  *   node vscode/test/smoke.js
@@ -81,16 +85,17 @@ function openAndWait(client, uri, text, languageId = 'gram') {
 /**
  * 跑一遍 LSP 全流程。
  *
- * @param {string} lspServer lsp-server 路径。
+ * @param {string} lspCommand 语言服务器可执行文件（内嵌时就是 ParseEngine）。
+ * @param {string[]} lspArgs 启动服务器用的前置参数，内嵌为 `['lsp', '--stdio']`。
  * @param {string} file 示例文法。
  * @param {boolean} expectErrors true 表示这个示例本来就该报错。
  */
-async function testLsp(lspServer, file, expectErrors) {
+async function testLsp(lspCommand, lspArgs, file, expectErrors) {
   const name = path.basename(file);
   console.log(`\n== LSP：${name} ==`);
 
   // 1. 起服务器、握手。
-  const client = new LspClient(lspServer, ['--stdio']);
+  const client = new LspClient(lspCommand, lspArgs);
   client.on('log', () => {});
   await client.start();
   await client.initialize();
@@ -175,11 +180,12 @@ async function testLsp(lspServer, file, expectErrors) {
  * 测试生成与 `--check`。
  *
  * @param {string} parseEngine ParseEngine 路径。
- * @param {string} lspServer lsp-server 路径。
+ * @param {string} lspCommand 语言服务器可执行文件（`--check` 走它）。
+ * @param {string[]} checkArgs `--check` 的前置参数，内嵌为 `['lsp', '--check']`。
  * @param {string} pythonGrammar 用于生成 Python 产物的文法。
  * @param {string} cppGrammar 用于生成 C++17 产物的文法（也是干净文法）。
  */
-async function testGenerate(parseEngine, lspServer, pythonGrammar, cppGrammar) {
+async function testGenerate(parseEngine, lspCommand, checkArgs, pythonGrammar, cppGrammar) {
   console.log('\n== 生成：ParseEngine ==');
 
   // 1. Python：免编译，产物少，当作主用例。
@@ -210,14 +216,20 @@ async function testGenerate(parseEngine, lspServer, pythonGrammar, cppGrammar) {
   check('生成：产出 parser.cpp', fs.existsSync(path.join(cppDir, 'parser.cpp')));
 
   // 3. --check：干净文法没有错误，坏例子能解析出错误。
-  const clean = await engine.checkGrammar(lspServer, cppGrammar);
+  //    退出码也要对：干净 0、有错 1（`ParseEngine lsp` 的子命令分派曾经把 `lsp`
+  //    自己当文件读，于是干净文法也返回 1、还多一条"无法读取文件"，这里盯着它）。
+  const clean = await engine.checkGrammar(lspCommand, checkArgs, cppGrammar);
   console.log(`   校验（干净）：退出码 ${clean.code}，诊断 ${clean.diagnostics.length} 条`);
+  check('校验：干净文法退出码为 0', clean.code === 0);
   check('校验：干净文法没有错误诊断', clean.diagnostics.every((item) => item.severity !== 1));
 
   const brokenPath = path.join(path.dirname(cppGrammar), 'sample_broken.gram');
-  const broken = await engine.checkGrammar(lspServer, brokenPath);
-  console.log(`   校验（坏例子）：诊断 ${broken.diagnostics.length} 条`);
+  const broken = await engine.checkGrammar(lspCommand, checkArgs, brokenPath);
+  console.log(`   校验（坏例子）：退出码 ${broken.code}，诊断 ${broken.diagnostics.length} 条`);
+  check('校验：坏例子退出码为 1', broken.code === 1);
   check('校验：坏例子解析出错误诊断', broken.diagnostics.some((item) => item.severity === 1));
+  // info 是"能编但值得看一眼"，不能算进错误里。
+  check('校验：info 归到提示级', broken.diagnostics.some((item) => item.severity === 3));
 
   // 4. 清理临时目录。
   fs.rmSync(pythonDir, { recursive: true, force: true });
@@ -256,10 +268,12 @@ async function testPreview(parseEngine, grammarFile) {
  * 入口。
  */
 async function main() {
-  // 1. 定位工具：找不到就直接失败，后面测不了。
+  // 1. 定位工具：找不到就直接失败，后面测不了。走插件同一条定位链
+  //    （显式路径 → 仓库 build/bin → 插件自带 bin → PATH）。
   const repoRoot = tools.findRepoRoot(process.cwd());
   check('定位仓库根', !!repoRoot);
-  const parseEngine = process.env.PARSE_ENGINE || tools.findParseEngine(repoRoot);
+  const resolved = tools.resolveTools(repoRoot || process.cwd(), {});
+  const parseEngine = process.env.PARSE_ENGINE || resolved.parseEngine;
   check('找到 ParseEngine', !!parseEngine);
   if (!repoRoot || !parseEngine) {
     console.log(`\n共 ${checks} 项检查，失败 ${failures} 项`);
@@ -272,23 +286,24 @@ async function main() {
     process.exit(failures === 0 ? 0 : 1);
   }
 
-  const lspServer = process.env.LSP_SERVER || tools.findLspServer(repoRoot);
-  check('找到 lsp-server', !!lspServer);
-  if (!lspServer) {
-    console.log(`\n共 ${checks} 项检查，失败 ${failures} 项`);
-    process.exit(1);
-  }
+  // 2. 语言服务器：默认用内嵌的那份；`LSP_SERVER` 指到独立构建时换回老参数。
+  const standalone = process.env.LSP_SERVER || '';
+  const lspCommand = standalone || parseEngine;
+  const lspArgs = standalone ? ['--stdio'] : [tools.LSP_SUBCOMMAND, '--stdio'];
+  const checkArgs = standalone ? ['--check'] : [tools.LSP_SUBCOMMAND, '--check'];
+  check(standalone ? '找到独立 lsp-server' : '语言服务器内嵌在 ParseEngine 里', !!lspCommand);
 
-  // 2. LSP 全流程：干净示例 + 坏示例。
+  // 3. LSP 全流程：干净示例 + 坏示例。
   const sample = path.join(repoRoot, 'library', 'lsp', 'examples', 'sample.gram');
   const broken = path.join(repoRoot, 'library', 'lsp', 'examples', 'sample_broken.gram');
-  await testLsp(lspServer, sample, false);
-  await testLsp(lspServer, broken, true);
+  await testLsp(lspCommand, lspArgs, sample, false);
+  await testLsp(lspCommand, lspArgs, broken, true);
 
-  // 3. 生成与校验。
+  // 4. 生成与校验。
   await testGenerate(
     parseEngine,
-    lspServer,
+    lspCommand,
+    checkArgs,
     path.join(repoRoot, 'example', 'python_demo.gram'),
     sample,
   );

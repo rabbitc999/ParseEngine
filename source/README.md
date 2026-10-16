@@ -3,7 +3,7 @@
 > 这是**生成器本体**的说明文档（命令行、模板、产物形态、构建与小测）。
 > 项目总览、Magel 语言与全仓目录见根目录 [README](../README.md)。
 
-命令行支持 `--ui-lang zh|en|ja|auto`，独立于 `--lang` 代码生成目标。Windows Unicode 输出与 Python ZIP 发布脚本见 [13 显示语言与打包](../doc/16-i18n-and-packaging.md)。
+命令行支持 `--ui-lang zh|en|ja|auto`，独立于 `--lang` 代码生成目标。内嵌手册（`ParseEngine man`）、内嵌语言服务器（`ParseEngine lsp`）、Windows Unicode 输出与 Python ZIP 发布脚本见 [16 显示语言、内嵌资产与发布](../doc/16-i18n-and-packaging.md)。
 
 
 <img src="../image/gram-editor-256.png" alt="GramEditor 图标" width="120" align="right" />
@@ -455,6 +455,9 @@ printf 'x := 1 + 2 * 3 .' | dotnet run
                         只删除产物清单登记的生成文件，保留其他文件
   --grammar-file 文件   输入 .gram 文法（与位置参数等价，二者只能留一个）
   --report 文件         把文法分析报告另存为 UTF-8 文本
+  --full-report         RESULT.md 里带上完整分析报告：默认是简化版，写到
+                        「未消解冲突」就收尾，省略末尾的「## 文法分析报告」
+                        （那一节的正文随时可以用 --report 文件单独导出）
   --mode {ll0,ll1,llk,lr0,slr,slrk,lalr,lalrk,lr1,lrk,ielr,glr,earley,cyk,dd,lex}
                         生成模式（默认 ielr；覆盖 %mode；语言支持范围见 doc/12）
                         lr0 / lr1 算规范 LR(0) / LR(1) 自动机与分析表：不用任何
@@ -491,6 +494,11 @@ printf 'x := 1 + 2 * 3 .' | dotnet run
   --dump-slr-tables     打印 ACTION / GOTO 表
   --dump-mermaid        打印 Mermaid 状态机图（文法自动机 + 词法 DFA；任何模式下
                         都能用，没有可画的图时提示一句）
+  lsp [--stdio|--check FILE...]  内嵌的 `.gram` 语言服务器（编辑器用法；与
+                        library/lsp 独立构建的 lsp-server 同参数同输出）
+  man [目标] [--json]   内嵌手册：文档页 / %指令 / 生成模式 / 目标语言 / 示例
+                        （`man <页>` 看正文，`man --search <词>` 搜关键词）
+  zip [out FILE.zip]    用 Python 3.11+ 发布脚本打包当前可执行文件
   -h, --help            显示帮助
 ```
 
@@ -498,10 +506,12 @@ printf 'x := 1 + 2 * 3 .' | dotnet run
 这种从 CSV 追加字面量别名的写法）见 [`doc/12-grammar-usage.md`](../doc/12-grammar-usage.md)
 与 [`doc/05-grammar.md`](../doc/05-grammar.md)。
 
-生成完成后控制台只打一行 `解析完成，解析详情参考 <out-dir>/RESULT.md`：文法分析
-报告（最终产生式 / FIRST / FOLLOW / 自动机 / 冲突记录）与产物清单都写在产物目录
-的 `RESULT.md` 里，不再往终端倒。要在终端看自动机或表用 `--dump-lr-automaton` /
-`--dump-slr-tables`，要单独存一份报告用 `--report 文件`。
+生成完成后控制台只打一行 `解析完成，解析详情参考 <out-dir>/RESULT.md`：产物清单、
+生成信息、冲突消解与未消解冲突都写在产物目录的 `RESULT.md` 里，不再往终端倒。
+**`RESULT.md` 默认是简化版**——末尾的「文法分析报告」（最终产生式 / FIRST /
+FOLLOW / 自动机 / 冲突明细）不写进去；要它就用 `--full-report`（贴进 `RESULT.md`）
+或 `--report 文件`（单独存一份，两者正文逐字相同）。要在终端看自动机或表用
+`--dump-lr-automaton` / `--dump-slr-tables`。
 
 ## 构建与小测
 

@@ -363,10 +363,11 @@ done
 
 | 手段 | 作用 |
 | --- | --- |
-| `--report FILE` | 把分析报告写到文件（内容与 `RESULT.md` 的报告段一致） |
+| `--report FILE` | 把分析报告写到文件（内容与 `--full-report` 贴进 `RESULT.md` 的那段逐字一致） |
+| `--full-report` | `RESULT.md` 里带上整份分析报告；默认是简化版，写到「未消解冲突」就收尾 |
 | `--dump-lr-automaton` | 打印 LR(0)/SLR/LALR/LR(1)/IELR 状态、项集与转移 |
 | `--dump-slr-tables` | 打印 ACTION / GOTO 表 |
-| `RESULT.md` | 生成信息 + 冲突消解记录 + 报告，产物目录里直接看 |
+| `RESULT.md` | 生成信息 + 冲突消解 + 未消解冲突（加 `--full-report` 再带报告全文），产物目录里直接看 |
 | `SCRIPT_ENGINE_TEMPLATES=templates` | 改模板即时生效，不用重跑内联脚本 |
 
 改分析算法时的建议：先 `--report` / `--dump-*` 看项集与表，再按 §4 的手工小测

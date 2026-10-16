@@ -105,6 +105,16 @@ struct ProjectRequest
     std::size_t classBodyLine = 0u;
     std::string sourceName;                     ///< 文法文件名
     std::string reportText;                     ///< 分析报告文本
+    /**
+     * @brief RESULT.md 是否带上分析报告全文（命令行 `--full-report`）。
+     *
+     * 缺省 false = 简化版报告：写到「未消解冲突」就收尾，不带末尾那一节
+     * `## 文法分析报告`（正文与 `{{ report }}` 一致，随时可用 `--report FILE`
+     * 单独导出）。true 时那一节照旧输出——C99 / C++17 / Python 走模板里的
+     * `{% if full_report %}`，C# / Rust / Go 由 appendFullReport 补上。
+     * `--lang gram` 导出的 `<文法名>.analysis.md` 本身就是报告，不受影响。
+     */
+    bool fullReport = false;
     const PriorityConfig *priority = nullptr;   ///< 优先级配置
     const LexSpec *lexSpec = nullptr;           ///< 词法扩展配置
     std::string userCode;                       ///< %code 拼接内容

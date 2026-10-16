@@ -6,12 +6,16 @@
  * 为什么需要它：test/smoke.js 只测 src/ 下的纯 Node 模块，测不到 extension.js
  * 本身（它第一行就 require('vscode')）。这里把 `vscode` 换成一个最小实现，
  * 就能在没有 VS Code 的机器上验证：
- *   1. activate 注册了 8 个语言 provider 与 6 个命令；
- *   2. 语言服务器真的被启动起来了（状态栏变成"运行中"）；
+ *   1. activate 注册了 6 个语言 provider 与 5 个命令（只针对 `.gram`）；
+ *   2. 语言服务器真的被启动起来了（状态栏变成"运行中"）——走的是内嵌的
+ *      `ParseEngine lsp --stdio`；
  *   3. deactivate 会把服务器关掉。
  *
  * 用法：
  *   node vscode/test/extension-smoke.js
+ *
+ * 想换成独立编译的 lsp-server：设 `LSP_SERVER`。想指定别的 ParseEngine：
+ * 设 `PARSE_ENGINE`。
  */
 
 const Module = require('node:module');
@@ -224,8 +228,12 @@ function createVscodeStub(workspacePath) {
     workspace: {
       workspaceFolders: [{ uri: { fsPath: workspacePath } }],
       textDocuments: [],
-      getConfiguration: () => ({ get: (key, fallback) =>
-        key === 'lspServerPath' ? (process.env.LSP_SERVER || fallback) : fallback }),
+      getConfiguration: () => ({ get: (key, fallback) => {
+        // 语言服务器默认内嵌在编译器里；`LSP_SERVER` 用来临时换成独立构建的那份。
+        if (key === 'lspServerPath') return process.env.LSP_SERVER || fallback;
+        if (key === 'parseEnginePath') return process.env.PARSE_ENGINE || fallback;
+        return fallback;
+      } }),
       onDidChangeConfiguration: disposable,
       onDidOpenTextDocument: disposable,
       onDidChangeTextDocument: disposable,
@@ -327,11 +335,11 @@ async function main() {
     const kinds = state.providers.map((item) => item.kind).sort();
     console.log(`   注册的能力：${kinds.join('、')}`);
     check('注册了 6 个语言能力', state.providers.length === 6);
-    // `.mgl`（Magel）归 magel/vscode 插件，`.metro` / `.m`（MetroLang）归
-    // metro-lang/vscode 插件；这里只认 .gram。
-    check('不声明 .mgl 与 .metro',
-      !state.providers.some((item) =>
-        item.selector.some((entry) => entry.language === 'magel' || entry.language === 'metro-lang')));
+    // `.mgl`（Magel）归 magel/vscode 插件，MetroLang 的编辑器也已经从这个仓库搬走；
+    // 本插件只认 `.gram` 一个语言。
+    check('只注册 .gram 一个语言',
+      state.providers.every((item) =>
+        item.selector.every((entry) => entry.language === 'gram')));
     check('宏补全支持 $ 触发', state.providers.some((item) =>
       item.kind === 'completion' && item.triggers.includes('$')));
     check('包含悬停 / 补全 / 跳转 / 大纲 / 格式化 / 快速修复', [

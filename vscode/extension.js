@@ -1,10 +1,12 @@
 'use strict';
 
 /**
- * VS Code 插件入口：把编辑器接到仓库自带的 lsp-server 与 ParseEngine。
+ * VS Code 插件入口：把编辑器接到插件自带 / 仓库里的 ParseEngine。
  *
  * 设计取舍：
  *   - 不依赖任何 npm 包（`vscode` 由宿主提供），因此不需要构建步骤，也不需要联网；
+ *   - 语言服务器内嵌在生成器里：进程是 `ParseEngine lsp --stdio`，不需要单独的
+ *     `lsp-server`，发布包里直接带上 `bin/ParseEngine(.exe)`；
  *   - 语言能力全在 src/providers.js，协议在 src/lspClient.js，命令行在 src/parseEngine.js；
  *   - 后两个文件不引用 `vscode`，可以在纯 Node 下单独测试（见 test/smoke.js）。
  */
@@ -22,7 +24,7 @@ const previewPanel = require('./src/previewPanel');
 /** 文档改动后多久同步给服务器（毫秒）：跟打字节奏配合，避免每键一次往返。 */
 const CHANGE_DEBOUNCE_MS = 300;
 
-/** @type {LspClient|null} 当前的 lsp-server 客户端。 */
+/** @type {LspClient|null} 当前的语言服务器客户端（内嵌在 ParseEngine 里）。 */
 let client = null;
 
 /** @type {vscode.DiagnosticCollection|null} 诊断集合。 */
@@ -156,24 +158,27 @@ async function startServer(context) {
   await stopServer();
   setStatus('启动中…');
 
-  // 1. 定位 lsp-server：设置里的路径优先，否则在仓库里自动探测。
+  // 1. 定位编译器：设置里的路径优先，其次是插件自带的 bin/，最后在仓库里自动探测。
   const config = readConfig();
   const resolved = tools.resolveTools(workspaceDir(), config);
-  if (!resolved.lspServer) {
-    setStatus('未找到 lsp-server');
-    logLine('没找到 lsp-server：先跑 `make -C library/lsp`，或在设置里指定 gram.lspServerPath。');
+  if (!resolved.lspCommand) {
+    setStatus('未找到 ParseEngine');
+    logLine(
+      '没找到 ParseEngine：打开插件的 bin/ 目录不方便时，' +
+        '可以在设置里指定 gram.parseEnginePath，或把 ParseEngine 放进 PATH。',
+    );
     const choice = await vscode.window.showWarningMessage(
-      'GramEditor：没找到 lsp-server，.gram 的诊断 / 补全等功能暂不可用。',
+      'GramEditor：没找到 ParseEngine，.gram 的诊断 / 补全等功能暂不可用。',
       '打开设置',
     );
     if (choice === '打开设置') {
-      void vscode.commands.executeCommand('workbench.action.openSettings', 'gram.lspServerPath');
+      void vscode.commands.executeCommand('workbench.action.openSettings', 'gram.parseEnginePath');
     }
     return;
   }
 
-  // 2. 起进程并握手。
-  const instance = new LspClient(resolved.lspServer, ['--stdio'], {
+  // 2. 起进程并握手（内嵌的那份是 `ParseEngine lsp --stdio`）。
+  const instance = new LspClient(resolved.lspCommand, resolved.lspArgs, {
     cwd: resolved.repoRoot || workspaceDir() || undefined,
   });
   instance.on('diagnostics', (event) => publishDiagnostics(event));
@@ -400,7 +405,7 @@ async function ensureSaved(document) {
 }
 
 /**
- * 命令：校验当前文法（`lsp-server --check`）。
+ * 命令：校验当前文法（`ParseEngine lsp --check`）。
  */
 async function checkActiveGrammar() {
   const document = activeGrammarDocument();
@@ -410,14 +415,16 @@ async function checkActiveGrammar() {
   if (!file) return;
 
   const resolved = tools.resolveTools(workspaceDir(), readConfig());
-  if (!resolved.lspServer) {
-    void vscode.window.showWarningMessage('GramEditor：没找到 lsp-server，先跑 `make -C library/lsp`。');
+  if (!resolved.lspCommand) {
+    void vscode.window.showWarningMessage(
+      'GramEditor：没找到 ParseEngine，先跑 `make -C source` 或在设置里指定路径。',
+    );
     return;
   }
 
   // 1. 跑一次 --check，原始输出写进输出面板。
-  const result = await engine.checkGrammar(resolved.lspServer, file);
-  logLine(`$ lsp-server --check "${file}"`);
+  const result = await engine.checkGrammar(resolved.lspCommand, resolved.checkArgs, file);
+  logLine(`$ ${resolved.lspCommand} ${resolved.checkArgs.join(' ')} "${file}"`);
   logLine(result.output || '（无输出）');
 
   // 2. 解析出的诊断刷进编辑器，和实时诊断保持同一套显示。
@@ -432,7 +439,7 @@ async function checkActiveGrammar() {
         ? vscode.DiagnosticSeverity.Warning
         : vscode.DiagnosticSeverity.Error,
     );
-    item.source = 'lsp-server --check';
+    item.source = 'ParseEngine lsp --check';
     return item;
   });
   if (diagnosticCollection) diagnosticCollection.set(document.uri, items);
@@ -542,23 +549,59 @@ async function previewActiveGrammar() {
 }
 
 /**
- * 命令：打开文法指令手册（仓库里的 doc/12-grammar-usage.md）。
+ * 命令：打开文法指令手册。
+ *
+ * 在仓库里就直接开 `doc/12-grammar-usage.md`（能编辑、能搜）；装成 `.vsix` 单独用时
+ * 没有仓库，就退回编译器里的内嵌手册（`ParseEngine man 12-grammar-usage`），
+ * 放到一个只读的虚拟文档里看。
  */
 async function openGrammarDoc() {
   const resolved = tools.resolveTools(workspaceDir(), readConfig());
-  if (!resolved.repoRoot) {
-    void vscode.window.showWarningMessage('GramEditor：没定位到仓库根，找不到指令手册。');
-    return;
+
+  // 1. 仓库里的 Markdown 优先。
+  if (resolved.repoRoot) {
+    const docPath = path.join(resolved.repoRoot, 'doc', '12-grammar-usage.md');
+    if (fs.existsSync(docPath)) {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(docPath));
+      await vscode.window.showTextDocument(doc, { preview: true });
+      return;
+    }
   }
 
-  const docPath = path.join(resolved.repoRoot, 'doc', '12-grammar-usage.md');
-  if (!fs.existsSync(docPath)) {
-    void vscode.window.showWarningMessage(`GramEditor：没找到 ${docPath}。`);
+  // 2. 没有仓库就用内嵌手册。
+  if (!resolved.parseEngine) {
+    void vscode.window.showWarningMessage(
+      'GramEditor：没定位到仓库，也没找到 ParseEngine，看不了指令手册。',
+    );
     return;
   }
+  const result = await engine.runProcess(
+    resolved.parseEngine,
+    ['man', '12-grammar-usage', '--lang', manualLanguage()],
+    { timeoutMs: 30000 },
+  );
+  if (result.code !== 0) {
+    logLine(result.output);
+    void vscode.window.showWarningMessage('GramEditor：内嵌手册读取失败，详见输出面板。');
+    return;
+  }
+  const document = await vscode.workspace.openTextDocument({
+    content: result.output,
+    language: 'markdown',
+  });
+  await vscode.window.showTextDocument(document, { preview: true });
+}
 
-  const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(docPath));
-  await vscode.window.showTextDocument(doc, { preview: true });
+/**
+ * 内嵌手册用哪种正文语言：跟着 VS Code 的显示语言走，非中文一律用英文。
+ *
+ * @returns {string} `zh`、`en` 或 `ja`。
+ */
+function manualLanguage() {
+  const language = (vscode.env.language || '').toLowerCase();
+  if (language.startsWith('zh')) return 'zh';
+  if (language.startsWith('ja')) return 'ja';
+  return 'en';
 }
 
 module.exports = {

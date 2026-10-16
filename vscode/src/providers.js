@@ -3,8 +3,9 @@
 /**
  * VS Code 语言能力：悬停、补全、跳转定义、文档大纲、格式化、快速修复。
  *
- * 这里只做「翻译」——把 lsp-server 的结果换成 VS Code 类型，协议细节都在
- * src/lspClient.js 里。所有能力在服务器没起来时都安静地返回空结果。
+ * 这里只做「翻译」——把内嵌语言服务器（`ParseEngine lsp --stdio`）的结果换成
+ * VS Code 类型，协议细节都在 src/lspClient.js 里。所有能力在服务器没起来时都
+ * 安静地返回空结果。
  */
 
 const vscode = require('vscode');
@@ -12,12 +13,7 @@ const vscode = require('vscode');
 /** 语言 id，与 package.json 里的 contributes.languages 保持一致。 */
 const LANGUAGE_ID = 'gram';
 
-/**
- * lsp-server 认得的语言（`.gram`）。
- *
- * `.mgl`（Magel）由 `magel/vscode/` 那个插件负责，`.metro` / `.m`（MetroLang）由
- * metro-lang/vscode 那个插件负责，这里不再声明。
- */
+/** 这个插件只认 `.gram`。 */
 const isSupportedLanguage = (languageId) => languageId === LANGUAGE_ID;
 
 /** 语言选择器：磁盘文件与未命名文档都要支持。 */

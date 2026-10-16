@@ -20,7 +20,7 @@ C99 产物（`--lang c`）默认 10 个文件（C++17 产物的清单见 §1.1�
 | `main.c` | 入口：默认是生成器内建的 demo main；写了 `%main`（且条件编译后只有一段生效）时换成用户正文 |
 | `Makefile` | `make` → `libparser.a` + `parser_demo` |
 | `CMakeLists.txt` | 与 `Makefile` 等价的 CMake 目标（`parser` + `parser_demo`） |
-| `RESULT.md` | 生成信息、产物清单、冲突记录、分析报告 |
+| `RESULT.md` | 生成信息、产物清单、冲突消解与未消解冲突（分析报告全文默认不写，见 §1.7） |
 
 `%copy` 的文件会追加进产物目录，其中的 `.c` / `.h` 同时计入 `Makefile`
 与 `CMakeLists.txt`。
@@ -309,6 +309,44 @@ $ printf 'x := 1 , 2 .' | ./parser_demo
 $ printf 'begn x := 1 .' | ./parser_demo
 解析失败: code=-26 line=1 column=6 message=语法错误：期望 ASSIGN，实际是 VARIABLE
 ```
+
+### 1.7 `RESULT.md`：默认简化版
+
+`RESULT.md` 是产物目录里唯一的一份说明书，按固定顺序写这些小节：
+
+```text
+# 生成结果
+## 生成信息           源文法 / 生成模式 / 目标语言 / %tree / %teach / %mermaid /
+                      优先级指令 / %expect / %token regex / %identifier
+（语言与兼容提示）     目标语言专属说明、%sync、容量宏、%epilogue / %main 段、
+                      LL(k) 展望符、IELR 状态拆分、Mermaid 图
+## 产物文件           本次写了哪些文件
+（可选小节）          公开 API 示例、位置信息与 %commit、编译运行、运行时与内存、
+                      语法树、图表——写了对应特性才有
+## 冲突消解           每条被 %left / %right / %prec 消掉的冲突
+## 未消解冲突         没能消掉的移进/归约、归约/归约冲突
+```
+
+**末尾的「`## 文法分析报告`」默认不写**：那一节的正文是逐一展开的最终产生式 /
+FIRST / FOLLOW 表 / 自动机 / 冲突明细，动辄几百行，只在排查文法问题时才看，
+钉进每个产物目录不合适。要看它有两种方式，拿到的是**同一份文本**：
+
+| 方式 | 效果 |
+| --- | --- |
+| `--full-report` | 把报告全文贴进 `RESULT.md` 末尾的 ```` ```text ```` 代码块 |
+| `--report 文件` | 把报告另存为 UTF-8 文本（与 `--full-report` 贴进去的那段逐字相同） |
+
+```sh
+ParseEngine example/calc.gram --out-dir out --lang c              # 简化版 RESULT.md
+ParseEngine example/calc.gram --out-dir out --full-report         # RESULT.md 带整份报告
+ParseEngine example/calc.gram --out-dir out --report calc-report.txt   # 报告单独成文件
+```
+
+报告内容随 `--mode` 变化（换模式再生成一次就是另一套分析，产生式 / FIRST /
+FOLLOW / 状态机 / 冲突各不相同）。六档代码后端里，C99 / C++17 / Python 的
+`RESULT.md` 走模板，C# / Rust / Go 是另一套实现，但 `--full-report` 在六档上都
+会把这一节附在末尾；`--lang gram` 那一档导出的 `<文法名>.analysis.md` **本身就是
+报告**（见 §13），不受这个开关影响；`java` / `js` 两个窄后端不写 `RESULT.md`。
 
 ## 2. 解析入口（C99 产物）
 
@@ -783,7 +821,7 @@ Python 产物只有 `parser.py` / `main.py` 两个文件（外加 `%mermaid` 的
 | --- | --- |
 | `parser.py` | `import` + 用户代码（`%code ... %endcode`，见 §10.5）+ 模块级常量（状态码、`Token`、`Tree`、`ParserError`）+ 词法表 / 分析表 + 解析器类；写了 `%epilogue` 时末尾再追加一段用户代码 |
 | `main.py` | 演示入口：头注释 + `import parser` + 类名别名 + 内建演示体；写了 `%main` 时正文整段替换演示体 |
-| `RESULT.md` | 生成信息、产物清单、运行说明、冲突消解记录、文法分析报告 |
+| `RESULT.md` | 生成信息、产物清单、运行说明、冲突消解与未消解冲突（分析报告全文默认不写，见 §1.7） |
 
 ### 10.1 模块级常量与函数
 

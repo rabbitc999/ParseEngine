@@ -117,4 +117,17 @@ private:
 /** 标准输入输出上的服务器主循环。 */
 int runStdioServer(Server& server, std::istream& in, std::ostream& out, std::ostream& log);
 
+/**
+ * 命令行入口：`--stdio` / `--check FILE...` / `--version` / `--help`。
+ *
+ * 独立可执行文件 `lsp-server` 与内嵌到 ParseEngine 生成器时的 `ParseEngine lsp`
+ * 共用同一个入口，所以两条路的参数、退出码与输出完全一致。Windows 上会把标准
+ * 输入输出切成二进制模式（LSP 的 `Content-Length` 帧不能做换行转换）。
+ *
+ * @param argc 参数个数（与 `main` 一致，含程序名）。
+ * @param argv 参数数组（UTF-8）。
+ * @return 正常为零；`--check` 有 error 为一；参数错误为二。
+ */
+int runCommandLine(int argc, char** argv);
+
 } // namespace lsp

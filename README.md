@@ -9,7 +9,7 @@ ParseEngine 从一份 `.gram` 文法生成词法器、解析器和可构建的�
 
 ![ParseEngine 解析器生成器总览](tools/overview/ParseEngine-overview.png)
 
-[查看可缩放的总览图](tools/overview/ParseEngine-overview.svg) · [生成器完整手册](source/README.md) · [文档导航](doc/README.md)
+[查看可缩放的总览图](tools/overview/ParseEngine-overview.svg) · [生成器完整手册](source/README.md) · [文档导航](doc/README.md) · [English](README.en.md) / [English docs](doc/en/README.md)
 
 ## 快速开始
 
@@ -21,7 +21,8 @@ make -C build/examples/calc-parser
 
 Windows 上可执行文件为 `build/bin/ParseEngine.exe`。默认目标语言是 C++17，默认分析模式是 IELR(1)；
 命令行的 `--lang`、`--mode` 可覆盖文法里的 `%lang`、`%mode`。生成目录中有源码、构建文件和
-`RESULT.md` 分析报告——状态数、冲突、可解析性都在里面。`.gram` 写法与全部命令行选项见
+`RESULT.md` 分析报告——状态数、冲突、可解析性都在里面（默认是简化版，要末尾那份完整
+报告加 `--full-report`）。`.gram` 写法与全部命令行选项见
 [使用手册](doc/12-grammar-usage.md)。
 
 ## 支持的目标语言与分析模式
@@ -85,7 +86,7 @@ python tools/package_compiler.py ParseEngine   # 打成 ParseEngine-<平台>.zip
 ## 文档与许可
 
 [仓库文档总览](doc/01-overview.md)汇总所有文档；项目故事有[满级文法与一次大扫除](doc/02-gram-legend.md)、
-[一份 .gram，八种语言](doc/05-parseengine-story.md)。协作与生成物维护规则见 [`AGENTS.md`](AGENTS.md)；
+[一份 .gram，八种语言](doc/04-parseengine-story.md)。协作与生成物维护规则见 [`AGENTS.md`](AGENTS.md)；
 许可证见 [`LICENSE`](LICENSE)（MIT）。
 
 ## 相邻工程（分项目）

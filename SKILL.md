@@ -59,7 +59,7 @@ e = parser.Parser(); print(e.run_text(open('a.log').read()), e.result, \
 [str(x) for x in e.errors])"
 ```
 
-产出的 `/tmp/logfmt/` 里只有 `parser.py`（解析器）、`main.py`（演示入口）与 `RESULT.md`（文法分析报告：状态数、冲突消解记录、FIRST/FOLLOW、ACTION/GOTO）。
+产出的 `/tmp/logfmt/` 里只有 `parser.py`（解析器）、`main.py`（演示入口）与 `RESULT.md`（生成信息与冲突消解：状态数、消解记录；加 `--full-report` 才附上 FIRST/FOLLOW、ACTION/GOTO 那份完整报告）。
 
 ## 最小可用模板
 

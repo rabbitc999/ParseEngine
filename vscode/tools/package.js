@@ -14,6 +14,13 @@
  *   node vscode/tools/package.js --skip-tests    # 只打包
  *   node vscode/tools/package.js --list          # 只列出会被打包的文件
  *   node vscode/tools/package.js --out <目录>    # 指定输出目录（默认 vscode/dist）
+ *   node vscode/tools/package.js --universal     # 不打平台标记（默认会按当前平台打）
+ *
+ * 平台标记：包里带的是**当前平台**编译出来的 `ParseEngine`，所以清单的
+ * `Identity` 会写上 `TargetPlatform`、文件名也缀上平台（如 `-win32-x64`），
+ * VS Code 就只会把它装到匹配的机器上——不然 macOS / Linux 用户装上会得到一个
+ * 跑不起来的 Windows 可执行文件。要从源码在别的平台用，就先在那个平台重新
+ * 构建并打包；想强制产出通用包（例如编译器放在 `PATH` 里），加 `--universal`。
  */
 
 const fs = require('node:fs');
@@ -40,12 +47,13 @@ function log(message) {
  * 解析命令行参数。
  *
  * @param {string[]} argv 参数（不含 node 与脚本名）。
- * @returns {{skipTests: boolean, listOnly: boolean, outDir: string}} 解析结果。
+ * @returns {{skipTests: boolean, listOnly: boolean, universal: boolean, outDir: string}} 解析结果。
  */
 function parseArgs(argv) {
   const options = {
     skipTests: false,
     listOnly: false,
+    universal: false,
     outDir: DEFAULT_OUT_DIR,
   };
 
@@ -53,13 +61,26 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (arg === '--skip-tests') options.skipTests = true;
     else if (arg === '--list') options.listOnly = true;
+    else if (arg === '--universal') options.universal = true;
     else if (arg === '--out') options.outDir = path.resolve(argv[++index] || DEFAULT_OUT_DIR);
     else if (arg === '--help' || arg === '-h') {
-      log('用法：node tools/package.js [--skip-tests] [--list] [--out <目录>]');
+      log('用法：node tools/package.js [--skip-tests] [--list] [--universal] [--out <目录>]');
       process.exit(0);
     }
   }
   return options;
+}
+
+/**
+ * 当前平台的 VS Code 平台标识（`TargetPlatform` 属性取值）。
+ *
+ * 形如 `win32-x64` / `darwin-arm64` / `linux-x64`，与 VS Code 的
+ * [平台命名](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#platformspecific-extensions)一致。
+ *
+ * @returns {string} 平台标识。
+ */
+function vscodePlatform() {
+  return `${process.platform}-${process.arch}`;
 }
 
 /**
@@ -307,9 +328,10 @@ function escapeXml(text) {
  *
  * @param {any} pkg package.json 内容。
  * @param {string[]} packagedFiles 已打包的相对路径（用于决定可选资产）。
+ * @param {string} platform VS Code 平台标识；空串表示通用包（不写 `TargetPlatform`）。
  * @returns {string} XML 文本。
  */
-function buildManifest(pkg, packagedFiles) {
+function buildManifest(pkg, packagedFiles, platform) {
   const categories = (pkg.categories || []).join(',');
   const tags = (pkg.keywords || []).join(',');
   const engine = (pkg.engines && pkg.engines.vscode) || '*';
@@ -317,11 +339,12 @@ function buildManifest(pkg, packagedFiles) {
   // 图标：package.json 里声明的相对路径确实进了包，才写进清单。
   const iconRelative = typeof pkg.icon === 'string' ? pkg.icon : '';
   const hasIcon = !!iconRelative && packagedFiles.includes(iconRelative);
+  const target = platform ? ` TargetPlatform="${escapeXml(platform)}"` : '';
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Language="en-US" Id="${escapeXml(pkg.name)}" Version="${escapeXml(pkg.version)}" Publisher="${escapeXml(pkg.publisher || 'local')}" />
+    <Identity Language="en-US" Id="${escapeXml(pkg.name)}" Version="${escapeXml(pkg.version)}" Publisher="${escapeXml(pkg.publisher || 'local')}"${target} />
     <DisplayName>${escapeXml(pkg.displayName || pkg.name)}</DisplayName>
     <Description xml:space="preserve">${escapeXml(pkg.description || '')}</Description>
     <Tags>${escapeXml(tags)}</Tags>
@@ -440,16 +463,17 @@ function main() {
   }
   const pkg = readJson(manifestPath);
 
+  // 先把编译器拷进 bin/：发布出去的 .vsix 自带 ParseEngine（内嵌语言服务器 + 生成器）。
+  runScript('内嵌编译器', 'tools/embed-compiler.js');
+
   const required = [
     'extension.js',
     'language-configuration.json',
-    'metro-language-configuration.json',
+    `bin/ParseEngine${process.platform === 'win32' ? '.exe' : ''}`,
     'syntaxes/gram.tmLanguage.json',
-    'syntaxes/metro.tmLanguage.json',
     'icon.png',
     'README.md',
     'src/lspClient.js',
-    'src/metroFolding.js',
     'src/parseEngine.js',
     'src/providers.js',
     'src/serverLocator.js',
@@ -478,10 +502,13 @@ function main() {
   // 3. 默认先做清单检查与冒烟测试：不通过就不该产出安装包。
   runChecks(options.skipTests);
 
-  // 4. 组装 ZIP 条目：清单与内容类型放根，插件文件放 extension/ 下。
+  // 4. 平台标记：包里带的是当前平台编出来的编译器，所以默认按当前平台标记。
+  const platform = options.universal ? '' : vscodePlatform();
+
+  // 5. 组装 ZIP 条目：清单与内容类型放根，插件文件放 extension/ 下。
   const entries = [
     { name: '[Content_Types].xml', data: Buffer.from(buildContentTypes(files), 'utf8') },
-    { name: 'extension.vsixmanifest', data: Buffer.from(buildManifest(pkg, files), 'utf8') },
+    { name: 'extension.vsixmanifest', data: Buffer.from(buildManifest(pkg, files, platform), 'utf8') },
   ];
   for (const file of files) {
     entries.push({
@@ -490,14 +517,15 @@ function main() {
     });
   }
 
-  // 5. 写文件。
+  // 6. 写文件。
   fs.mkdirSync(options.outDir, { recursive: true });
-  const vsixName = `${pkg.name}-${pkg.version}.vsix`;
+  const vsixName = `${pkg.name}-${pkg.version}${platform ? `-${platform}` : ''}.vsix`;
   const vsixPath = path.join(options.outDir, vsixName);
   const zip = createZip(entries);
   fs.writeFileSync(vsixPath, zip);
 
   log(`\n打包完成：${vsixPath}`);
+  log(`目标平台：${platform || '通用（不带 TargetPlatform，需要机器上自己解决编译器）'}`);
   log(`大小：${(zip.length / 1024).toFixed(1)} KB，条目 ${entries.length} 个`);
   log(`安装：code --install-extension "${vsixPath}"`);
 }

@@ -1,7 +1,20 @@
 'use strict';
 
 /**
- * 工具定位：在仓库里找 lsp-server 与 ParseEngine。
+ * 工具定位：找 ParseEngine（生成器 + 内嵌的 `.gram` 语言服务器）。
+ *
+ * 查找顺序（先命中先用）：
+ *   1. 设置里的显式路径（`gram.parseEnginePath`）；
+ *   2. 仓库里的 `build/bin/`（**只在真的身处源码仓库里时才查**，开发时刚 `make`
+ *      出来的那份最新，不该被旧的打包副本盖住）；
+ *   3. **插件自带的 `bin/`**——发布出去的 `.vsix` 里就有，装上就能用，
+ *      不需要仓库、也不需要另装编译器；
+ *   4. `PATH` 里的 `ParseEngine`。
+ *
+ * 语言服务器不再单独找一个 `lsp-server`：它已经内嵌进生成器，用
+ * `ParseEngine lsp --stdio` 启动、`ParseEngine lsp --check FILE` 校验。
+ * 仍然支持 `gram.lspServerPath` 指到独立构建的 `lsp-server`（老配置 / 自定义构建），
+ * 那条路用原来的 `--stdio` / `--check` 参数。
  *
  * 这个模块故意不依赖 `vscode`，因此可以在纯 Node 下单独测试（见 test/smoke.js）。
  */
@@ -11,6 +24,12 @@ const path = require('node:path');
 
 /** 可执行文件后缀：Windows 上是 .exe，其余平台为空。 */
 const EXE = process.platform === 'win32' ? '.exe' : '';
+
+/** 插件自带的编译器目录（发布包里跟着走）。 */
+const BUNDLED_DIR = path.resolve(__dirname, '..', 'bin');
+
+/** 内嵌语言服务器需要的子命令：`ParseEngine lsp …`。 */
+const LSP_SUBCOMMAND = 'lsp';
 
 /**
  * 从某个目录向上找仓库根。
@@ -54,21 +73,19 @@ function firstExisting(candidates) {
 }
 
 /**
- * 找 lsp-server。
+ * 插件自带的那份编译器（`<插件根>/bin/`）。
  *
- * @param {string|null} repoRoot 仓库根。
  * @returns {string|null} 可执行文件路径。
  */
-function findLspServer(repoRoot) {
-  if (!repoRoot) return null;
+function findBundledCompiler() {
   return firstExisting([
-    path.join(repoRoot, 'build', 'lsp', `lsp-server${EXE}`),
-    path.join(repoRoot, 'build', 'lsp', 'lsp-server'),
+    path.join(BUNDLED_DIR, `ParseEngine${EXE}`),
+    path.join(BUNDLED_DIR, 'ParseEngine'),
   ]);
 }
 
 /**
- * 找 ParseEngine。
+ * 仓库里 `make -C source` 编出来的编译器。
  *
  * @param {string|null} repoRoot 仓库根。
  * @returns {string|null} 可执行文件路径。
@@ -84,42 +101,82 @@ function findParseEngine(repoRoot) {
 }
 
 /**
- * 解析出本次要用的工具集合。
+ * 在 `PATH` 里找编译器。
  *
- * 规则：先看设置里的显式路径，再按仓库约定自动探测；工作区根目录优先用作
- * 向上查找的起点（`workspaceFolders` 为空时退回进程工作目录）。
+ * @returns {string|null} 可执行文件路径。
+ */
+function findOnPath() {
+  const dirs = (process.env.PATH || '').split(path.delimiter);
+  for (const dir of dirs) {
+    if (!dir) continue;
+    const candidate = firstExisting([
+      path.join(dir, `ParseEngine${EXE}`),
+      path.join(dir, 'ParseEngine'),
+    ]);
+    if (candidate) return candidate;
+  }
+  return null;
+}
+
+/**
+ * 解析出本次要用的工具。
+ *
+ * 规则：先看设置里的显式路径，其次（身处源码仓库时）仓库里刚编出来的，
+ * 再退到插件自带的 `bin/`，最后查 `PATH`。工作区根目录优先用作向上查找的起点
+ * （`workspaceFolders` 为空时退回进程工作目录）。
  *
  * @param {string} workspaceDir 工作区目录；没有就传空串。
  * @param {{lspServerPath?: string, parseEnginePath?: string}} [configured] 设置里的路径。
- * @returns {{repoRoot: string|null, lspServer: string|null, parseEngine: string|null}}
+ * @returns {{repoRoot: string|null, parseEngine: string|null, bundled: string|null,
+ *            lspCommand: string|null, lspArgs: string[], checkArgs: string[],
+ *            standaloneServer: boolean}}
+ *          工具集合：`parseEngine` 是生成器；`lspCommand` + `lspArgs` 起语言服务器，
+ *          `checkArgs` 后面接文件路径就是一次 `--check`。
  */
 function resolveTools(workspaceDir, configured) {
   // 1. 先定仓库根：显式路径所在目录也能当起点。
   const startDir =
     workspaceDir ||
-    (configured && configured.lspServerPath ? path.dirname(configured.lspServerPath) : '') ||
+    (configured && configured.parseEnginePath
+      ? path.dirname(configured.parseEnginePath)
+      : '') ||
     process.cwd();
   const repoRoot = findRepoRoot(startDir);
 
-  // 2. 显式路径优先，其次自动探测。
-  const lspServer =
-    (configured && configured.lspServerPath && configured.lspServerPath.trim()) ||
-    findLspServer(repoRoot);
+  // 2. 编译器：显式路径 → 仓库（开发态）→ 插件自带 → PATH。
+  const bundled = findBundledCompiler();
+  const fromRepo = findParseEngine(repoRoot);
   const parseEngine =
     (configured && configured.parseEnginePath && configured.parseEnginePath.trim()) ||
-    findParseEngine(repoRoot);
+    fromRepo ||
+    bundled ||
+    findOnPath();
+
+  // 3. 语言服务器：显式指到独立 lsp-server 就用它（原来的参数形状），
+  //    否则用内嵌的那份（`ParseEngine lsp`）。
+  const standalone =
+    (configured && configured.lspServerPath && configured.lspServerPath.trim()) || '';
+  const lspCommand = standalone || parseEngine || null;
+  const useSubcommand = !standalone && !!parseEngine;
 
   return {
     repoRoot,
-    lspServer: lspServer || null,
     parseEngine: parseEngine || null,
+    bundled: bundled || null,
+    lspCommand,
+    lspArgs: useSubcommand ? [LSP_SUBCOMMAND, '--stdio'] : ['--stdio'],
+    checkArgs: useSubcommand ? [LSP_SUBCOMMAND, '--check'] : ['--check'],
+    standaloneServer: !!standalone,
   };
 }
 
 module.exports = {
   EXE,
+  BUNDLED_DIR,
+  LSP_SUBCOMMAND,
   findRepoRoot,
-  findLspServer,
+  findBundledCompiler,
   findParseEngine,
+  findOnPath,
   resolveTools,
 };

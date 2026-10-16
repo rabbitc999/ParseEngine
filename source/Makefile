@@ -4,6 +4,7 @@
 #                             链接期裁剪并 strip；Windows 下带 .exe）
 #   make -C source release    同一套 Release 级标志，产物另放 build/bin/release/
 #   make -C source templates  重新内联 source/templates/ 下的模板（需要 python3）
+#   make -C source manual     重新内联 doc/ 下的手册正文（需要 python3）
 #   make -C source test-smoke 冒烟测试：遍历 example/ 生成 + 编译 + 喂输入 + 比对
 #   make -C source test-repro 同文法生成两次，产物与输出逐字一致
 #   make -C source clean      删除 make 的中间文件与产物
@@ -93,6 +94,10 @@ OBJECTS  := $(patsubst src/%.cpp,$(OBJDIR)/%.o,$(SOURCES))
 # library/lztext 不在 src/ 下：内嵌模板靠它压缩存储、运行时解压（见 templates_data.cpp）。
 # 单独列出来，否则会被下面的通配规则当成不存在的 src/lztext.cpp。
 OBJECTS  += $(OBJDIR)/lztext.o
+# library/lsp 也不在 src/ 下：`.gram` 语言服务器内嵌进生成器（`ParseEngine lsp --stdio`
+# / `ParseEngine lsp --check FILE...`），三份源码一起编。独立可执行文件 lsp-server
+# 仍由 library/lsp/Makefile 构建，两条路共用同一份源码。
+OBJECTS  += $(OBJDIR)/lsp_json.o $(OBJDIR)/lsp_grammar.o $(OBJDIR)/lsp_lsp.o
 DEPS     := $(OBJECTS:.o=.d)
 
 # 中间目录跟着源码树的形状走；用戳文件一次性建好：拿目录当目标会因目录时间戳变化反复触发
@@ -121,6 +126,14 @@ include/ParseEngine/tool_console.hpp: ../library/console/utf8.hpp ../tools/sync_
 	$(PYTHON) ../tools/sync_tool_console.py
 $(OBJDIR)/main.o $(OBJDIR)/package.o: include/ParseEngine/i18n_messages.hpp include/ParseEngine/package_tool.hpp
 
+# 内嵌手册：`doc/` 的中英正文、文法指令表、模式表与示例清单在构建期内联成
+# source/src/manual_data.cpp（运行时 `ParseEngine man` 不读仓库文件）。仓库里
+# 已包含生成结果，改 doc/ 之后重新生成：make -C source manual。
+src/manual_data.cpp: ../tools/embed_manual.py ../example/manifest.tsv \
+                     $(wildcard ../doc/*.md) $(wildcard ../doc/en/*.md)
+	$(PYTHON) ../tools/embed_manual.py
+$(OBJDIR)/manual.o: src/manual_data.cpp include/ParseEngine/manual_data.hpp
+
 # ---- 共享工作区提示（见 AGENTS.md §2「并发与编译锁」）----
 # `make -C source templates` 会把 source/templates/ 下**所有人**的模板一起内联（.tmpl 优先
 # 于同名 .template），`source/src/templates_data.cpp` 与 build/bin/ParseEngine.exe 又是
@@ -147,6 +160,10 @@ $(OBJDIR)/%.o: src/%.cpp
 $(OBJDIR)/lztext.o: ../library/lztext/lztext.cpp ../library/lztext/lztext.hpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
+# 内嵌的 `.gram` 语言服务器：库源码在 library/lsp/，产物名加 lsp_ 前缀区分。
+$(OBJDIR)/lsp_%.o: ../library/lsp/%.cpp ../library/lsp/lsp.hpp ../library/lsp/grammar.hpp ../library/lsp/json.hpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
 $(STAMP):
 	-@$(MKDIRS) echo done
 	@echo ok > $(STAMP)
@@ -155,6 +172,10 @@ $(OBJECTS) $(TARGET): | $(STAMP)
 
 templates:
 	$(PYTHON) ../tools/embed_templates.py
+
+# 重新内联 `doc/` 下的手册正文（内嵌手册的数据源）。
+manual:
+	$(PYTHON) ../tools/embed_manual.py
 
 # 一键构建：生成器 + 所有库 + 所有工程（只编译，不跑测试；缺工具链的部分自动跳过）
 build-all:
@@ -176,13 +197,14 @@ help:
 	$(info make -C source            编译 build/bin/ParseEngine$(EXE)（Release 级：-O3 -DNDEBUG，裁剪并 strip）)
 	$(info make -C source release    同一套标志，产物另放 build/bin/release/ParseEngine$(EXE))
 	$(info make -C source templates  重新内联模板（$(PYTHON) ../tools/embed_templates.py）)
+	$(info make -C source manual     重新内联 doc/ 手册正文（$(PYTHON) ../tools/embed_manual.py）)
 	$(info make -C source build-all  一键构建：生成器 + 库 + 工程（cd .. && sh build-all.sh，不跑测试）)
 	$(info make -C source test-smoke 冒烟测试：遍历 example/ 生成 + 编译 + 喂输入 + 比对)
 	$(info make -C source test-repro 同文法生成两次，产物与输出逐字一致)
 	$(info make -C source clean      删除 make 的中间文件与产物)
 	$(info 没装 Git Bash / MSYS2 时测试目标会提示先装一个)
 
-.PHONY: all release templates test-smoke test-repro clean help
+.PHONY: all release templates manual test-smoke test-repro clean help
 
 # 自动依赖放在文件末尾，避免它成为默认目标
 -include $(DEPS)
