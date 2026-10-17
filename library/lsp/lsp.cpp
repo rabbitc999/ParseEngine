@@ -217,6 +217,9 @@ void Server::changeDocument(const std::string& uri, const std::string& text) {
 
 std::string Server::checkText(const std::string& text, const std::string& path) {
     GrammarDocument model;
+    // `--check` 也按文件所在目录解 `%include`，否则被引文件里的声明全是「隐式 Token」。
+    const std::size_t slash = path.find_last_of("/\\");
+    model.setBaseDir(slash == std::string::npos ? std::string() : path.substr(0, slash));
     model.setText(text);
     return model.checkReport(path);
 }

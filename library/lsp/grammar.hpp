@@ -5,6 +5,7 @@
 // 共用的值类型（位置 / 区间 / 诊断 / 悬停 / 补全 …）在 `types.hpp` 里；这里只放文法
 // 自己的声明与文档模型。
 #include <cstddef>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -84,6 +85,17 @@ public:
 
     /** 当前文档所在目录（空串表示未知），见 setBaseDir。 */
     const std::string& baseDir() const { return baseDir_; }
+
+    /**
+     * 被 `%include` 链引进来的文件里声明的 Token 名（含嵌套包含的）。
+     *
+     * 引用检查据此豁免：这些名字不算「隐式 Token」，`%sync` 也认。补全把它们
+     * 一并列出（detail 标注「来自 %include」）。每次 setText 重算。
+     */
+    const std::set<std::string>& includedTokens() const { return includedTokens_; }
+
+    /** 被 `%include` 链引进来的文件里声明的产生式名，语义同 includedTokens。 */
+    const std::set<std::string>& includedRules() const { return includedRules_; }
 
     /** 当前全文（与 `setText` 传入的完全一致，不做换行或空白归一化）。 */
     const std::string& text() const { return text_; }
@@ -175,6 +187,23 @@ private:
      */
     void scan();
     /**
+     * 解析本文顶层 `%include "路径"`，递归读进被引文件，把里面声明的 Token 名与
+     * 产生式名收进 includedTokens_ / includedRules_。baseDir_ 为空（不知道文档
+     * 在哪）时直接跳过。被引文件的诊断不并进来——那由被引文件自己打开时报告；
+     * 循环包含按「当前链上已有这个路径」静默截断。内部使用，由 setText 调用。
+     *
+     * @param stack 当前包含链上的规范路径（调用方持有，进栈出栈配对）
+     */
+    void collectIncludes(std::vector<std::string>& stack);
+    /**
+     * setText 的完整流水线，但包含链由调用方传入（被引文件递归时共用同一条链，
+     * 循环包含才截得住）。内部使用。
+     *
+     * @param text 被引文件的全文
+     * @param stack 当前包含链（已含被引文件自身的规范路径）
+     */
+    void loadWithStack(std::string text, std::vector<std::string>& stack);
+    /**
      * 在扫描结果之上建模型：合并同名产生式、汇总引用与占用、算出规则区与指令插入位置，并生成诊断列表。内部使用，由 setText 调用。
      */
     void buildModel();
@@ -208,6 +237,9 @@ private:
     std::string text_;
     /** 文档所在目录（UTF-8，空串表示未知）；只给 `%include` 的路径补全用。 */
     std::string baseDir_;
+    /** `%include` 链上声明的 Token / 产生式名（见 includedTokens / includedRules）。 */
+    std::set<std::string> includedTokens_;
+    std::set<std::string> includedRules_;
     std::vector<Diagnostic> diagnostics_;
     std::vector<DirectiveDecl> directives_;
     std::vector<TokenDecl> tokens_;

@@ -3,6 +3,8 @@
 #include "json.hpp"
 #include "lsp.hpp"
 
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -579,6 +581,38 @@ void testIncludeAndBuildDirectives() {
     CHECK(off);
 }
 
+/**
+ * `%include` 链上的声明要被主文档认账：被引文件里声明的 Token 不报
+ * 「隐式 Token」，`%sync` 认，补全也把它们列出来（detail 标「来自 %include」）。
+ *
+ * 用临时目录真实读写：include 是文件级的，绕开磁盘测不了。
+ */
+void testIncludeDeclarations() {
+    const char* dir = std::getenv("TEMP");
+    CHECK(dir != nullptr);
+    const std::string base = std::string(dir) + "/lsp-test-include";
+    std::filesystem::create_directories(base);
+    { std::ofstream f(base + "/base.gram", std::ios::binary);
+      f << "%token MODULE \"module\"\n%token IMPORT \"import\"\n"; }
+    lsp::GrammarDocument doc;
+    doc.setBaseDir(base);
+    doc.setText("%include \"base.gram\"\n"
+                "%sync MODULE\n"
+                "%start top\ntop := MODULE module ;\nmodule := IMPORT ;\n");
+    for (const auto& diagnostic : doc.diagnostics()) {
+        CHECK(diagnostic.code != "implicit-token");
+        CHECK(diagnostic.code != "unknown-sync");
+    }
+    CHECK(doc.includedTokens().count("MODULE") > 0);
+    CHECK(doc.includedTokens().count("IMPORT") > 0);
+    bool listed = false;
+    for (const auto& item : doc.completion({3, 0}))
+        if (item.label == "MODULE" && item.detail.find("%include") != std::string::npos)
+            listed = true;
+    CHECK(listed);
+    std::filesystem::remove_all(base);
+}
+
 } // namespace
 
 int main() {
@@ -592,6 +626,7 @@ int main() {
     testNewModesAndGlrDirective();
     testExampleDirective();
     testIncludeAndBuildDirectives();
+    testIncludeDeclarations();
     testSession();
     if (failures == 0) {
         std::cout << "lsp-tests：全部通过\n";

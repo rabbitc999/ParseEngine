@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <set>
 #include <sstream>
@@ -424,6 +426,11 @@ const std::vector<std::pair<std::string, std::string>>& GrammarDocument::directi
 }
 
 void GrammarDocument::setText(std::string text) {
+    std::vector<std::string> stack;
+    loadWithStack(std::move(text), stack);
+}
+
+void GrammarDocument::loadWithStack(std::string text, std::vector<std::string>& stack) {
     text_ = std::move(text);
     diagnostics_.clear();
     directives_.clear();
@@ -433,8 +440,79 @@ void GrammarDocument::setText(std::string text) {
     startName_.clear();
     syncs_.clear();
     inlineKeywords_.clear();
+    includedTokens_.clear();
+    includedRules_.clear();
     insertPosition_ = Position{0, 0};
+    collectIncludes(stack);
     buildModel();
+}
+
+/**
+ * 解析一行是不是顶层的 `%include "路径"`（与生成器 parseTopLevelInclude 同口径：
+ * 允许 `%include='路径'` 与单引号，行尾不能有多余内容）。
+ */
+bool parseIncludeLine(const std::string& rawLine, std::string* outPath) {
+    std::size_t i = 0;
+    const std::size_t n = rawLine.size();
+    while (i < n && (rawLine[i] == ' ' || rawLine[i] == '\t')) ++i;
+    if (i + 8 > n) return false;
+    if (rawLine.compare(i, 8, "%include") != 0) return false;
+    std::size_t j = i + 8;
+    while (j < n && (rawLine[j] == ' ' || rawLine[j] == '\t')) ++j;
+    if (j < n && rawLine[j] == '=') {
+        ++j;
+        while (j < n && (rawLine[j] == ' ' || rawLine[j] == '\t')) ++j;
+    }
+    if (j >= n || (rawLine[j] != '"' && rawLine[j] != '\'')) return false;
+    const char q = rawLine[j];
+    ++j;
+    const std::size_t end = rawLine.find(q, j);
+    if (end == std::string::npos) return false;
+    if (rawLine.find_first_not_of(" \t\r", end + 1) != std::string::npos) return false;
+    const std::string val = rawLine.substr(j, end - j);
+    if (val.empty()) return false;
+    *outPath = val;
+    return true;
+}
+
+void GrammarDocument::collectIncludes(std::vector<std::string>& stack) {
+    if (baseDir_.empty()) return;
+    std::size_t start = 0;
+    while (start < text_.size()) {
+        const std::size_t nl = text_.find('\n', start);
+        const std::string line =
+            text_.substr(start, (nl == std::string::npos) ? std::string::npos : nl - start);
+        start = (nl == std::string::npos) ? text_.size() : nl + 1;
+        std::string rel;
+        if (!parseIncludeLine(line, &rel)) continue;
+        std::error_code ec;
+        std::filesystem::path resolved = std::filesystem::u8path(rel);
+        resolved = resolved.is_relative()
+                       ? (std::filesystem::u8path(baseDir_) / resolved).lexically_normal()
+                       : resolved.lexically_normal();
+        const std::filesystem::path canon = std::filesystem::canonical(resolved, ec);
+        const std::string key = (ec ? resolved : canon).u8string();
+        bool cyclic = false;
+        for (const auto& seen : stack) {
+            if (seen == key) { cyclic = true; break; }
+        }
+        if (cyclic) continue;
+        std::ifstream stream(resolved, std::ios::binary);
+        if (!stream) continue;
+        const std::string content((std::istreambuf_iterator<char>(stream)),
+                                  std::istreambuf_iterator<char>());
+        GrammarDocument included;
+        included.baseDir_ = resolved.parent_path().u8string();
+        stack.push_back(key);
+        included.loadWithStack(content, stack);
+        stack.pop_back();
+        includedTokens_.insert(included.includedTokens_.begin(), included.includedTokens_.end());
+        // 直接收名字：被引文件自己声明的 + 它又 include 进来的，合起来都算「已知」。
+        for (const auto& token : included.tokens_) includedTokens_.insert(token.name);
+        for (const auto& rule : included.rules_) includedRules_.insert(rule.name);
+        includedTokens_.insert(included.includedTokens_.begin(), included.includedTokens_.end());
+        includedRules_.insert(included.includedRules_.begin(), included.includedRules_.end());
+    }
 }
 
 void GrammarDocument::addDiagnostic(const Range& range, Severity severity, const std::string& code,
@@ -681,8 +759,10 @@ void GrammarDocument::buildModel() {
         if (reference.literal) continue;
         const std::string& name = reference.name;
         if (name == "error" || name == "%empty") continue;
-        if (declared.count(name)) { usedTokens.insert(name); continue; }
-        if (ruleNames.count(name)) { usedRules.insert(name); continue; }
+        // `%include` 链上声明的 Token / 产生式也算已知：这份文法生成时会把被引
+        // 文件内联进来，名字在生成期都能对上，LSP 不该报「隐式 Token」。
+        if (declared.count(name) || includedTokens_.count(name)) { usedTokens.insert(name); continue; }
+        if (ruleNames.count(name) || includedRules_.count(name)) { usedRules.insert(name); continue; }
         if (std::isupper(static_cast<unsigned char>(name[0]))) {
             // 生成器和 yacc 一样允许「规则里直接用的大写名」当隐式 Token：
             // 不报错，只提示一句，并给"显式声明"的快速修复。
@@ -700,12 +780,13 @@ void GrammarDocument::buildModel() {
                           "未声明的非终结符 " + name + "（加一条 " + name + " := …; 规则）");
         }
     }
-    if (!startName_.empty() && !ruleNames.count(startName_)) {
+    if (!startName_.empty() && !ruleNames.count(startName_) &&
+        !includedRules_.count(startName_)) {
         addDiagnostic(startRange_, Severity::Error, "unknown-start",
                       "%start 指向的 " + startName_ + " 不是一条产生式");
     }
     for (const auto& sync : syncs_) {
-        if (!declared.count(sync.first)) {
+        if (!declared.count(sync.first) && !includedTokens_.count(sync.first)) {
             addDiagnostic(sync.second, Severity::Error, "unknown-sync",
                           "%sync 的 " + sync.first + " 不是已声明的 Token");
         }
@@ -914,6 +995,13 @@ std::vector<CompletionItem> GrammarDocument::completion(Position position) const
     }
     for (const auto& rule : rules_) {
         items.push_back({rule.name, "function", "非终结符", rule.name});
+    }
+    // `%include` 链上声明的名字也进候选：文法里可以直接用它们。
+    for (const auto& name : includedTokens_) {
+        items.push_back({name, "type", "来自 %include 的 Token", name});
+    }
+    for (const auto& name : includedRules_) {
+        items.push_back({name, "function", "来自 %include 的产生式", name});
     }
     items.push_back({"%empty", "keyword", "空产生式", "%empty"});
     items.push_back({"%prec", "keyword", "覆盖优先级来源", "%prec "});
