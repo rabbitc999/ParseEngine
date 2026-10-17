@@ -83,6 +83,8 @@ expr := expr PLUS term { $$ = $1 + $3; }
 | `%expect N` | 允许保留 N 个未消解的移进/归约冲突 |
 | `%sync TOKEN...` | 声明 panic mode 的恢复锚点 Token；LR 家族在 `error` 产生式找不到恢复点时兜底；LL 家族本来就靠 FOLLOW 集恢复，它只是额外汇进来的锚点（`ll0` 用不上）。见 §3.2 |
 | `%copy [file\|dir] 路径` | 把文法目录下的文件/目录拷进产物目录，缺省 `file` |
+| `%include "路径"` | 文件级包含：把被引 `.gram` 的内容**内联**进来（也接受 `%include='路径'` 与单引号，必须单独成行）。相对路径按包含它的文件所在目录解析，支持递归与循环检测；`%code` / `%class_body` / `%epilogue` / `%main` 段内不展开。内联后报错行号指向拼接后的文本 |
+| `%build_files on\|off` | 是否导出工程构建文件（`Makefile` / `CMakeLists.txt`），等价命令行 `--build-files` / `--no-build-files`（命令行优先），只能声明一次 |
 | `%code` … `%endcode` | 用户代码块：`%code` 与 `%endcode` 各自单独成行，中间内容原样拼进 `parser_user.h`；可写多段，按出现顺序拼接。旧 `%{{ ... }}%` 语法已禁用 |
 | `%if` / `%elif` / `%else` / `%endif` | 条件编译（由预处理层处理，不是解析器的指令）：条件来自命令行 `--define`，条件为假的整行丢掉。见下节 |
 

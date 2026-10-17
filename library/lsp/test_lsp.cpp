@@ -545,6 +545,40 @@ void testExampleDirective() {
     CHECK(completed);
 }
 
+/**
+ * `%include` / `%build_files` / `%cpp_lexer` 三条例外指令的补全、悬停与诊断。
+ *
+ * 这三个指令生成器都支持，但一度没登记进 LSP 的指令表，于是补全里看不到、悬停
+ * 没说明、还会被误报成 unknown-directive。
+ */
+void testIncludeAndBuildDirectives() {
+    lsp::GrammarDocument doc;
+    doc.setText("%include \"base.gram\"\n"
+                "%build_files on\n"
+                "%cpp_lexer dfa\n"
+                "%start text\ntext := A;\n");
+    for (const auto& diagnostic : doc.diagnostics())
+        CHECK(diagnostic.code != "unknown-directive");
+    for (const std::string name : {"%include", "%build_files", "%cpp_lexer"}) {
+        bool completed = false;
+        for (const auto& item : doc.completion({4, 0}))
+            if (item.label == name) completed = true;
+        CHECK(completed);
+    }
+    const lsp::HoverResult includeHover = doc.hover({0, 2});
+    CHECK(includeHover.found);
+    CHECK(includeHover.markdown.find("%include") != std::string::npos);
+    // 行内取值补全：`%cpp_lexer` 给 dfa / std，`%build_files` 给 on / off。
+    bool dfa = false;
+    for (const auto& item : doc.completion({2, 11}))
+        if (item.label == "dfa") dfa = true;
+    CHECK(dfa);
+    bool off = false;
+    for (const auto& item : doc.completion({1, 13}))
+        if (item.label == "off") off = true;
+    CHECK(off);
+}
+
 } // namespace
 
 int main() {
@@ -557,6 +591,7 @@ int main() {
     testBrokenGrammar();
     testNewModesAndGlrDirective();
     testExampleDirective();
+    testIncludeAndBuildDirectives();
     testSession();
     if (failures == 0) {
         std::cout << "lsp-tests：全部通过\n";

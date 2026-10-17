@@ -71,6 +71,20 @@ public:
      */
     void setText(std::string text);
 
+    /**
+     * 记下当前文档所在目录（UTF-8 本地路径，不带结尾分隔符）。
+     *
+     * 只影响 `%include` 的路径补全：列出这个目录下的 `.gram` 文件。传空串等价于
+     * 「不知道在哪」，此时 `%include` 只给一条带占位符的候选。不受 `setText`
+     * 影响，可以在任意时刻设置。
+     *
+     * @param dir 文档所在目录；不知道时传空串
+     */
+    void setBaseDir(std::string dir) { baseDir_ = std::move(dir); }
+
+    /** 当前文档所在目录（空串表示未知），见 setBaseDir。 */
+    const std::string& baseDir() const { return baseDir_; }
+
     /** 当前全文（与 `setText` 传入的完全一致，不做换行或空白归一化）。 */
     const std::string& text() const { return text_; }
 
@@ -192,6 +206,8 @@ private:
     bool isInlineKeyword(const Range& range) const;
 
     std::string text_;
+    /** 文档所在目录（UTF-8，空串表示未知）；只给 `%include` 的路径补全用。 */
+    std::string baseDir_;
     std::vector<Diagnostic> diagnostics_;
     std::vector<DirectiveDecl> directives_;
     std::vector<TokenDecl> tokens_;

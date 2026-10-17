@@ -23,7 +23,59 @@ int completionKind(const std::string& kind) {
     if (kind == "keyword") return 14;
     if (kind == "function") return 3;
     if (kind == "enum") return 13;
+    if (kind == "file") return 17; // File
     return 7; // type / class
+}
+
+/**
+ * 把 `file://` URI 转成本地路径的目录部分，失败返回空串。
+ *
+ * 只处理 `%include` 路径补全需要的那一档：去掉 `file://` 前缀、解 `%XX`、Windows
+ * 下把 `/C:/dir` 还原成 `C:/dir`。非 `file:` 的 URI（`untitled:` 之类）一律返回
+ * 空串——调用方拿到空串就当「不知道文档在哪」，退化成占位符候选。
+ *
+ * @param uri 文档 URI
+ * @return 目录的 UTF-8 本地路径（不带结尾分隔符）；解析不出来返回空串
+ */
+std::string uriDirectory(const std::string& uri) {
+    const std::string prefix = "file://";
+    if (uri.compare(0, prefix.size(), prefix) != 0) return {};
+    std::string path = uri.substr(prefix.size());
+    // 去掉可选的 authority（`file://host/path` 里的 host，正常是空的）。
+    if (!path.empty() && path[0] != '/') {
+        const std::size_t slash = path.find('/');
+        if (slash == std::string::npos) return {};
+        path = path.substr(slash);
+    }
+    std::string decoded;
+    decoded.reserve(path.size());
+    for (std::size_t i = 0; i < path.size(); ++i) {
+        if (path[i] == '%' && i + 2 < path.size()) {
+            const auto hex = [](char c) -> int {
+                if (c >= '0' && c <= '9') return c - '0';
+                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                return -1;
+            };
+            const int hi = hex(path[i + 1]);
+            const int lo = hex(path[i + 2]);
+            if (hi >= 0 && lo >= 0) {
+                decoded.push_back(static_cast<char>(hi * 16 + lo));
+                i += 2;
+                continue;
+            }
+        }
+        decoded.push_back(path[i]);
+    }
+#ifdef _WIN32
+    // `/C:/dir` → `C:/dir`；UNC 的 `//server/share` 保持原样交给 filesystem。
+    if (decoded.size() >= 3 && decoded[0] == '/' && decoded[2] == ':') {
+        decoded.erase(0, 1);
+    }
+#endif
+    const std::size_t slash = decoded.find_last_of("/\\");
+    if (slash == std::string::npos) return {};
+    return decoded.substr(0, slash);
 }
 
 int symbolKind(const std::string& kind) {
@@ -152,6 +204,8 @@ void Server::openDocument(const std::string& uri, const std::string& text,
     // 这一份只服务 `.gram`：语言模型按 `.gram` 文法建，`languageId` 仅作记录
     // （参数照 LSP 的 didOpen 形状保留）。
     (void)languageId;
+    // 路径补全（`%include "…"`）要知道文档在哪；解不出来就留空，退化成占位符。
+    doc.model.setBaseDir(uriDirectory(uri));
     doc.model.setText(text);
 }
 

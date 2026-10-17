@@ -81,6 +81,8 @@ initializer := assignment_expression        { $$ = $1; }
 | `%commit [类型] "模式"` / `%commit skip "模式"` | 把「识别但不进语法层」的文本收进容器（元素 `{line, type, text}`）；类型缺省 `default`，`skip` 匹配即丢。模式按正则编译，与 `%token` 同一份最长匹配顺序（同长度按声明先后）；见 [`%commit`](#commit把识别但不进语法层的文本收进容器)。**六档都支持**（C99 / C++17 / Python / C# / Rust / Go），各档的容器类型与所有权见 [`08-generated-code.md`](08-generated-code.md) |
 | `%trivia "模式"` | 匹配即丢：不进容器、不进语法层。与 `%commit skip "模式"` 完全等价（两种写法生成的词法表逐字相同），推荐用 `%trivia` 表达 trivia；排序与冲突规则同 `%commit` |
 | `%copy [file\|dir] 路径` | 把文法目录下的库文件 / 目录拷进产物目录；缺省 `file`，拷进来的 `.c`/`.h` 会进 `Makefile` / `CMakeLists.txt` |
+| `%include "路径"` | 文件级包含：把被引 `.gram` 的内容**内联**进来（也接受 `%include='路径'` 与单引号，必须单独成行）。相对路径按包含它的文件所在目录解析，支持递归与循环检测；`%code` / `%class_body` / `%epilogue` / `%main` 段内不展开。内联后报错行号指向拼接后的文本（含被引文件内容） |
+| `%build_files on\|off` | 是否导出工程构建文件（`Makefile` / `CMakeLists.txt`），等价命令行 `--build-files` / `--no-build-files`（命令行优先），只能声明一次 |
 | `%cpp_only` | 声明「这份文法只能生成 C++17 产物」：配 `--lang c` / `--lang python` / `--lang csharp` / `--lang rust` / `--lang go`（或 `%lang` 里写那几个）直接报错，见[只能出 C++17 的文法](14-languages-and-products.md#只能出-c17-的文法cpp_only) |
 
 ### 用 CSV 维护字面量别名表

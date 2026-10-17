@@ -5360,8 +5360,8 @@ void GramParser::parseCppLexerDirective()
     const std::string token = peekText();
     if ((peekToken() == nullptr) || (token == "\n"))
     {
-        fail("%cpp_lexer 后面要写词法引擎：std（std::regex，缺省）或 dfa"
-             "（生成期编译成 DFA 表，产物不依赖 <regex>）",
+        fail("%cpp_lexer 后面要写词法引擎：dfa（缺省，生成期编译成 DFA 表，"
+             "产物不依赖 <regex>）或 std（交给 std::regex）",
              line);
         return;
     }

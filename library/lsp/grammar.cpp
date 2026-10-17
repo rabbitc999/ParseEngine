@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <map>
 #include <set>
 #include <sstream>
@@ -365,6 +366,9 @@ const std::vector<std::pair<std::string, std::string>>& directiveDocs() {
         {"%commit", "把「识别但不进语法层」的文本收进容器：%commit [类型] \"模式\" / %commit skip \"模式\""},
         {"%trivia", "匹配即丢（等价 %commit skip）"},
         {"%copy", "把文法目录下的文件/目录拷进产物：%copy [file|dir] 路径"},
+        {"%build_files", "是否导出工程构建文件（Makefile / CMakeLists.txt）：%build_files on / off，只能声明一次"},
+        {"%cpp_lexer", "C++17 产物的词法引擎：%cpp_lexer dfa / std，只能声明一次（命令行 --cpp-lexer 优先）。dfa（缺省）生成期把正则编译成 DFA 表，产物不依赖 <regex>；std 交给 std::regex"},
+        {"%include", "文件级包含：把被引 .gram 的内容内联进来，`%include \"路径\"`（也接受 `%include='路径'` 与单引号，必须单独成行）。相对路径按包含它的文件所在目录解析，支持递归与循环检测；%code / %class_body / %epilogue / %main 段内不展开。内联后报错行号指向拼接后的文本"},
         {"%cpp_only", "声明这份文法只能生成 C++17 产物"},
     };
     return table;
@@ -375,6 +379,32 @@ std::string directiveDetail(const std::string& name) {
         if (entry.first == name) return entry.second;
     }
     return {};
+}
+
+/**
+ * 列出一个目录下可被 `%include` 引用的 `.gram` 文件名（只取文件名，不带目录）。
+ *
+ * 目录读不了就返回空列表——补全拿不到候选是常态，不该报错。
+ *
+ * @param dir UTF-8 本地目录；空串直接返回空列表
+ * @return 文件名列表，按字典序排好
+ */
+std::vector<std::string> grammarCandidates(const std::string& dir) {
+    std::vector<std::string> names;
+    if (dir.empty()) return names;
+    std::error_code ec;
+    std::filesystem::directory_iterator it(std::filesystem::u8path(dir), ec);
+    if (ec) return names;
+    for (const auto& entry : it) {
+        std::error_code entryEc;
+        if (!entry.is_regular_file(entryEc) || entryEc) continue;
+        const std::string name = entry.path().filename().u8string();
+        if (name.size() > 5 && name.compare(name.size() - 5, 5, ".gram") == 0) {
+            names.push_back(name);
+        }
+    }
+    std::sort(names.begin(), names.end());
+    return names;
 }
 
 } // namespace
@@ -842,6 +872,26 @@ std::vector<CompletionItem> GrammarDocument::completion(Position position) const
     }
     if (lineDirective == "%lang") {
         for (const auto& name : languageNames()) items.push_back({name, "enum", "产物语言", name});
+        return items;
+    }
+    if (lineDirective == "%cpp_lexer") {
+        items.push_back({"dfa", "enum", "生成期编译成 DFA 表（缺省，产物不依赖 <regex>）", "dfa"});
+        items.push_back({"std", "enum", "交给 std::regex", "std"});
+        return items;
+    }
+    if (lineDirective == "%build_files") {
+        items.push_back({"on", "enum", "导出 Makefile / CMakeLists.txt", "on"});
+        items.push_back({"off", "enum", "不导出工程构建文件", "off"});
+        return items;
+    }
+    if (lineDirective == "%include") {
+        const std::vector<std::string> names = grammarCandidates(baseDir_);
+        for (const auto& name : names) {
+            items.push_back({name, "file", "同目录下的 .gram 文件", "\"" + name + "\""});
+        }
+        if (items.empty()) {
+            items.push_back({"\"\"", "file", "%include \"路径\"：被引 .gram 的内容内联进来", "\"\""});
+        }
         return items;
     }
     if (atLineStart) {
