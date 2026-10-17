@@ -864,22 +864,24 @@ C / C++17 / Python 完全一致（命令行 `--lang` 覆盖文法里的 `%lang`�
 | 后端 | 正则匹配器 | 产物里的表 |
 | --- | --- | --- |
 | C99 | 生成期编好的 DFA（`source/src/regex_dfa.cpp`） | `s_ParserRegexDfas` / `kLexClassMap` 那套字符类划分 |
-| C++17 | 标准库 `<regex>`（ECMAScript） | `kRegexRes` / `kIdentifierRe` / `kCommitRes` + `lexRegexMatch()` |
+| C++17 `dfa`（**缺省**） | 生成期编好的 DFA（同一份 `regex_dfa.cpp`） | `kLexClassMap` / `kLexPageIndex` / `kLexPageData` + 每条规则的 `trans` / `accept` 表 + `lexDfaScan()` |
+| C++17 `std` | 标准库 `<regex>`（ECMAScript） | `kRegexRes` / `kIdentifierRe` / `kCommitRes` + `lexRegexMatch()` |
 | Python | 标准库 `re` | `_REGEX_RULES` / `_IDENTIFIER_RE` / `_COMMIT_RES` + `_lex_regex_match()` |
 | C# | `System.Text.RegularExpressions.Regex` | `_REGEX_RE_LIST` / `_IDENTIFIER_RE` / `_COMMIT_RE_LIST` + `_lexRegexMatch()` |
 | Rust | Rust 官方的 `regex` crate（`Cargo.toml` 里的 `regex = "1"`） | `_REGEX_RES` / `_IDENTIFIER_RE` / `_COMMIT_RES` + `lex_regex_match()`（`OnceLock` 里各编译一次） |
 | Go | 标准库 `regexp`（RE2） | `sParserRegexRes` / `sParserIdentifierRe` / `sParserCommitRes` + `sParserLexRegexMatch()`（`regexp.MustCompile` 在包级变量初始化时各编译一次） |
 
-**只有 C99 的产物带生成期算好的 DFA 表**，另外五档把正则原样交给各自语言的正则库。
+**C99 与 C++17 的 `dfa` 词法器带生成期算好的 DFA 表**（C++17 用 `--cpp-lexer std`
+或 `%cpp_lexer std` 切回 `std::regex`），其余各档把正则原样交给各自语言的正则库。
 
 **生成期校验与报错口径**：六档的正则都在**文法加载时**（`readRegexPattern`）用
 生成器自带的编译器（`source/src/regex_dfa.cpp`）验一遍，但**认不下的处理不一样**：
 
-- **C99**：真的要用它编 DFA 表，所以「正则语法有误 / `{m,n}` 上限 32」是**硬错误**
-  （`main.cpp` 按目标语言分流，报错文案与从前逐字相同）；
-- **C++17 / Python / C# / Rust / Go**：只打一条**警告**（`GrammarConfig::regexDiagnostics`
+- **C99 / C++17 `dfa`**：真的要用它编 DFA 表，所以「正则语法有误 / `{m,n}` 上限 1000」
+  是**硬错误**（`main.cpp` 按目标语言与词法引擎分流，报错文案与从前逐字相同）；
+- **C++17 `std` / Python / C# / Rust / Go**：只打一条**警告**（`GrammarConfig::regexDiagnostics`
   → `main.cpp`），生成照常往下走——自带编译器只是「顺手校验一遍」，它不认识不等于
-  目标语言不认（`[0-9]{1,100}` 这类超出 32 上限的写法就是典型：`std::regex` / `re` /
+  目标语言不认（`[0-9]{1,2000}` 这类超出上限的写法就是典型：`std::regex` / `re` /
   .NET 的 `Regex` / `regex` 都收）。
 - **「正则能匹配空串」与引擎无关**，六档一律是硬错误（Lexer 在哪个语言里都没法前进）。
 
@@ -888,7 +890,7 @@ C / C++17 / Python 完全一致（命令行 `--lang` 覆盖文法里的 `%lang`�
 1. 取 Token 前先跳 `%space` 空白；
 2. 在「固定字面量 + `%token regex` + `%commit` / `%trivia`」里做最长匹配：
    字面量先按长度降序试，正则与 commit 各自取「从当前位置起的最长匹配」
-   （C99 查 DFA 表；C++17 / Python / C# / Rust / Go 用各自正则对象的贪婪匹配，
+   （C99 与 C++17 `dfa` 查 DFA 表；C++17 `std` / Python / C# / Rust / Go 用各自正则对象的贪婪匹配，
    并且都要求「必须从当前位置起」——C++17 用 `match_continuous`、
    Python 的 `pattern.match` 本来就是锚定的、C# 额外校验 `Match.Index == start`、
    Rust 用 `Regex::find_at` 再确认 `m.start() == start`、Go 用

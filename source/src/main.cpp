@@ -127,10 +127,10 @@ void printUsage(const std::string &program)
         << "                        %namespace 指定；命令行优先）。NAME 取\n"
         << "                        [A-Za-z_][A-Za-z0-9_]*、不能是 C++ 关键字；\n"
         << "                        不传或传空串 = 命名空间 Parser、文件名不带前缀\n"
-        << "  --cpp-lexer {std,dfa} C++17 产物的词法引擎（也可用 %cpp_lexer 指定；\n"
-        << "                        命令行优先）。std（缺省）把正则交给 <regex>；\n"
-        << "                        dfa 在生成期编译成 DFA 表写进产物，产物不依赖\n"
-        << "                        <regex>，每个位置只扫一遍输入（大文法更快）\n"
+        << "  --cpp-lexer {dfa,std} C++17 产物的词法引擎（也可用 %cpp_lexer 指定；\n"
+        << "                        命令行优先）。dfa（缺省）在生成期把正则编译成 DFA\n"
+        << "                        表写进产物，产物不依赖 <regex>，每个位置只扫一遍\n"
+        << "                        输入（大文法更快）；std 把正则交给 <regex>\n"
         << "  --prefix NAME        C99 产物的公开符号前缀（也可用 %prefix 指定；\n"
         << "                        命令行优先；不能以 Parser/PARSER 开头）\n"
         << "  --class NAME          Python 产物的解析器类名（也可用 %class 指定；\n"
@@ -1447,12 +1447,17 @@ int main(int argc, char **argv)
         request.cppNamespace =
             options.cppNamespace.value_or(cfg.cppNamespace);
         request.cppLexer = options.cppLexer.value_or(cfg.cppLexer);
-        if ((lang != "cpp17") && (request.cppLexer == "dfa"))
+        if (lang != "cpp17")
         {
-            std::cerr << PE_TEXT("提示：%cpp_lexer / --cpp-lexer 只对 --lang cpp17 "
-                                 "有意义，")
-                      << lang << PE_TEXT(" 下已忽略\n");
-            request.cppLexer = "std";
+            // 非 C++17 目标根本不用这个字段；只在用户**显式**指定过时提一句，
+            // 免得缺省的 dfa 让每种语言都刷一条提示。
+            if (options.cppLexer.has_value() || cfg.cppLexerDeclared)
+            {
+                std::cerr << PE_TEXT("提示：%cpp_lexer / --cpp-lexer 只对 --lang cpp17 "
+                                     "有意义，")
+                          << lang << PE_TEXT(" 下已忽略\n");
+            }
+            request.cppLexer = "dfa";
         }
         request.cPrefix = options.cPrefix.value_or(cfg.cPrefix);
         if (!request.cPrefix.empty() && lang != "c")

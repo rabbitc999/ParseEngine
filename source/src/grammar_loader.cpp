@@ -2270,7 +2270,7 @@ void parseLookaheadDirective();
     bool m_cppNamespaceDeclared = false;         ///< 是否声明过 %namespace
     std::string m_cPrefix;                       ///< %prefix（C99）
     bool m_cPrefixDeclared = false;              ///< 是否声明过 %prefix
-    std::string m_cppLexer = "std";              ///< %cpp_lexer（std / dfa）
+    std::string m_cppLexer = "dfa";              ///< %cpp_lexer（dfa / std）
     bool m_cppLexerDeclared = false;             ///< 是否声明过 %cpp_lexer
     std::string m_pythonClass;                   ///< %class（空 = 缺省 Parser）
     bool m_pythonClassDeclared = false;          ///< 是否声明过 %class

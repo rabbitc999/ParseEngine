@@ -276,12 +276,13 @@ struct GrammarConfig
     std::string cPrefix;                                    ///< C99 公开符号前缀（%prefix）
     bool cPrefixExplicit = false;                           ///< 是否写了 %prefix
     /**
-     * @brief `%cpp_lexer std | dfa`：C++17 产物的词法引擎（`--cpp-lexer`）。
+     * @brief `%cpp_lexer dfa | std`：C++17 产物的词法引擎（`--cpp-lexer`）。
      *
-     * `std`（缺省）把正则原样交给 `std::regex`；`dfa` 在生成期编译成 DFA 表写进
-     * 产物，产物不再依赖 `<regex>`（快、可预测，适合大文法与需要稳定性能的场合）。
+     * `dfa`（缺省）在生成期把正则编译成 DFA 表写进产物，产物不再依赖
+     * `<regex>`（快、可预测，适合大文法与需要稳定性能的场合）；`std` 把正则
+     * 原样交给 `std::regex`，产物更短但每次匹配都要走标准库的正则引擎。
      */
-    std::string cppLexer = "std";
+    std::string cppLexer = "dfa";
     bool cppLexerDeclared = false;                          ///< 是否写了 %cpp_lexer
     /**
      * @brief Python 产物的解析器类名（`%class` / `--class`）。
