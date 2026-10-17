@@ -967,7 +967,7 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 ```text
 make -C library/transfer clean all check      # 静态库 + 示例 + 26 个程序的自检
 
-# Hydra86 已拆独立仓库（https://gitee.com/rabbitc999/hydra-86）；CMake 自动探测
+# Hydra86 已拆独立仓库；CMake 自动探测
 # 同级 ../hydra-86、../../hydra-86，也可显式指定源码目录：
 cmake -S library/transfer -B tmp/transfer -DT1T_HYDRA86_ROOT=/path/to/hydra-86
 cmake --build tmp/transfer

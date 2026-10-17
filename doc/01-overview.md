@@ -2,20 +2,18 @@
 
 > **Magel 的那段光辉历史**：这门语言早期就在本仓库里长大——生成器、StackVM、标准库、
 > 胶水与反射都是在这里一起打磨出来的（下面这些 Magel 文档就是那段记录）。它现已拆分为
-> 独立仓库 <https://gitee.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
+> 独立仓库 <https://github.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
 > 同名文档。
 >
 > **Hydra86 的那张地图**：它也在本仓库里长大——汇编器、多核虚拟机、PSF 快照与嵌入
-> 接口都是在这里定型的。它现已拆分为独立仓库 <https://gitee.com/rabbitc999/hydra-86>；
-> 本文里指向 `hydra-86/` 的链接都改指新仓库的同名文档。
+> 接口都是在这里定型的。它现已拆分为独立仓库，本仓库不再提供指向它的链接。
 >
 > **RustView 的那条线**：它同样在本仓库里长大——极简 Rust 文法、借用分析与零依赖
 > SVG / HTML 都是在这里定型的。它现已拆分为独立仓库 <https://gitee.com/rabbitc999/rust-view>；
 > 本文里指向 `rust-view/` 的链接都改指新仓库的同名文档。
 >
 > **CAS 的那棵树**：它也在本仓库里长大——完整表达式文法、结构化积分表与自定义分配池
-> 适配都是在这里定型的。它现已拆分为独立仓库 <https://gitee.com/rabbitc999/cas>；
-> 本文里指向 `cas/` 的链接都改指新仓库的同名文档。
+> 适配都是在这里定型的。它现已拆分为独立仓库，本仓库不再提供指向它文档的链接。
 
 本页说明 ParseEngine 仓库各处文档的归属。仓库总入口是[根目录 README](../README.md)；生成器、Magel、Hydra86、MetroLang、RustView、CAS 各有独立工程文档。
 
@@ -24,11 +22,11 @@
 | 工程 | 文档 | 内容 |
 | --- | --- | --- |
 | ParseEngine 解析器生成器 | [使用入口](../source/README.md) · [专题文档索引](README.md) | `.gram` 文法、分析模式、八种目标语言、生成产物和实现 |
-| Magel | [语言入口](https://gitee.com/rabbitc999/magel/blob/master/README.md) · [EBNF 语法参考](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) · [专题文档](https://gitee.com/rabbitc999/magel/blob/master/doc/README.md) · [Magel 导出器](https://gitee.com/rabbitc999/magel/blob/master/magel-emit/README.md) | 语言语法基线、标准库、StackVM、胶水与导出 |
-| Hydra86 | [项目入口](https://gitee.com/rabbitc999/hydra-86/blob/master/README.md) · [详细文档](https://gitee.com/rabbitc999/hydra-86/blob/master/docs/README.md) | 汇编、虚拟机、多核调度、嵌入接口（**独立仓库**） |
+| Magel | [语言入口](https://github.com/rabbitc999/magel/blob/master/README.md) · [EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) · [专题文档](https://github.com/rabbitc999/magel/blob/master/doc/README.md) · [Magel 导出器](https://github.com/rabbitc999/magel/blob/master/magel-emit/README.md) | 语言语法基线、标准库、StackVM、胶水与导出 |
+| Hydra86 | —（独立仓库，本仓库不再提供链接） | 汇编、虚拟机、多核调度、嵌入接口（**独立仓库**） |
 | MetroLang | [工具链入口](https://gitee.com/rabbitc999/metro-lang/blob/master/README.md) · [语言参考](https://gitee.com/rabbitc999/metro-lang/blob/master/doc/01-metrolang-reference.md) · [JSON 格式](https://gitee.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md) · [交互式查看器](https://gitee.com/rabbitc999/metro-lang/blob/master/map_view/README.md) | 地铁线网数据语言：文法、编译 / 反编译、SVG 地图与路线查询（**独立仓库**） |
 | RustView | [项目入口](https://gitee.com/rabbitc999/rust-view/blob/master/README.md) · [效果图与演示页](https://gitee.com/rabbitc999/rust-view/blob/master/doc/preview.html) · [文法](https://gitee.com/rabbitc999/rust-view/blob/master/rust_subset.gram) | 极简 Rust 伪代码的借用语义可视化：ParseEngine 生成前端、作用域栈 + 借用状态表分析、手写 SVG / HTML；**1.0 功能冻结**（**独立仓库**） |
-| CAS | [项目入口](https://gitee.com/rabbitc999/cas/blob/master/README.md) · [架构与验证](https://gitee.com/rabbitc999/cas/blob/master/doc/architecture.md) | 符号计算、结构化积分表与自定义分配池（**独立仓库**） |
+| CAS | —（独立仓库，本仓库不再提供链接） | 符号计算、结构化积分表与自定义分配池（**独立仓库**） |
 
 ## 解析器生成器文档
 
@@ -65,7 +63,7 @@
 
 ## CAS 符号计算
 
-[CAS 项目手册](https://gitee.com/rabbitc999/cas/blob/master/README.md)（**独立仓库**） · [架构与验证](https://gitee.com/rabbitc999/cas/blob/master/doc/architecture.md) · [内置符号清单](https://gitee.com/rabbitc999/cas/blob/master/doc/builtins.json)。
+CAS 已拆分为独立仓库，本仓库不再提供其手册与文档链接；`Cas::Memory` 相关说明见[自定义分配器库](#自定义分配器库)。
 
 ## 自定义分配器库
 
@@ -73,8 +71,8 @@
 
 ## Magel 二进制流解析
 
-[`std::binary::BinaryReader`](https://gitee.com/rabbitc999/magel/blob/master/doc/12-binary-reader.md) 通过 C++ 胶水读取大小端基础数值、定长字符串与数组。
+[`std::binary::BinaryReader`](https://github.com/rabbitc999/magel/blob/master/doc/12-binary-reader.md) 通过 C++ 胶水读取大小端基础数值、定长字符串与数组。
 
 ## Magel JSON 与 TOML
 
-[JSON/TOML 解析接口](https://gitee.com/rabbitc999/magel/blob/master/doc/13-json-toml.md) 将 `library/json`、`library/toml` 的副本接入 Magel，提供解析、嵌套读取、遍历、诊断和序列化。
+[JSON/TOML 解析接口](https://github.com/rabbitc999/magel/blob/master/doc/13-json-toml.md) 将 `library/json`、`library/toml` 的副本接入 Magel，提供解析、嵌套读取、遍历、诊断和序列化。

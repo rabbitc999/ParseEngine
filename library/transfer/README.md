@@ -94,7 +94,7 @@ t1t pipeline 文件.quad --data=数据.bin --layout=布局表   同一条流水�
 64 位的整数、算术与位运算、比较、跳转、函数调用（含递归）以及整数输出；尚未映射的
 浮点、字符串、向量、文件、数据区和输入指令会在生成期明确报错。
 
-Hydra86 已拆分为独立仓库 <https://gitee.com/rabbitc999/hydra-86>。CMake 按以下顺序
+Hydra86 已拆分为独立仓库。CMake 按以下顺序
 寻找 Hydra86 源码：显式的 `T1T_HYDRA86_ROOT`（缓存变量或环境变量）→ 同级的
 `../hydra-86` 或 `../../hydra-86` 目录。目录中存在 `CMakeLists.txt` 时，CMake
 自动链接稳定接口 `pvm_cli`，CLI 和 pipeline 会调用 `Hydra86::runAssembly` 真正装配并

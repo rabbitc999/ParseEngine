@@ -2,7 +2,7 @@
   "name": "gram-editor",
   "displayName": "GramEditor - ParseEngine 文法",
   "description": "编辑 ParseEngine .gram 文法；自带编译器与内嵌语言服务器，支持诊断、补全、Token 与语法树预览、一键生成解析器。",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "publisher": "rabbitc999",
   "author": {
     "name": "小兔糖糖OvO",
@@ -25,6 +25,18 @@
     "ielr"
   ],
   "main": "./extension.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rabbitc999/ParseEngine"
+  },
+  "scripts": {
+    "embed": "node tools/embed-compiler.js",
+    "check": "node tools/check-manifest.js",
+    "test": "node test/smoke.js && node test/extension-smoke.js",
+    "vscode:prepublish": "node tools/embed-compiler.js",
+    "package": "node tools/package.js",
+    "package:vsce": "node tools/package-vsce.js"
+  },
   "icon": "icon.png",
   "activationEvents": [
     "onLanguage:gram"

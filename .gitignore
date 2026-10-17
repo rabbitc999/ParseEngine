@@ -110,12 +110,12 @@ Thumbs.db
 
 # magel 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
 # 父仓库不再跟踪它的文件，只在本地保留目录，构建与测试照常；要改 Magel 请进 magel/ 用那份
-# 仓库提交（远端 https://gitee.com/rabbitc999/magel.git）。
+# 仓库提交（远端 https://github.com/rabbitc999/magel.git）。
 /magel/
 
 # hydra-86 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
 # 父仓库不再跟踪它的文件，只在本地保留目录；要改 Hydra86 请进 hydra-86/ 用那份
-# 仓库提交（远端 https://gitee.com/rabbitc999/hydra-86.git）。
+# 仓库提交（Hydra86 的仓库地址不在本仓库登记）。
 /hydra-86/
 
 # rust-view 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
@@ -125,5 +125,5 @@ Thumbs.db
 
 # cas 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
 # 父仓库不再跟踪它的文件，只在本地保留目录；要改 CAS 请进 cas/ 用那份
-# 仓库提交（远端 https://gitee.com/rabbitc999/cas.git）。
+# 仓库提交（CAS 的仓库地址不在本仓库登记）。
 /cas/

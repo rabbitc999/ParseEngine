@@ -2,7 +2,7 @@
 
 > **Magel 的那段光辉历史**：这门语言早期就在本仓库里长大——生成器、StackVM、标准库、
 > 胶水与反射都是在这里一起打磨出来的（下面这些 Magel 文档就是那段记录）。它现已拆分为
-> 独立仓库 <https://gitee.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
+> 独立仓库 <https://github.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
 > 同名文档。
 
 **作者：糖糖（业余写作）**
@@ -24,7 +24,7 @@
 > 全书二十七章：先讲这东西在干嘛，再讲为什么做，然后讲哪里失败、怎么减负、怎么协作、最后学到什么；后半部分继续记录增量解析、Hydra86 对接、严格 C-- 五次实验、Java/JS 窄后端、图表模式收口，以及 Magel 的 C++ 胶水、正文宏、事件中断与 Qt GUI 迁移；第二十三章把 MetroLang、RustView 挂上地图，第二十四章续写 Magel 的非空引用、后置泛型与整库迁移，第二十五章让 CAS 的公式进入树，并解决函数调用与隐式乘法的歧义；第二十六章收口 Magel 1.0 的名字、引用与迭代流水线，第二十七章记录 1.1 的多数据库和外置库三后端验收。
 >
 > **口径说明**：当前是六个完整后端 + Java / JS 两个窄后端、十六种模式；第二～十一章及部分后续章节保留开发当时的数字和尝试。生成目标、模板数与样例数以当前源码和支持矩阵为准。
-> Magel 的源码语法已有独立的[EBNF 语法参考](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)；故事中出现的旧 API 与试验方案均按当时阶段阅读。
+> Magel 的源码语法已有独立的[EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)；故事中出现的旧 API 与试验方案均按当时阶段阅读。
 
 > 各语言并非都支持十六种模式；当前支持矩阵、导出限制与增量 API 边界见 [15](15-language-mode-support.md)。
 
@@ -997,7 +997,7 @@ GLR 不只有一条栈，它有 GSS；不只有一个结果，它可能有一片
 
 它会把四元式降成带 `AX`、`DX`、`MOV`、`IDIV` 的教学汇编，再交给库内模拟器执行。用来讲固定寄存器对、乘除法和内存操作很合适，但它终究是一台为课程模型服务的机器：指令、配置和运行时都由 `transfer` 自己解释。
 
-后来仓库里多了一台 Hydra86。它也是 8086 风格，却不是那档教学模拟器的另一个名字。它有自己的 `.data` / `.code` 汇编格式、函数调用、标签规则、系统调用、汇编器和 VM；**它自己就是仓库里的一个独立工程**，能单独汇编、执行、反汇编和调试，手册在 [独立仓库的 README](https://gitee.com/rabbitc999/hydra-86/blob/master/README.md)，它那半张地图的来历见[独立仓库](https://gitee.com/rabbitc999/hydra-86/blob/master/README.md)。要对接它，不能把原来的 8086 文本做字符串替换；必须从统一 IR 再做一次真正的 lowering。
+后来仓库里多了一台 Hydra86。它也是 8086 风格，却不是那档教学模拟器的另一个名字。它有自己的 `.data` / `.code` 汇编格式、函数调用、标签规则、系统调用、汇编器和 VM；**它自己就是仓库里的一个独立工程**，能单独汇编、执行、反汇编和调试，手册与来历都在它那个独立仓库里。要对接它，不能把原来的 8086 文本做字符串替换；必须从统一 IR 再做一次真正的 lowering。
 
 糖糖给 `t1t transfer` 加了第四个目标：
 
@@ -1334,7 +1334,7 @@ magel-emit program.quad --target embedded-cpp --heap-bytes 65536 --stack-slots 2
 后来 `.mcpp` 描述语言也被撤下：应用胶水回到普通 C++，动态库函数可以在 Magel 的
 `abi` 块里集中声明。阶段快照很容易把过去的数字伪装成今天的事实；生成器的语言与模式
 支持矩阵以 [`15`](15-language-mode-support.md) 为准，Magel 的语法兼容基线见
-[EBNF 语法参考](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)，用户 API 见 [`magel/README.md`](https://gitee.com/rabbitc999/magel/blob/master/README.md)；设计演进随语言
+[EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)，用户 API 见 [`magel/README.md`](https://github.com/rabbitc999/magel/blob/master/README.md)；设计演进随语言
 一起维护（`magel/doc/35-magel-story.md`）。故事可以记住为什么，源码和测试负责回答现在是什么。
 
 ---
@@ -1404,8 +1404,7 @@ Magel 当初借过 Rust 的不少想法：默认导出、接口当约束、`?` �
 最早把所有东西摆在同一层时，打开仓库像走进一间堆满半成品的工作室：
 解析器、Magel 编译器、虚拟机和课程示例都能找到，却很难一眼分清谁依赖谁。
 后来门牌重新挂好：`source/` 是 ParseEngine 生成器，`magel/` 是用它生成前端的
-Magel 语言工程，Hydra86 是能独立运行的汇编器与多核虚拟机（来历见
-[独立仓库](https://gitee.com/rabbitc999/hydra-86)，现也拆为独立仓库）。`project/` 留给生成器的示例和课程实验，
+Magel 语言工程，Hydra86 是能独立运行的汇编器与多核虚拟机（现也拆为独立仓库）。`project/` 留给生成器的示例和课程实验，
 `library/` 放可复用的库。
 
 再后来又多开了一扇门：`metro-lang/`。它拿同一份生成器做前端，把地铁线网数据语言
@@ -1433,7 +1432,7 @@ Magel 语言工程，Hydra86 是能独立运行的汇编器与多核虚拟机（
 Magel 那条支线也继续长大：接口可以给方法默认实现，`foreach` 通过 `Iterator` 协议遍历，`robot::`
 承接机器人算法，`abi` 块让动态库声明回到 Magel 源码。早先试过的 `.mcpp` 胶水小语言
 被撤下，Rust VM 导出也停止了；留下桌面和嵌入式两种 C++ 导出。故事里的旧方案仍是
-真实的尝试，当前语法从[EBNF 语法参考](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)核对，API 从 [Magel 手册](https://gitee.com/rabbitc999/magel/blob/master/README.md)查。
+真实的尝试，当前语法从[EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)核对，API 从 [Magel 手册](https://github.com/rabbitc999/magel/blob/master/README.md)查。
 
 这几扇门各能单独打开，也能接成一条路：文法生成前端，前端产出中间表示，后端与虚拟机让
 程序真正跑起来。这张地图的价值不只在多了几种模式，而在每一段都能单独构建、检查和解释。
@@ -1464,7 +1463,7 @@ C++ 胶水用 `std::optional<Reference<T>>` 接住它，空值不能冒充有效
 下一块被改动的是循环。数组和列表的 `foreach` 变量直接读写源元素；自定义引用迭代器
 返回 `Option<T mut&>`，有元素就交出引用，结束就交出 `None`。矩阵和数组都可迭代，
 矩阵索引取列向量，向量索引取数值，矩阵、向量还可以与数组互转。
-这些规则的例子和边界写进了[引用与迭代](https://gitee.com/rabbitc999/magel/blob/master/doc/04-references.md)。
+这些规则的例子和边界写进了[引用与迭代](https://github.com/rabbitc999/magel/blob/master/doc/04-references.md)。
 
 然后轮到泛型的告示牌。
 
@@ -1483,7 +1482,7 @@ enum Choice<T> { None1, Value1(T value); };
 
 糖糖没有把“省字”当成自动放行。函数指针的泛型也要特化，循环引用自身的函数指针类型
 必须拒绝；枚举省掉前缀以后，声明、赋值、返回值、参数和 `match` 仍要指向同一种类型。
-[集合与抽象](https://gitee.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md)里留下了完整写法。
+[集合与抽象](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md)里留下了完整写法。
 
 `match` 的分支也能用 `|` 连接多个备选模式，字符串范围补齐了四种开闭区间：
 `['a','z']`、`['a','z')`、`('a','z']`、`('a','z')`。边界是否包含，直接写在端点上。
@@ -1505,8 +1504,8 @@ Magel 保留声明、类型选择与必要包装，裁剪统一使用 `NO_MAGEL_
 解释器检查，导出使用 float32、float64 和 int64 代表类型。Qt 后端保留，本轮没有实测。
 
 这次更新的故事到这里就有了落点：短下来的语法，要靠更明确的类型边界和跑过的程序支撑。
-命令与覆盖范围放在[库迁移与回归验证](https://gitee.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)，
-语言变更记在 [Magel 变更记录](https://gitee.com/rabbitc999/magel/blob/master/CHANGELOG.md)。
+命令与覆盖范围放在[库迁移与回归验证](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)，
+语言变更记在 [Magel 变更记录](https://github.com/rabbitc999/magel/blob/master/CHANGELOG.md)。
 
 ---
 
@@ -1520,16 +1519,13 @@ Magel 保留声明、类型选择与必要包装，裁剪统一使用 `NO_MAGEL_
 
 屏幕回了 `3 x^2`。`x` 没有数值，计算却已经完成了一步。地图上于是又多了一扇门：
 `cas/`，一个 C++17 符号计算系统。代数、微积分、矩阵、张量、数论和特殊函数进入数学内核，
-ParseEngine 负责先把输入读成有结构的表达式。它后来也拆成了独立仓库
-（<https://gitee.com/rabbitc999/cas>）：用法见
-[CAS 手册](https://gitee.com/rabbitc999/cas/blob/master/README.md)。
+ParseEngine 负责先把输入读成有结构的表达式。它后来也拆成了独立仓库，本仓库不再提供指向它的链接。
 
 
 “表达式文法，计算器样例不是早就有了吗？”
 
 真的公式比计算器样例多了几层机关：赋值、比较、隐式乘法、右结合的幂、阶乘、
-函数参数、嵌套张量、范围、索引和切片。它们都写进
-[cas.gram](https://gitee.com/rabbitc999/cas/blob/master/cas.gram)，
+函数参数、嵌套张量、范围、索引和切片。它们都写进 `cas.gram`，
 内置符号逐个登记，产生式逐层组合，语义动作交给语义层构造节点。
 逐语句读取与括号续行也通过 `%epilogue include` 固化进生成产物。
 这份文法采用 SLR；生成报告里的冲突栏为空。
@@ -1564,8 +1560,7 @@ f (x)
 使用同一分配池；帮助模板也在构建期嵌入。命令行和 `Cas::Engine` 共用数学内核，
 静态库可以交给其他程序调用。多个引擎仍共享进程级符号环境，调用需要串行进行。
 
-最后一行不是“看起来对了”，而是 `make check`（在 CAS 独立仓库
-<https://gitee.com/rabbitc999/cas> 里跑）。
+最后一行不是“看起来对了”，而是 `make check`（在 CAS 独立仓库里跑）。
 带空白与紧邻的调用、内置函数、自定义函数定义、显式与隐式乘法都有固定期望值，
 全部 777 个积分表表达式还要逐项比对解析结构与编译后加载的结构。
 这些检查通过了，才把那一个空格的故事收进文档。
@@ -1643,9 +1638,9 @@ Set 和 Map 当前走值迭代，不把能改坏键规则的可写引用交出�
 具名游标的 `next()` 等方法推进当前位置；`collect()`、`fold()` 的链式写法处理游标副本。
 把这些区别写清楚，比把所有方法统称为‘消费迭代器’更有用。
 
-具体接口与可运行样例见[标准迭代器](https://gitee.com/rabbitc999/magel/blob/master/doc/05-iterators.md)，
-临时量的责任见[值语义与链式调用](https://gitee.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md)，
-集合的规则见[泛型与集合](https://gitee.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md)。
+具体接口与可运行样例见[标准迭代器](https://github.com/rabbitc999/magel/blob/master/doc/05-iterators.md)，
+临时量的责任见[值语义与链式调用](https://github.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md)，
+集合的规则见[泛型与集合](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md)。
 这一次，用户写在一行里的流水线，终于由编译器接住每一件中间产物。
 
 ---
@@ -1708,8 +1703,8 @@ PostgreSQL 的 bytea 按文本表示返回，COPY 流式协议仍未实现。
 
 这一轮功能和修复进入 **1.1.0**，源码语言兼容基线仍是 **1.0.0**。
 第二十四章的 2026-10-07 数字保留为当时的验收记录，本章接着记录两天后的范围。
-复现清单见[库迁移与回归验证](https://gitee.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)，
-数据库入口、依赖和限制见[SQL 接口文档](https://gitee.com/rabbitc999/magel/blob/master/sql-magel/doc/01-sql-library.md)。
+复现清单见[库迁移与回归验证](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)，
+数据库入口、依赖和限制见[SQL 接口文档](https://github.com/rabbitc999/magel/blob/master/sql-magel/doc/01-sql-library.md)。
 
 糖糖把“通过”两个字改成了表格。地图扩建到这里，每扇门后面究竟走过多远，
 比门上挂着多少名字更值得留下来。
@@ -1736,14 +1731,13 @@ Magel 后来又长了两段：一是 `std::event` 的**事件回调 / 中断 / �
 冻结契约；通用验收入口为 `sh ci/run.sh`；逐库三后端和 Windows 桌面验证另有专项脚本。
 2026-10-07 的 Magel 回归为 **144 个正常样例 + 192 个错误样例**，见第二十四章；2026-10-09 的 1.1.0 推进到 **155 个正常样例 + 268 个错误样例**，以及覆盖 27 个标准库模块的 22 个逐库样例，外置库与多数据库验收范围见第二十七章。1.1.1 补入完整表达式清理回归后，正常样例增至 **156 个**，错误样例仍为 **268 个**。各章的分阶段数字按当时读。
 
-1.2.0 在文法中逐个登记十种复合赋值 Token 和产生式，通过 `M_CompoundAssign` 将 `A op= B` 展开为 `A = A op B`。纯 `a = b = c + 3` 链从右向左执行；包含复合赋值的链非法，包括 `a += b *= 3`、`a = b += 3` 及右侧加括号的形式。规则和正式样例见 [Magel 语言指南](https://gitee.com/rabbitc999/magel/blob/master/doc/01-language.md#复合赋值先计算再写回)。
+1.2.0 在文法中逐个登记十种复合赋值 Token 和产生式，通过 `M_CompoundAssign` 将 `A op= B` 展开为 `A = A op B`。纯 `a = b = c + 3` 链从右向左执行；包含复合赋值的链非法，包括 `a += b *= 3`、`a = b += 3` 及右侧加括号的形式。规则和正式样例见 [Magel 语言指南](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#复合赋值先计算再写回)。
 
-Magel 后来把源码语法的兼容基线单独写进 [EBNF 语法参考](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)。标准库拆成三层：核心 `lang.mgl` 自动加载、`std::xxx` 按需 `import`、`robot::` 等可选库；1.0 通过 `std::iter` 提供迭代链 API，程序可使用惰性适配器，也可显式使用 `foreach` 和 `lang::List<T>`。这也说明故事里某一阶段的功能清单，不能代替今天的语言规则。
+Magel 后来把源码语法的兼容基线单独写进 [EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)。标准库拆成三层：核心 `lang.mgl` 自动加载、`std::xxx` 按需 `import`、`robot::` 等可选库；1.0 通过 `std::iter` 提供迭代链 API，程序可使用惰性适配器，也可显式使用 `foreach` 和 `lang::List<T>`。这也说明故事里某一阶段的功能清单，不能代替今天的语言规则。
 
 CAS 则把同一台生成器接到了符号计算上：完整表达式文法、构建期编译的积分表、
 自定义分配池和嵌入 API 一起落地。第二十五章记下了函数调用与隐式乘法的边界：
-名称后接括号统一表示调用，符号乘括号要明确写出 `*`。完整用法与验证范围见
-[CAS 手册](https://gitee.com/rabbitc999/cas/blob/master/README.md)（**独立仓库**）。
+名称后接括号统一表示调用，符号乘括号要明确写出 `*`。完整用法与验证范围见 CAS 独立仓库的手册。
 
 情节是编的，验证是真的。想自己核一遍：
 
@@ -1784,4 +1778,4 @@ diff -r tmp/base tmp/after                             # 改口径前后：该�
   怎么开，这里不说。
 
 
-1.2.0 还支持前后置 `++` / `--`，前置取新值、后置取旧值。一个完整表达式最多一个自增减符号，`a=(i++)+(++i)` 非法，括号、调用实参和短路分支合并检查；详见[自增减规则与样例](https://gitee.com/rabbitc999/magel/blob/master/doc/01-language.md#自增与自减一个表达式最多一个)。
+1.2.0 还支持前后置 `++` / `--`，前置取新值、后置取旧值。一个完整表达式最多一个自增减符号，`a=(i++)+(++i)` 非法，括号、调用实参和短路分支合并检查；详见[自增减规则与样例](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#自增与自减一个表达式最多一个)。

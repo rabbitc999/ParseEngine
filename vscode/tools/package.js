@@ -1,38 +1,66 @@
 'use strict';
 
 /**
- * 打包 VS Code 插件为 `.vsix`。
+ * 打 VSIX：内嵌编译器 → 清单自检 → 冒烟测试 → 写包，产物落在 `dist/`。
  *
- * 为什么自己写而不是用 `vsce`：
- *   - `vsce` 要从 npm 装（需要联网），本仓库的插件本身是零依赖的，不该为了打包破例；
+ * 入口统一走 npm（与 Magel 仓库一致）：
+ *   npm run package                 # 全套
+ *   npm run package -- --skip-tests # 只内嵌 + 打包
+ *   npm run package -- --dry-run    # 只打印要跑的命令
+ *   npm run package -- --list       # 只列出会被打包的文件
+ *   npm run package -- --out other-dir
+ *   npm run package -- --universal  # 不打平台标记（编译器交给 PATH）
+ *
+ * 为什么自己写 ZIP 而不是用 `vsce`：
  *   - `.vsix` 就是一个 ZIP：根放 `[Content_Types].xml` 和 `extension.vsixmanifest`，
  *     插件文件统一放在 `extension/` 下。这里用 Node 内置的 zlib 自己写 ZIP，
- *     因此 Windows / Linux / macOS 都能跑。
+ *     Windows / Linux / macOS 都能跑，不需要联网装工具；
+ *   - 本插件零运行时依赖，不该为了打包破例。
+ * 想要 `vsce` 那条路（校验更严、能直接 `vsce publish`）时用 `npm run package:vsce`。
  *
- * 用法（在仓库任意目录执行都可以）：
- *   node vscode/tools/package.js                 # 跑测试 + 打包
- *   node vscode/tools/package.js --skip-tests    # 只打包
- *   node vscode/tools/package.js --list          # 只列出会被打包的文件
- *   node vscode/tools/package.js --out <目录>    # 指定输出目录（默认 vscode/dist）
- *   node vscode/tools/package.js --universal     # 不打平台标记（默认会按当前平台打）
- *
- * 平台标记：包里带的是**当前平台**编译出来的 `ParseEngine`，所以清单的
- * `Identity` 会写上 `TargetPlatform`、文件名也缀上平台（如 `-win32-x64`），
- * VS Code 就只会把它装到匹配的机器上——不然 macOS / Linux 用户装上会得到一个
- * 跑不起来的 Windows 可执行文件。要从源码在别的平台用，就先在那个平台重新
- * 构建并打包；想强制产出通用包（例如编译器放在 `PATH` 里），加 `--universal`。
+ * 平台标记：包里带的是**当前平台**编译出来的 `ParseEngine`，所以清单的 `Identity`
+ * 会写上 `TargetPlatform`、文件名也缀上平台（如 `-win32-x64`），VS Code 就只会把
+ * 它装到匹配的机器上——不然 macOS / Linux 用户装上会得到一个跑不起来的 Windows
+ * 可执行文件。要从源码在别的平台用，就先在那个平台重新构建并打包。
  */
 
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
-const { execFileSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
 
 /** 插件根目录（本文件在 <插件根>/tools/ 下）。 */
 const EXTENSION_DIR = path.resolve(__dirname, '..');
 
 /** 默认输出目录。 */
 const DEFAULT_OUT_DIR = path.join(EXTENSION_DIR, 'dist');
+
+/** 插件清单。 */
+const manifest = require(path.join(EXTENSION_DIR, 'package.json'));
+
+/**
+ * 取 `--xxx` 后面的值。
+ *
+ * @param {string} name 选项名（含 `--`）。
+ * @param {string} fallback 没给时的默认值。
+ * @returns {string} 选项值。
+ */
+function option(name, fallback) {
+  const index = process.argv.indexOf(name);
+  if (index < 0) return fallback;
+  const value = process.argv[index + 1];
+  if (!value || value.startsWith('--')) {
+    console.error(`${name} 后面要跟一个值`);
+    process.exit(2);
+  }
+  return value;
+}
+
+const DRY_RUN = process.argv.includes('--dry-run');
+const SKIP_TESTS = process.argv.includes('--skip-tests');
+const LIST_ONLY = process.argv.includes('--list');
+const UNIVERSAL = process.argv.includes('--universal');
+const outDir = path.resolve(EXTENSION_DIR, option('--out', DEFAULT_OUT_DIR));
 
 /**
  * 打印一行日志。
@@ -41,34 +69,6 @@ const DEFAULT_OUT_DIR = path.join(EXTENSION_DIR, 'dist');
  */
 function log(message) {
   console.log(message);
-}
-
-/**
- * 解析命令行参数。
- *
- * @param {string[]} argv 参数（不含 node 与脚本名）。
- * @returns {{skipTests: boolean, listOnly: boolean, universal: boolean, outDir: string}} 解析结果。
- */
-function parseArgs(argv) {
-  const options = {
-    skipTests: false,
-    listOnly: false,
-    universal: false,
-    outDir: DEFAULT_OUT_DIR,
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--skip-tests') options.skipTests = true;
-    else if (arg === '--list') options.listOnly = true;
-    else if (arg === '--universal') options.universal = true;
-    else if (arg === '--out') options.outDir = path.resolve(argv[++index] || DEFAULT_OUT_DIR);
-    else if (arg === '--help' || arg === '-h') {
-      log('用法：node tools/package.js [--skip-tests] [--list] [--universal] [--out <目录>]');
-      process.exit(0);
-    }
-  }
-  return options;
 }
 
 /**
@@ -417,17 +417,24 @@ ${lines.join('\n')}
 }
 
 /**
- * 跑一个脚本；返回码非 0 会抛错，从而中止打包。
+ * 跑一个 Node 脚本，失败就退出。
  *
  * @param {string} title 日志标题。
  * @param {string} script 相对插件根的脚本路径。
+ * @returns {void}
  */
 function runScript(title, script) {
   log(`\n== ${title}：${script} ==`);
-  execFileSync(process.execPath, [path.join(EXTENSION_DIR, script)], {
+  if (DRY_RUN) return;
+  // node 用绝对路径直连（`shell: true` 会把带空格的 "C:\\Program Files\\..." 拆坏）。
+  const result = spawnSync(process.execPath, [path.join(EXTENSION_DIR, script)], {
     cwd: EXTENSION_DIR,
     stdio: 'inherit',
   });
+  if (result.status !== 0) {
+    console.error(`\n失败（退出码 ${result.status ?? 'null'}）：${script}`);
+    process.exit(result.status || 1);
+  }
 }
 
 /**
@@ -453,9 +460,7 @@ function runChecks(skipTests) {
  * 打包主流程。
  */
 function main() {
-  const options = parseArgs(process.argv.slice(2));
-
-  // 1. 读清单并检查必需文件。
+  // 1. 读清单。
   const manifestPath = path.join(EXTENSION_DIR, 'package.json');
   if (!fs.existsSync(manifestPath)) {
     log(`找不到插件清单：${manifestPath}`);
@@ -463,7 +468,9 @@ function main() {
   }
   const pkg = readJson(manifestPath);
 
-  // 先把编译器拷进 bin/：发布出去的 .vsix 自带 ParseEngine（内嵌语言服务器 + 生成器）。
+  log(`== 打包 ${pkg.displayName || pkg.name} ${pkg.version} ==`);
+
+  // 2. 先把编译器拷进 bin/（发布出去的 .vsix 自带 ParseEngine）。
   runScript('内嵌编译器', 'tools/embed-compiler.js');
 
   const required = [
@@ -484,7 +491,7 @@ function main() {
     process.exit(1);
   }
 
-  // 2. 按 .vscodeignore 收集文件。
+  // 3. 按 .vscodeignore 收集文件。
   const patterns = loadIgnorePatterns();
   const files = [];
   collectFiles(EXTENSION_DIR, patterns, files);
@@ -494,18 +501,18 @@ function main() {
   log(`打包文件 ${files.length} 个：`);
   for (const file of files) log(`  ${file}`);
 
-  if (options.listOnly) {
+  if (LIST_ONLY) {
     log('\n（--list：只列出文件，未打包）');
     return;
   }
 
-  // 3. 默认先做清单检查与冒烟测试：不通过就不该产出安装包。
-  runChecks(options.skipTests);
+  // 4. 默认先做清单检查与冒烟测试：不通过就不该产出安装包。
+  runChecks(SKIP_TESTS);
 
-  // 4. 平台标记：包里带的是当前平台编出来的编译器，所以默认按当前平台标记。
-  const platform = options.universal ? '' : vscodePlatform();
+  // 5. 平台标记：包里带的是当前平台编出来的编译器，所以默认按当前平台标记。
+  const platform = UNIVERSAL ? '' : vscodePlatform();
 
-  // 5. 组装 ZIP 条目：清单与内容类型放根，插件文件放 extension/ 下。
+  // 6. 组装 ZIP 条目：清单与内容类型放根，插件文件放 extension/ 下。
   const entries = [
     { name: '[Content_Types].xml', data: Buffer.from(buildContentTypes(files), 'utf8') },
     { name: 'extension.vsixmanifest', data: Buffer.from(buildManifest(pkg, files, platform), 'utf8') },
@@ -517,16 +524,19 @@ function main() {
     });
   }
 
-  // 6. 写文件。
-  fs.mkdirSync(options.outDir, { recursive: true });
+  // 7. 写文件。
   const vsixName = `${pkg.name}-${pkg.version}${platform ? `-${platform}` : ''}.vsix`;
-  const vsixPath = path.join(options.outDir, vsixName);
+  const vsixPath = path.join(outDir, vsixName);
+  if (DRY_RUN) {
+    log(`\n（dry-run：没有真的产出 ${path.relative(EXTENSION_DIR, vsixPath)}）`);
+    return;
+  }
+  fs.mkdirSync(outDir, { recursive: true });
   const zip = createZip(entries);
   fs.writeFileSync(vsixPath, zip);
 
-  log(`\n打包完成：${vsixPath}`);
+  log(`\n已打包：${path.relative(EXTENSION_DIR, vsixPath)}（${(zip.length / 1048576).toFixed(2)} MB，条目 ${entries.length} 个）`);
   log(`目标平台：${platform || '通用（不带 TargetPlatform，需要机器上自己解决编译器）'}`);
-  log(`大小：${(zip.length / 1024).toFixed(1)} KB，条目 ${entries.length} 个`);
   log(`安装：code --install-extension "${vsixPath}"`);
 }
 

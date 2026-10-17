@@ -7,7 +7,7 @@ find_package(Threads REQUIRED)
 set(T1T_HYDRA86_ROOT "" CACHE PATH
     "Hydra86 source tree (standalone repo); leave missing to build assembly generation only")
 set(T1T_HAVE_HYDRA86 OFF)
-# Hydra86 已拆分为独立仓库（https://gitee.com/rabbitc999/hydra-86）。查找顺序：
+# Hydra86 已拆分为独立仓库。查找顺序：
 #   1. 显式 T1T_HYDRA86_ROOT（-DT1T_HYDRA86_ROOT=... 或环境变量）
 #   2. 本仓库同级目录 ../hydra-86（克隆 ParseEngine 时旁边放着 hydra-86 的常见布局）
 # 都找不到时按原降级行为：hydra86 汇编生成仍然可用，只是不嵌入执行。

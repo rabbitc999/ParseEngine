@@ -2,13 +2,13 @@
 
 > This is the English edition. The Chinese edition is the default and is the one maintained first — see [中文文档](../../doc/README.md)。
 
-> **Magel's glorious history**: This language grew up in this repository in its early days — the generator, StackVM, standard library, glue and reflection were all polished together here. It has since been split into an independent repository at <https://gitee.com/rabbitc999/magel>; links to `magel/` in this document now point to the corresponding documents in the new repository.
+> **Magel's glorious history**: This language grew up in this repository in its early days — the generator, StackVM, standard library, glue and reflection were all polished together here. It has since been split into an independent repository at <https://github.com/rabbitc999/magel>; links to `magel/` in this document now point to the corresponding documents in the new repository.
 >
-> **Hydra86's map**: It too grew up in this repository — the assembler, the multi-core virtual machine, PSF snapshots and the embedding interface all took their final shape here. It has since been split into an independent repository at <https://gitee.com/rabbitc999/hydra-86>; links to `hydra-86/` in this document now point to the corresponding documents in the new repository.
+> **Hydra86's map**: It too grew up in this repository — the assembler, the multi-core virtual machine, PSF snapshots and the embedding interface all took their final shape here. It has since been split into an independent repository, and this repository no longer links to it.
 >
 > **The RustView line**: It likewise grew up in this repository — the minimal Rust grammar, borrow analysis and zero-dependency SVG / HTML all took their final shape here. It has since been split into an independent repository at <https://gitee.com/rabbitc999/rust-view>; links to `rust-view/` in this document now point to the corresponding documents in the new repository.
 >
-> **The CAS tree**: It also grew up in this repository — the full expression grammar, the structured integration table and the custom allocation pool adapters all took their final shape here. It has since been split into an independent repository at <https://gitee.com/rabbitc999/cas>; links to `cas/` in this document now point to the corresponding documents in the new repository.
+> **The CAS tree**: It also grew up in this repository — the full expression grammar, the structured integration table and the custom allocation pool adapters all took their final shape here. It has since been split into an independent repository, and this repository no longer links to its documents.
 
 This page describes where documentation across the ParseEngine repository lives. The repository's main entry is the [root README](../../README.md); the generator, Magel, Hydra86, MetroLang, RustView and CAS each have their own project documentation.
 
@@ -17,11 +17,11 @@ This page describes where documentation across the ParseEngine repository lives.
 | Project | Documentation | Content |
 | --- | --- | --- |
 | ParseEngine parser generator | [Usage entry](../../source/README.md) · [Topic document index](../README.md) | `.gram` grammar, analysis modes, eight target languages, output artifacts and implementation |
-| Magel | [Language entry](https://gitee.com/rabbitc999/magel/blob/master/README.md) · [EBNF grammar reference](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) · [Topic documents](https://gitee.com/rabbitc999/magel/blob/master/doc/README.md) · [Magel exporter](https://gitee.com/rabbitc999/magel/blob/master/magel-emit/README.md) | Language syntax baseline, standard library, StackVM, glue and export |
-| Hydra86 | [Project entry](https://gitee.com/rabbitc999/hydra-86/blob/master/README.md) · [Detailed documentation](https://gitee.com/rabbitc999/hydra-86/blob/master/docs/README.md) | Assembly, virtual machine, multi-core scheduling, embedding interface (**independent repository**) |
+| Magel | [Language entry](https://github.com/rabbitc999/magel/blob/master/README.md) · [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) · [Topic documents](https://github.com/rabbitc999/magel/blob/master/doc/README.md) · [Magel exporter](https://github.com/rabbitc999/magel/blob/master/magel-emit/README.md) | Language syntax baseline, standard library, StackVM, glue and export |
+| Hydra86 | — (independent repository, no links kept here) | Assembly, virtual machine, multi-core scheduling, embedding interface (**independent repository**) |
 | MetroLang | [Toolchain entry](https://gitee.com/rabbitc999/metro-lang/blob/master/README.md) · [Language reference](https://gitee.com/rabbitc999/metro-lang/blob/master/doc/01-metrolang-reference.md) · [JSON format](https://gitee.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md) · [Interactive viewer](https://gitee.com/rabbitc999/metro-lang/blob/master/map_view/README.md) | A metro network data language: grammar, compilation / decompilation, SVG maps and route queries (**independent repository**) |
 | RustView | [Project entry](https://gitee.com/rabbitc999/rust-view/blob/master/README.md) · [Preview page and demo](https://gitee.com/rabbitc999/rust-view/blob/master/doc/preview.html) · [Grammar](https://gitee.com/rabbitc999/rust-view/blob/master/rust_subset.gram) | Borrow-semantics visualization for minimal Rust pseudocode: ParseEngine-generated frontend, scope stack + borrow state table analysis, hand-written SVG / HTML; **1.0 feature freeze** (**independent repository**) |
-| CAS | [Project entry](https://gitee.com/rabbitc999/cas/blob/master/README.md) · [Architecture and validation](https://gitee.com/rabbitc999/cas/blob/master/doc/architecture.md) | Symbolic computation, structured integration table and custom allocation pools (**independent repository**) |
+| CAS | — (independent repository, no links kept here) | Symbolic computation, structured integration table and custom allocation pools (**independent repository**) |
 
 ## Parser Generator Documentation
 
@@ -58,7 +58,7 @@ When changing any project, defer to that project's source, tests and local docum
 
 ## CAS Symbolic Computation
 
-[CAS project manual](https://gitee.com/rabbitc999/cas/blob/master/README.md) (**independent repository**) · [Architecture and validation](https://gitee.com/rabbitc999/cas/blob/master/doc/architecture.md) · [Built-in symbol list](https://gitee.com/rabbitc999/cas/blob/master/doc/builtins.json).
+CAS has been split into a standalone repository, so this repository no longer links to its manual or documents; see [Custom Allocator Library](#custom-allocator-library) for the `Cas::Memory` notes.
 
 ## Custom Allocator Library
 
@@ -66,8 +66,8 @@ When changing any project, defer to that project's source, tests and local docum
 
 ## Magel Binary Stream Parsing
 
-[`std::binary::BinaryReader`](https://gitee.com/rabbitc999/magel/blob/master/doc/12-binary-reader.md) reads little/big-endian primitive numbers, fixed-length strings and arrays through C++ glue.
+[`std::binary::BinaryReader`](https://github.com/rabbitc999/magel/blob/master/doc/12-binary-reader.md) reads little/big-endian primitive numbers, fixed-length strings and arrays through C++ glue.
 
 ## Magel JSON and TOML
 
-The [JSON/TOML parsing interfaces](https://gitee.com/rabbitc999/magel/blob/master/doc/13-json-toml.md) plug copies of `library/json` and `library/toml` into Magel, providing parsing, nested reads, traversal, diagnostics and serialization.
+The [JSON/TOML parsing interfaces](https://github.com/rabbitc999/magel/blob/master/doc/13-json-toml.md) plug copies of `library/json` and `library/toml` into Magel, providing parsing, nested reads, traversal, diagnostics and serialization.

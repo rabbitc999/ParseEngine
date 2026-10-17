@@ -5,7 +5,7 @@
 > **That glorious chapter of Magel**: this language grew up inside this repository early on — the
 > generator, StackVM, standard library, glue and reflection were all polished here together (the
 > Magel documents below are the record of that time). It has since been split into its own
-> repository <https://gitee.com/rabbitc999/magel>; every link in this document that pointed at
+> repository <https://github.com/rabbitc999/magel>; every link in this document that pointed at
 > `magel/` now points at the same-named document in the new repository.
 
 **Author: Tangtang (an amateur writer)**
@@ -27,7 +27,7 @@
 > The book has twenty-seven chapters: first what this thing does, then why it was built, then where it failed, how the load was trimmed, how the collaboration worked, and finally what was learned; the second half continues with incremental parsing, the Hydra86 integration, the five strict C-- experiments, the Java/JS narrow backends, closing out graph mode, and Magel's C++ glue, body macros, event interrupts and Qt GUI migration; Chapter 23 puts MetroLang and RustView on the map, Chapter 24 continues with Magel's non-null references, postfix generics and whole-library migration, Chapter 25 brings CAS formulas into the tree and resolves the ambiguity between function calls and implicit multiplication; Chapter 26 closes out Magel 1.0's names, references and iterator pipelines, and Chapter 27 records the multi-database and external-library three-backend acceptance for 1.1.
 >
 > **A note on scope**: the current state is six complete backends + two narrow backends, Java / JS, and sixteen modes; Chapters 2–11 and some later chapters keep the numbers and attempts as they were at the time of development. For target languages, template counts and example counts, the current source and support matrix are authoritative.
-> Magel's source syntax already has a separate [EBNF grammar reference](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md); the old APIs and experimental schemes that appear in the story should be read as belonging to the stage they came from.
+> Magel's source syntax already has a separate [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md); the old APIs and experimental schemes that appear in the story should be read as belonging to the stage they came from.
 
 > Not every language supports all sixteen modes; the current support matrix, export restrictions and the boundaries of the incremental API are in [15](../15-language-mode-support.md).
 
@@ -1000,7 +1000,7 @@ It isn't that the features are full, but that the route changed: from "generate 
 
 It lowers quadruples into teaching assembly with `AX`, `DX`, `MOV`, `IDIV`, then hands it to an in-library simulator to execute. It's very suitable for explaining fixed register pairs, multiplication/division and memory operations, but it is, after all, a machine serving a course model: its instructions, configuration and runtime are all interpreted by `transfer` itself.
 
-Later the repository gained a Hydra86. It's also 8086-style, but it isn't another name for that teaching simulator. It has its own `.data` / `.code` assembly format, function calls, label rules, system calls, assembler and VM; **it is itself an independent project in the repository**, able to assemble, execute, disassemble and debug on its own, with its manual in [the independent repository's README](https://gitee.com/rabbitc999/hydra-86/blob/master/README.md), and the origin of that half of its map in [the independent repository](https://gitee.com/rabbitc999/hydra-86/blob/master/README.md). To wire it up, you can't do a string replacement on the old 8086 text; you must do a real lowering from the unified IR again.
+Later the repository gained a Hydra86. It's also 8086-style, but it isn't another name for that teaching simulator. It has its own `.data` / `.code` assembly format, function calls, label rules, system calls, assembler and VM; **it is itself an independent project in the repository**, able to assemble, execute, disassemble and debug on its own, with its manual and origin kept in its own standalone repository. To wire it up, you can't do a string replacement on the old 8086 text; you must do a real lowering from the unified IR again.
 
 Tangtang added a fourth target to `t1t transfer`:
 
@@ -1337,7 +1337,7 @@ stack. Desktop and embedded thus share the same bytecode semantics, with only th
 Later the `.mcpp` description language was withdrawn too: application glue went back to ordinary C++, and dynamic library functions can be declared centrally in Magel's
 `abi` block. Stage snapshots easily disguise past numbers as today's facts; the generator's language and mode
 support matrix takes [`15`](../15-language-mode-support.md) as authoritative, Magel's syntax-compatibility baseline is in the
-[EBNF grammar reference](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md), the user API is in [`magel/README.md`](https://gitee.com/rabbitc999/magel/blob/master/README.md); design evolution is maintained together
+[EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md), the user API is in [`magel/README.md`](https://github.com/rabbitc999/magel/blob/master/README.md); design evolution is maintained together
 with the language (`magel/doc/35-magel-story.md`). The story can remember why, and the source and tests are responsible for answering what is now.
 
 ---
@@ -1409,8 +1409,7 @@ The only thing he can decide is this — give everything the language side shoul
 When everything was first laid out on the same level, opening the repository was like walking into a studio piled full of half-finished work:
 a parser, a Magel compiler, a virtual machine and course examples could all be found, yet it was hard to tell at a glance who depended on whom.
 Later the doorplates were re-hung: `source/` is the ParseEngine generator, `magel/` is the
-Magel language project that uses it to generate a front end, and Hydra86 is an independently runnable assembler and multi-core virtual machine (its origin in
-[the independent repository](https://gitee.com/rabbitc999/hydra-86), now also split into its own repository). `project/` is left for the generator's examples and course labs,
+Magel language project that uses it to generate a front end, and Hydra86 is an independently runnable assembler and multi-core virtual machine (now also split into its own repository). `project/` is left for the generator's examples and course labs,
 and `library/` holds reusable libraries.
 
 Even later another door was opened: `metro-lang/`. It uses the same generator as a front end and builds out the whole subway-network-data language
@@ -1438,7 +1437,7 @@ where the other doors lead. The parser icon at the door is still there, because 
 Magel's branch kept growing too: interfaces can give methods default implementations, `foreach` iterates through the `Iterator` protocol, `robot::`
 carries robot algorithms, and the `abi` block brings dynamic library declarations back into Magel source. The earlier `.mcpp` glue mini-language
 was withdrawn, and Rust VM export was stopped too; what remains is desktop and embedded C++ export. The old schemes in the story are still
-real attempts; the current syntax is checked against the [EBNF grammar reference](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md), and the API is looked up in the [Magel manual](https://gitee.com/rabbitc999/magel/blob/master/README.md).
+real attempts; the current syntax is checked against the [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md), and the API is looked up in the [Magel manual](https://github.com/rabbitc999/magel/blob/master/README.md).
 
 These doors can each be opened on their own, and can also be connected into one route: the grammar generates a front end, the front end produces an intermediate representation, and the backend and virtual machine make the
 program really run. The value of this map isn't only that there are more modes, but that every segment can be built, checked and explained on its own.
@@ -1469,7 +1468,7 @@ and C++ glue catches it with `std::optional<Reference<T>>`, so a null value can'
 The next thing changed was loops. The `foreach` variable over arrays and lists reads and writes the source element directly; a custom reference iterator
 returns `Option<T mut&>` — if there's an element it hands out a reference, and at the end it hands out `None`. Both matrices and arrays are iterable,
 matrix indexing takes a column vector, vector indexing takes a value, and matrices and vectors can also convert to and from arrays.
-Examples of these rules and their boundaries are written in [References and Iteration](https://gitee.com/rabbitc999/magel/blob/master/doc/04-references.md).
+Examples of these rules and their boundaries are written in [References and Iteration](https://github.com/rabbitc999/magel/blob/master/doc/04-references.md).
 
 Then it was the turn of the generics signboard.
 
@@ -1488,7 +1487,7 @@ but can't be guessed arbitrarily when there's no context. Payloads can help infe
 
 Tangtang didn't treat "saving characters" as automatic clearance. Function-pointer generics must be specialized too, and a function-pointer type that recursively references itself
 must be rejected; after enums drop their prefix, declarations, assignments, return values, parameters and `match` must still point to the same type.
-The full syntax is left in [Collections and Abstractions](https://gitee.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md).
+The full syntax is left in [Collections and Abstractions](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md).
 
 `match` branches can also join multiple alternative patterns with `|`, and string ranges filled in four kinds of open/closed intervals:
 `['a','z']`, `['a','z')`, `('a','z']`, `('a','z')`. Whether a boundary is inclusive is written directly on the endpoint.
@@ -1510,8 +1509,8 @@ the GUI, car and turtle passed Windows desktop end-to-end tests. All integer wid
 interpreter, and exports use float32, float64 and int64 as representative types. The Qt backend is kept, but wasn't measured this round.
 
 The story of this update has its landing point here: the shortened syntax is supported by clearer type boundaries and programs that have actually run.
-Commands and coverage are in [Library Migration and Regression Verification](https://gitee.com/rabbitc999/magel/blob/master/doc/28-library-migration.md),
-and language changes are recorded in the [Magel changelog](https://gitee.com/rabbitc999/magel/blob/master/CHANGELOG.md).
+Commands and coverage are in [Library Migration and Regression Verification](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md),
+and language changes are recorded in the [Magel changelog](https://github.com/rabbitc999/magel/blob/master/CHANGELOG.md).
 
 ---
 
@@ -1525,16 +1524,15 @@ This time, what Tangtang typed into the terminal wasn't a program, but a problem
 
 The screen replied `3 x^2`. `x` has no numeric value, yet the computation had already taken a step. So the map gained another door:
 `cas/`, a C++17 symbolic computation system. Algebra, calculus, matrices, tensors, number theory and special functions enter the math kernel,
-and ParseEngine handles reading the input into structured expressions first. It was later split into its own repository too
-(<https://gitee.com/rabbitc999/cas>): usage in
-[the CAS manual](https://gitee.com/rabbitc999/cas/blob/master/README.md).
+and ParseEngine handles reading the input into structured expressions first. It was later split into its own repository too,
+and this repository no longer links to it.
 
 
 "An expression grammar — didn't the calculator example already have one?"
 
 Real formulas have several more layers of machinery than the calculator example: assignment, comparison, implicit multiplication, right-associative powers, factorials,
 function arguments, nested tensors, ranges, indexing and slicing. All of these are written into
-[cas.gram](https://gitee.com/rabbitc999/cas/blob/master/cas.gram),
+`cas.gram`,
 built-in symbols registered one by one, productions composed layer by layer, semantic actions handed to the semantic layer to build nodes.
 Statement-by-statement reading and parenthesis line continuation were also fixed into the generated artifacts via `%epilogue include`.
 This grammar uses SLR; the conflict column in the generated report is empty.
@@ -1569,8 +1567,7 @@ Once the tree grew, storage also needed an owner. CAS connects to the repository
 use the same allocation pool; the help template is embedded at build time too. The command line and `Cas::Engine` share the math kernel,
 and the static library can be handed to other programs to call. Multiple engines still share a process-level symbol environment, and calls must proceed serially.
 
-The last line isn't "it looks right", but `make check` (run in the CAS standalone repository
-<https://gitee.com/rabbitc999/cas>).
+The last line isn't "it looks right", but `make check` (run in the CAS standalone repository).
 Whitespace-separated and adjacent calls, built-in functions, custom function definitions, explicit and implicit multiplication all have fixed expected values,
 and all 777 integral-table expressions are compared item by item between the parsed structure and the structure loaded after compilation.
 Only after these checks pass was the story of that one space put into the docs.
@@ -1647,9 +1644,9 @@ Cursors also have their own value semantics: copying an iterator gives an indepe
 A named cursor's methods like `next()` advance the current position; the chained forms of `collect()`, `fold()` operate on a copy of the cursor.
 Writing these distinctions clearly is more useful than calling every method a 'consuming iterator'.
 
-Concrete interfaces and runnable examples are in [Standard Iterators](https://gitee.com/rabbitc999/magel/blob/master/doc/05-iterators.md),
-responsibility for temporaries in [Value Semantics and Chained Calls](https://gitee.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md),
-and collection rules in [Generics and Collections](https://gitee.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md).
+Concrete interfaces and runnable examples are in [Standard Iterators](https://github.com/rabbitc999/magel/blob/master/doc/05-iterators.md),
+responsibility for temporaries in [Value Semantics and Chained Calls](https://github.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md),
+and collection rules in [Generics and Collections](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md).
 This time, the pipeline a user writes on one line is finally caught piece by piece by the compiler.
 
 ---
@@ -1712,8 +1709,8 @@ A unified interface doesn't automatically level out these differences; the docs 
 
 This round's features and fixes went into **1.1.0**, and the source-language compatibility baseline is still **1.0.0**.
 Chapter 24's 2026-10-07 numbers are kept as the acceptance record of that time, and this chapter continues by recording the scope two days later.
-The reproduction checklist is in [Library Migration and Regression Verification](https://gitee.com/rabbitc999/magel/blob/master/doc/28-library-migration.md),
-and database entry points, dependencies and limitations are in the [SQL interface document](https://gitee.com/rabbitc999/magel/blob/master/sql-magel/doc/01-sql-library.md).
+The reproduction checklist is in [Library Migration and Regression Verification](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md),
+and database entry points, dependencies and limitations are in the [SQL interface document](https://github.com/rabbitc999/magel/blob/master/sql-magel/doc/01-sql-library.md).
 
 Tangtang changed the word "pass" into a table. As the map expands this far, how far each door has actually been walked
 is worth keeping more than how many names hang on the doors.
@@ -1740,14 +1737,14 @@ and keywords, the spellings of `match` / `Result` / `?` / `loop`, interface name
 frozen contracts; the general acceptance entry is `sh ci/run.sh`; per-library three-backend and Windows desktop verification have their own dedicated scripts.
 The 2026-10-07 Magel regression was **144 normal examples + 192 error examples**, see Chapter 24; the 2026-10-09 1.1.0 advanced to **155 normal examples + 268 error examples**, plus 22 per-library examples covering 27 standard library modules, and the external-library and multi-database acceptance scope is in Chapter 27. After 1.1.1 added the full-expression cleanup regression, normal examples rose to **156**, while error examples remained **268**. Each chapter's phase-by-phase numbers are read as of that time.
 
-1.2.0 registers the ten compound-assignment Tokens and productions one by one in the grammar, expanding `A op= B` into `A = A op B` through `M_CompoundAssign`. A pure `a = b = c + 3` chain executes from right to left; a chain containing a compound assignment is illegal, including `a += b *= 3`, `a = b += 3` and the parenthesized form on the right. The rules and formal examples are in the [Magel language guide](https://gitee.com/rabbitc999/magel/blob/master/doc/01-language.md#复合赋值先计算再写回).
+1.2.0 registers the ten compound-assignment Tokens and productions one by one in the grammar, expanding `A op= B` into `A = A op B` through `M_CompoundAssign`. A pure `a = b = c + 3` chain executes from right to left; a chain containing a compound assignment is illegal, including `a += b *= 3`, `a = b += 3` and the parenthesized form on the right. The rules and formal examples are in the [Magel language guide](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#复合赋值先计算再写回).
 
-Magel later wrote its source-syntax compatibility baseline separately into the [EBNF grammar reference](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md). The standard library is split into three layers: the core `lang.mgl` loads automatically, `std::xxx` is `import`ed on demand, and optional libraries such as `robot::`; 1.0 provides the iterator-chain API through `std::iter`, so programs can use lazy adapters, or explicitly use `foreach` and `lang::List<T>`. This also shows that a feature list from some stage in the story can't substitute for today's language rules.
+Magel later wrote its source-syntax compatibility baseline separately into the [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md). The standard library is split into three layers: the core `lang.mgl` loads automatically, `std::xxx` is `import`ed on demand, and optional libraries such as `robot::`; 1.0 provides the iterator-chain API through `std::iter`, so programs can use lazy adapters, or explicitly use `foreach` and `lang::List<T>`. This also shows that a feature list from some stage in the story can't substitute for today's language rules.
 
 CAS, for its part, connected the same generator to symbolic computation: a complete expression grammar, an integral table compiled at build time,
 a custom allocation pool and an embedding API all landed together. Chapter 25 recorded the boundary between function calls and implicit multiplication:
 a name followed by parentheses uniformly means a call, and multiplying a symbol by parenthesized text must explicitly write `*`. Full usage and verification scope are in
-[the CAS manual](https://gitee.com/rabbitc999/cas/blob/master/README.md) (**standalone repository**).
+the manual of the standalone CAS repository.
 
 The plot is invented; the verification is real. If you want to check it yourself:
 
@@ -1787,4 +1784,4 @@ One more thing: the students at Nanjing University hand-roll C— in a course, a
   How to open it, I won't say here.
 
 
-1.2.0 also supports prefix and postfix `++` / `--`, with prefix taking the new value and postfix taking the old one. A single complete expression allows at most one increment/decrement symbol; `a=(i++)+(++i)` is illegal, with parentheses, call arguments and short-circuit branches checked together; see [Increment/decrement rules and examples](https://gitee.com/rabbitc999/magel/blob/master/doc/01-language.md#自增与自减一个表达式最多一个).
+1.2.0 also supports prefix and postfix `++` / `--`, with prefix taking the new value and postfix taking the old one. A single complete expression allows at most one increment/decrement symbol; `a=(i++)+(++i)` is illegal, with parentheses, call arguments and short-circuit branches checked together; see [Increment/decrement rules and examples](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#自增与自减一个表达式最多一个).

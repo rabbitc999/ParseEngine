@@ -3,7 +3,7 @@
 # 语言统计这一件事：默认这些后缀**不进**语言统计（识别器不认它们），下面三行
 # 直接按**本项目自己的名字**声明，不再借 `Yacc` / `Jinja` 这类近似名：
 #
-#   .mgl  → Magel              历史：Magel 已经拆分为独立仓库（https://gitee.com/rabbitc999/magel），
+#   .mgl  → Magel              历史：Magel 已经拆分为独立仓库（https://github.com/rabbitc999/magel），
 #                              父仓库不再有 .mgl 源码；这一行留作这段历史的记号，
 #                              新仓库里另有一份自己的 .gitattributes。
 #   .gram → ParseEngine        本仓库的文法文件（`.gram` 是权威语法定义，DSL 见 README）

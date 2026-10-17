@@ -7,7 +7,7 @@
 改动流程：只改 `library/console/utf8.hpp`，再跑本脚本（`source/Makefile` 与
 `source/CMakeLists.txt` 也会在构建时自动跑）。副本只读的原因：工程自包含，构建时不依赖 `library/`。
 
-Magel 已经剥离成独立项目（https://gitee.com/rabbitc999/magel.git），它自带一份同名头，
+Magel 已经剥离成独立项目（https://github.com/rabbitc999/magel.git），它自带一份同名头，
 由它自己的 `tools/sync_tool_console.py` 同步到板端副本；本脚本**不再写进 magel/**。
 """
 

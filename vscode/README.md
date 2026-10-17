@@ -1,6 +1,6 @@
 # GramEditor for VS Code —— `.gram` 编辑插件
 
-<img src="../image/gram-editor-256.png" alt="GramEditor 图标" width="96" align="right" />
+<img src="https://raw.githubusercontent.com/rabbitc999/ParseEngine/master/image/gram-editor-256.png" alt="GramEditor 图标" width="96" align="right" />
 
 给 ParseEngine 的 `.gram` 文件提供完整的编辑体验：语法高亮、诊断、悬停、补全、
 跳转定义、文档大纲、格式化、快速修复、一键生成解析器，以及 Token / 语法树预览。
@@ -10,15 +10,17 @@
 自带 `bin/ParseEngine[.exe]`（打包时由 `tools/embed-compiler.js` 拷进来），
 装上就能用，不需要仓库、也不需要另装编译器。**Magel（`.mgl`）与 MetroLang
 （`.metro` / `.m`）的支持都已经搬走**，见
-[`magel/vscode/`](../magel/vscode/README.md)（那边的语言服务器同样是编译器本体
-`magel lsp`）；本插件只声明 `.gram` 一个后缀。
+[Magel 插件](https://github.com/rabbitc999/magel/tree/master/vscode)（那边的语言服务器
+同样是编译器本体 `magel lsp`）；本插件只声明 `.gram` 一个后缀。
 
 生成菜单与 `gram.defaultMode` 支持全部 16 种模式，包括 `earley` / `cyk`；
 两种图表模式支持 C++17、Python、C#、Rust 目标产物。
-菜单列出模式不代表每个语言都支持；完整组合与增量 API 见 [15 支持矩阵](../doc/15-language-mode-support.md)。
+菜单列出模式不代表每个语言都支持；完整组合与增量 API 见 [15 支持矩阵](https://github.com/rabbitc999/ParseEngine/blob/master/doc/15-language-mode-support.md)。
 
-**零依赖**：不需要 `npm install`，也不用打包构建。`vscode` 模块由宿主提供，
-其余全部用 Node 内置模块实现。
+**零依赖**：不需要 `npm install`（`package.json` 没有 `dependencies` / `devDependencies`），
+也不用打包构建。`vscode` 模块由宿主提供，其余全部用 Node 内置模块实现。
+`npm run package` 只需要 Node 18+；只有 `npm run package:vsce` 会在缺少 `vsce` 时
+经 `npx` 现拉一份（要联网）。
 
 插件图标 `icon.png` 由 `python tools/make_icon.py` 生成（同一张图也导出成各尺寸 PNG
 与 Windows `.ico` 供仓库文档使用），改图标改那个脚本即可。
@@ -56,7 +58,8 @@
 
 `.gram` 没有独立的 `FoldingRangeProvider`：折叠标记全部写在
 `language-configuration.json` 里（`// #region` 一类），插件不再注册折叠能力。
-`.mgl` 的宏块折叠在 [`magel/vscode/`](../magel/vscode/README.md) 里。
+`.mgl` 的宏块折叠在
+[Magel 插件](https://github.com/rabbitc999/magel/tree/master/vscode) 里。
 
 想确认注册是否完整，跑一句自检（打包前也会自动跑）：
 
@@ -136,40 +139,39 @@ node vscode/test/extension-smoke.js
 
 ## 自动打包（.vsix）
 
-打包脚本自己生成 `.vsix`（ZIP + `extension.vsixmanifest`），**不依赖 vsce**，
-所以不需要联网装 npm 包；三种入口都转发到同一份实现：
+入口统一走 npm（与 Magel 仓库一致），在 `vscode/` 里跑：
 
 ```text
-# 任意平台（推荐）
-node vscode/tools/package.js
+npm run package                    # 全套：内嵌编译器 → 清单自检 → 冒烟测试 → 打包
+npm run package -- --skip-tests    # 跳过冒烟测试（清单检查仍会跑）
+npm run package -- --list          # 只列出会被打包的文件
+npm run package -- --dry-run       # 只打印要跑的命令
+npm run package -- --universal     # 不打平台标记，产出通用包
+npm run package -- --out D:\pkg    # 指定输出目录，默认 vscode/dist
 
-# Windows CMD
-vscode\tools\package.cmd
-
-# Windows PowerShell（执行策略受限时加 -ExecutionPolicy Bypass）
-powershell -ExecutionPolicy Bypass -File vscode/tools/package.ps1
-
-# POSIX shell
-sh vscode/tools/package.sh
+npm run package:vsce               # 改走官方 vsce（校验更严，能直接 vsce publish）
+npm run embed                      # 只做内嵌编译器这一步
+npm run check                      # 只做清单自检
+npm test                           # 只跑两个冒烟测试
 ```
 
-常用参数（三种入口通用）：
+`npm run package` **不依赖 vsce**：自己用 Node 内置 zlib 生成 `.vsix`
+（ZIP + `extension.vsixmanifest`），离线可用、零依赖。`npm run package:vsce`
+是同一套前置检查之后改调 `vsce`，PATH 上没有 `vsce` 时会退回
+`npx --yes @vscode/vsce`（要联网）。两条路的产物名一致：
+`dist/gram-editor-<版本>-<平台>.vsix`。
 
-| 参数 | 作用 |
-| --- | --- |
-| `--list` | 只列出会被打包的文件，不生成 .vsix |
-| `--skip-tests` | 跳过两个冒烟测试（清单检查仍会跑） |
-| `--universal` | 不打平台标记，产出通用包（默认按当前平台打，见下） |
-| `--out <目录>` | 指定输出目录，默认 `vscode/dist` |
+不习惯 npm 时，`tools/package.cmd`、`tools/package.ps1`、`tools/package.sh`
+三个入口等价于 `npm run package`，都转发到同一份 `tools/package.js`。
 
-脚本做的事，按顺序：
+`npm run package` 按顺序做的事：
 
-1. 读 `package.json`，检查必需文件是否齐全（含 `bin/ParseEngine[.exe]`）；
-2. 跑 `tools/embed-compiler.js` 把编译器拷进 `bin/`（内容一样就跳过）；
-3. 跑 `tools/check-manifest.js`（`gram` 语言注册自检）；
-4. 跑 `test/smoke.js` 与 `test/extension-smoke.js`；
-5. 按 `.vscodeignore` 收集文件（测试、打包脚本、`dist/` 等都不进包；
+1. 跑 `tools/embed-compiler.js` 把编译器拷进 `bin/`（内容一样就跳过）；
+2. 读 `package.json`，检查必需文件是否齐全（含 `bin/ParseEngine[.exe]`）；
+3. 按 `.vscodeignore` 收集文件（测试、打包脚本、`dist/` 等都不进包；
    `bin/` **要**进包，那是自带编译器）；
+4. 跑 `tools/check-manifest.js`（`gram` 语言注册自检）；
+5. 跑 `test/smoke.js` 与 `test/extension-smoke.js`；
 6. 生成 `[Content_Types].xml` 与 `extension.vsixmanifest`，压缩成
    `dist/gram-editor-<版本>-<平台>.vsix`，并打印安装命令。
 
@@ -211,8 +213,9 @@ vscode/
 │   ├── previewPanel.js          Token 表、完整树布局与 CSV / 图片导出 Webview
 │   └── serverLocator.js         ParseEngine（自带 → 仓库 → PATH）与内嵌服务器参数
 ├── tools/
-│   ├── package.js               `.vsix` 打包实现（自写 ZIP + 清单）
-│   ├── package.cmd / .ps1 / .sh 三种命令行入口
+│   ├── package.js               `.vsix` 打包实现（自写 ZIP + 清单），`npm run package`
+│   ├── package-vsce.js          改走官方 vsce 的打包，`npm run package:vsce`
+│   ├── package.cmd / .ps1 / .sh 三种命令行入口（都转发到 package.js）
 │   ├── embed-compiler.js        把编译好的 ParseEngine 拷进 bin/
 │   └── check-manifest.js        语言注册自检（只认 `gram` 一个语言与 `.gram` 一个后缀）
 ├── test/smoke.js                冒烟测试（纯 Node）
@@ -226,7 +229,7 @@ vscode/
 它现在已经**编进生成器内部**，由 `ParseEngine lsp --stdio` 暴露；生成与预览则调用
 `ParseEngine` 的普通命令行。两边同一份代码、同一个二进制，所以编辑器里的诊断与
 生成时的报错天然一致：改 `library/lsp` 或 `source/`，重新 `make` 出来的编译器
-同时更新了插件的行为（发布包记得再跑一次 `tools/package.js`）。
+同时更新了插件的行为（发布包记得再跑一次 `npm run package`）。
 
 ## 作者与发布者（清单字段）
 

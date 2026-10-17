@@ -5,21 +5,21 @@
 
 > **Magel 的那段光辉历史**：这门语言早期就在本仓库里长大——生成器、StackVM、标准库、
 > 胶水与反射都是在这里一起打磨出来的（下面这些 Magel 文档就是那段记录）。它现已拆分为
-> 独立仓库 <https://gitee.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
+> 独立仓库 <https://github.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
 > 同名文档。
 
 ParseEngine 的[中英日显示、内嵌手册与语言服务器、发布说明](16-i18n-and-packaging.md)覆盖 `--ui-lang`、`man` 与 `lsp` 子命令、控制台与管道、两个工具的独立打包脚本。
 
-Magel 1.0.0 的名称、`.mgl` 工程布局与中文／英文／日语语言选择见[Magel 名称与三语说明](https://gitee.com/rabbitc999/magel/blob/master/doc/32-naming-i18n.md)。
-Magel 的[文档索引](https://gitee.com/rabbitc999/magel/blob/master/doc/README.md)结合正式 example 源码、expected 输出与错误边界逐步讲解。初学者从 [08 基础程序](https://gitee.com/rabbitc999/magel/blob/master/doc/08-first-programs.md) 开始，专项环境和验收范围见 [28 样例验证](https://gitee.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)。
+Magel 1.0.0 的名称、`.mgl` 工程布局与中文／英文／日语语言选择见[Magel 名称与三语说明](https://github.com/rabbitc999/magel/blob/master/doc/32-naming-i18n.md)。
+Magel 的[文档索引](https://github.com/rabbitc999/magel/blob/master/doc/README.md)结合正式 example 源码、expected 输出与错误边界逐步讲解。初学者从 [08 基础程序](https://github.com/rabbitc999/magel/blob/master/doc/08-first-programs.md) 开始，专项环境和验收范围见 [28 样例验证](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)。
 
 Magel 当前语言基线：**1.0.0**，当前版本：**1.2.0**。
 
-引用来源与词法生命周期检查见 [04 引用与迭代](https://gitee.com/rabbitc999/magel/blob/master/doc/04-references.md)，专项回归为 `tests/magel_reference_escape.py`。
+引用来源与词法生命周期检查见 [04 引用与迭代](https://github.com/rabbitc999/magel/blob/master/doc/04-references.md)，专项回归为 `tests/magel_reference_escape.py`。
 
-`T &` 默认只读引用见 [引用语法糖](https://gitee.com/rabbitc999/magel/blob/master/doc/04-references.md#默认只读引用语法糖)；未分配区域的 panic、自定义堆范围检查及 AOT 默认 unchecked / 显式 checked 见 [23 内存分配器](https://gitee.com/rabbitc999/magel/blob/master/doc/23-memory-allocator.md)，专项为 `tests/magel_reference_sugar.py` 和 `tests/magel_memory_guard.py`。
+`T &` 默认只读引用见 [引用语法糖](https://github.com/rabbitc999/magel/blob/master/doc/04-references.md#默认只读引用语法糖)；未分配区域的 panic、自定义堆范围检查及 AOT 默认 unchecked / 显式 checked 见 [23 内存分配器](https://github.com/rabbitc999/magel/blob/master/doc/23-memory-allocator.md)，专项为 `tests/magel_reference_sugar.py` 和 `tests/magel_memory_guard.py`。
 
-引用与泛型、枚举、回调、迭代器、接口及 Drop 的跨功能组合见 [reference_combinations.mgl](https://gitee.com/rabbitc999/magel/blob/master/example/samples/reference_combinations.mgl)，专项回归为 `tests/magel_reference_combinations.py`，覆盖正常解释 / AOT 与非法逃逸诊断。
+引用与泛型、枚举、回调、迭代器、接口及 Drop 的跨功能组合见 [reference_combinations.mgl](https://github.com/rabbitc999/magel/blob/master/example/samples/reference_combinations.mgl)，专项回归为 `tests/magel_reference_combinations.py`，覆盖正常解释 / AOT 与非法逃逸诊断。
 
 从 [01 仓库文档总览](01-overview.md) 进入。此目录是**仓库全部文档的唯一入口**：整个仓库的导航、跨项目说明，以及 ParseEngine 解析器生成器的手册与实现文档都放在这里。
 
@@ -42,44 +42,44 @@ Magel 当前语言基线：**1.0.0**，当前版本：**1.2.0**。
 | [14 目标语言与产物](14-languages-and-products.md) | 后端选择与产物形态 |
 | [15 支持矩阵](15-language-mode-support.md) | 语言、模式与增量 API 的当前范围 |
 | [16 双语、内嵌资产与发布](16-i18n-and-packaging.md) | 显示选项、内嵌手册与语言服务器、Unicode 控制台、独立 Python 打包脚本 |
-| [Magel EBNF 语法参考](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) | 当前词法、全部产生式、匿名函数类型、泛型入口与语义检查边界 |
-| [Magel 语言哲学](https://gitee.com/rabbitc999/magel/blob/master/doc/00-philosophy.md) | 简单编写，到处运行；值语义、显式引用、资源管理与没有移动语义 |
+| [Magel EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) | 当前词法、全部产生式、匿名函数类型、泛型入口与语义检查边界 |
+| [Magel 语言哲学](https://github.com/rabbitc999/magel/blob/master/doc/00-philosophy.md) | 简单编写，到处运行；值语义、显式引用、资源管理与没有移动语义 |
 | [文档维护规范](../project/document/README.md) | 统一口径、技术文档模板、文档生成器与同步检查 |
 
 ## mc 连外部数据库
 
 Magel 支持 MySQL、SQLite、PostgreSQL 与 Microsoft SQL Server / ODBC 的标准库模块
-[`std::sql`](https://gitee.com/rabbitc999/magel/blob/master/std/sql.mgl)、宿主胶水 [`glue/std_sql.hpp`](https://gitee.com/rabbitc999/magel/blob/master/glue/std_sql.hpp)，
-以及 Magel 工程内的[学生信息管理示例工程](https://gitee.com/rabbitc999/magel/blob/master/sql-magel/README.md)；保留的建表 / 初始数据 /
-查询 SQL 在 [`magel/sql-magel/sql/`](https://gitee.com/rabbitc999/magel/blob/master/sql-magel/sql/schema.sql)，库的统一入口与后端选择见
-[19 SQL 数据库](https://gitee.com/rabbitc999/magel/blob/master/doc/19-sql.md)，详细接口见 [sql-magel 接口参考](https://gitee.com/rabbitc999/magel/blob/master/sql-magel/doc/01-sql-library.md)。
+[`std::sql`](https://github.com/rabbitc999/magel/blob/master/std/sql.mgl)、宿主胶水 [`glue/std_sql.hpp`](https://github.com/rabbitc999/magel/blob/master/glue/std_sql.hpp)，
+以及 Magel 工程内的[学生信息管理示例工程](https://github.com/rabbitc999/magel/blob/master/sql-magel/README.md)；保留的建表 / 初始数据 /
+查询 SQL 在 [`magel/sql-magel/sql/`](https://github.com/rabbitc999/magel/blob/master/sql-magel/sql/schema.sql)，库的统一入口与后端选择见
+[19 SQL 数据库](https://github.com/rabbitc999/magel/blob/master/doc/19-sql.md)，详细接口见 [sql-magel 接口参考](https://github.com/rabbitc999/magel/blob/master/sql-magel/doc/01-sql-library.md)。
 
 ## mc 连外部网络
 
-[18 TCP 与极简 HTTP](https://gitee.com/rabbitc999/magel/blob/master/doc/18-network.md)：标准库模块
-[`std::net`](https://gitee.com/rabbitc999/magel/blob/master/std/net.mgl) 与宿主胶水 [`glue/std_net.hpp`](https://gitee.com/rabbitc999/magel/blob/master/glue/std_net.hpp)，
+[18 TCP 与极简 HTTP](https://github.com/rabbitc999/magel/blob/master/doc/18-network.md)：标准库模块
+[`std::net`](https://github.com/rabbitc999/magel/blob/master/std/net.mgl) 与宿主胶水 [`glue/std_net.hpp`](https://github.com/rabbitc999/magel/blob/master/glue/std_net.hpp)，
 提供 `TcpSocket` / `TcpListener`（连接超时、行读取）与 `HttpClient`（GET / POST、
 `parseUrl` / `buildRequest` / `parseResponse`）；确定性样例是
-[`magel/example/samples/std_net.mgl`](https://gitee.com/rabbitc999/magel/blob/master/example/samples/std_net.mgl)。
+[`magel/example/samples/std_net.mgl`](https://github.com/rabbitc999/magel/blob/master/example/samples/std_net.mgl)。
 
-Magel 的后置泛型声明、函数与回调类型推导、枚举变体简写见[泛型与集合文档](https://gitee.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md#类型推导与枚举简写)。
+Magel 的后置泛型声明、函数与回调类型推导、枚举变体简写见[泛型与集合文档](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md#类型推导与枚举简写)。
 
-Magel 的 `ExplicitConvert<T>` / `ImplicitConvert<T>`、显式选择规则与转换结果所有权见[类型转换接口](https://gitee.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md#显式与隐式类型转换接口)。
+Magel 的 `ExplicitConvert<T>` / `ImplicitConvert<T>`、显式选择规则与转换结果所有权见[类型转换接口](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md#显式与隐式类型转换接口)。
 
 ## mc 集合字面量与键协议
 
-[泛型与集合文档](https://gitee.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md#set--map-字面量与键协议)说明 Set `{a,b,c}`、Map `{key:value,...}`、空集合上下文推导、自定义键的 `Equal<bool,T>` 和可选 `Hash<T>`。
+[泛型与集合文档](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md#set--map-字面量与键协议)说明 Set `{a,b,c}`、Map `{key:value,...}`、空集合上下文推导、自定义键的 `Equal<bool,T>` 和可选 `Hash<T>`。
 
 ## mc 值语义与所有权
 
-Magel 支持 `static T new(...)` [构造入口](https://gitee.com/rabbitc999/magel/blob/master/doc/09-values-and-resources.md#static-t-new构造入口)：自动提供 self 并返回拥有值，禁止丢弃结果；默认声明仍合法。宏临时变量支持 `$0`～`$9`。
+Magel 支持 `static T new(...)` [构造入口](https://github.com/rabbitc999/magel/blob/master/doc/09-values-and-resources.md#static-t-new构造入口)：自动提供 self 并返回拥有值，禁止丢弃结果；默认声明仍合法。宏临时变量支持 `$0`～`$9`。
 
-[03 值语义与链式调用](https://gitee.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md)：字符串 / 容器 / 大数与结构体
+[03 值语义与链式调用](https://github.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md)：字符串 / 容器 / 大数与结构体
 一样是值类型（`String a = b;` 是复制不是别名），编译器通过内部临时变量管理 `f().g()`
 等链式调用的中间值，完整表达式结束后自动析构、释放资源并清空内部槽，保留最终值和所需的借用来源，并说明相关修复及回归；迭代链见
-[05 标准迭代器](https://gitee.com/rabbitc999/magel/blob/master/doc/05-iterators.md)。
+[05 标准迭代器](https://github.com/rabbitc999/magel/blob/master/doc/05-iterators.md)。
 
-Magel 的两层增量缓存、共享依赖校验和限制见[部署文档](https://gitee.com/rabbitc999/magel/blob/master/doc/22-deployment.md)。
+Magel 的两层增量缓存、共享依赖校验和限制见[部署文档](https://github.com/rabbitc999/magel/blob/master/doc/22-deployment.md)。
 
 ## 统一构建目录
 
@@ -107,7 +107,7 @@ sh clear.sh                 # 清理构建产物
 
 ## CAS 符号计算
 
-[CAS 项目手册](https://gitee.com/rabbitc999/cas/blob/master/README.md)（**独立仓库**） · [架构与验证](https://gitee.com/rabbitc999/cas/blob/master/doc/architecture.md) · [内置符号清单](https://gitee.com/rabbitc999/cas/blob/master/doc/builtins.json)。
+CAS 已拆分为独立仓库，本仓库不再提供其手册与文档链接；`Cas::Memory` 相关说明见[自定义分配器库](#自定义分配器库)。
 
 ## 自定义分配器库
 
@@ -115,45 +115,45 @@ sh clear.sh                 # 清理构建产物
 
 ## Magel 二进制流解析
 
-[`std::binary::BinaryReader`](https://gitee.com/rabbitc999/magel/blob/master/doc/12-binary-reader.md) 通过 C++ 胶水读取大小端基础数值、定长字符串与数组。
-核心 [lang IEEE 754 双向接口](https://gitee.com/rabbitc999/magel/blob/master/doc/06-runtime.md#ieee-754-字节双向转换) 提供 float32/float64 与四/八字节列表及数组互转。
+[`std::binary::BinaryReader`](https://github.com/rabbitc999/magel/blob/master/doc/12-binary-reader.md) 通过 C++ 胶水读取大小端基础数值、定长字符串与数组。
+核心 [lang IEEE 754 双向接口](https://github.com/rabbitc999/magel/blob/master/doc/06-runtime.md#ieee-754-字节双向转换) 提供 float32/float64 与四/八字节列表及数组互转。
 
 ## Magel JSON 与 TOML
 
-[JSON/TOML 解析接口](https://gitee.com/rabbitc999/magel/blob/master/doc/13-json-toml.md) 将 `library/json`、`library/toml` 的副本接入 Magel，提供解析、嵌套读取、遍历、诊断和序列化。
+[JSON/TOML 解析接口](https://github.com/rabbitc999/magel/blob/master/doc/13-json-toml.md) 将 `library/json`、`library/toml` 的副本接入 Magel，提供解析、嵌套读取、遍历、诊断和序列化。
 
-[Magel 引用与迭代](https://gitee.com/rabbitc999/magel/blob/master/doc/04-references.md)：非空引用、默认解引用、只读转换、字符串 / 大数 / 集合 / 字典 / 元组引用、字符单字节读写、只读方法检查、列表元素写回与 P1 三后端回归。
+[Magel 引用与迭代](https://github.com/rabbitc999/magel/blob/master/doc/04-references.md)：非空引用、默认解引用、只读转换、字符串 / 大数 / 集合 / 字典 / 元组引用、字符单字节读写、只读方法检查、列表元素写回与 P1 三后端回归。
 
-[Magel 库迁移与回归验证](https://gitee.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)：标准库、机器人、GUI、小车与海龟测试入口。
+[Magel 库迁移与回归验证](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)：标准库、机器人、GUI、小车与海龟测试入口。
 
-Magel 的无名变长符号表、magel/CLI 开关、空间实测与逆向成本见[符号压缩文档](https://gitee.com/rabbitc999/magel/blob/master/doc/25-compact-symbols.md)。
+Magel 的无名变长符号表、magel/CLI 开关、空间实测与逆向成本见[符号压缩文档](https://github.com/rabbitc999/magel/blob/master/doc/25-compact-symbols.md)。
 
-[Magel PC 字节码加密](https://gitee.com/rabbitc999/magel/blob/master/doc/26-svmb-crypto.md)：独立 OpenSSL 工具、密钥管理与完整性验收。
+[Magel PC 字节码加密](https://github.com/rabbitc999/magel/blob/master/doc/26-svmb-crypto.md)：独立 OpenSSL 工具、密钥管理与完整性验收。
 
-[Magel 可选 panic 调用栈](https://gitee.com/rabbitc999/magel/blob/master/doc/27-panic-trace.md)：宏裁剪与隐藏符号时的诊断策略。
+[Magel 可选 panic 调用栈](https://github.com/rabbitc999/magel/blob/master/doc/27-panic-trace.md)：宏裁剪与隐藏符号时的诊断策略。
 
-Magel 行级调试支持宏正文、include 与子模块来源，见 [panic 与源码行号](https://gitee.com/rabbitc999/magel/blob/master/doc/27-panic-trace.md#magel-行级来源)。
+Magel 行级调试支持宏正文、include 与子模块来源，见 [panic 与源码行号](https://github.com/rabbitc999/magel/blob/master/doc/27-panic-trace.md#magel-行级来源)。
 
-[Magel 元组只读引用回归](https://gitee.com/rabbitc999/magel/blob/master/example/samples/p2_tuple_readonly.mgl)：元组元素与嵌套来源的只读引用、整体替换及独立复制；语义说明见 [04 引用与迭代](https://gitee.com/rabbitc999/magel/blob/master/doc/04-references.md)。
+[Magel 元组只读引用回归](https://github.com/rabbitc999/magel/blob/master/example/samples/p2_tuple_readonly.mgl)：元组元素与嵌套来源的只读引用、整体替换及独立复制；语义说明见 [04 引用与迭代](https://github.com/rabbitc999/magel/blob/master/doc/04-references.md)。
 
-[Magel 标准迭代器](https://gitee.com/rabbitc999/magel/blob/master/doc/05-iterators.md)：惰性链式适配、列表引用迭代、所有权转移与消费操作。
+[Magel 标准迭代器](https://github.com/rabbitc999/magel/blob/master/doc/05-iterators.md)：惰性链式适配、列表引用迭代、所有权转移与消费操作。
 
-[Magel 导入与名称解析](https://gitee.com/rabbitc999/magel/blob/master/doc/02-name-resolution.md)说明无需 using 的库名称简写、用户声明优先和同名导入消歧。
+[Magel 导入与名称解析](https://github.com/rabbitc999/magel/blob/master/doc/02-name-resolution.md)说明无需 using 的库名称简写、用户声明优先和同名导入消歧。
 
-Magel 注解与反射的编译期注解、`@Reflect` 自动元数据生成、Magel 类型化查询与全部形式调用桥接、三后端端到端验收与性能报告、实现范围、默认关闭开关与产物兼容规则见 [30 注解与反射](https://gitee.com/rabbitc999/magel/blob/master/doc/30-reflection.md)。
+Magel 注解与反射的编译期注解、`@Reflect` 自动元数据生成、Magel 类型化查询与全部形式调用桥接、三后端端到端验收与性能报告、实现范围、默认关闭开关与产物兼容规则见 [30 注解与反射](https://github.com/rabbitc999/magel/blob/master/doc/30-reflection.md)。
 
-Magel 类型与内存审计修复、loop 拥有值退出及借用返回的三后端回归见 [值与资源](https://gitee.com/rabbitc999/magel/blob/master/doc/09-values-and-resources.md#类型与所有权审计回归)。
+Magel 类型与内存审计修复、loop 拥有值退出及借用返回的三后端回归见 [值与资源](https://github.com/rabbitc999/magel/blob/master/doc/09-values-and-resources.md#类型与所有权审计回归)。
 
-[Magel 新建应用工程（magel new）](https://gitee.com/rabbitc999/magel/blob/master/doc/21-packages.md#新建应用工程)
+[Magel 新建应用工程（magel new）](https://github.com/rabbitc999/magel/blob/master/doc/21-packages.md#新建应用工程)
 
-[Magel 简短场景指令与拖入文件运行](https://gitee.com/rabbitc999/magel/blob/master/doc/31-cli.md)。
+[Magel 简短场景指令与拖入文件运行](https://github.com/rabbitc999/magel/blob/master/doc/31-cli.md)。
 
-Magel 运算符所有权与提前退出测试见[09 值与资源](https://gitee.com/rabbitc999/magel/blob/master/doc/09-values-and-resources.md#运算符与提前退出边界回归322)。
+Magel 运算符所有权与提前退出测试见[09 值与资源](https://github.com/rabbitc999/magel/blob/master/doc/09-values-and-resources.md#运算符与提前退出边界回归322)。
 
-[Magel Web 学生信息管理系统](https://gitee.com/rabbitc999/magel/blob/master/example/web-students/README.md)：真实 HTTP、SQLite、浏览器页面和三后端验收。
+[Magel Web 学生信息管理系统](https://github.com/rabbitc999/magel/blob/master/example/web-students/README.md)：真实 HTTP、SQLite、浏览器页面和三后端验收。
 
-Magel 仅保留 AOT 与 `.svmb` 编译产物，删除内嵌 VM 导出。参见[导出器说明](https://gitee.com/rabbitc999/magel/blob/master/magel-emit/README.md)与[场景指令](https://gitee.com/rabbitc999/magel/blob/master/doc/31-cli.md)。
+Magel 仅保留 AOT 与 `.svmb` 编译产物，删除内嵌 VM 导出。参见[导出器说明](https://github.com/rabbitc999/magel/blob/master/magel-emit/README.md)与[场景指令](https://github.com/rabbitc999/magel/blob/master/doc/31-cli.md)。
 
-Magel 的 [lambda 与函数指针回调](https://gitee.com/rabbitc999/magel/blob/master/doc/01-language.md#lambda-与函数指针回调)支持迭代器链与回调签名推导，支持独立的按值捕获环境，并拒绝引用和缺少安全复制协议的资源捕获；完整样例见[lambda_callbacks.mgl](https://gitee.com/rabbitc999/magel/blob/master/example/samples/lambda_callbacks.mgl)。
+Magel 的 [lambda 与函数指针回调](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#lambda-与函数指针回调)支持迭代器链与回调签名推导，支持独立的按值捕获环境，并拒绝引用和缺少安全复制协议的资源捕获；完整样例见[lambda_callbacks.mgl](https://github.com/rabbitc999/magel/blob/master/example/samples/lambda_callbacks.mgl)。
 
-[Magel 递归与嵌套所有权](https://gitee.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md#9-递归局部存储与嵌套拥有值)：局部聚合、引用槽、数组、函数值与接口组合；[计算器工具链示例](https://gitee.com/rabbitc999/magel/blob/master/example/calculator/README.md)包含扁平与嵌套两种 AST。
+[Magel 递归与嵌套所有权](https://github.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md#9-递归局部存储与嵌套拥有值)：局部聚合、引用槽、数组、函数值与接口组合；[计算器工具链示例](https://github.com/rabbitc999/magel/blob/master/example/calculator/README.md)包含扁平与嵌套两种 AST。
