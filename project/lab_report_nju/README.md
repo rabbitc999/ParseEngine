@@ -17,7 +17,6 @@ flowchart LR
     S --> Q["四元式"]
     Q --> B["CFG / 数据流 / SSA<br/>寄存器分配与优化"]
     B --> M["MIPS 教学汇编<br/>内置模拟器"]
-    B --> H["Hydra86 原生汇编<br/>官方汇编器 + VM"]
 ```
 
 前端由 [`source/frontend/cminus.gram`](source/frontend/cminus.gram) 唯一定义，不接受
@@ -30,7 +29,7 @@ flowchart LR
 | 一 | [词法与语法分析](reports/01-lexical-syntax-report.md) | Token、LALR 文法、AST、语法错误定位 |
 | 二 | [语义分析](reports/02-semantic-analysis-report.md) | 符号表、作用域、类型推导与错误分类 |
 | 三 | [中间代码生成](reports/03-ir-generation-report.md) | AST 到四元式、控制流、调用与返回 |
-| 四 | [目标代码生成](reports/04-code-generation-report.md) | 基本块、指令选择、MIPS 生成与模拟、Hydra86 对接验证 |
+| 四 | [目标代码生成](reports/04-code-generation-report.md) | 基本块、指令选择、MIPS 生成与模拟 |
 | 五 | [代码优化](reports/05-optimization-report.md) | 数据流、SSA、局部 / 全局优化与执行对照 |
 
 ## 目录

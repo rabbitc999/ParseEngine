@@ -24,7 +24,7 @@
 >
 > Only two things are made up: **the narrative shell** and **the dialogue in the text**. The protagonist "Tangtang" is a narrative device — don't take it as a real person.
 >
-> The book has twenty-seven chapters: first what this thing does, then why it was built, then where it failed, how the load was trimmed, how the collaboration worked, and finally what was learned; the second half continues with incremental parsing, the Hydra86 integration, the five strict C-- experiments, the Java/JS narrow backends, closing out graph mode, and Magel's C++ glue, body macros, event interrupts and Qt GUI migration; Chapter 23 puts MetroLang and RustView on the map, Chapter 24 continues with Magel's non-null references, postfix generics and whole-library migration, Chapter 25 brings CAS formulas into the tree and resolves the ambiguity between function calls and implicit multiplication; Chapter 26 closes out Magel 1.0's names, references and iterator pipelines, and Chapter 27 records the multi-database and external-library three-backend acceptance for 1.1.
+> The book has twenty-six chapters: first what this thing does, then why it was built, then where it failed, how the load was trimmed, how the collaboration worked, and finally what was learned; the second half continues with incremental parsing, the five strict C-- experiments, the Java/JS narrow backends, closing out graph mode, and Magel's C++ glue, body macros, event interrupts and Qt GUI migration; Chapter 22 puts MetroLang and RustView on the map, Chapter 23 continues with Magel's non-null references, postfix generics and whole-library migration; Chapter 24 closes out Magel 1.0's names, references and iterator pipelines, and Chapter 25 records the multi-database and external-library three-backend acceptance for 1.1.
 >
 > **A note on scope**: the current state is six complete backends + two narrow backends, Java / JS, and sixteen modes; Chapters 2–11 and some later chapters keep the numbers and attempts as they were at the time of development. For target languages, template counts and example counts, the current source and support matrix are authoritative.
 > Magel's source syntax already has a separate [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md); the old APIs and experimental schemes that appear in the story should be read as belonging to the stage they came from.
@@ -68,7 +68,7 @@ The rest wasn't covered. Tangtang scored well on the exam back then, but a high 
 
 ---
 
-## Chapter 1 Start With the Result: One `.gram`, Six Languages
+## Chapter 0 Start With the Result: One `.gram`, Six Languages
 
 Tangtang wrote `ParseEngine` in his spare time: coming home at night, sitting down at that folding desk.
 
@@ -107,7 +107,7 @@ Late that night, about to shut down the computer, he ran the `--lang gram` tier 
 
 ---
 
-## Chapter 2 Then the Origin: University Only Taught Half the Map
+## Chapter 1 Then the Origin: University Only Taught Half the Map
 
 —— Part of that thrill in Chapter 1 was making up for the map.
 
@@ -158,7 +158,7 @@ Only that night, while writing the Magel language, there was a little extra quie
 
 ---
 
-## Chapter 3 The Bill for Failure: The Quadruple Intermediate Layer
+## Chapter 2 The Bill for Failure: The Quadruple Intermediate Layer
 
 This piece isn't a victory lap. This piece is a bill.
 
@@ -225,7 +225,7 @@ What remains in the end isn't a failed branch, but a reproducible route judgment
 
 ---
 
-## Chapter 4 The Big Cleanup: Deleting the Extra Features
+## Chapter 3 The Big Cleanup: Deleting the Extra Features
 
 The next night, instead of rushing to add new features, he first counted the repository from top to bottom.
 
@@ -281,7 +281,7 @@ By the way, he moved the artifact templates from the repository root into `sourc
 
 ---
 
-## Chapter 5 Epilogue: Why Keep a Mode That Generates No Code
+## Chapter 4 Epilogue: Why Keep a Mode That Generates No Code
 
 That winter, the `ParseEngine` repository homepage gained a one-line description:
 
@@ -308,7 +308,7 @@ Fourteen modes, 1.4 billion cells, every one of them solvable.
 
 ---
 
-## Chapter 6 Five Agents and One Tree: Several People Sharing One Desk
+## Chapter 5 Five Agents and One Tree: Several People Sharing One Desk
 
 A few days after the epilogue was written, Tangtang did something that invited trouble for himself: he **opened five agents at once**, one per backend — C99, C++17, C#, Python, Rust — **all editing the same working tree**.
 
@@ -376,7 +376,7 @@ Tangtang wrote the conclusion into three sentences and put them at the very fron
 
 ---
 
-## Chapter 7 Switching Engines: The Rust Mode
+## Chapter 6 Switching Engines: The Rust Mode
 
 When the Rust backend was added back, the lexer was written following the C99 approach: at generation time each regular expression is compiled into a DFA table, the artifacts hold a `Dfa` constant plus a 256-entry character-class mapping, and at runtime it looks things up in the table. The artifacts carry no dependencies and compile fastest.
 
@@ -400,7 +400,7 @@ Finally, I deleted that version of `AGENTS.md`, folded the rules into the projec
 
 ---
 
-## Chapter 8 Giving the Magel Language an Object Table: Where Values Live
+## Chapter 7 Giving the Magel Language an Object Table: Where Values Live
 
 The main text says "the part in Chapter 4 about subtraction" — deleting the backends that had grown crooked, deleting the modes nobody used, slimming the project down. But that was only **subtraction**. What really excited Tangtang was the stretch that followed: he went back and pushed `magel` (the Magel language) from an early "C subset that can do arithmetic" prototype into "a C-style virtual machine language that can write data structures and string processing", and **every step along the way landed on "representation"** — dovetailing exactly with Chapter 3's line that "pick the wrong representation and every later step is paying off debt".
 
@@ -637,7 +637,7 @@ Tangtang said: "It can. `lang::BigInteger` is the diamond, `vec` is the backpack
 
 ---
 
-## Chapter 9 What I Learned Tonight (06:39)
+## Chapter 8 What I Learned Tonight (06:39)
 
 Writing until nearly dawn, jot down what was learned over these few months (especially these few hours tonight), so as not to forget:
 
@@ -675,7 +675,7 @@ Writing until nearly dawn, jot down what was learned over these few months (espe
 
 ---
 
-## Chapter 10 Letting the Output Draw Its Own Diagrams
+## Chapter 9 Letting the Output Draw Its Own Diagrams
 
 At two in the morning, when Tangtang pushed the door open, two diagrams were open side by side on the screen: on the left a syntax tree for the LALR(1) tier, on the right a syntax graph for the GLR tier — one node among the GSS nodes on the left was gold-colored, and two result trees lay side by side beneath it.
 
@@ -735,7 +735,7 @@ I copied the two diagrams into `image/`: `python-tree-example.svg` and `python-s
 
 ---
 
-## Chapter 11 Rust's Library Functions: From "Written for C" to "Using Rust's Own"
+## Chapter 10 Rust's Library Functions: From "Written for C" to "Using Rust's Own"
 
 After the Rust backend was added back, the lexical gate was passed first — `%token regex` no longer goes through the generator's bundled DFA table, but is handed verbatim to the official `regex` crate, the `Dfa` constant in the artifacts is deleted wholesale, and the three tables are each compiled once the first time a Token is taken.
 
@@ -873,7 +873,7 @@ Once the Rust backend stabilized, Tangtang began moving several C++ libraries un
 
 | C++ version | Rust version | Notes |
 | --- | --- | --- |
-| `library/transfer` | `library/transfer-rust` | Quadruple backend: both versions together cover MIPS / 8086 / ARM → simulated execution; the C++ version additionally has Hydra86-native assembly and embedded execution, the Rust version is a standalone zero-dependency crate `quad_transfer`; 26 Rust examples: 23 pass / 0 fail / 3 skipped |
+| `library/transfer` | `library/transfer-rust` | Quadruple backend: both versions together cover MIPS / 8086 / ARM → simulated execution; the Rust version is a standalone zero-dependency crate `quad_transfer`; 26 Rust examples: 23 pass / 0 fail / 3 skipped |
 | `library/preprocess` | `library/preprocess-rust` | General-purpose preprocessor: `#` / `%` directives, conditional compilation, include / import; standalone crate `preprocess`, zero dependencies; the artifacts / stdout / stderr / exit codes of 56 CLI argument sets are byte-for-byte identical to the C++ version |
 | `library/json` | `library/json-rust` | JSON library: parsing / serialization / path queries / model projection; standalone crate `json`, standard library only, zero dependencies; 91 corpora + 25 commands, 0 substantive differences from the C++ version |
 
@@ -956,11 +956,11 @@ The other person listened, was silent for a moment, and said: "So have you switc
 
 Tangtang said: "I've switched. `regex`, `Result`, `Drop`, `&[u8]`, `trait` — all switched."
 
-—— End of Chapter 11
+—— End of Chapter 12
 
 ---
 
-## Chapter 12 The GPT Continuation
+## Chapter 11 The GPT Continuation
 
 When Chapter 11 got to Rust swapping out its library functions, it already looked a lot like a full stop.
 
@@ -994,39 +994,11 @@ It isn't that the features are full, but that the route changed: from "generate 
 
 ---
 
-## Chapter 13 Wiring the Backend Into a Real 8086-Style Virtual Machine
-
-`library/transfer` already had an 8086 teaching backend.
-
-It lowers quadruples into teaching assembly with `AX`, `DX`, `MOV`, `IDIV`, then hands it to an in-library simulator to execute. It's very suitable for explaining fixed register pairs, multiplication/division and memory operations, but it is, after all, a machine serving a course model: its instructions, configuration and runtime are all interpreted by `transfer` itself.
-
-Later the repository gained a Hydra86. It's also 8086-style, but it isn't another name for that teaching simulator. It has its own `.data` / `.code` assembly format, function calls, label rules, system calls, assembler and VM; **it is itself an independent project in the repository**, able to assemble, execute, disassemble and debug on its own, with its manual and origin kept in its own standalone repository. To wire it up, you can't do a string replacement on the old 8086 text; you must do a real lowering from the unified IR again.
-
-Tangtang added a fourth target to `t1t transfer`:
-
-```text
-t1t transfer demo.quad --target=hydra86 --asm
-```
-
-This tier lowers integer scalars no larger than 64 bits, arithmetic and bit operations, comparisons, control flow, function calls, recursion, signed division and integer output into Hydra86-native assembly. Floating point, strings, vectors, files and input instructions aren't quietly fudged through; if it isn't supported, it errors out at generation time.
-
-The real trouble wasn't "writing one more switch", but making the boundary between the two repositories hold steady. `transfer`'s Makefile can still produce assembly with zero dependencies; if CMake finds the source via a configurable path (`T1T_HYDRA86_ROOT`, pointing at the standalone Hydra86 repository), it links the stable interface `pvm_cli`, and `Hydra86::runAssembly` completes assembly and execution in the same process. When Hydra86 isn't found, assembly generation is still available, only it doesn't pretend to have run.
-
-Acceptance also doesn't just look at whether the assembly looks similar: straight-line arithmetic, loops, recursion and negative-number division all went into the tests, and CTest for the embedded build is **9 / 9**. A harder piece of evidence came from the later C-- experiments: the quadruples actually produced by the front end were lowered into **85 lines of Hydra86 assembly**, the VM ran **140 cycles**, exited with code `0`, and printed `5`.
-
-This time, the arrow is finally not a dashed line in the docs:
-
-```text
-严格 C-- → ParseEngine 前端 → 四元式 → transfer → Hydra86 汇编 → 汇编器 → VM
-```
-
----
-
-## Chapter 14 A One-Shot Run Through the Five Strict C-- Lab Reports
+## Chapter 13 A One-Shot Run Through the Five Strict C-- Lab Reports
 
 "A one-shot run" doesn't mean pasting the answers into Markdown, nor pretending a C-- superset meets the course requirements.
 
-What really saved time was that the previous forty-one sections had already laid out the toolchain. The parser generator, quadruple backend, data flow, SSA, register allocation, MIPS simulator and Hydra86 interface were all in the repository; what this round had to do was fold them down to the boundary of Nanjing University's five labs, and make every sentence of the report traceable back to source and run results.
+What really saved time was that the previous forty-one sections had already laid out the toolchain. The parser generator, quadruple backend, data flow, SSA, register allocation and MIPS simulator were all in the repository; what this round had to do was fold them down to the boundary of Nanjing University's five labs, and make every sentence of the report traceable back to source and run results.
 
 The first step was to hold the language boundary. The front end recognizes only the strict C-- defined by `source/frontend/cminus.gram`: `int`, `float`, arrays, structs, functions and control flow enter according to the lab grammar; superset syntax such as `for`, pointers, `switch`, containers and interfaces must be rejected. The lexer and LALR parser are actually generated by ParseEngine, not a hand-written parser that "roughly passes the samples".
 
@@ -1035,18 +1007,18 @@ The second step was to wire the five reports down to the same implementation, la
 1. Lexical and syntax analysis: Token, LALR grammar, AST and error localization;
 2. Semantic analysis: symbol table, scopes, type inference and error classification;
 3. Intermediate code generation: AST to quadruples, control flow, calls and returns;
-4. Target code generation: basic blocks, MIPS generation and simulation, then Hydra86;
+4. Target code generation: basic blocks, MIPS generation and simulated execution;
 5. Code optimization: data flow, SSA, local and global optimization, before-and-after comparison.
 
 The original document's table of contents, page-number headings, exercises and answers were stripped out; what remains is the lab guide, the completion report, source, the lab framework, platform manuals, submission requirements and the C-- grammar appendix. Formulas use LaTeX, flow and structure diagrams use Mermaid, instruction sequences go into code blocks. The report no longer looks like a PDF copied page by page, but like a project that can keep being maintained on a computer.
 
-The last part is the one-command evidence chain. `project/lab_report_nju/run-evidence.ps1` regenerates and compiles the strict C-- front end, runs **4 valid samples + 4 rejected samples**, then builds the backend, executes **8 tests**, feeds the front end's actually-produced quadruples into the full pipeline, and compares the MIPS results before and after optimization. Lab four then uses the repository's main-line `library/transfer` to connect to Hydra86, proving that the target code didn't come out of thin air from hand-written quadruples.
+The last part is the one-command evidence chain. `project/lab_report_nju/run-evidence.ps1` regenerates and compiles the strict C-- front end, runs **4 valid samples + 4 rejected samples**, then builds the backend, executes **8 tests**, feeds the front end's actually-produced quadruples into the full pipeline, and compares the MIPS results before and after optimization, proving that the target code didn't come out of thin air from hand-written quadruples.
 
 So the real meaning of "a one-shot run" is: the five reports can be written quickly, but each one carries the same replayable evidence chain behind it. It isn't that the answers got simpler, it's that the repository had finally accumulated enough to turn the assignment into a single build.
 
 ---
 
-## Chapter 15 Bringing Java Back, and Giving JavaScript a TypeScript Skeleton
+## Chapter 14 Bringing Java Back, and Giving JavaScript a TypeScript Skeleton
 
 Java had once been deleted thoroughly. Not because the syntax was hard to write, but because a complete backend would have to carry semantic actions, error recovery, huge analysis tables and lexical DFAs; cramming these into Java class-initialization code easily hits the constant-pool or method-size limits. At the time, continuing to maintain a backend that "looks complete but gets dangerous once it scales" was worse than deleting it.
 
@@ -1069,7 +1041,7 @@ nullability/left recursion, empty input and illegal input.
 
 ---
 
-## Chapter 16 Filling the Last Two Cells, and Pulling Memory Back Into the Repository
+## Chapter 15 Filling the Last Two Cells, and Pulling Memory Back Into the Repository
 
 Two small-looking gaps remained on the map.
 
@@ -1114,7 +1086,7 @@ What changed was the map and the way of handing over: Go and `gram` both reach s
 
 ---
 
-## Chapter 17 Fitting the Virtual Machine With a Door
+## Chapter 16 Fitting the Virtual Machine With a Door
 
 Magel could already compute big integers, build strings, open files, and put `lang::List`, `lang::Set` and `lang::Map` into the runtime
 object table. Every time a new capability was added, the most direct approach was to add one more entry to StackVM's table of built-in functions. At first this
@@ -1186,7 +1158,7 @@ the binary still recognizes only stable symbols, and outside the door can be ord
 
 ---
 
-## Chapter 18 When Magel Is No Longer Just C's Shadow
+## Chapter 17 When Magel Is No Longer Just C's Shadow
 
 Later, Magel's positioning was finally cleared up: it isn't "a subset of C", but a C-style language aimed at StackVM.
 The syntax looks familiar, but types, lifetimes, modules and runtime boundaries are all decided by the virtual machine's own rules. This renaming isn't cosmetic wording,
@@ -1263,7 +1235,7 @@ value lifetimes, host glue, binary programs and coroutine contexts are all in se
 
 ---
 
-## Chapter 19 The Standard Library Shouldn't Know What the Host Looks Like
+## Chapter 18 The Standard Library Shouldn't Know What the Host Looks Like
 
 Once containers, files and coroutines had landed, the standard library was still missing four common capabilities: turning text into values, generating random numbers, tidying paths,
 and observing and using VM memory in bulk. None of them look big, yet it's easy to cross the boundary between the language and the host.
@@ -1307,7 +1279,7 @@ entry points, and the VM's internal layout stays within the boundary.
 
 ---
 
-## Chapter 20 Writing the Boundary as a Small Language
+## Chapter 19 Writing the Boundary as a Small Language
 
 Once the standard library had more and more host capabilities, writing rows of `bindTyped` by hand started turning into new repetitive labor. The problem wasn't the
 C++ callback itself, but that the same piece of information was written three times: once declared in Magel, once registered in C++, and once more explained
@@ -1342,7 +1314,7 @@ with the language (`magel/doc/35-magel-story.md`). The story can remember why, a
 
 ---
 
-## Chapter 21 Giving Names to the Blueprints
+## Chapter 20 Giving Names to the Blueprints
 
 Magel had long had `%define`, but it was only a conditional switch. Tangtang deliberately didn't make it substitute text like C, because the same
 name both controlling branches and rewriting expressions makes it hard to tell which layer moved when something goes wrong. Body macros later used a different, eye-catching
@@ -1370,7 +1342,7 @@ diagnostics. Being able to concatenate a name isn't hard; making people understa
 
 ---
 
-## Chapter 22 A Place Reserved for Slicing Software
+## Chapter 21 A Place Reserved for Slicing Software
 
 When Magel's language features were nearly closed out, a real requirement was laid on the table: write slicing software for a printer.
 
@@ -1404,12 +1376,12 @@ The only thing he can decide is this — give everything the language side shoul
 
 ---
 
-## Chapter 23 Five Doors, Still One Map
+## Chapter 22 Five Doors, Still One Map
 
 When everything was first laid out on the same level, opening the repository was like walking into a studio piled full of half-finished work:
 a parser, a Magel compiler, a virtual machine and course examples could all be found, yet it was hard to tell at a glance who depended on whom.
 Later the doorplates were re-hung: `source/` is the ParseEngine generator, `magel/` is the
-Magel language project that uses it to generate a front end, and Hydra86 is an independently runnable assembler and multi-core virtual machine (now also split into its own repository). `project/` is left for the generator's examples and course labs,
+Magel language project that uses it to generate a front end. `project/` is left for the generator's examples and course labs,
 and `library/` holds reusable libraries.
 
 Even later another door was opened: `metro-lang/`. It uses the same generator as a front end and builds out the whole subway-network-data language
@@ -1444,7 +1416,7 @@ program really run. The value of this map isn't only that there are more modes, 
 
 ---
 
-## Chapter 24 Write Fewer Names, But Make the Boundaries Clear
+## Chapter 23 Write Fewer Names, But Make the Boundaries Clear
 
 That update, the first thing Tangtang changed wasn't a window, but one of the most ordinary assignment lines.
 
@@ -1514,72 +1486,9 @@ and language changes are recorded in the [Magel changelog](https://github.com/ra
 
 ---
 
-## Chapter 25 Formulas Come Knocking Too: CAS and a Single Space
+## Chapter 24 On an Assembly Line, Someone Has to Catch Each Piece
 
-This time, what Tangtang typed into the terminal wasn't a program, but a problem.
-
-```sh
-./build/cas/cas --eval 'd(x^3,x)'
-```
-
-The screen replied `3 x^2`. `x` has no numeric value, yet the computation had already taken a step. So the map gained another door:
-`cas/`, a C++17 symbolic computation system. Algebra, calculus, matrices, tensors, number theory and special functions enter the math kernel,
-and ParseEngine handles reading the input into structured expressions first. It was later split into its own repository too,
-and this repository no longer links to it.
-
-
-"An expression grammar — didn't the calculator example already have one?"
-
-Real formulas have several more layers of machinery than the calculator example: assignment, comparison, implicit multiplication, right-associative powers, factorials,
-function arguments, nested tensors, ranges, indexing and slicing. All of these are written into
-`cas.gram`,
-built-in symbols registered one by one, productions composed layer by layer, semantic actions handed to the semantic layer to build nodes.
-Statement-by-statement reading and parenthesis line continuation were also fixed into the generated artifacts via `%epilogue include`.
-This grammar uses SLR; the conflict column in the generated report is empty.
-
-Then, a single space put the problem on the table.
-
-```text
-f(x)
-f (x)
-```
-
-The old rule read the first line as a call and the second as multiplication. A person only left a little distance between the name and the parentheses,
-yet the parser switched trees.
-
-Tangtang set the rule: "a letter followed by parentheses is a function call."
-
-So `f(x)` and `f (x)` both call `f`, and `sin (pi/2)` still yields `1`.
-To multiply a symbol by a parenthesized expression, write `x*(x+1)`; `2(x+1)`, `(x+1)(x-1)`
-can still use implicit multiplication. The change landed on the function-name token in the grammar: whitespace is allowed after the name, before the left parenthesis;
-the semantic layer strips the parentheses and trailing whitespace, and the remaining name is used to look up the symbol.
-Function definitions, multi-argument calls and no-argument calls follow the same rule.
-
-This rule also found old formulas in the repository. In the integral table, multiplication originally written as `a (a+b*x)`
-had to have a `*` added, otherwise the new rule would read it as a call. When you change the parser, the data source has to change along with it.
-
-The integral table itself also has a build process: 259 rules, 777 expressions read in by the generated parser,
-compiled into read-only node records, with the expression tree loaded directly at runtime. Formulas are left for people to maintain, nodes are left for the program to use;
-integrating requires no rereading of the rule text on disk.
-
-Once the tree grew, storage also needed an owner. CAS connects to the repository's
-[custom allocator library](../../library/allocator/README.md) through `Cas::Memory`, and math nodes, generated-parser containers and result strings
-use the same allocation pool; the help template is embedded at build time too. The command line and `Cas::Engine` share the math kernel,
-and the static library can be handed to other programs to call. Multiple engines still share a process-level symbol environment, and calls must proceed serially.
-
-The last line isn't "it looks right", but `make check` (run in the CAS standalone repository).
-Whitespace-separated and adjacent calls, built-in functions, custom function definitions, explicit and implicit multiplication all have fixed expected values,
-and all 777 integral-table expressions are compared item by item between the parsed structure and the structure loaded after compilation.
-Only after these checks pass was the story of that one space put into the docs.
-
-What the generator handed over this time is a formula tree that can keep being differentiated, integrated and transformed.
-Write the boundaries in the grammar clearly, and only then can the math kernel compute along the correct structure.
-
----
-
-## Chapter 26 On an Assembly Line, Someone Has to Catch Each Piece
-
-The CAS tree was still on the table when Magel's problems lined up again.
+The integration chain had just been closed off when Magel's problems lined up again.
 
 "Strings, big numbers, Set, Map, tuples — all of them can be referenced. So why, when referencing a string to get a character, do I still have to write
 `(*ref)[index]`? Since normally it dereferences by default, why doesn't it recognize subscript?"
@@ -1651,7 +1560,7 @@ This time, the pipeline a user writes on one line is finally caught piece by pie
 
 ---
 
-## Chapter 27 Four Databases, and "Pass" Alone Isn't Enough
+## Chapter 25 Four Databases, and "Pass" Alone Isn't Enough
 
 The next checklist wasn't syntax, it was libraries: "test the car, the GUI and the turtle, and the other external libraries too."
 
@@ -1708,7 +1617,7 @@ PostgreSQL's bytea is returned as a text representation, and the COPY streaming 
 A unified interface doesn't automatically level out these differences; the docs must leave them where callers can see them.
 
 This round's features and fixes went into **1.1.0**, and the source-language compatibility baseline is still **1.0.0**.
-Chapter 24's 2026-10-07 numbers are kept as the acceptance record of that time, and this chapter continues by recording the scope two days later.
+Chapter 23's 2026-10-07 numbers are kept as the acceptance record of that time, and this chapter continues by recording the scope two days later.
 The reproduction checklist is in [Library Migration and Regression Verification](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md),
 and database entry points, dependencies and limitations are in the [SQL interface document](https://github.com/rabbitc999/magel/blob/master/sql-magel/doc/01-sql-library.md).
 
@@ -1722,7 +1631,7 @@ is worth keeping more than how many names hang on the doors.
 This side story is about one person and a few AI partners, filling a map from "four languages, twelve modes, 97 combinations" to
 **six complete backends + two Java / JS DD-Earley-CYK narrow backends, one grammar-export tier, sixteen modes,
 384 templates, 155 measured combinations**. Along the way they also deleted things and rolled one tier back, added Rust and Go back completely,
-then brought Java back within a more honest boundary; afterward they filled in incremental parsing, Hydra86, the five strict C-- experiments, and
+then brought Java back within a more honest boundary; afterward they filled in incremental parsing, the five strict C-- experiments, and
 Magel's typed glue, interface lifetimes, generic enums, coroutine runtime, body macros, plus the Parse / Random /
 PathString / Memory-Arena / Text / Linalg standard libraries.
 
@@ -1735,16 +1644,11 @@ The delivery method was also closed out: `magel/stackvm` and `library/stackvm` f
 `magel/VERSION` (current version `1.2.0`, language compatibility baseline `1.0.0`), breaking changes are recorded in `magel/CHANGELOG.md`,
 and keywords, the spellings of `match` / `Result` / `?` / `loop`, interface names, lifetimes and the `.svmb` v4 layout all count as
 frozen contracts; the general acceptance entry is `sh ci/run.sh`; per-library three-backend and Windows desktop verification have their own dedicated scripts.
-The 2026-10-07 Magel regression was **144 normal examples + 192 error examples**, see Chapter 24; the 2026-10-09 1.1.0 advanced to **155 normal examples + 268 error examples**, plus 22 per-library examples covering 27 standard library modules, and the external-library and multi-database acceptance scope is in Chapter 27. After 1.1.1 added the full-expression cleanup regression, normal examples rose to **156**, while error examples remained **268**. Each chapter's phase-by-phase numbers are read as of that time.
+The 2026-10-07 Magel regression was **144 normal examples + 192 error examples**, see Chapter 23; the 2026-10-09 1.1.0 advanced to **155 normal examples + 268 error examples**, plus 22 per-library examples covering 27 standard library modules, and the external-library and multi-database acceptance scope is in Chapter 25. After 1.1.1 added the full-expression cleanup regression, normal examples rose to **156**, while error examples remained **268**. Each chapter's phase-by-phase numbers are read as of that time.
 
 1.2.0 registers the ten compound-assignment Tokens and productions one by one in the grammar, expanding `A op= B` into `A = A op B` through `M_CompoundAssign`. A pure `a = b = c + 3` chain executes from right to left; a chain containing a compound assignment is illegal, including `a += b *= 3`, `a = b += 3` and the parenthesized form on the right. The rules and formal examples are in the [Magel language guide](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#复合赋值先计算再写回).
 
 Magel later wrote its source-syntax compatibility baseline separately into the [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md). The standard library is split into three layers: the core `lang.mgl` loads automatically, `std::xxx` is `import`ed on demand, and optional libraries such as `robot::`; 1.0 provides the iterator-chain API through `std::iter`, so programs can use lazy adapters, or explicitly use `foreach` and `lang::List<T>`. This also shows that a feature list from some stage in the story can't substitute for today's language rules.
-
-CAS, for its part, connected the same generator to symbolic computation: a complete expression grammar, an integral table compiled at build time,
-a custom allocation pool and an embedding API all landed together. Chapter 25 recorded the boundary between function calls and implicit multiplication:
-a name followed by parentheses uniformly means a call, and multiplying a symbol by parenthesized text must explicitly write `*`. Full usage and verification scope are in
-the manual of the standalone CAS repository.
 
 The plot is invented; the verification is real. If you want to check it yourself:
 
@@ -1777,7 +1681,7 @@ One more thing: the students at Nanjing University hand-roll C— in a course, a
   see `magel/example/samples/interrupt*.mgl` for events / interrupts / timers, and `python magel/gui/test_qt.py`, `python magel/car_sim/test_car_qt.py` for the Qt GUI.
 - To relive Chapter 1's plot yourself: `example/pl0.gram` + `--lang gram`, two minutes.
 - To do Chapter 8's mining yourself: `sh magel/magel-emit/build-target.sh magel/example/samples/containers.mgl`, then pray you don't run into a creeper.
-- To do Chapter 11's library-function swap yourself: `ParseEngine example/pl0.gram --out-dir /tmp/pl0_rs --lang rust`, then open `src/parser.rs` and look at the `Result` and `regex` in it — that's what Rust should look like.
+- To do Chapter 12's library-function swap yourself: `ParseEngine example/pl0.gram --out-dir /tmp/pl0_rs --lang rust`, then open `src/parser.rs` and look at the `Result` and `regex` in it — that's what Rust should look like.
 - To see what Nanjing University's C— lab looks like: flip to Appendix A and read from Tokens through to Expressions. You'll find that you're not the only one on that map.
 - A few sections were withdrawn. The passages in the main text about workplace, position, colleagues and compensation have been withdrawn as a whole and sealed into
   [`09-extra.md`](../09-extra.md). To read that part, you'll have to summon the parser generator in the repository — it recognizes that seal.

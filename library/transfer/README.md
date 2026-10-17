@@ -1,7 +1,7 @@
 # 单线程后端工具链（`library/transfer`）
 
 > **定位：编译器工具链的参考实现。** 本库用同一份四元式把"优化的后半段 + 三套
-> 教学目标机代码生成 + 模拟执行"完整走一遍，并可降低到 Hydra86 原生汇编或 LLVM IR；它不是
+> 教学目标机代码生成 + 模拟执行"完整走一遍，并可降低到 LLVM IR；它不是
 > 生产级编译器（不做真实 ABI / 寄存器约束 / 目标文件格式 / 优化正确性证明），
 > 也不参与 `ParseEngine` 生成器的构建。评估它的产出时按"参考实现 + 自检全绿"
 > 来看，不要按"能编译真实程序"来要求；完整说明见 [技术报告.md](技术报告.md)。
@@ -23,7 +23,7 @@ flowchart LR
     IR --> DF["dataflow<br/>RD / LIVE / AE / 常量传播"]
     IR --> SS["ssa<br/>φ → SCCP / GVN → φ 消除"]
     IR --> RA["regalloc<br/>图着色 / 线性扫描 + 溢出重写"]
-    IR --> CO["core<br/>优化 + MIPS / 8086 / ARM / Hydra86 / LLVM"]
+    IR --> CO["core<br/>优化 + MIPS / 8086 / ARM / LLVM"]
     CO -.->|"模拟输出"| CMP["跨模块语义对照"]
     SS -.->|"解释输出"| CMP
 ```
@@ -61,7 +61,7 @@ decl i32 t1                      ; 声明（不写按 i16）
 | --- | --- | --- |
 | `ir/` | 统一 IR：指令、基本块、解析、打印、CFG | 本文 |
 | `irbuild/` | 四元式 / 三元式**构建器**（链式 API） | [`irbuild/README.md`](irbuild/README.md) |
-| `core/` | 带类型四元式：优化、MIPS / 8086 / ARM / Hydra86 / LLVM 代码生成、执行器 | [`core/README.md`](core/README.md) |
+| `core/` | 带类型四元式：优化、MIPS / 8086 / ARM / LLVM 代码生成、执行器 | [`core/README.md`](core/README.md) |
 | `irbridge/` | 三元式 ↔ 四元式互转 | [`irbridge/README.md`](irbridge/README.md) |
 | `dataflow/` | 数据流框架：格 + 传递函数 + 两种求解器 + 单调性检查 | [`dataflow/README.md`](dataflow/README.md) |
 | `ssa/` | 支配树 / φ / SCCP / GVN / φ 消除 | [`ssa/README.md`](ssa/README.md) |
@@ -88,30 +88,6 @@ t1t pipeline 文件.quad --data=数据.bin --layout=布局表   同一条流水�
 
 每个子命令与单独跑那一步的命令行完全一致（`-h` 看用法）。
 
-### Hydra86 后端
-
-`--target=hydra86` 生成 Hydra86 的 `.data` / `.code` 原生汇编。后端覆盖不超过
-64 位的整数、算术与位运算、比较、跳转、函数调用（含递归）以及整数输出；尚未映射的
-浮点、字符串、向量、文件、数据区和输入指令会在生成期明确报错。
-
-Hydra86 已拆分为独立仓库。CMake 按以下顺序
-寻找 Hydra86 源码：显式的 `T1T_HYDRA86_ROOT`（缓存变量或环境变量）→ 同级的
-`../hydra-86` 或 `../../hydra-86` 目录。目录中存在 `CMakeLists.txt` 时，CMake
-自动链接稳定接口 `pvm_cli`，CLI 和 pipeline 会调用 `Hydra86::runAssembly` 真正装配并
-运行；源码找不到时仍可生成汇编，并给出未嵌入提示。也可以显式指定源码位置：
-
-```text
-cmake -S library/transfer -B build/transfer -DT1T_HYDRA86_ROOT=/path/to/hydra-86
-cmake --build build/transfer
-build/transfer/t1t transfer demo.quad --target=hydra86 --asm \
-  --asm-out=demo.hydra86.asm --bin-out=demo.bin
-```
-
-`--asm-out` 保存不含命令行日志的纯汇编；`--bin-out` 调用 Hydra86 官方汇编器，写出
-v2 变长指令镜像，并从该二进制镜像执行。`--bin-out` 仅在嵌入 Hydra86 的 CMake 构建中可用。
-
-`Makefile` 构建保持零外部依赖，只提供 Hydra86 汇编生成；需要同进程执行时使用 CMake。
-
 ### LLVM 后端
 
 `--target=llvm` 把不超过 64 位的整数四元式直接降低为 LLVM IR 文本，覆盖声明、赋值、
@@ -122,21 +98,14 @@ v2 变长指令镜像，并从该二进制镜像执行。`--bin-out` 仅在嵌�
 t1t transfer examples/01_arith.quad --target=llvm --asm-out=demo.ll
 clang demo.ll -O2 -o demo.exe
 demo.exe
-
-# 同一份、未经改写的 transfer LLVM IR 可继续导出 Hydra86：
-t1t transfer demo.ll --from=llvm --target=hydra86 \
-  --asm-out=demo.hydra86.asm --bin-out=demo.bin
 ```
 
 LLVM 后端不调用教学模拟器；CMake 能找到 `clang` 时会自动注册 `llvm-clang-e2e`，实际编译并
 运行直线算术与递归程序。当前不映射 128 位整数、浮点、字符串、输入、数据区、文件与中断，
 遇到这些指令会在生成阶段明确报错。生成 `.ll` 本身不需要 LLVM SDK 或链接 LLVM 库。
-生成器会在 `.ll` 中保留 Base64 四元式载荷及 LLVM 正文的 FNV-1a 校验，供 Hydra86 桥接
-复用既有 lowering；正文被 LLVM 优化器或人工修改后会因校验不符而拒绝。该功能是本项目
-LLVM IR 的受控桥接，不等同于完整的 LLVM Target，也不提供 `llc -march=hydra86`。
 **结论（2026-09-19）：四元式优化引擎可以用，扁平化不可以用。**
 
-- **推荐**：`core/`（带类型四元式 + 优化器 + 五套目标代码生成 + 执行器）、
+- **推荐**：`core/`（带类型四元式 + 优化器 + 四套目标代码生成 + 执行器）、
   `irbridge/`、`dataflow/`、`ssa/`、`regalloc/`——它们都直接吃四元式，不依赖任何语言前端。
 - 要做“从语言到代码”这件事，改用 [`project/pl0-super/`](../../project/pl0-super/README.md) 那条
   **不建中间表示、简化代码直接出目标代码**的路子。
@@ -145,7 +114,7 @@ LLVM IR 的受控桥接，不等同于完整的 LLVM Target，也不提供 `llc 
 
 `make check` 分三层：
 
-- **模块单测**：irbridge / dataflow / ssa / regalloc / irbuild、Hydra86 汇编与 v2 镜像，
+- **模块单测**：irbridge / dataflow / ssa / regalloc / irbuild，
   以及 LLVM IR 结构检查；找到 Clang 时再做真实编译与运行；
 - **示例集**：core 26 个、dataflow 5 个、ssa 5 个、端到端流水线 3 个；
 - **命令演示**：regalloc / ssa / dataflow / irbridge / irbuild 各跑一条。

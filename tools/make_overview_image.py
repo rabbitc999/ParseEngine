@@ -8,7 +8,7 @@
 
 排版：四栏 —— ① 生成器 ② 应用 ③ 附加库 ④ 工具。
 信息都对应仓库现有内容（src/ · project/ · library/ · vscode/；
-    magel / metro-lang / hydra-86 / rust-view / cas 已全部拆独立仓库），
+    magel / metro-lang / rust-view 已全部拆独立仓库），
 改这些目录时记得一起改本脚本的文案。
 
 为什么不用 SVG/HTML：README 在 GitHub 上渲染 PNG 最稳，且这张图文字多，
@@ -314,7 +314,7 @@ def build() -> Canvas:
         c.text(x + 28, top + 19, name, f_code, CODE)
         c.text(x + 28, top + 37, desc, f_note, NOTE)
 
-    # 根目录应用工程：magel / metro-lang / hydra-86 / rust-view / cas 全部拆成独立仓库。
+    # 根目录应用工程：magel / metro-lang / rust-view 全部拆成独立仓库。
     c.text(x + 18, COL_TOP + 208, "根目录应用工程（0 个，均已拆分独立仓库）", f_ctitle, CTITLE)
     root_projects = ()
     root_w = (COL_W - 36 - 2 * 6) // 3
@@ -396,7 +396,6 @@ def build() -> Canvas:
         ("优化", "常量 · CSE · DCE · 循环优化"),
         ("SSA 与分配", "Chaitin / 线性扫描"),
         ("教学后端", "MIPS / 8086 / ARM → 模拟执行"),
-        ("Hydra86 后端", "原生汇编 → pvm_cli 嵌入执行"),
     )
     for i, (name, desc) in enumerate(transfer_steps):
         top = COL_TOP + 386 + i * 54
@@ -462,7 +461,7 @@ def build() -> Canvas:
     # ============================================================
     c.text(40, 846,
            "四层关系：生成器（①）产出解析器工程；应用（②）含 project/ 实验"
-           "（magel / metro-lang / hydra-86 / rust-view / cas 已拆独立仓库）；"
+           "（magel / metro-lang / rust-view 已拆独立仓库）；"
            "附加库（③）提供数据模型与后端；工具（④）辅助开发和验证",
            f_foot, FOOT)
     c.text(40, 872,

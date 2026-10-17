@@ -805,8 +805,7 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 │   │                只用标准库）：生成器本身的产物模板就由它渲染
 │   ├── template-rust/ 上述模板引擎的 Rust 版（独立 crate `template_engine`）
 │   ├── transfer/    单线程后端工具链（五合一）：带位数三地址 IR、优化、SSA、
-│   │                寄存器分配、MIPS / 8086 / ARM 教学后端、Hydra86 与 LLVM 后端
-│   │                （可通过 pvm_cli 在同一进程内装配执行）
+│   │                寄存器分配、MIPS / 8086 / ARM 教学后端与 LLVM 后端
 │   │                用法见 library/transfer/README.md
 │   ├── transfer-rust/ 上面那套四元式后端的 **Rust 版**（独立 crate `quad_transfer`，
 │   │                无第三方依赖）：四元式 → 优化 → MIPS / 8086 / ARM → 模拟执行；
@@ -875,7 +874,7 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 | 文档 | 内容 |
 | --- | --- |
 | [`library/transfer/README.md`](../library/transfer/README.md) | **当前教学库**（编译器工具链的参考实现）：C++17 单线程后端工具链，含命令、模块与示例 |
-| [`library/transfer/技术报告.md`](../library/transfer/技术报告.md) | 后端教学库的架构与实测：优化 → 三地址 → 数据流 → SSA → 寄存器分配 → 三套教学机 / Hydra86 / LLVM |
+| [`library/transfer/技术报告.md`](../library/transfer/技术报告.md) | 后端教学库的架构与实测：优化 → 三地址 → 数据流 → SSA → 寄存器分配 → 三套教学机 / LLVM |
 | [`library/transfer-rust/README.md`](../library/transfer-rust/README.md) | **Rust 版四元式后端**（独立 crate `quad_transfer`，无第三方依赖）：用法、指令集、机器配置、示例与实测结果 |
 | [`library/transfer-rust/技术报告.md`](../library/transfer-rust/技术报告.md) | Rust 版的设计与实现：模块划分、机器字长展开、优化流水线、代码生成、模拟执行与范围边界 |
 | [`library/lsp/README.md`](../library/lsp/README.md) | **当前工具库**：`.gram` 语言服务器，含诊断、悬停、补全、格式化与快速修复 |
@@ -898,7 +897,7 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 
 | 文档 | 内容 |
 | --- | --- |
-| [`doc/02-gram-legend.md`](../doc/02-gram-legend.md) | 作者**糖糖**的虚构外传《满级文法》；含增量解析、Hydra86、严格 C-- 五实验及 Java/JS 窄后端番外，人物与剧情纯属虚构 |
+| [`doc/02-gram-legend.md`](../doc/02-gram-legend.md) | 作者**糖糖**的虚构外传《满级文法》；含增量解析、严格 C-- 五实验及 Java/JS 窄后端番外，人物与剧情纯属虚构 |
 | [`SKILL.md`](../SKILL.md) | 给 AI / 脚本用的操作手册（用 `--lang python` 快速分析日志 / DSL） |
 
 另有 [`project/lab_report_axhu/`](../project/lab_report_axhu/README.md)：安徽新华学院编译原理课程的三份实验报告，均用本工具实现
@@ -920,13 +919,13 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 | 位置 | `library/` 下，与生成器主流程**互相独立**的附加库 |
 | 构建关系 | 不参与 `ParseEngine` 的构建 |
 | 用途 | 用同一份四元式演示编译后端的后半段 |
-| 实现 | C++17；汇编生成只用标准库，嵌入执行可选链接 Hydra86 的 `pvm_cli` |
+| 实现 | C++17；汇编生成只用标准库 |
 | 配置格式 | 机器配置是 `key=value` 文本（不需要 JSON） |
 | 数据区 | 可以由 Bin 文件提供 |
 
 ### 演示链路
 
-带类型四元式 → 基本块 / CFG → 到达定值、活跃变量、可用表达式 → 常量折叠 / 代数化简 / CSE / 复制传播 / DCE → 循环优化 → MIPS / 8086 / ARM 教学汇编并模拟，生成 Hydra86 原生汇编交给 Hydra86 VM，或输出 LLVM IR 交给 Clang。
+带类型四元式 → 基本块 / CFG → 到达定值、活跃变量、可用表达式 → 常量折叠 / 代数化简 / CSE / 复制传播 / DCE → 循环优化 → MIPS / 8086 / ARM 教学汇编并模拟，或输出 LLVM IR 交给 Clang。
 
 ### 参考实现边界
 
@@ -934,7 +933,7 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 | --- | --- |
 | 目标 | 把这条链路讲清楚、跑通、可复现 |
 | 不追求 | 真实 ABI、指令调度、目标文件格式、优化正确性的形式化证明 |
-| 目标形态 | 三套教学目标机由内置模拟器执行；Hydra86 输出原生汇编 / 变长镜像；LLVM 输出标准 `.ll` 并由 Clang 编译 |
+| 目标形态 | 三套教学目标机由内置模拟器执行；LLVM 输出标准 `.ll` 并由 Clang 编译 |
 | 设计依据 | [`library/transfer/README.md`](../library/transfer/README.md)、[`library/transfer/技术报告.md`](../library/transfer/技术报告.md) |
 
 ### 变量类型与机器模型
@@ -967,26 +966,13 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 ```text
 make -C library/transfer clean all check      # 静态库 + 示例 + 26 个程序的自检
 
-# Hydra86 已拆独立仓库；CMake 自动探测
-# 同级 ../hydra-86、../../hydra-86，也可显式指定源码目录：
-cmake -S library/transfer -B tmp/transfer -DT1T_HYDRA86_ROOT=/path/to/hydra-86
-cmake --build tmp/transfer
-tmp/transfer/t1t transfer demo.quad --target=hydra86 --asm \
-  --asm-out=demo.hydra86.asm --bin-out=demo.bin
-
 # LLVM 文本 IR 不需要链接 LLVM SDK；安装 Clang 后可直接编译：
 tmp/transfer/t1t transfer demo.quad --target=llvm --asm-out=demo.ll
 clang demo.ll -O2 -o demo.exe
 ```
 
-Hydra86 档可分别保存原生汇编与 v2 变长 `.bin`，并从生成的镜像直接执行；当前覆盖
-不超过 64 位的整数标量、算术 / 位运算、比较、控制流、函数调用
-（含递归）和整数输出。浮点、字符串、向量、文件、数据区与输入指令尚未映射，生成时会明确报错。
-没有 Hydra86 源码时仍能生成汇编，但不会假装用教学模拟器执行它。
 LLVM 档当前覆盖不超过 64 位的整数、控制流、递归调用与整数输出；CMake 找到 Clang 时，
 CTest 会实际编译运行算术和递归样例。
-本工具生成且未经改写的 `.ll` 还可用 `--from=llvm --target=hydra86` 导出 Hydra86 原生汇编
-与 v2 变长镜像；这条受控桥接不等同于 LLVM 官方 `llc` 的完整 Hydra86 Target。
 
 ### 示例
 

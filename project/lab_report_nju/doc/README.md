@@ -28,7 +28,7 @@ flowchart TD
 1. [实验一：词法分析与语法分析实验报告](../reports/01-lexical-syntax-report.md)
 2. [实验二：语义分析实验报告](../reports/02-semantic-analysis-report.md)
 3. [实验三：中间代码生成实验报告](../reports/03-ir-generation-report.md)
-4. [实验四：目标代码生成实验报告](../reports/04-code-generation-report.md)（含 Hydra86 对接验证）
+4. [实验四：目标代码生成实验报告](../reports/04-code-generation-report.md)
 5. [实验五：中间代码优化实验报告](../reports/05-optimization-report.md)
 
 ## 源代码

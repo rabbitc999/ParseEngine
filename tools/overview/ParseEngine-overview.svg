@@ -181,9 +181,6 @@
   <rect x="798" y="666" width="324" height="48" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
   <text x="808" y="687" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">教学后端</text>
   <text x="892" y="687" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">MIPS / 8086 / ARM → 模拟执行</text>
-  <rect x="798" y="720" width="324" height="48" rx="8" fill="#f4f8fd" stroke="#cfe0f3" stroke-width="1"/>
-  <text x="808" y="741" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">Hydra86 后端</text>
-  <text x="892" y="741" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">原生汇编 → pvm_cli 嵌入执行</text>
   <rect x="1150" y="118" width="360" height="700" rx="14" fill="#ffffff" stroke="#d8e1ee" stroke-width="1.5"/>
   <text x="1168" y="148" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="17" font-weight="700" fill="#14507e">④ 工具</text>
   <text x="1168" y="170" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">vscode/ · tools/ · build/</text>
@@ -219,6 +216,6 @@
   <text x="1168" y="674" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">sh build.sh   统一构建，产物位于 build/</text>
   <text x="1168" y="694" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">make -C source test-repro   两次生成逐字一致</text>
   <text x="1168" y="714" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">project/document/   模板与文档同步生成器</text>
-  <text x="40" y="846" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#64748b">四层关系：生成器（①）产出解析器工程；应用（②）含 project/ 实验（magel / metro-lang / hydra-86 / rust-view / cas 已拆独立仓库）；附加库（③）提供数据模型与后端；工具（④）辅助开发和验证</text>
+  <text x="40" y="846" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#64748b">四层关系：生成器（①）产出解析器工程；应用（②）含 project/ 实验（magel / metro-lang / rust-view 已拆独立仓库）；附加库（③）提供数据模型与后端；工具（④）辅助开发和验证</text>
   <text x="40" y="872" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#64748b">人机协同：需求、文法与算法选型由人，实现由 Codex + DeepSeek；真实生成、目标工具链与回归样例负责验收，当前口径见 doc/15 与专题文档</text>
 </svg>

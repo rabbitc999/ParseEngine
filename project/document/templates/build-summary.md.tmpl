@@ -8,7 +8,7 @@
 {{clean_command}}                 # 清理构建产物
 ```
 
-构建入口产生的文件统一位于仓库根目录 `{{build_root}}`。生成器在 `{{generator_dir}}`（release 在 `{{generator_release_dir}}`），Rust 在 `{{rust_dir}}`，示例工程在 `{{project_dir}}`，日志在 `{{log_dir}}`，全量示例产物在 `{{examples_dir}}`。Magel 在 `{{magic_dir}}` 的源码副本中生成和编译，依赖库在 `{{magic_dependencies}}`，其他库沿用根目录 `build/` 下的目录；Magel、MetroLang、Hydra86、RustView 与 CAS 已拆分为独立仓库，构建产物在各自仓库里。
+构建入口产生的文件统一位于仓库根目录 `{{build_root}}`。生成器在 `{{generator_dir}}`（release 在 `{{generator_release_dir}}`），Rust 在 `{{rust_dir}}`，示例工程在 `{{project_dir}}`，日志在 `{{log_dir}}`，全量示例产物在 `{{examples_dir}}`。Magel 在 `{{magic_dir}}` 的源码副本中生成和编译，依赖库在 `{{magic_dependencies}}`，其他库沿用根目录 `build/` 下的目录；Magel、MetroLang 与 RustView 已拆分为独立仓库，构建产物在各自仓库里。
 
 {{python_policy}}
 

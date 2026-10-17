@@ -6,7 +6,7 @@
   3. 生成是**确定**的：同一份源码跑两次，SVG 逐字节一致（改文案后重跑只应该改内容）。
 
 Magel 的总览图随它自己的仓库走了（那边 `tests/make_overview.py` 管），MetroLang 亦然
-（那边的 `tools/make_overview.py` 管），Hydra86、RustView、CAS 同样（各自仓库的
+（那边的 `tools/make_overview.py` 管），RustView 同样（它自己仓库的
 `tools/make_overview.py` 管），这里只剩本仓库的一张。
 
 用法（在仓库任意目录执行都可以）：
@@ -22,7 +22,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 # 生成器（相对仓库根）→ (产物名, 产物目录)（与各自脚本的 print 对齐）。
-# Magel / MetroLang / Hydra86 / RustView / CAS 的总览图随各自独立仓库走（那边 tools/make_overview.py 管）。
+# Magel / MetroLang / RustView 的总览图随各自独立仓库走（那边 tools/make_overview.py 管）。
 GENERATORS = {
     "tools/make_overview_image.py": ("ParseEngine", "tools/overview"),
 }

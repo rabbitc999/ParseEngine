@@ -26,7 +26,7 @@ Magel 当前语言基线：**1.0.0**，当前版本：**1.2.0**。
 | 文档 | 内容 |
 | --- | --- |
 | [01 仓库文档总览](01-overview.md) | 各工程、附加库及全部文档的入口 |
-| [02 满级文法](02-gram-legend.md) | 跨解析器、Magel、Hydra86 和课程实验的虚构外传，续写 Magel 1.0、迭代链与多数据库验收 |
+| [02 满级文法](02-gram-legend.md) | 跨解析器、Magel 和课程实验的虚构外传，续写 Magel 1.0、迭代链与多数据库验收 |
 | [03 架构](03-architecture.md) | 生成器的模块、数据流与代码约定 |
 | [04 一份 .gram，八种语言](04-parseengine-story.md) | ParseEngine 生成器的演进故事 |
 | [05 文法](05-grammar.md) | `.gram` 语法规范与生成期校验 |
@@ -84,7 +84,7 @@ Magel 的两层增量缓存、共享依赖校验和限制见[部署文档](https
 ## 统一构建目录
 
 <!-- docgen:build-summary:start -->
-构建入口是 `build.sh`，实际步骤由 `build-all.sh` 维护。Windows 下使用 Git Bash；Linux/macOS 使用 POSIX Shell。脚本构建 ParseEngine、库和示例工程（Magel、MetroLang、Hydra86、RustView、CAS 已拆分为独立仓库），不运行测试；上述独立仓库不在统一构建清单中。
+构建入口是 `build.sh`，实际步骤由 `build-all.sh` 维护。Windows 下使用 Git Bash；Linux/macOS 使用 POSIX Shell。脚本构建 ParseEngine、库和示例工程（Magel、MetroLang、RustView 已拆分为独立仓库），不运行测试；上述独立仓库不在统一构建清单中。
 
 ```sh
 sh build.sh                  # 全量构建
@@ -94,9 +94,9 @@ sh clear.sh --dry-run        # 预览清理范围
 sh clear.sh                 # 清理构建产物
 ```
 
-构建入口产生的文件统一位于仓库根目录 `build/`。生成器在 `build/bin/`（release 在 `build/bin/release/`），Rust 在 `build/rust/<库名>/`，示例工程在 `build/project/<工程名>/`，日志在 `build/build-all/logs/`，全量示例产物在 `build/build-all/examples/`。Magel 在 `build/work/magel/` 的源码副本中生成和编译，依赖库在 `build/work/build/`，其他库沿用根目录 `build/` 下的目录；Magel、MetroLang、Hydra86、RustView 与 CAS 已拆分为独立仓库，构建产物在各自仓库里。
+构建入口产生的文件统一位于仓库根目录 `build/`。生成器在 `build/bin/`（release 在 `build/bin/release/`），Rust 在 `build/rust/<库名>/`，示例工程在 `build/project/<工程名>/`，日志在 `build/build-all/logs/`，全量示例产物在 `build/build-all/examples/`。Magel 在 `build/work/magel/` 的源码副本中生成和编译，依赖库在 `build/work/build/`，其他库沿用根目录 `build/` 下的目录；Magel、MetroLang 与 RustView 已拆分为独立仓库，构建产物在各自仓库里。
 
-构建入口实际运行 `python3`、`python`，选择可用的 Python 3 解释器，跳过不可用的占位程序和 Python 2；检测结果传给生成器和 CAS。CAS 的 Makefile 单独运行时也会自动检测，可用 `PYTHON` 覆盖。C/C++ 编译器、make 和 Python 3 为必需工具；Rust、.NET 和 Go 工具链缺失时跳过对应部分。
+构建入口实际运行 `python3`、`python`，选择可用的 Python 3 解释器，跳过不可用的占位程序和 Python 2；检测结果传给生成器，也可用 `PYTHON` 覆盖选择结果。C/C++ 编译器、make 和 Python 3 为必需工具；Rust、.NET 和 Go 工具链缺失时跳过对应部分。
 
 清理仅限根目录 `build/` 内被 Git 忽略的产物，保留受版本控制文件、未被忽略的未跟踪文件和嵌套 Git 仓库。检测到 `tmp/build.lock` 时拒绝清理；旧版本留在其他目录的产物不在清理范围内。
 
@@ -105,13 +105,9 @@ sh clear.sh                 # 清理构建产物
 维护这段说明时修改 [统一配置](../project/document/documentation.json) 或 [构建说明模板](../project/document/templates/build-summary.md.tmpl)，再运行文档生成器。模板使用方法见 [文档维护规范](../project/document/README.md)。
 <!-- docgen:build-summary:end -->
 
-## CAS 符号计算
-
-CAS 已拆分为独立仓库，本仓库不再提供其手册与文档链接；`Cas::Memory` 相关说明见[自定义分配器库](#自定义分配器库)。
-
 ## 自定义分配器库
 
-[`library/allocator`](../library/allocator/README.md) 提供链表池、线性池和 C++17 容器适配，命名空间为 `Memory`；CAS 使用 `Cas::Memory` 接入。构建产物位于 `build/allocator/`。
+[`library/allocator`](../library/allocator/README.md) 提供链表池、线性池和 C++17 容器适配，命名空间为 `Memory`。构建产物位于 `build/allocator/`。
 
 ## Magel 二进制流解析
 

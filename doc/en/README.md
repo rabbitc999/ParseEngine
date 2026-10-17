@@ -22,7 +22,7 @@ Start from [01 repository documentation overview](../01-overview.md). This direc
 | Document | Content |
 | --- | --- |
 | [01 Repository Documentation Overview](../01-overview.md) | Entry point to all projects, additional libraries and all documents |
-| [02 Max-Level Grammar](../02-gram-legend.md) | A fictional side story spanning the parser, Magel, Hydra86 and course experiments, continuing Magel 1.0, iteration chains and multi-database acceptance |
+| [02 Max-Level Grammar](../02-gram-legend.md) | A fictional side story spanning the parser, Magel and course experiments, continuing Magel 1.0, iteration chains and multi-database acceptance |
 | [03 Architecture](../03-architecture.md) | Modules, data flow and code conventions of the generator |
 | [04 One .gram, Eight Languages](../04-parseengine-story.md) | The evolution story of the ParseEngine generator |
 | [05 Grammar](../05-grammar.md) | The `.gram` syntax specification and generation-time validation |
@@ -82,7 +82,7 @@ For Magel's two-tier incremental cache, shared dependency validation and limitat
 ## Unified Build Directory
 
 <!-- docgen:build-summary:start -->
-The build entry point is `build.sh`; the actual steps are maintained by `build-all.sh`. Use Git Bash on Windows; use a POSIX shell on Linux/macOS. The scripts build ParseEngine, libraries and example projects (Magel, MetroLang, Hydra86, RustView and CAS have been split into independent repositories) and do not run tests; those independent repositories are not in the unified build manifest.
+The build entry point is `build.sh`; the actual steps are maintained by `build-all.sh`. Use Git Bash on Windows; use a POSIX shell on Linux/macOS. The scripts build ParseEngine, libraries and example projects (Magel, MetroLang and RustView have been split into independent repositories) and do not run tests; those independent repositories are not in the unified build manifest.
 
 ```sh
 sh build.sh                  # 全量构建
@@ -92,9 +92,9 @@ sh clear.sh --dry-run        # 预览清理范围
 sh clear.sh                 # 清理构建产物
 ```
 
-Files produced by the build entry point live under the repository-root `build/`. The generator is in `build/bin/` (release in `build/bin/release/`), Rust in `build/rust/<library name>/`, example projects in `build/project/<project name>/`, logs in `build/build-all/logs/`, and full example artifacts in `build/build-all/examples/`. Magel generates and compiles inside a source copy at `build/work/magel/`, dependent libraries in `build/work/build/`, and other libraries use directories under the root `build/`; Magel, MetroLang, Hydra86, RustView and CAS have been split into independent repositories, with build artifacts in their own repositories.
+Files produced by the build entry point live under the repository-root `build/`. The generator is in `build/bin/` (release in `build/bin/release/`), Rust in `build/rust/<library name>/`, example projects in `build/project/<project name>/`, logs in `build/build-all/logs/`, and full example artifacts in `build/build-all/examples/`. Magel generates and compiles inside a source copy at `build/work/magel/`, dependent libraries in `build/work/build/`, and other libraries use directories under the root `build/`; Magel, MetroLang and RustView have been split into independent repositories, with build artifacts in their own repositories.
 
-The build entry actually runs `python3`, `python`, picking an available Python 3 interpreter and skipping unusable placeholder programs and Python 2; the detection result is passed to the generator and CAS. CAS's Makefile also auto-detects when run standalone, overridable with `PYTHON`. A C/C++ compiler, make and Python 3 are required tools; when the Rust, .NET or Go toolchains are missing, the corresponding parts are skipped.
+The build entry actually runs `python3`, `python`, picking an available Python 3 interpreter and skipping unusable placeholder programs and Python 2; the detection result is passed to the generator, and `PYTHON` can be used to override the choice. A C/C++ compiler, make and Python 3 are required tools; when the Rust, .NET or Go toolchains are missing, the corresponding parts are skipped.
 
 Cleanup is limited to Git-ignored artifacts inside the root `build/`, keeping version-controlled files, untracked-but-not-ignored files and nested Git repositories. Cleanup is refused when `tmp/build.lock` is detected; artifacts left behind by old versions in other directories are out of scope.
 
@@ -103,13 +103,9 @@ The paths above apply to the repository's unified build entry point. When runnin
 When maintaining this section, edit the [unified configuration](../../project/document/documentation.json) or the [build summary template](../../project/document/templates/build-summary.md.tmpl), then run the documentation generator. For template usage, see the [Documentation Maintenance Guidelines](../../project/document/README.md).
 <!-- docgen:build-summary:end -->
 
-## CAS Symbolic Computation
-
-CAS has been split into a standalone repository, so this repository no longer links to its manual or documents; see [Custom Allocator Library](#custom-allocator-library) for the `Cas::Memory` notes.
-
 ## Custom Allocator Library
 
-[`library/allocator`](../../library/allocator/README.md) provides a linked-list pool, a linear pool and C++17 container adapters, under the namespace `Memory`; CAS plugs in via `Cas::Memory`. Build artifacts live in `build/allocator/`.
+[`library/allocator`](../../library/allocator/README.md) provides a linked-list pool, a linear pool and C++17 container adapters, under the namespace `Memory`. Build artifacts live in `build/allocator/`.
 
 ## Magel Binary Stream Parsing
 

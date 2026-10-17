@@ -1,9 +1,8 @@
 #!/bin/sh
 # build-all.sh —— 一键构建：ParseEngine + 库和示例（不跑测试）
 #
-# Magel、MetroLang、Hydra86、RustView 与 CAS 已拆分为独立仓库（https://github.com/rabbitc999/magel、
-# https://gitee.com/rabbitc999/metro-lang、https://gitee.com/rabbitc999/rust-view；
-# Hydra86 与 CAS 的仓库地址不在本仓库提供），
+# Magel、MetroLang 与 RustView 已拆分为独立仓库（https://github.com/rabbitc999/magel、
+# https://gitee.com/rabbitc999/metro-lang、https://gitee.com/rabbitc999/rust-view），
 # 它们的构建与门禁都在各自仓库里。
 #
 # 为什么要有它：独立工程位于 source/；
@@ -151,7 +150,7 @@ echo
 echo "== 将要构建（只编译，不跑测试）=="
 echo "  生成器     build/bin/ParseEngine${generator_target:+（release）}"
 echo "  C++ 库     $cpp_libs"
-echo "  独立工程   （Magel、MetroLang、Hydra86、RustView、CAS 已独立：Magel 见 https://github.com/rabbitc999/magel，MetroLang 见 https://gitee.com/rabbitc999/metro-lang，RustView 见 https://gitee.com/rabbitc999/rust-view）"
+echo "  独立工程   （Magel、MetroLang、RustView 已独立：Magel 见 https://github.com/rabbitc999/magel，MetroLang 见 https://gitee.com/rabbitc999/metro-lang，RustView 见 https://gitee.com/rabbitc999/rust-view）"
 if [ "$build_rust" = 1 ]; then
     echo "  Rust crate $rust_libs"
 else
@@ -299,10 +298,9 @@ done
 mkdir -p "$(dirname "$library_stamp")"
 printf '%s\n' "$host_platform" >"$library_stamp"
 
-# 3.2a MetroLang、Magel、Hydra86、RustView 与 CAS 一样拆成了独立仓库（分别见
+# 3.2a MetroLang、Magel、RustView 也都拆成了独立仓库（分别见
 # https://gitee.com/rabbitc999/metro-lang、https://github.com/rabbitc999/magel、
-# https://gitee.com/rabbitc999/rust-view；Hydra86 与 CAS 的仓库地址不在本仓库提供），
-# 它们的构建与门禁都在各自仓库里；
+# https://gitee.com/rabbitc999/rust-view），它们的构建与门禁都在各自仓库里；
 # 父仓库不再构建任何独立工程。
 
 

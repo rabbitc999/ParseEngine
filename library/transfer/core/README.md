@@ -15,7 +15,7 @@
 ```text
 四元式 → 基本块 / CFG → 数据流分析 → 局部优化 → 全局优化
        → 循环不变外提 / 强度削弱 / 归纳变量 → 重建 CFG 迭代
-       → 优化后四元式 → 基础目标代码 → MIPS / 8086 / ARM / Hydra86 / LLVM → 执行
+       → 优化后四元式 → 基础目标代码 → MIPS / 8086 / ARM / LLVM → 执行
 ```
 
 类型模型：`i8/u8/i16/u16/i32/u32/i64/u64/i128/u128/f32/f64`，未声明时按 i16
@@ -104,15 +104,9 @@ t1t transfer demo.quad --target=mips --data=demo.data.bin --layout=demo.layout
   是出口），到达定值 / 活跃变量 / 可用表达式；
 - `optimizeDetailed` / `optimizeParallel`：常量折叠、常量传播、代数化简、
   局部 / 全局 CSE、复制传播、DCE 与安全的循环优化；类型与浮点都参与折叠；
-- `generate`：生成教学用 MIPS / 8086 / ARM 汇编（可由 `MachineConfig` 配置）、
-  Hydra86 原生汇编或 LLVM IR；
-- `generateHydra86` / `compileHydra86` / `runHydra86` / `runHydra86Binary`：生成 Hydra86
-  汇编或 v2 变长 `.bin`，并在 CMake 找到 Hydra86 源码时通过 `pvm_cli` 的稳定嵌入 API
-  装配、执行汇编或执行已编译镜像；
+- `generate`：生成教学用 MIPS / 8086 / ARM 汇编（可由 `MachineConfig` 配置）或 LLVM IR；
 - `generateLlvm`：生成无需 LLVM SDK 即可写出的文本 `.ll`；当前支持不超过 64 位的整数、
   控制流、调用（含递归）与整数输出，使用 Clang 编译执行；
-- `generateHydra86FromLlvm`：读取上述 `.ll` 中带完整性校验的 t1t 载荷，再走同一套
-  Hydra86 lowering；只接受未经改写的本项目 LLVM IR，不冒充通用 LLVM Target；
 - `simulate`：执行生成的汇编，返回带类型的 `Execution`（`memory` / `output` / `text`）；
 - `loadDataBin` / `loadDataLayout` / `loadDataArea`：装载数据区字节镜像与符号表
   （`addr` / `load` / `store` 三件套用）。

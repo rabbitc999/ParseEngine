@@ -52,7 +52,7 @@ Windows 上可执行文件为 `build/bin/ParseEngine.exe`。默认目标语言�
 ## 构建
 
 <!-- docgen:build-summary:start -->
-构建入口是 `build.sh`，实际步骤由 `build-all.sh` 维护。Windows 下使用 Git Bash；Linux/macOS 使用 POSIX Shell。脚本构建 ParseEngine、库和示例工程（Magel、MetroLang、Hydra86、RustView、CAS 已拆分为独立仓库），不运行测试；上述独立仓库不在统一构建清单中。
+构建入口是 `build.sh`，实际步骤由 `build-all.sh` 维护。Windows 下使用 Git Bash；Linux/macOS 使用 POSIX Shell。脚本构建 ParseEngine、库和示例工程（Magel、MetroLang、RustView 已拆分为独立仓库），不运行测试；上述独立仓库不在统一构建清单中。
 
 ```sh
 sh build.sh                  # 全量构建
@@ -62,9 +62,9 @@ sh clear.sh --dry-run        # 预览清理范围
 sh clear.sh                 # 清理构建产物
 ```
 
-构建入口产生的文件统一位于仓库根目录 `build/`。生成器在 `build/bin/`（release 在 `build/bin/release/`），Rust 在 `build/rust/<库名>/`，示例工程在 `build/project/<工程名>/`，日志在 `build/build-all/logs/`，全量示例产物在 `build/build-all/examples/`。Magel 在 `build/work/magel/` 的源码副本中生成和编译，依赖库在 `build/work/build/`，其他库沿用根目录 `build/` 下的目录；Magel、MetroLang、Hydra86、RustView 与 CAS 已拆分为独立仓库，构建产物在各自仓库里。
+构建入口产生的文件统一位于仓库根目录 `build/`。生成器在 `build/bin/`（release 在 `build/bin/release/`），Rust 在 `build/rust/<库名>/`，示例工程在 `build/project/<工程名>/`，日志在 `build/build-all/logs/`，全量示例产物在 `build/build-all/examples/`。Magel 在 `build/work/magel/` 的源码副本中生成和编译，依赖库在 `build/work/build/`，其他库沿用根目录 `build/` 下的目录；Magel、MetroLang 与 RustView 已拆分为独立仓库，构建产物在各自仓库里。
 
-构建入口实际运行 `python3`、`python`，选择可用的 Python 3 解释器，跳过不可用的占位程序和 Python 2；检测结果传给生成器和 CAS。CAS 的 Makefile 单独运行时也会自动检测，可用 `PYTHON` 覆盖。C/C++ 编译器、make 和 Python 3 为必需工具；Rust、.NET 和 Go 工具链缺失时跳过对应部分。
+构建入口实际运行 `python3`、`python`，选择可用的 Python 3 解释器，跳过不可用的占位程序和 Python 2；检测结果传给生成器，也可用 `PYTHON` 覆盖选择结果。C/C++ 编译器、make 和 Python 3 为必需工具；Rust、.NET 和 Go 工具链缺失时跳过对应部分。
 
 清理仅限根目录 `build/` 内被 Git 忽略的产物，保留受版本控制文件、未被忽略的未跟踪文件和嵌套 Git 仓库。检测到 `tmp/build.lock` 时拒绝清理；旧版本留在其他目录的产物不在清理范围内。
 
@@ -97,10 +97,8 @@ ParseEngine 生成的**（它们既是用户，也是最好的用例）。各工
 
 | 工程 | 是什么 | 入口 |
 | --- | --- | --- |
-| **Hydra86** | 8086 风格汇编器 + 多核虚拟机；可汇编、执行、反汇编、调试——**已拆分为独立仓库** | — |
 | **MetroLang** | 地铁线网数据语言工具链：编译器、模板化反编译器、自包含 HTML/SVG 地图、Dijkstra 路线查询与交互式查看器；前端由 `metrolang.gram` 生成（169 个关键字各占一条产生式，842 状态 · 0 冲突）——**已拆分为独立仓库** | <https://gitee.com/rabbitc999/metro-lang> |
 | **RustView** | 极简 Rust 伪代码的**借用语义可视化**（教学用）：Move / 借用 / 冲突 / 悬垂画成零依赖 SVG + HTML；前端由 `rust_subset.gram` 生成，1.0 功能已冻结——**已拆分为独立仓库** | <https://gitee.com/rabbitc999/rust-view> |
-| **CAS** | C++17 符号计算系统：完整文法生成前端、自定义分配池、259 条积分规则构建期编译成节点——**已拆分为独立仓库** | — |
 | **Magel** | 由 ParseEngine 生成前端、编译到 StackVM 的语言与工具链（标准库、宿主胶水、C ABI、板端 VM）——**已拆分为独立仓库** | <https://github.com/rabbitc999/magel> |
 
 与生成器并列的通用库——[`library/allocator`](library/allocator/README.md)（C99 池与 `Memory`
