@@ -1,9 +1,8 @@
 #!/bin/sh
 # ci/run.sh —— ParseEngine 的门禁：构建文法生成器 + 跑它自己的检查。
 #
-# 为什么要有它：仓库里没有任何流水线，回归散在 check.sh、tests/*.py 和两份 CMake
-# 单测里，换台机器就可能有人漏跑。这个脚本是**唯一的门禁入口**，本地、GitHub Actions、
-# Gitee Go 都调它，保证判据一致。
+# 为什么要有它：回归散在 check.sh、tests/*.py 和两份 CMake 单测里，换台机器就可能
+# 有人漏跑。这个脚本是**唯一的门禁入口**，本地与 Gitee Go 都调它，保证判据一致。
 #
 # 用法（在仓库根跑）：
 #   sh ci/run.sh                 全部（含 CMake 构建的 stackvm 单测）
