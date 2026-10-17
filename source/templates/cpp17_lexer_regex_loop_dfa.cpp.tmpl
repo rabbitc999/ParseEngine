@@ -1,0 +1,16 @@
+            /* %token regex：每条规则一张 DFA 表，扫一遍取最长接受前缀。
+               同长度时按词法声明序（先声明优先），与 std::regex 那条路径一致。 */
+            for (std::uint32_t regexIndex = 0u; regexIndex < kRegexCount;
+                 ++regexIndex)
+            {
+                const std::uint32_t matched = lexDfaScan(
+                    pStart, 0u, lexTokenDfaTrans(regexIndex),
+                    lexTokenDfaAccept(regexIndex));
+                if (matched > bestLength)
+                {
+                    bestLength = matched;
+                    bestType = kRegexTypes[regexIndex];
+                    bestFromRegex = true;
+                    bestOrder = kRegexOrders[regexIndex];
+                }
+            }

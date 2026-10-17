@@ -1,6 +1,6 @@
 # 显示语言、内嵌资产与发布
 
-ParseEngine 命令行支持中文、英文和日语。代码生成目标仍由 `--lang cpp17` 等选项控制；显示语言使用独立的 `--ui-lang`。
+ParseEngine 命令行支持中文和英文。代码生成目标仍由 `--lang cpp17` 等选项控制；显示语言使用独立的 `--ui-lang`。
 
 ```sh
 ParseEngine --help --ui-lang zh
@@ -9,9 +9,9 @@ ParseEngine --help --ui-lang ja
 ParseEngine example/calc.gram --lang cpp17 --out-dir build/calc --ui-lang ja
 ```
 
-显示语言的优先级为显式 `--ui-lang`、`PARSEENGINE_LANG`、`LC_ALL`、`LC_MESSAGES`、`LANG`，最后查询 Windows 用户 UI 语言。中文区域选择中文，日文区域选择日语，其他区域选择英文；`auto` 忽略工具环境中的固定选择并重新检测区域。支持 `zh_CN.UTF-8` / `ja_JP.UTF-8` 等区域串；`C` / `POSIX` 选择英文。
+显示语言的优先级为显式 `--ui-lang`、`PARSEENGINE_LANG`、`LC_ALL`、`LC_MESSAGES`、`LANG`，最后查询 Windows 用户 UI 语言。中文区域选择中文，其他区域选择英文；`auto` 忽略工具环境中的固定选择并重新检测区域。支持 `zh_CN.UTF-8` 等区域串；`C` / `POSIX` 选择英文。
 
-帮助、命令行参数检查、生成完成与清理提示、打包结果及已登记的常见诊断使用三语表。专门分析诊断未收录译文时保留完整原文；分析报告、生成源码注释和模板维持原有文本。显示选项不修改文法、标识符、源码片段及生成代码。
+帮助、命令行参数检查、生成完成与清理提示、打包结果及已登记的常见诊断使用双语表。专门分析诊断未收录译文时保留完整原文；分析报告、生成源码注释和模板维持原有文本。显示选项不修改文法、标识符、源码片段及生成代码。
 
 权威消息表为 `source/i18n/messages.tsv`，运行 `python tools/embed_parseengine_i18n.py` 生成静态 C++ 表。消息随可执行文件内嵌，运行时不读语言资源文件。Make 和 CMake 在消息或发布脚本变化后同步生成内嵌资产；没有 Python 的构建环境可以使用已入库的生成头文件，但更改资产后须先在有 Python 的环境重新生成。
 
@@ -106,4 +106,4 @@ python tests/magel_i18n.py --magel magel/magel.exe
 python tests/magel_zip.py --magel magel/magel.exe
 ```
 
-Windows 专项在 936 / 932 代码页的真实控制台缓冲区读取 UTF-16 字符，核对 C++ 流、C stdio、实际工具提示及代码页恢复；管道单独按 UTF-8 严格解码。另测含空格和中日文的路径、三语选项优先级、生成源码一致、ZIP CRC、字节一致、拒绝覆盖、故障清理和仓库外运行。其他平台跳过 Windows 控制台检查。
+Windows 专项在 936 / 932 代码页的真实控制台缓冲区读取 UTF-16 字符，核对 C++ 流、C stdio、实际工具提示及代码页恢复；管道单独按 UTF-8 严格解码。另测含空格和中文的路径、显示选项优先级、生成源码一致、ZIP CRC、字节一致、拒绝覆盖、故障清理和仓库外运行。其他平台跳过 Windows 控制台检查。

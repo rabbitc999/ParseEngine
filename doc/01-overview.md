@@ -48,7 +48,7 @@
 | 13 | [生成模式](13-modes.md) | 十六种分析和生成模式 |
 | 14 | [目标语言与产物](14-languages-and-products.md) | 后端选择与产物形态 |
 | 15 | [支持矩阵](15-language-mode-support.md) | 语言、模式和增量 API 的当前范围 |
-| 16 | [三语、内嵌资产与发布](16-i18n-and-packaging.md) | 显示选项、内嵌手册与语言服务器、Unicode 控制台、独立 Python 打包脚本 |
+| 16 | [双语、内嵌资产与发布](16-i18n-and-packaging.md) | 显示选项、内嵌手册与语言服务器、Unicode 控制台、独立 Python 打包脚本 |
 
 ## 其他项目与工具
 

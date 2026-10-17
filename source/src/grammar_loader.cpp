@@ -2115,6 +2115,10 @@ void parseLookaheadDirective();
      */
     void parseClassDirective();
     /**
+     * @brief 解析 %cpp_lexer 指令（C++17 产物的词法引擎：std / dfa）。
+     */
+    void parseCppLexerDirective();
+    /**
      * @brief %runtime 指令已删除：语义值运行时只有 custom（也是缺省值），
      *        写了直接报错并给出提示。
      */
@@ -2266,6 +2270,8 @@ void parseLookaheadDirective();
     bool m_cppNamespaceDeclared = false;         ///< 是否声明过 %namespace
     std::string m_cPrefix;                       ///< %prefix（C99）
     bool m_cPrefixDeclared = false;              ///< 是否声明过 %prefix
+    std::string m_cppLexer = "std";              ///< %cpp_lexer（std / dfa）
+    bool m_cppLexerDeclared = false;             ///< 是否声明过 %cpp_lexer
     std::string m_pythonClass;                   ///< %class（空 = 缺省 Parser）
     bool m_pythonClassDeclared = false;          ///< 是否声明过 %class
     std::string m_packageName;                   ///< %package（空 = 没写）
@@ -2587,7 +2593,7 @@ std::string GramParser::readRegexPattern(const std::string &what)
                         regexError.message);
         return pattern;
     }
-    std::vector<std::set<char>> classSets;
+    std::vector<RegexDfa::RangeList> classSets;
     RegexDfa::collectClassSets(ast, classSets);
     const auto classes = RegexDfa::charClasses(classSets);
     DfaProgram dfa;
@@ -4378,6 +4384,10 @@ void GramParser::parseStatement()
         {
             parsePrefixDirective();
         }
+        else if (token == "%cpp_lexer")
+        {
+            parseCppLexerDirective();
+        }
         else if (token == "%runtime")
         {
             parseRuntimeDirective();
@@ -4886,6 +4896,8 @@ GrammarConfig GramParser::validateAndBuild()
     config.cppNamespaceExplicit = m_cppNamespaceDeclared;
     config.cPrefix = m_cPrefix;
     config.cPrefixExplicit = m_cPrefixDeclared;
+    config.cppLexer = m_cppLexer;
+    config.cppLexerDeclared = m_cppLexerDeclared;
     for (const std::string &part : m_userCodeParts)
     {
         config.userCode += part;
@@ -5338,6 +5350,42 @@ std::string GrammarLoader::defaultLoadText()
 bool isValidCppNamespaceName(const std::string &name)
 {
     return isCppIdentifier(name, true);
+}
+
+void GramParser::parseCppLexerDirective()
+{
+    const std::size_t line =
+        (peekToken() == nullptr) ? 0u : lineOf(peekToken()->start);
+    ++m_pos;
+    const std::string token = peekText();
+    if ((peekToken() == nullptr) || (token == "\n"))
+    {
+        fail("%cpp_lexer 后面要写词法引擎：std（std::regex，缺省）或 dfa"
+             "（生成期编译成 DFA 表，产物不依赖 <regex>）",
+             line);
+        return;
+    }
+    if ((token != "std") && (token != "dfa"))
+    {
+        fail("%cpp_lexer 只接受 std 或 dfa，实际得到 '" + token + "'", line);
+        return;
+    }
+    if (m_cppLexerDeclared)
+    {
+        fail("%cpp_lexer 只能声明一次", line);
+        return;
+    }
+    m_cppLexer = token;
+    m_cppLexerDeclared = true;
+    ++m_pos;
+    if (peekText() == "\n")
+    {
+        ++m_pos;
+    }
+    else if (peekToken() != nullptr)
+    {
+        fail("%cpp_lexer " + token + " 后有多余内容 '" + peekText() + "'", line);
+    }
 }
 
 void GramParser::parsePrefixDirective()

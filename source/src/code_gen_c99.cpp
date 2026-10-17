@@ -257,7 +257,7 @@ bool generatorLexDfaC(
         for (int code = start; code < start + 16; ++code)
         {
             row.cells.push_back(
-                compileResult.charMap[static_cast<std::size_t>(code)]);
+                compileResult.byteMap[static_cast<std::size_t>(code)]);
         }
         classMap.push_back(std::move(row));
     }

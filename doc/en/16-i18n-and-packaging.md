@@ -2,7 +2,7 @@
 
 # Display Language, Embedded Assets and Release
 
-The ParseEngine command line supports Chinese, English and Japanese. The code generation target is still controlled by options such as `--lang cpp17`; the display language uses the separate `--ui-lang`.
+The ParseEngine command line supports Chinese and English. The code generation target is still controlled by options such as `--lang cpp17`; the display language uses the separate `--ui-lang`.
 
 ```sh
 ParseEngine --help --ui-lang zh
@@ -11,7 +11,7 @@ ParseEngine --help --ui-lang ja
 ParseEngine example/calc.gram --lang cpp17 --out-dir build/calc --ui-lang ja
 ```
 
-Display language precedence is an explicit `--ui-lang`, then `PARSEENGINE_LANG`, `LC_ALL`, `LC_MESSAGES`, `LANG`, and finally the Windows user UI language. A Chinese locale selects Chinese, a Japanese locale selects Japanese, and any other locale selects English; `auto` ignores any fixed choice in the tool environment and re-detects the locale. Locale strings such as `zh_CN.UTF-8` / `ja_JP.UTF-8` are supported; `C` / `POSIX` selects English.
+Display language precedence is an explicit `--ui-lang`, then `PARSEENGINE_LANG`, `LC_ALL`, `LC_MESSAGES`, `LANG`, and finally the Windows user UI language. A Chinese locale selects Chinese and any other locale selects English; `auto` ignores any fixed choice in the tool environment and re-detects the locale. Locale strings such as `zh_CN.UTF-8` are supported; `C` / `POSIX` selects English.
 
 Help, command-line argument checking, generation-complete and cleanup messages, packaging results and registered common diagnostics use the trilingual tables. Analysis-specific diagnostics that have no translation entry keep their full original text; analysis reports, generated source comments and templates keep their original text. Display options do not modify the grammar, identifiers, source snippets or generated code.
 

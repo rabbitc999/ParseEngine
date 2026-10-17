@@ -1,0 +1,35 @@
+            /* %commit：与 Token 规则共用一份最长匹配；同长度时按
+               声明序，先声明优先（skip 命中不算 Token，直接丢掉）。 */
+            std::uint32_t commitLength = 0u;
+            std::size_t commitIndex = 0u;
+            for (std::size_t index = 0u; index < kCommitCount; ++index)
+            {
+                const std::uint32_t matched =
+                    lexRegexMatch(kCommitRes[index], m_text, m_textPos);
+                if (matched > commitLength)
+                {
+                    commitLength = matched;
+                    commitIndex = index;
+                }
+            }
+            if ((commitLength != 0u) &&
+                ((commitLength > bestLength) ||
+                 ((commitLength == bestLength) &&
+                  ((bestType == TokenType::TOKEN_INVALID) ||
+                   (kCommitOrders[commitIndex] < bestOrder)))))
+            {
+                const std::uint32_t commitLine = m_line;
+                const char *const pCommitText = pStart;
+                if (kCommitSkips[commitIndex] == 0u)
+                {
+                    m_commits.push_back(
+                        ParserCommit{static_cast<int>(commitLine),
+                                     kCommitTypes[commitIndex][0],
+                                     ParserMemory::String(pCommitText, commitLength)});
+                }
+                for (std::uint32_t index = 0u; index < commitLength; ++index)
+                {
+                    readChar();
+                }
+                continue;
+            }

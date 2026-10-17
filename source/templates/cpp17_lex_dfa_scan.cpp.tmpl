@@ -1,0 +1,119 @@
+/**
+ * @brief 读一个 UTF-8 码点：`next` 给出解码后的下一个字节位置。
+ *
+ * 单字节（ASCII）直接就是码点；多字节按首字节高低位取续字节个数。非法 /
+ * 截断的序列按「只吃一个字节、码点按原字节」处理，绝不会读到 '\0' 之后。
+ * @param pText 文本起点。
+ * @param pos 当前位置。
+ * @param next 输出：解出来的下一个字节位置。
+ * @return 码点。
+ */
+static std::uint32_t lexDfaDecode(const char *pText, std::size_t pos,
+                                  std::size_t &next)
+{
+    const unsigned char lead = static_cast<unsigned char>(pText[pos]);
+    if (lead < 0x80u)
+    {
+        next = pos + 1u;
+        return lead;
+    }
+    std::uint32_t extra = 0u;
+    std::uint32_t point = 0u;
+    if ((lead >= 0xC2u) && (lead <= 0xDFu))
+    {
+        extra = 1u;
+        point = lead & 0x1Fu;
+    }
+    else if ((lead >= 0xE0u) && (lead <= 0xEFu))
+    {
+        extra = 2u;
+        point = lead & 0x0Fu;
+    }
+    else if ((lead >= 0xF0u) && (lead <= 0xF4u))
+    {
+        extra = 3u;
+        point = lead & 0x07u;
+    }
+    else
+    {
+        /* 续字节 / 非法首字节：单独出现，按字节本身算一个码点。 */
+        next = pos + 1u;
+        return lead;
+    }
+    for (std::uint32_t index = 0u; index < extra; ++index)
+    {
+        const unsigned char follow =
+            static_cast<unsigned char>(pText[pos + 1u + index]);
+        if ((follow & 0xC0u) != 0x80u)
+        {
+            next = pos + 1u;
+            return lead;
+        }
+        point = (point << 6u) | static_cast<std::uint32_t>(follow & 0x3Fu);
+    }
+    next = pos + 1u + extra;
+    return point;
+}
+
+{% if has_dfa %}
+/**
+ * @brief 一个码点落在哪个字符类（生成期按所有正则的区间表切好的划分）。
+ * @param point 码点。
+ * @return 字符类编号（0 表示谁也不要，转移表里就是陷阱）。
+ */
+static std::uint16_t lexDfaClass(std::uint32_t point)
+{
+    if (point < 256u)
+    {
+        return kLexClassMap[point];
+    }
+    if (point > 0x10FFFFu)
+    {
+        return 0u;
+    }
+    const std::uint32_t page = kLexPageIndex[1u + (point >> 8u)];
+    if (page == 0u)
+    {
+        return 0u;
+    }
+    return kLexPageData[((page - 1u) * 256u) + (point & 0xFFu)];
+}
+
+/**
+ * @brief 按一张 DFA 表从 pos 起扫，返回最长接受前缀的字节长度。
+ * @param pText 文本起点。
+ * @param pos 起始位置。
+ * @param pTrans 转移表（状态 × 字符类展平）。
+ * @param pAccept 接受表（每状态一位）。
+ * @return 最长接受前缀的字节数（0 表示这个位置不匹配）。
+ */
+static std::uint32_t lexDfaScan(const char *pText, std::size_t pos,
+                                const std::uint16_t *pTrans,
+                                const std::uint8_t *pAccept)
+{
+    std::uint32_t state = 0u;
+    std::uint32_t matched = 0u;
+    std::size_t cursor = pos;
+    for (;;)
+    {
+        if (pText[cursor] == '\0')
+        {
+            break;
+        }
+        std::size_t next = cursor + 1u;
+        const std::uint32_t point = lexDfaDecode(pText, cursor, next);
+        const std::uint32_t target =
+            pTrans[(state * kLexClassCount) + lexDfaClass(point)];
+        if (target == 0u)
+        {
+            break;
+        }
+        state = target;
+        cursor = next;
+        if (pAccept[state] != 0u)
+        {
+            matched = static_cast<std::uint32_t>(cursor - pos);
+        }
+    }
+    return matched;
+}{% endif %}

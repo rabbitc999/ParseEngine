@@ -15,6 +15,7 @@
 #include "ParseEngine/chart_grammar.hpp"
 #include "ParseEngine/action_translator.hpp"
 #include "ParseEngine/grammar_loader.hpp"
+#include "ParseEngine/regex_dfa.hpp"
 #include "ParseEngine/utils.hpp"
 
 // 产物模板（source/templates/cpp17_*.tmpl）走 library/template 的模板引擎：
@@ -395,6 +396,440 @@ void generatorLexRegexCpp17(
          {"has_identifier", hasIdentifier},
          {"identifier_pattern",
           hasIdentifier ? Utils::varCString(*identifierPattern) : std::string()}});
+}
+
+/* ---------------- 可选 DFA 词法器（%cpp_lexer dfa） ---------------- */
+
+/**
+ * @brief 词法器里一条「需要编译成 DFA」的规则（参数统一收在一起）。
+ */
+struct CppLexRegexSpecs
+{
+    const std::map<std::string, std::string> *regexDefs = nullptr; ///< %token regex
+    const std::string *identifier = nullptr;                       ///< %identifier
+    const std::vector<CommitSpec> *commits = nullptr;              ///< %commit / %trivia
+    const std::map<std::string, int> *tokenLexOrder = nullptr;     ///< 词法声明序
+};
+
+/**
+ * @brief 一条正则规则的 DFA 表（`cpp17_lex_dfa_tables.cpp.tmpl` 的元素）。
+ */
+struct CppLexDfaRow
+{
+    std::string kind;        ///< `Regex` / `Identifier` / `Commit`
+    std::string label;       ///< 注释里的名字（Token 名 / “标识符” / 规则号）
+    std::string pattern;     ///< 原始正则（已写成 C 字符串字面量）
+    std::string slot;        ///< 规则号（产物里补 `u`；%token 是它在表中的下标）
+    std::string order;       ///< 词法声明序（同长度比较用）
+    std::string transName;   ///< 转移表名（按规则种类定名，模板直接引用）
+    std::string acceptName;  ///< 接受表名
+    std::string stateCount;  ///< 状态个数（产物里补 `u`）
+    bool isRegex = false;    ///< 是不是 %token regex 行（模板不支持比较，先算好）
+    bool isCommit = false;   ///< 是不是 %commit / %trivia 行
+    bool isIdentifier = false; ///< 是不是 %identifier 行
+    std::vector<std::string> trans; ///< 转移表（按状态 × 字符类展平）
+    std::vector<std::string> accept; ///< 每状态是否接受（`1u` / `0u`）
+};
+
+/**
+ * @brief 可选 DFA 词法器的全部数据（表段 + 词法块要用的几段文本）。
+ */
+struct CppLexDfaData
+{
+    bool enabled = false;              ///< 是否走 DFA 词法器
+    bool hasRegex = false;             ///< 有没有 %token regex（决定正则循环用不用）
+    std::string classMap;              ///< 字符类快速表（256 项）
+    std::string body;                  ///< 表段正文（模板渲染结果）
+    std::string skipHelpers;           ///< 跳空白 / 识别码点的辅助函数
+    std::string regexLoop;             ///< 词法器里的 %token regex 循环
+    std::string commitLoop;            ///< 词法器里的 %commit 循环
+    std::string identifierBlock;       ///< 标识符识别
+};
+
+/**
+ * @brief 把一个区间列表的端点全部收集起来（用于切字符类）。
+ * @param ranges 区间列表。
+ * @param points 输出：端点列表（追加）。
+ */
+void collectRangePoints(const std::vector<std::pair<char32_t, char32_t>> &ranges,
+                        std::vector<char32_t> &points)
+{
+    for (const auto &range : ranges)
+    {
+        points.push_back(range.first);
+        if (range.second < 0x10FFFF)
+        {
+            points.push_back(static_cast<char32_t>(range.second + 1));
+        }
+    }
+}
+
+/**
+ * @brief 判断一个码点是否落在区间列表里（区间已排序）。
+ * @param ranges 区间列表。
+ * @param point 码点。
+ * @return 落在里面返回 true。
+ */
+bool rangesHold(const std::vector<std::pair<char32_t, char32_t>> &ranges,
+                char32_t point)
+{
+    for (const auto &range : ranges)
+    {
+        if (point < range.first)
+        {
+            return false;
+        }
+        if (point <= range.second)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief 计算「码点 → 字符类」的两级压缩表。
+ *
+ * 产物里的 `lexDfaClass` 对非 ASCII 码点要回答「这个码点属于哪个类」。最省事
+ * 的做法是把生成期的字符类划分抄成一张覆盖整个码点轴的字节表，但
+ * U+0000..U+10FFFF 有 1.1M 项，只为了查几种字符太浪费。所以压成两级：
+ * 高 8 位索引（`kLexPageIndex`）+ 每段自己的一张 256 项字节表
+ * （`kLexPageData`）；整段都是「谁也不要」的码点不占表。
+ * @param cells 字符类划分。
+ * @param pageIndex 输出：`1 + (码点 >> 8)` → 段号（0 表示整段都是类 0）。
+ * @param pageData 输出：全部段表的内容（按段号顺序摊平）。
+ *
+ * 类号直接用 DFA 的**原始类号**（转移表的列号），不做重映射：转移表、接受表、
+ * 这里的段表必须是同一套编号，错一位就整条规则失效。「谁也不要」用 0 表示，
+ * 恰好 DFA 的第 0 列通常就是空白类，但转移表里对它是陷阱，语义仍然正确。
+ */
+void buildClassPages(const std::vector<RegexCell> &cells,
+                     std::vector<std::string> &pageIndex,
+                     std::vector<std::string> &pageData)
+{
+    const std::size_t pageCount = 0x110000u / 256u;
+    pageIndex.assign(pageCount + 1u, "0u");
+    pageData.clear();
+    std::map<std::string, int> dedup; // 内容相同的段共用一张表
+    for (std::size_t page = 0u; page < pageCount; ++page)
+    {
+        const char32_t base = static_cast<char32_t>(page * 256u);
+        std::vector<int> contents(256u, 0);
+        bool useful = false;
+        for (std::size_t offset = 0u; offset < 256u; ++offset)
+        {
+            const char32_t point = static_cast<char32_t>(base + offset);
+            for (std::size_t index = 0u; index < cells.size(); ++index)
+            {
+                if (rangesHold(cells[index].ranges, point))
+                {
+                    contents[offset] = static_cast<int>(index);
+                    useful = true;
+                    break;
+                }
+            }
+        }
+        if (!useful)
+        {
+            continue;
+        }
+        std::string key;
+        for (const int slot : contents)
+        {
+            key += std::to_string(slot);
+            key.push_back(',');
+        }
+        int table = 0;
+        const auto found = dedup.find(key);
+        if (found != dedup.end())
+        {
+            table = found->second;
+        }
+        else
+        {
+            table = static_cast<int>(dedup.size());
+            dedup.emplace(key, table);
+            for (const int slot : contents)
+            {
+                pageData.push_back(std::to_string(slot) + "u");
+            }
+        }
+        pageIndex[page + 1u] = std::to_string(table + 1) + "u";
+    }
+}
+
+/**
+ * @brief 把一条 DFA 摊平成「状态 × 字符类」的转移表与接受表。
+ * @param dfa 已编译的 DFA。
+ * @param classCount 字符类个数。
+ * @param row 输出行（追加转移与接受项）。
+ */
+void fillDfaRow(const DfaProgram &dfa, int classCount, CppLexDfaRow &row)
+{
+    row.stateCount = std::to_string(dfa.stateCount);
+    for (int state = 0; state < dfa.stateCount; ++state)
+    {
+        for (int cls = 0; cls < classCount; ++cls)
+        {
+            row.trans.push_back(
+                std::to_string(dfa.transitions.at(state).at(cls)) + "u");
+        }
+        row.accept.push_back(dfa.accept.count(state) ? "1u" : "0u");
+    }
+}
+
+/**
+ * @brief 有没有以空白 / \b 通配开头的固定字面量。
+ * @param tokenDefs 固定字面量 Token；可为 nullptr。
+ * @return 有返回 true。
+ */
+bool lexerHasBlankRule(
+    const std::map<std::string, std::vector<std::string>> *tokenDefs)
+{
+    if (tokenDefs == nullptr)
+    {
+        return false;
+    }
+    for (const auto &entry : *tokenDefs)
+    {
+        for (const std::string &literal : entry.second)
+        {
+            if (literalCanStartBlank(literal))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief 组装 DFA 词法器的跳空白 / 解码辅助函数段。
+ *
+ * 这些函数是 `Engine::Private` 的静态成员（与 `lexRuleHit` 等放在一起），
+ * 所以「码点扫描器」`cpp17_lex_dfa_scan.cpp` 与「跳空白」两段要**首尾相接**
+ * 拼成一段——两份模板单独渲染都会掉出类作用域。
+ * @param request 组装入参。
+ * @param hasBlankRule 有没有以空白 / \b 通配开头的固定字面量。
+ * @param hasDfa 有没有正则要编表（false 时「取字符类 / 扫表」两个函数不生成，
+ *               否则它们会引用一张没写进产物的 `kLexClassMap`）。
+ * @return C++ 代码段。
+ */
+std::string renderDfaSkipHelpers(const ProjectRequest &request,
+                                 bool hasBlankRule, bool hasDfa = true)
+{
+    // `lexRuleHit` / `lexBlankRuleHit` 是固定字面量命中的判定，DFA 词法器一样
+    // 要它们（字面量那条路径没变），所以先借标准模板生成这半段，再去掉
+    // isSkipChar（DFA 版按码点跳空白，另有实现）。
+    std::string text = tmpl::renderValues(
+        Utils::loadTemplate("cpp17_lex_dfa_scan.cpp"), {{"has_dfa", hasDfa}});
+    text += tmpl::renderValues(
+        Utils::loadTemplate("cpp17_lexer_skip_helpers.cpp"),
+        {{"has_skip_char", false},
+         {"has_blank_rule", hasBlankRule},
+         {"skip_char_body", std::string()}});
+    text += tmpl::renderValues(
+        Utils::loadTemplate("cpp17_lex_dfa_skip.cpp"),
+        {{"has_space_chars", request.spaceChars != nullptr},
+         {"space_chars", (request.spaceChars != nullptr)
+                             ? Utils::varCString(*request.spaceChars)
+                             : std::string()}});
+    return text;
+}
+
+/**
+ * @brief 组装可选 DFA 词法器的全部数据（`%cpp_lexer dfa`）。
+ *
+ * 生成期用 `RegexDfa` 把 %token regex / %identifier / %commit 的正则编译成
+ * DFA，产物里只放 DFA 表 + 一个 `lexDfaScan`（按字符类走表、边扫边记最长
+ * 接受位置）。这样产物不再依赖 `<regex>`，每个模式只扫一遍输入。
+ * @param request 组装入参。
+ * @param data 输出数据（成功时写入）。
+ * @param error 出错时写入错误说明。
+ * @return 成功返回 true。
+ */
+bool buildCppLexDfa(const ProjectRequest &request, CppLexDfaData &data,
+                    Error &error)
+{
+    (void)request;
+    const LexSpec emptyLex;
+    const LexSpec &lexSpec =
+        (request.lexSpec == nullptr) ? emptyLex : *request.lexSpec;
+
+    std::vector<std::pair<std::string, std::string>> entries;
+    for (const auto &entry : lexSpec.regex)
+    {
+        entries.emplace_back(entry.first, entry.second);
+    }
+    std::vector<std::pair<std::string, std::string>> patterns = entries;
+    if (lexSpec.identifier.has_value())
+    {
+        patterns.emplace_back("__identifier__", *lexSpec.identifier);
+    }
+    for (std::size_t index = 0u; index < lexSpec.commits.size(); ++index)
+    {
+        patterns.emplace_back("__commit" + std::to_string(index) + "__",
+                              lexSpec.commits[index].pattern);
+    }
+
+    data.enabled = true;
+    data.hasRegex = !entries.empty();
+    if (patterns.empty())
+    {
+        // 没有正则规则：词法器退化成「固定字面量 + 数字 + 标识符」，不需要
+        // 任何 DFA 表，只需要跳空白那段（要能跳过 UTF-8 的续字节）。
+        data.body = tmpl::renderValues(
+            Utils::loadTemplate("cpp17_lex_dfa_tables.cpp"), {{"has_dfa", false}});
+        data.skipHelpers = renderDfaSkipHelpers(request, false, false);
+        return true;
+    }
+
+    RegexCompileResult compiled;
+    if (!RegexDfa::compileAll(patterns, compiled, error))
+    {
+        return false;
+    }
+    const int classCount = static_cast<int>(compiled.cells.size());
+
+    // 非 ASCII 的「码点 -> 类」压缩表（两级），类号与转移表同源。
+    std::vector<std::string> pageIndex;
+    std::vector<std::string> pageData;
+    buildClassPages(compiled.cells, pageIndex, pageData);
+
+    // 0..255 的快速表：单字节码点查这张就够，不再解 UTF-8。
+    std::vector<std::string> classMap;
+    classMap.reserve(256u);
+    for (int code = 0; code < 256; ++code)
+    {
+        classMap.push_back(
+            std::to_string(compiled.byteMap[static_cast<std::size_t>(code)]) +
+            "u");
+    }
+
+    std::vector<CppLexDfaRow> rows;
+    rows.reserve(compiled.compiled.size());
+    int regexSlot = 0;
+    int commitIndex = 0;
+    for (const CompiledRegex &item : compiled.compiled)
+    {
+        CppLexDfaRow row;
+        const bool identifier = (item.name == "__identifier__");
+        const bool commit = (item.name.rfind("__commit", 0) == 0);
+        if (identifier)
+        {
+            row.kind = "Identifier";
+            row.isIdentifier = true;
+            row.label = "标识符";
+            row.slot = "0";
+            row.order = "0";
+            row.transName = "s_lexIdentifierDfaTrans";
+            row.acceptName = "s_lexIdentifierDfaAccept";
+        }
+        else if (commit)
+        {
+            // %commit / %trivia 可能有好几条：每条一张表，按出现序编号。
+            const std::string index = std::to_string(commitIndex++);
+            row.kind = "Commit";
+            row.isCommit = true;
+            row.label = "commit #" + index;
+            row.slot = index;
+            row.order = "0";
+            row.transName = "s_lexCommitDfaTrans" + index;
+            row.acceptName = "s_lexCommitDfaAccept" + index;
+        }
+        else
+        {
+            const std::string index = std::to_string(regexSlot);
+            row.kind = "Regex";
+            row.isRegex = true;
+            row.label = item.name;
+            row.slot = index;
+            const auto orderIt = lexSpec.tokenLexOrder.find(item.name);
+            row.order = std::to_string((orderIt != lexSpec.tokenLexOrder.end())
+                                           ? orderIt->second
+                                           : regexSlot);
+            row.transName = "s_lexTokenDfaTrans" + index;
+            row.acceptName = "s_lexTokenDfaAccept" + index;
+            ++regexSlot;
+        }
+        row.pattern = Utils::varCString(item.pattern);
+        // 只是注释，别让正则里的 `*/` 把注释提前掐断
+        std::string comment;
+        for (std::size_t pos = 0u; pos < row.pattern.size(); ++pos)
+        {
+            if ((row.pattern[pos] == '*') && (pos + 1u < row.pattern.size()) &&
+                (row.pattern[pos + 1u] == '/'))
+            {
+                comment += "* /";
+                ++pos;
+                continue;
+            }
+            comment.push_back(row.pattern[pos]);
+        }
+        row.pattern = std::move(comment);
+        fillDfaRow(item.dfa, classCount, row);
+        rows.push_back(std::move(row));
+    }
+
+    // %token regex 的元信息：DFA 只给「能匹配多长」，Token 类型与声明序靠这几张表
+    std::vector<RegexEntry> regexEntries;
+    for (std::size_t index = 0u; index < entries.size(); ++index)
+    {
+        const auto orderIt = lexSpec.tokenLexOrder.find(entries[index].first);
+        RegexEntry row;
+        row.pattern = Utils::varCString(entries[index].second);
+        row.token = entries[index].first;
+        row.order = std::to_string((orderIt != lexSpec.tokenLexOrder.end())
+                                       ? orderIt->second
+                                       : static_cast<int>(index));
+        regexEntries.push_back(std::move(row));
+    }
+
+    // %commit 的元信息（类型 / 别名 / skip / 声明序）：DFA 表只回答「这条规则
+    // 能匹配多长」，具体是什么还得靠这几张表。
+    std::vector<CommitEntry> commitEntries;
+    for (const CommitSpec &commit : lexSpec.commits)
+    {
+        CommitEntry row;
+        row.pattern = Utils::varCString(commit.pattern);
+        row.type = Utils::varCString(commit.type);
+        row.alias = Utils::varCString(commit.alias);
+        row.skip = commit.isSkip ? "1u" : "0u";
+        row.order = std::to_string(commit.order);
+        commitEntries.push_back(std::move(row));
+    }
+    if (commitEntries.empty())
+    {
+        commitEntries.push_back({true, "", "nullptr", "nullptr", "0u", "0"});
+    }
+
+    data.body = tmpl::renderValues(
+        Utils::loadTemplate("cpp17_lex_dfa_tables.cpp"),
+        {{"has_dfa", true},
+         {"class_count", std::to_string(classCount)},
+         {"class_map", tmpl::encode(classMap)},
+         {"page_index", tmpl::encode(pageIndex)},
+         {"page_data", tmpl::encode(pageData)},
+         {"has_regex", data.hasRegex},
+         {"regex_count", std::to_string(lexSpec.regex.size())},
+         {"regex_entries", tmpl::encode(regexEntries)},
+         {"has_commit", !lexSpec.commits.empty()},
+         {"commit_count", std::to_string(lexSpec.commits.size())},
+         {"commit_entries", tmpl::encode(commitEntries)},
+         {"dfas", tmpl::encode(rows)}});
+    data.skipHelpers =
+        renderDfaSkipHelpers(request, lexerHasBlankRule(request.tokenDefs));
+    if (data.hasRegex)
+    {
+        data.regexLoop =
+            Utils::loadTemplate("cpp17_lexer_regex_loop_dfa.cpp");
+    }
+    if (!lexSpec.commits.empty())
+    {
+        data.commitLoop =
+            Utils::loadTemplate("cpp17_lexer_commit_loop_dfa.cpp");
+    }
+    return true;
 }
 
 /* ---------------- 分析表 ---------------- */
@@ -1210,6 +1645,28 @@ TEMPLATE_MODEL(ParseEngine::CommitEntry,
                tmpl::field("skip", &ParseEngine::CommitEntry::skip),
                tmpl::field("order", &ParseEngine::CommitEntry::order));
 
+/**
+ * @brief `CppLexDfaRow` 的字段绑定（模板 `cpp17_lex_dfa_tables.cpp` 用）。
+ *
+ * 表名在 C++ 侧就定好了（`trans_name` / `accept_name`），模板里只写
+ * `{{ dfa.trans_name }}`——模板引擎的 `{% if %}` 只认真值，语言里没有表达式拼接。
+ */
+TEMPLATE_MODEL(ParseEngine::CppLexDfaRow,
+               tmpl::field("kind", &ParseEngine::CppLexDfaRow::kind),
+               tmpl::field("label", &ParseEngine::CppLexDfaRow::label),
+               tmpl::field("pattern", &ParseEngine::CppLexDfaRow::pattern),
+               tmpl::field("slot", &ParseEngine::CppLexDfaRow::slot),
+               tmpl::field("order", &ParseEngine::CppLexDfaRow::order),
+               tmpl::field("trans_name", &ParseEngine::CppLexDfaRow::transName),
+               tmpl::field("accept_name", &ParseEngine::CppLexDfaRow::acceptName),
+               tmpl::field("state_count", &ParseEngine::CppLexDfaRow::stateCount),
+               tmpl::field("is_regex", &ParseEngine::CppLexDfaRow::isRegex),
+               tmpl::field("is_commit", &ParseEngine::CppLexDfaRow::isCommit),
+               tmpl::field("is_identifier",
+                           &ParseEngine::CppLexDfaRow::isIdentifier),
+               tmpl::field("trans", &ParseEngine::CppLexDfaRow::trans),
+               tmpl::field("accept", &ParseEngine::CppLexDfaRow::accept));
+
 namespace ParseEngine
 {
 namespace
@@ -1286,30 +1743,6 @@ std::string generatorDestructorDispatchCpp17(
 
 /* ---------------- 词法块 ---------------- */
 
-/**
- * @brief 有没有以空白 / \b 通配开头的固定字面量。
- * @param tokenDefs 固定字面量 Token；可为 nullptr。
- * @return 有返回 true。
- */
-bool lexerHasBlankRule(
-    const std::map<std::string, std::vector<std::string>> *tokenDefs)
-{
-    if (tokenDefs == nullptr)
-    {
-        return false;
-    }
-    for (const auto &entry : *tokenDefs)
-    {
-        for (const std::string &literal : entry.second)
-        {
-            if (literalCanStartBlank(literal))
-            {
-                return true;
-            }
-        }
-    }
-    return false;
-}
 
 /**
  * @brief 词法器的固定字面量命中判断 / 跳字符判断（C++17）。
@@ -1374,9 +1807,11 @@ struct LexerBlocks
  * @brief 组装词法器各段（含 %union 的语义值写入）。
  * @param request 组装入参。
  * @param blocks 输出各段文本。
+ * @param dfa 可选 DFA 词法器的数据；nullptr 表示走 std::regex。
  * @return 成功返回 true。
  */
-bool buildLexerBlocks(const ProjectRequest &request, LexerBlocks &blocks)
+bool buildLexerBlocks(const ProjectRequest &request, LexerBlocks &blocks,
+                      const CppLexDfaData *dfa = nullptr)
 {
     const std::map<std::string, std::vector<std::string>> emptyTokenDefs;
     const auto &tokenDefs =
@@ -1408,7 +1843,9 @@ bool buildLexerBlocks(const ProjectRequest &request, LexerBlocks &blocks)
     std::vector<RegexMember> regexMembers;
     if (!lexSpec.regex.empty())
     {
-        regexLoop = Utils::loadTemplate("cpp17_lexer_regex_loop.cpp");
+        regexLoop = (dfa != nullptr)
+                        ? dfa->regexLoop
+                        : Utils::loadTemplate("cpp17_lexer_regex_loop.cpp");
         if (unioned)
         {
             for (const auto &entry : lexSpec.regex)
@@ -1426,6 +1863,10 @@ bool buildLexerBlocks(const ProjectRequest &request, LexerBlocks &blocks)
     blocks.matchBlock = tmpl::renderValues(
         Utils::loadTemplate("cpp17_lexer_match.cpp"),
         {{"lex_regex_loop", regexLoop},
+         {"lex_commit_loop",
+          (dfa != nullptr) ? dfa->commitLoop
+                           : Utils::loadTemplate("cpp17_lexer_commit_loop.cpp")},
+         {"has_regex_loop", !regexLoop.empty()},
          {"has_regex_members", !regexMembers.empty()},
          {"regex_members", tmpl::encode(regexMembers)}});
 
@@ -1446,7 +1887,9 @@ bool buildLexerBlocks(const ProjectRequest &request, LexerBlocks &blocks)
     if (lexSpec.identifier.has_value())
     {
         blocks.identifierBlock = tmpl::renderValues(
-            Utils::loadTemplate("cpp17_lexer_identifier_dfa.cpp"),
+            Utils::loadTemplate((dfa != nullptr)
+                                    ? "cpp17_lexer_identifier_dfa_scan.cpp"
+                                    : "cpp17_lexer_identifier_dfa.cpp"),
             {{"union_member", variableMember}});
     }
     else if (!overridden("VARIABLE"))
@@ -1467,10 +1910,11 @@ bool buildLexerBlocks(const ProjectRequest &request, LexerBlocks &blocks)
  * @param request 组装入参。
  * @param terminals Token 列表。
  * @param out 追加写入的表段。
+ * @param dfa 可选 DFA 词法器的数据；nullptr 表示走 std::regex。
  */
 void buildLexTables(const ProjectRequest &request,
                     const std::vector<std::string> &terminals,
-                    std::string &out)
+                    std::string &out, const CppLexDfaData *dfa = nullptr)
 {
     const std::map<std::string, std::vector<std::string>> emptyTokenDefs;
     const auto &tokenDefs =
@@ -1484,6 +1928,11 @@ void buildLexTables(const ProjectRequest &request,
         {{"lex_rules",
           generatorLexRulesCpp17(tokenDefs, lexSpec.tokenLexOrder)}});
     out += generatorKeywordCpp17(tokenDefs);
+    if (dfa != nullptr)
+    {
+        out += dfa->body;
+        return;
+    }
     generatorLexRegexCpp17(lexSpec.regex, lexSpec.identifier, lexSpec.commits,
                            lexSpec.tokenLexOrder, out);
 }
@@ -1519,10 +1968,11 @@ std::string wrapTables(const std::string &lexTables,
  * @param out 输出表段。
  */
 void buildTables(const ProjectRequest &request, const std::string &mode,
-                 const AnalysisResult &analysis, std::string &out)
+                 const AnalysisResult &analysis, std::string &out,
+                 const CppLexDfaData *dfa = nullptr)
 {
     std::string lexTables;
-    buildLexTables(request, analysis.terminals, lexTables);
+    buildLexTables(request, analysis.terminals, lexTables, dfa);
     std::string analysisTables = "/* ---------- 分析表 ---------- */\n";
     if (isLrMode(mode))
     {
@@ -1809,8 +2259,21 @@ bool CodeGenCpp17::parserCpp(const ProjectRequest &request,
     }
     const bool hasDestructors = !destructorDispatch.empty();
 
+    // 可选 DFA 词法器：%cpp_lexer dfa / --cpp-lexer dfa 时把 %token regex /
+    // %identifier / %commit 在**生成期**编译成 DFA 表，产物不再依赖 <regex>。
+    CppLexDfaData dfaData;
+    const CppLexDfaData *dfa = nullptr;
+    if (request.cppLexer == "dfa")
+    {
+        if (!buildCppLexDfa(request, dfaData, error))
+        {
+            return false;
+        }
+        dfa = &dfaData;
+    }
+
     std::string tables;
-    buildTables(request, mode, analysis, tables);
+    buildTables(request, mode, analysis, tables, dfa);
 
     // 未命名命名空间里的辅助函数：名字表逐行交给 `cpp17_helpers.cpp.tmpl`
     std::vector<std::string> treeNontermNames;
@@ -1909,7 +2372,7 @@ bool CodeGenCpp17::parserCpp(const ProjectRequest &request,
 
     // 词法器
     LexerBlocks blocks;
-    if (!buildLexerBlocks(request, blocks))
+    if (!buildLexerBlocks(request, blocks, dfa))
     {
         return false;
     }
@@ -1917,8 +2380,15 @@ bool CodeGenCpp17::parserCpp(const ProjectRequest &request,
     std::string lexer = tmpl::renderValues(
         Utils::loadTemplate("cpp17_lexer.cpp"),
         {{"lex_skip_helpers",
-          cpp17LexerSkipHelpers(request.spaceChars, blankRule)},
-         {"lex_skip_loop", cpp17LexerSkipLoop(request.spaceChars, blankRule)},
+          (dfa != nullptr)
+              ? dfa->skipHelpers
+              : cpp17LexerSkipHelpers(request.spaceChars, blankRule)},
+         {"lex_skip_loop",
+          (dfa != nullptr)
+              ? tmpl::renderValues(
+                    Utils::loadTemplate("cpp17_lexer_skip_loop_dfa.cpp"),
+                    {{"has_blank_rule", blankRule}})
+              : cpp17LexerSkipLoop(request.spaceChars, blankRule)},
          {"lex_string_block", blocks.stringBlock},
          {"lex_match_block", blocks.matchBlock},
          {"lex_number_block", blocks.numberBlock},
@@ -2245,9 +2715,20 @@ bool CodeGenCpp17::lexerCpp(const ProjectRequest &request,
     (void)error;
     const std::string nameSpace = namespaceName(request);
     const bool unioned = unionMode(request);
+    // 可选 DFA 词法器（与解析产物同一套开关）
+    CppLexDfaData dfaData;
+    const CppLexDfaData *dfa = nullptr;
+    if (request.cppLexer == "dfa")
+    {
+        if (!buildCppLexDfa(request, dfaData, error))
+        {
+            return false;
+        }
+        dfa = &dfaData;
+    }
     // 词法表（词法模式没有分析表 / 语法树表）
     std::string lexTables;
-    buildLexTables(request, terminals, lexTables);
+    buildLexTables(request, terminals, lexTables, dfa);
     const std::string tables =
         wrapTables(lexTables, std::string(), std::string());
     // helpers：与解析产物同一份模板，词法模式下没有 error / %sync /
@@ -2275,14 +2756,21 @@ bool CodeGenCpp17::lexerCpp(const ProjectRequest &request,
     // 词法器 + tokenize 驱动
     const bool blankRule = lexerHasBlankRule(request.tokenDefs);
     LexerBlocks blocks;
-    if (!buildLexerBlocks(request, blocks))
+    if (!buildLexerBlocks(request, blocks, dfa))
     {
         return false;
     }
     std::string lexer = tmpl::renderValues(
         Utils::loadTemplate("cpp17_lexer.cpp"),
-        {{"lex_skip_helpers", cpp17LexerSkipHelpers(request.spaceChars, blankRule)},
-         {"lex_skip_loop", cpp17LexerSkipLoop(request.spaceChars, blankRule)},
+        {{"lex_skip_helpers",
+          (dfa != nullptr) ? dfa->skipHelpers
+                           : cpp17LexerSkipHelpers(request.spaceChars, blankRule)},
+         {"lex_skip_loop",
+          (dfa != nullptr)
+              ? tmpl::renderValues(
+                    Utils::loadTemplate("cpp17_lexer_skip_loop_dfa.cpp"),
+                    {{"has_blank_rule", blankRule}})
+              : cpp17LexerSkipLoop(request.spaceChars, blankRule)},
          {"lex_string_block", blocks.stringBlock},
          {"lex_match_block", blocks.matchBlock},
          {"lex_number_block", blocks.numberBlock},

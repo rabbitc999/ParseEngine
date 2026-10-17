@@ -1,0 +1,58 @@
+    /**
+     * @brief 从 pos 起跳过一个空白码点，返回跳过后的字节位置。
+     *
+     * DFA 词法器按码点走，所以跳空白也得按码点走：否则一个多字节空白
+     * （U+3000 全角空格之类）会被拆成几个续字节各跳一次，虽然结果碰巧一样，
+     * 但行列号与「是不是真空白」的判定都会错。
+     * @param pText 文本起点。
+     * @param pos 当前位置。
+     * @return 跳过之后的位置（没有可跳的就原样返回）。
+     */
+    static std::size_t lexDfaSkipOne(const char *pText, std::size_t pos)
+    {
+        /* 文本末尾的 '\0' 不是空白：它字节值 0 会被当成码点 0（NUL），
+           而 NUL 不是任何 %space 集合的成员（含 '\0' 时才是），本想靠
+           strchr 兜住；但 isSkipPoint 分支下 std::isspace(0) 为假，照样
+           安全。这里显式拦住，免得 %space 里真写了 '\0' 时把收尾哨兵
+           当空白跳掉，越界读到字符串缓冲之外。 */
+        if (pText[pos] == '\0')
+        {
+            return pos;
+        }
+        std::size_t next = pos;
+        const std::uint32_t point = lexDfaDecode(pText, pos, next);
+{% if has_space_chars %}        const unsigned char ch =
+            (point < 0x80u) ? static_cast<unsigned char>(point)
+                            : static_cast<unsigned char>(0u);
+        if ((point >= 0x80u) ||
+            (std::strchr({{ space_chars }}, static_cast<int>(ch)) == nullptr))
+        {
+            return pos;
+        }
+{% else %}        if (!isSkipPoint(point))
+        {
+            return pos;
+        }
+{% endif %}        return next;
+    }
+
+{% if has_space_chars %}{% else %}
+    /**
+     * @brief 这个码点是不是「取 Token 前要跳过」的空白。
+     * @param point 码点。
+     * @return 是空白返回 true。
+     */
+    static bool isSkipPoint(std::uint32_t point)
+    {
+        if (point < 0x80u)
+        {
+            return std::isspace(static_cast<unsigned char>(point)) != 0;
+        }
+        /* Unicode 里常见的几个空白（没写 %space 时的缺省集合） */
+        return (point == 0x00A0u) || (point == 0x1680u) ||
+               ((point >= 0x2000u) && (point <= 0x200Au)) ||
+               (point == 0x2028u) || (point == 0x2029u) ||
+               (point == 0x202Fu) || (point == 0x205Fu) ||
+               (point == 0x3000u) || (point == 0xFEFFu);
+    }
+{% endif %}

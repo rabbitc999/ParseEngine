@@ -1,0 +1,22 @@
+        /*
+         * 跳空白：按**码点**跳，一个多字节空白（U+3000 全角空格之类）整体跳过一次，
+         * 而不是拆成几个续字节各跳一遍——行列号靠 readChar 记，拆着跳会把列号算错。
+         */
+        for (;;)
+        {
+{% if has_blank_rule %}            /* 空白也可能是 Token（%define NL "\n" / %token SP "\b"）：
+               命中以空白开头的字面量就停手，交给词法匹配。 */
+            if (lexBlankRuleHit(&m_text[m_textPos]))
+            {
+                break;
+            }
+{% endif %}            const std::size_t skipEnd = lexDfaSkipOne(&m_text[0], m_textPos);
+            if (skipEnd == m_textPos)
+            {
+                break;
+            }
+            while (m_textPos < skipEnd)
+            {
+                readChar();
+            }
+        }

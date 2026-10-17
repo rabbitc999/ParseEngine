@@ -1,0 +1,106 @@
+{# 可选 DFA 词法器（`%cpp_lexer dfa`）的表段：字符类表 + 每条正则的转移 / 接受表。
+   变量：
+     has_dfa     —— 有没有需要编表的正则（没有就只留空的表声明）
+     class_count —— 字符类个数（转移表按它展平）
+     class_map   —— 256 项：0..255 的码点 -> 字符类
+     page_index  —— 1 + (码点 >> 8) -> 段号（0 表示这一整段都是类 0）
+     page_data   —— 全部段表的内容（按段号顺序摊平，每段 256 项）
+     dfas        —— 每条正则：kind / label / pattern / slot / order /
+                    trans_name / accept_name / state_count / trans / accept
+   表名（trans_name / accept_name）由生成器算好，这里直接写名字：
+   s_lexTokenDfaTrans<规则号>（%token regex）、s_lexIdentifierDfaTrans、
+   s_lexCommitDfaTrans<规则号>（%commit / %trivia），词法器按名字引用。 #}
+{% if has_dfa %}
+/** @brief 字符类个数（所有正则合起来的划分，转移表按它展平）。 */
+constexpr std::uint16_t kLexClassCount = {{ class_count }}u;
+
+/** @brief 0..255 的码点 → 字符类（单字节直接查，不解 UTF-8）。 */
+inline constexpr std::uint16_t kLexClassMap[256] =
+{
+{% for value in class_map %}    {{ value }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+
+/** @brief `1 + (码点 >> 8)` → 段号；0 表示这一整段 256 个码点谁也不要。 */
+inline constexpr std::uint8_t kLexPageIndex[0x1100u + 1u] =
+{
+{% for value in page_index %}    {{ value }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+
+/** @brief 每段 256 项的「码点 → 类号」表，按段号顺序摊平。 */
+inline constexpr std::uint8_t kLexPageData[] =
+{
+{% for value in page_data %}    {{ value }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+
+{% if has_regex %}/* %token regex 的元信息：规则号 -> Token 类型 / 声明序 */
+inline constexpr std::size_t kRegexCount = {{ regex_count }}u;
+inline constexpr TokenType kRegexTypes[] =
+{
+{% for r in regex_entries %}{% if loop_first %}{% else %},
+{% endif %}    TOKEN_{{ r.token }}{% endfor %}
+};
+inline constexpr int kRegexOrders[] =
+{
+{% for r in regex_entries %}{% if loop_first %}{% else %},
+{% endif %}    {{ r.order }}{% endfor %}
+};
+
+{% endif %}{% if has_commit %}/* %commit / %trivia 的元信息（DFA 只提供「多长」，这些说「是什么」） */
+inline constexpr const char *const kCommitTypes[][2] =
+{
+{% for c in commit_entries %}{% if loop_first %}{% else %},
+{% endif %}    {% if c.placeholder %}{% raw %}{{% endraw %} nullptr, nullptr {% raw %}}{% endraw %}{% else %}{% raw %}{{% endraw %}{{ c.type }}, {{ c.alias }}{% raw %}}{% endraw %}{% endif %}{% endfor %}
+};
+inline constexpr std::uint8_t kCommitSkips[] =
+{
+{% for c in commit_entries %}{% if loop_first %}{% else %},
+{% endif %}    {{ c.skip }}{% endfor %}
+};
+inline constexpr int kCommitOrders[] =
+{
+{% for c in commit_entries %}{% if loop_first %}{% else %},
+{% endif %}    {{ c.order }}{% endfor %}
+};
+inline constexpr std::size_t kCommitCount = {{ commit_count }}u;
+
+{% endif %}{% for dfa in dfas %}
+/* {{ dfa.kind }} · {{ dfa.label }}：{{ dfa.pattern }}（{{ dfa.state_count }} 状态） */
+static const std::uint16_t {{ dfa.trans_name }}[] =
+{
+{% for value in dfa.trans %}    {{ value }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+
+static const std::uint8_t {{ dfa.accept_name }}[] =
+{
+{% for value in dfa.accept %}    {{ value }}{% if loop_last %}{% else %}, {% endif %}{% endfor %}
+};
+
+{% endfor %}
+{% endif %}
+{% if has_dfa %}{% if has_regex %}
+/* %token regex：规则号 → 该规则的转移 / 接受表（lexDfaScan 按号取） */
+static const std::uint16_t *lexTokenDfaTrans(std::uint32_t index)
+{
+{% for dfa in dfas %}{% if dfa.is_regex %}    if (index == {{ dfa.slot }}u) { return {{ dfa.trans_name }}; }
+{% endif %}{% endfor %}    return nullptr;
+}
+
+static const std::uint8_t *lexTokenDfaAccept(std::uint32_t index)
+{
+{% for dfa in dfas %}{% if dfa.is_regex %}    if (index == {{ dfa.slot }}u) { return {{ dfa.accept_name }}; }
+{% endif %}{% endfor %}    return nullptr;
+}
+{% endif %}{% if has_commit %}
+/* %commit / %trivia：规则号 → 该规则的转移 / 接受表 */
+static const std::uint16_t *lexCommitDfaTrans(std::uint32_t index)
+{
+{% for dfa in dfas %}{% if dfa.is_commit %}    if (index == {{ dfa.slot }}u) { return {{ dfa.trans_name }}; }
+{% endif %}{% endfor %}    return nullptr;
+}
+
+static const std::uint8_t *lexCommitDfaAccept(std::uint32_t index)
+{
+{% for dfa in dfas %}{% if dfa.is_commit %}    if (index == {{ dfa.slot }}u) { return {{ dfa.accept_name }}; }
+{% endif %}{% endfor %}    return nullptr;
+}
+{% endif %}{% endif %}

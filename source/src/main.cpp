@@ -50,6 +50,7 @@ struct CommandLine
     std::optional<std::string> lang;        ///< 命令行目标语言
     std::optional<std::string> cppNamespace; ///< 命令行命名空间（--namespace）
     std::optional<std::string> cPrefix; ///< 命令行 C 符号前缀（--prefix）
+    std::optional<std::string> cppLexer; ///< 命令行 C++17 词法引擎（--cpp-lexer）
     std::optional<std::string> pythonClass; ///< 命令行解析器类名（--class）
     std::optional<bool> teach;              ///< 教学模式（--teach / --no-teach）
     std::optional<bool> mermaid;            ///< 状态机图示（--mermaid / --no-mermaid）
@@ -126,6 +127,10 @@ void printUsage(const std::string &program)
         << "                        %namespace 指定；命令行优先）。NAME 取\n"
         << "                        [A-Za-z_][A-Za-z0-9_]*、不能是 C++ 关键字；\n"
         << "                        不传或传空串 = 命名空间 Parser、文件名不带前缀\n"
+        << "  --cpp-lexer {std,dfa} C++17 产物的词法引擎（也可用 %cpp_lexer 指定；\n"
+        << "                        命令行优先）。std（缺省）把正则交给 <regex>；\n"
+        << "                        dfa 在生成期编译成 DFA 表写进产物，产物不依赖\n"
+        << "                        <regex>，每个位置只扫一遍输入（大文法更快）\n"
         << "  --prefix NAME        C99 产物的公开符号前缀（也可用 %prefix 指定；\n"
         << "                        命令行优先；不能以 Parser/PARSER 开头）\n"
         << "  --class NAME          Python 产物的解析器类名（也可用 %class 指定；\n"
@@ -154,7 +159,7 @@ void printUsage(const std::string &program)
         << "  --dump-slr-tables     打印 ACTION / GOTO 表\n"
         << "  --dump-mermaid        打印 Mermaid 状态机图（文法 LR 自动机与词法 DFA）\n"
         << "  -h, --help            显示本帮助\n"
-        << "  --ui-lang zh|en|ja|auto 显示语言；默认自动检测，与 --lang 目标语言独立\n"
+        << "  --ui-lang zh|en|auto   显示语言；默认自动检测，与 --lang 目标语言独立\n"
         << "  lsp [--stdio|--check FILE...]  内嵌的 `.gram` 语言服务器（编辑器用法；\n"
         << "                        与 library/lsp 独立构建的 lsp-server 同参数同输出）\n"
         << "  man [目标] [--json]   内嵌手册：列出文档页、文法指令、生成模式、目标语言\n"
@@ -391,6 +396,17 @@ bool parseArguments(int argc, char **argv, CommandLine &parsed)
                 return false;
             }
             parsed.cppNamespace = name;
+        }
+        else if (arg.rfind("--cpp-lexer", 0) == 0)
+        {
+            const std::string value = takeValue();
+            if ((value != "std") && (value != "dfa"))
+            {
+                std::cerr << PE_TEXT("错误：--cpp-lexer 只接受 std 或 dfa，实际得到 '")
+                          << value << "'\n";
+                return false;
+            }
+            parsed.cppLexer = value;
         }
         else if (arg.rfind("--prefix", 0) == 0)
         {
@@ -1430,6 +1446,14 @@ int main(int argc, char **argv)
         // 命令行 --namespace 覆盖 %namespace；都没有就是空串（退化成现状）
         request.cppNamespace =
             options.cppNamespace.value_or(cfg.cppNamespace);
+        request.cppLexer = options.cppLexer.value_or(cfg.cppLexer);
+        if ((lang != "cpp17") && (request.cppLexer == "dfa"))
+        {
+            std::cerr << PE_TEXT("提示：%cpp_lexer / --cpp-lexer 只对 --lang cpp17 "
+                                 "有意义，")
+                      << lang << PE_TEXT(" 下已忽略\n");
+            request.cppLexer = "std";
+        }
         request.cPrefix = options.cPrefix.value_or(cfg.cPrefix);
         if (!request.cPrefix.empty() && lang != "c")
         {

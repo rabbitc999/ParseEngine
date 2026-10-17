@@ -3,7 +3,7 @@
 > 这是**生成器本体**的说明文档（命令行、模板、产物形态、构建与小测）。
 > 项目总览、Magel 语言与全仓目录见根目录 [README](../README.md)。
 
-命令行支持 `--ui-lang zh|en|ja|auto`，独立于 `--lang` 代码生成目标。内嵌手册（`ParseEngine man`）、内嵌语言服务器（`ParseEngine lsp`）、Windows Unicode 输出与 Python ZIP 发布脚本见 [16 显示语言、内嵌资产与发布](../doc/16-i18n-and-packaging.md)。
+命令行支持 `--ui-lang zh|en|auto`，独立于 `--lang` 代码生成目标。内嵌手册（`ParseEngine man`）、内嵌语言服务器（`ParseEngine lsp`）、Windows Unicode 输出与 Python ZIP 发布脚本见 [16 显示语言、内嵌资产与发布](../doc/16-i18n-and-packaging.md)。
 
 
 <img src="../image/gram-editor-256.png" alt="GramEditor 图标" width="120" align="right" />

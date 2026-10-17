@@ -83,6 +83,13 @@ struct ProjectRequest
     std::string cppNamespace;
     std::string cPrefix;                          ///< C99 公开符号前缀（%prefix / --prefix）
     /**
+     * @brief C++17 产物的词法引擎（`%cpp_lexer` / `--cpp-lexer`）。
+     *
+     * `std`（缺省）用标准库 `std::regex`；`dfa` 用生成期编译好、写进产物的
+     * DFA 表（产物不依赖 `<regex>`）。只对 `--lang cpp17` 有意义。
+     */
+    std::string cppLexer = "std";
+    /**
      * @brief Python 产物的解析器类名（`%class` / `--class`）。
      *
      * 空字符串 = 用缺省类名 `Parser`；只对 `--lang python` 有意义。

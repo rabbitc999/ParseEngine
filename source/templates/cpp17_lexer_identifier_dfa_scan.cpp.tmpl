@@ -1,0 +1,18 @@
+        const std::uint32_t identLength = lexDfaScan(
+            pStart, 0u, s_lexIdentifierDfaTrans, s_lexIdentifierDfaAccept);
+        if (identLength > 0u)
+        {
+            for (std::uint32_t index = 0u; index < identLength; ++index)
+            {
+                readChar();
+            }
+            m_lexeme.assign(pStart, identLength);
+            const TokenType keyword = keywordType(m_lexeme.c_str());
+            token.type = (keyword != TokenType::TOKEN_INVALID)
+                             ? keyword
+                             : TokenType::TOKEN_VARIABLE;
+            token.text = m_lexeme;
+            token.pName = m_lexeme.c_str();
+{% if union_member %}            token.value.{{ union_member }} = m_lexeme.data();{% endif %}
+            return Status::Ok;
+        }

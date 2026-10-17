@@ -554,11 +554,11 @@ std::string grammarSource(const AnalysisResult &analysis)
 }
 
 /**
- * @brief 把一个字符渲染成字符类标签里的样子。
- * @param value 字符。
- * @return 可读文本（空格写成“空格”，控制字符写成 `\xNN`）。
+ * @brief 把一个码点渲染成字符类标签里的样子。
+ * @param value 码点。
+ * @return 可读文本（空格写成“空格”，控制字符写成 `\xNN`，非 ASCII 写成 `\u{…}`）。
  */
-std::string charText(char value)
+std::string charText(char32_t value)
 {
     // 空格是一个词、其余是「转义后的样子」，文案在模板里
     if (value == ' ')
@@ -568,32 +568,34 @@ std::string charText(char value)
             {{"is_space", true}, {"text", std::string()}});
     }
     std::string text;
-    switch (value)
+    if (value == 0x09u)
     {
-    case '\t':
-        text = "\\t";
-        break;
-    case '\n':
-        text = "\\n";
-        break;
-    case '\r':
-        text = "\\r";
-        break;
-    default:
-        break;
+        text = "\t";
+    }
+    else if (value == 0x0Au)
+    {
+        text = "\n";
+    }
+    else if (value == 0x0Du)
+    {
+        text = "\r";
     }
     if (text.empty())
     {
-        const unsigned char code = static_cast<unsigned char>(value);
-        if ((code < 0x20) || (code == 0x7f))
+        if ((value < 0x20u) || ((value >= 0x7Fu) && (value < 0xA0u)))
         {
-            char buffer[8];
-            std::snprintf(buffer, sizeof(buffer), "\\x%02X", code);
+            char buffer[16];
+            std::snprintf(buffer, sizeof(buffer), "\\x%02X",
+                          static_cast<unsigned int>(value));
             text = std::string(buffer);
+        }
+        else if (value < 0x80u)
+        {
+            text = std::string(1, static_cast<char>(value));
         }
         else
         {
-            text = std::string(1, value);
+            text = "\\u{" + std::to_string(static_cast<unsigned long>(value)) + "}";
         }
     }
     return tmpl::renderValues(Utils::loadTemplate("mermaid_char_text.txt"),
@@ -601,38 +603,35 @@ std::string charText(char value)
 }
 
 /**
- * @brief 把一串字符按连续区段压缩成 `a-z 0-9 _` 这样的文本。
- * @param chars 升序字符列表。
- * @param limit 最多消耗多少个字符（跨过 limit 的那个区段仍会画完）。
- * @return 文本。
+ * @brief 把一列码点区间按连续区段压缩成 `a-z 0-9 _` 这样的文本。
+ * @param ranges 升序、互不重叠的码点区间表。
+ * @param limit 最多画多少段（超出的部分只在 total 里计数）。
+ * @param total 输出：区间覆盖的码点总数。
+ * @return 文本片段。
  */
-std::vector<std::string> encodeChars(const std::vector<char> &chars,
-                                      std::size_t limit)
+std::vector<std::string> encodeRanges(
+    const std::vector<std::pair<char32_t, char32_t>> &ranges,
+    std::size_t limit, std::size_t &total)
 {
     std::vector<std::string> pieces;
-    std::size_t index = 0;
-    while ((index < chars.size()) && (index < limit))
+    total = 0u;
+    std::size_t drawn = 0u;
+    for (const auto &range : ranges)
     {
-        std::size_t end = index;
-        while ((end + 1 < chars.size()) &&
-               (static_cast<unsigned char>(chars[end + 1]) ==
-                static_cast<unsigned char>(chars[end]) + 1))
+        total += static_cast<std::size_t>(range.second - range.first) + 1u;
+        if (drawn >= limit)
         {
-            ++end;
+            continue;
         }
-        const std::size_t run = end - index + 1;
-        if (run >= 3)
+        ++drawn;
+        if (range.first == range.second)
         {
-            pieces.push_back(charText(chars[index]) + "-" + charText(chars[end]));
+            pieces.push_back(charText(range.first));
         }
         else
         {
-            for (std::size_t position = index; position <= end; ++position)
-            {
-                pieces.push_back(charText(chars[position]));
-            }
+            pieces.push_back(charText(range.first) + "-" + charText(range.second));
         }
-        index = end + 1;
     }
     return pieces;
 }
@@ -640,22 +639,22 @@ std::vector<std::string> encodeChars(const std::vector<char> &chars,
 /**
  * @brief 把一个字符类渲染成边标签。
  * @param cell 字符类。
- * @return 文本；字符太多时按区段截断并补上总数。
+ * @return 文本；区段太多时按段截断并补上码点总数。
  */
 std::string cellText(const RegexCell &cell)
 {
-    const std::vector<char> chars(cell.chars.begin(), cell.chars.end());
-    const bool empty = chars.empty();
-    const bool truncated = (!empty) && (chars.size() > k_maxCellChars);
+    const bool empty = cell.ranges.empty();
+    std::size_t total = 0u;
     const std::vector<std::string> pieces =
         empty ? std::vector<std::string>()
-              : encodeChars(chars, truncated ? k_maxCellChars : chars.size());
+              : encodeRanges(cell.ranges, k_maxCellChars, total);
+    const bool truncated = (!empty) && (pieces.size() > k_maxCellChars);
     return tmpl::renderValues(
         Utils::loadTemplate("mermaid_char_class.txt"),
         {{"empty", empty},
          {"pieces", tmpl::encode(pieces)},
          {"truncated", truncated},
-         {"total", static_cast<long long>(chars.size())}});
+         {"total", static_cast<long long>(total)}});
 }
 
 /**

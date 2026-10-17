@@ -64,7 +64,7 @@ int packageExecutable(const char *program,const std::string &output){
     const std::string python=configured?configured:"python3";
 #endif
     const auto language=I18n::language();
-    std::vector<std::string> args{python,script.u8string(),"ParseEngine","--compiler",compiler,"--ui-lang",language==I18n::Language::Zh?"zh":language==I18n::Language::Ja?"ja":"en"};
+    std::vector<std::string> args{python,script.u8string(),"ParseEngine","--compiler",compiler,"--ui-lang",language==I18n::Language::Zh?"zh":"en"};
     if(!output.empty()){args.emplace_back("--out");args.push_back(output);}
     std::cout.flush();std::cerr.flush();std::fflush(nullptr);
 #ifdef _WIN32

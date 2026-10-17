@@ -41,7 +41,7 @@ Magel 当前语言基线：**1.0.0**，当前版本：**1.2.0**。
 | [13 生成模式](13-modes.md) | 十六种生成模式与运行时 |
 | [14 目标语言与产物](14-languages-and-products.md) | 后端选择与产物形态 |
 | [15 支持矩阵](15-language-mode-support.md) | 语言、模式与增量 API 的当前范围 |
-| [16 三语、内嵌资产与发布](16-i18n-and-packaging.md) | 显示选项、内嵌手册与语言服务器、Unicode 控制台、独立 Python 打包脚本 |
+| [16 双语、内嵌资产与发布](16-i18n-and-packaging.md) | 显示选项、内嵌手册与语言服务器、Unicode 控制台、独立 Python 打包脚本 |
 | [Magel EBNF 语法参考](https://gitee.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) | 当前词法、全部产生式、匿名函数类型、泛型入口与语义检查边界 |
 | [Magel 语言哲学](https://gitee.com/rabbitc999/magel/blob/master/doc/00-philosophy.md) | 简单编写，到处运行；值语义、显式引用、资源管理与没有移动语义 |
 | [文档维护规范](../project/document/README.md) | 统一口径、技术文档模板、文档生成器与同步检查 |

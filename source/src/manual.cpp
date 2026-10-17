@@ -58,7 +58,7 @@ std::string lower(std::string text)
 }
 
 /**
- * @brief 当前的界面语言短名（`zh` / `en` / `ja`）。
+ * @brief 当前的界面语言短名（`zh` / `en`）。
  * @return 短名。
  */
 std::string languageTag()
@@ -67,8 +67,6 @@ std::string languageTag()
     {
     case I18n::Language::Zh:
         return "zh";
-    case I18n::Language::Ja:
-        return "ja";
     default:
         return "en";
     }
@@ -90,10 +88,6 @@ bool parseLanguage(const std::string &value, I18n::Language &language)
     else if (name == "en")
     {
         language = I18n::Language::En;
-    }
-    else if (name == "ja")
-    {
-        language = I18n::Language::Ja;
     }
     else if (name == "auto")
     {
@@ -684,7 +678,7 @@ void printUsage(const std::string &program)
         << "\n"
         << "  --json                 输出 JSON（可与任意目标组合）\n"
         << "  --exact                配 --search：整串精确匹配\n"
-        << "  --lang zh|en|ja|auto   界面与正文语言；等价于写在 man 之前的 --ui-lang\n"
+        << "  --lang zh|en|auto      界面与正文语言；等价于写在 man 之前的 --ui-lang\n"
         << "\n"
         << "示例：\n"
         << "  " << program << " man 01\n"
@@ -875,7 +869,7 @@ int runCommandLine(int argc, char **argv)
             const bool isLanguage = arg == "--lang";
             if (at + 1 >= argc)
             {
-                return fail(isLanguage ? PE_TEXT("--lang 后需要 zh、en、ja 或 auto")
+                return fail(isLanguage ? PE_TEXT("--lang 后需要 zh、en 或 auto")
                                        : PE_TEXT("--search 后需要关键词"),
                             machine);
             }
