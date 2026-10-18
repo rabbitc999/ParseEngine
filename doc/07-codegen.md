@@ -864,15 +864,16 @@ C / C++17 / Python 完全一致（命令行 `--lang` 覆盖文法里的 `%lang`�
 | 后端 | 正则匹配器 | 产物里的表 |
 | --- | --- | --- |
 | C99 | 生成期编好的 DFA（`source/src/regex_dfa.cpp`） | `s_ParserRegexDfas` / `kLexClassMap` 那套字符类划分 |
-| C++17 `dfa`（**缺省**） | 生成期编好的 DFA（同一份 `regex_dfa.cpp`） | `kLexClassMap` / `kLexPageIndex` / `kLexPageData` + 每条规则的 `trans` / `accept` 表 + `lexDfaScan()` |
-| C++17 `std` | 标准库 `<regex>`（ECMAScript） | `kRegexRes` / `kIdentifierRe` / `kCommitRes` + `lexRegexMatch()` |
+| C++17 `std`（**缺省**） | 标准库 `<regex>`（ECMAScript） | `kRegexRes` / `kIdentifierRe` / `kCommitRes` + `lexRegexMatch()` |
+| C++17 `dfa` | 生成期编好的 DFA（同一份 `regex_dfa.cpp`） | `kLexClassMap` / `kLexPageIndex` / `kLexPageData` + 每条规则的 `trans` / `accept` 表 + `lexDfaScan()` |
 | Python | 标准库 `re` | `_REGEX_RULES` / `_IDENTIFIER_RE` / `_COMMIT_RES` + `_lex_regex_match()` |
 | C# | `System.Text.RegularExpressions.Regex` | `_REGEX_RE_LIST` / `_IDENTIFIER_RE` / `_COMMIT_RE_LIST` + `_lexRegexMatch()` |
 | Rust | Rust 官方的 `regex` crate（`Cargo.toml` 里的 `regex = "1"`） | `_REGEX_RES` / `_IDENTIFIER_RE` / `_COMMIT_RES` + `lex_regex_match()`（`OnceLock` 里各编译一次） |
 | Go | 标准库 `regexp`（RE2） | `sParserRegexRes` / `sParserIdentifierRe` / `sParserCommitRes` + `sParserLexRegexMatch()`（`regexp.MustCompile` 在包级变量初始化时各编译一次） |
 
-**C99 与 C++17 的 `dfa` 词法器带生成期算好的 DFA 表**（C++17 用 `--cpp-lexer std`
-或 `%cpp_lexer std` 切回 `std::regex`），其余各档把正则原样交给各自语言的正则库。
+**C++17 缺省把正则交给 `std::regex`**（用 `--cpp-lexer dfa` 或 `%cpp_lexer dfa`
+切到生成期算好的 DFA 表）；**C99 只有 DFA 一条路**，其余各档把正则原样交给各自
+语言的正则库。
 
 **生成期校验与报错口径**：六档的正则都在**文法加载时**（`readRegexPattern`）用
 生成器自带的编译器（`source/src/regex_dfa.cpp`）验一遍，但**认不下的处理不一样**：

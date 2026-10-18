@@ -76,7 +76,7 @@ expr := expr PLUS term { $$ = $1 + $3; }
 | `%epilogue` | 段标记：之后的正文原样贴到生成的 `parser.c`（C++17 是 `parser.cpp`，Python 是 `parser.py`）末尾 |
 | `%main` | 段标记：之后的正文替换产物 `main.c`（C++17 是 `main.cpp`，Python 是 `main.py` 的演示体）里的内建 demo main |
 | `%cpp_only` | 声明「这份文法只能生成 C++17 产物」：命令行再写 `--lang c` / `--lang python` / `--lang csharp` / `--lang rust` / `--lang go` 会直接报错（`%lang` 里写那几个也一样）。文法依赖 C++17 产物才有的东西（`Engine`、`std::string_view`、兼容层）时用它提前拦住误用 |
-| `%cpp_lexer dfa\|std` | C++17 产物的词法引擎，等价命令行 `--cpp-lexer`（命令行优先）。`dfa`（**缺省**）在生成期把 `%token regex` / `%identifier` / `%commit` 的正则编译成 DFA 表写进产物，产物不依赖 `<regex>`，每个位置只扫一遍输入；`std` 把正则交给 `std::regex`。配非 `--lang cpp17` 的目标时，写指令报错、写命令行只提示并忽略 |
+| `%cpp_lexer std\|dfa` | C++17 产物的词法引擎，等价命令行 `--cpp-lexer`（命令行优先）。`std`（**缺省**）把 `%token regex` / `%identifier` / `%commit` 的正则交给 `std::regex`，产物行为与标准库一致；`dfa` 在生成期把它们编译成 DFA 表写进产物，产物不依赖 `<regex>`，每个位置只扫一遍输入。配非 `--lang cpp17` 的目标时，写指令报错、写命令行只提示并忽略 |
 | `%tree` | 生成 CST 接口，纯 `%tree` 文法可以不写语义动作 |
 | `%left` / `%right` / `%nonassoc` | 声明 Token 结合性与优先级，行越靠下优先级越高 |
 | `%prec TOKEN` | 写在分支右部末尾，覆盖该产生式的优先级来源 |

@@ -278,11 +278,11 @@ struct GrammarConfig
     /**
      * @brief `%cpp_lexer dfa | std`：C++17 产物的词法引擎（`--cpp-lexer`）。
      *
-     * `dfa`（缺省）在生成期把正则编译成 DFA 表写进产物，产物不再依赖
-     * `<regex>`（快、可预测，适合大文法与需要稳定性能的场合）；`std` 把正则
-     * 原样交给 `std::regex`，产物更短但每次匹配都要走标准库的正则引擎。
+     * `std`（缺省）把正则原样交给 `std::regex`，产物更短，行为与标准库一致；
+     * `dfa` 在生成期把正则编译成 DFA 表写进产物，产物不再依赖 `<regex>`
+     * （快、可预测，适合大文法与需要稳定性能的场合）。
      */
-    std::string cppLexer = "dfa";
+    std::string cppLexer = "std";
     bool cppLexerDeclared = false;                          ///< 是否写了 %cpp_lexer
     /**
      * @brief Python 产物的解析器类名（`%class` / `--class`）。

@@ -1,11 +1,15 @@
-# Gitee Go 流水线：ParseEngine 发布门禁。
+# Gitee Go 流水线：ParseEngine 门禁的草稿位。
+#
+# 定位：Gitee 是草稿纸，GitHub 才是舞台。这条流水线只用来随手验证，不构成判据——
+# 判据永远只有 `sh ci/run.sh` 一个入口，GitHub 上跑的是同一份，本地跑的也是同一份。
+# 因此这里不写平台专用的检查：任何"只在某个平台才成立"的判据都视为 bug。
 #
 # 注意：本文件按 Gitee Go「自定义构建步骤」（step: build@1）的写法给出，**未在
 # Gitee 上实测过**（本地没有 Gitee 运行时）。判据本身和本地完全一致——都是
 # `sh ci/run.sh`。若 Gitee Go 的 schema 有出入，改这里的 inputs 即可，脚本不用动。
 version: 1.0
 name: parseengine-ci
-displayName: ParseEngine 门禁
+displayName: ParseEngine 门禁（草稿）
 
 triggers:
   push:

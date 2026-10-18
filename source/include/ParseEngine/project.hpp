@@ -85,10 +85,10 @@ struct ProjectRequest
     /**
      * @brief C++17 产物的词法引擎（`%cpp_lexer` / `--cpp-lexer`）。
      *
-     * `dfa`（缺省）用生成期编译好、写进产物的 DFA 表（产物不依赖 `<regex>`）；
-     * `std` 用标准库 `std::regex`。只对 `--lang cpp17` 有意义。
+     * `std`（缺省）用标准库 `std::regex`；`dfa` 用生成期编译好、写进产物的
+     * DFA 表（产物不依赖 `<regex>`）。只对 `--lang cpp17` 有意义。
      */
-    std::string cppLexer = "dfa";
+    std::string cppLexer = "std";
     /**
      * @brief Python 产物的解析器类名（`%class` / `--class`）。
      *

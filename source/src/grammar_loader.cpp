@@ -2270,7 +2270,7 @@ void parseLookaheadDirective();
     bool m_cppNamespaceDeclared = false;         ///< 是否声明过 %namespace
     std::string m_cPrefix;                       ///< %prefix（C99）
     bool m_cPrefixDeclared = false;              ///< 是否声明过 %prefix
-    std::string m_cppLexer = "dfa";              ///< %cpp_lexer（dfa / std）
+    std::string m_cppLexer = "std";              ///< %cpp_lexer（std / dfa）
     bool m_cppLexerDeclared = false;             ///< 是否声明过 %cpp_lexer
     std::string m_pythonClass;                   ///< %class（空 = 缺省 Parser）
     bool m_pythonClassDeclared = false;          ///< 是否声明过 %class
@@ -5360,8 +5360,8 @@ void GramParser::parseCppLexerDirective()
     const std::string token = peekText();
     if ((peekToken() == nullptr) || (token == "\n"))
     {
-        fail("%cpp_lexer 后面要写词法引擎：dfa（缺省，生成期编译成 DFA 表，"
-             "产物不依赖 <regex>）或 std（交给 std::regex）",
+        fail("%cpp_lexer 后面要写词法引擎：std（缺省，交给 std::regex）"
+             "或 dfa（生成期编译成 DFA 表，产物不依赖 <regex>）",
              line);
         return;
     }
