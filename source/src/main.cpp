@@ -32,6 +32,7 @@
 #include "ParseEngine/mermaid.hpp"
 #include "ParseEngine/preprocessor.hpp"
 #include "ParseEngine/project.hpp"
+#include "ParseEngine/regex_compatibility.hpp"
 #include "ParseEngine/utils.hpp"
 #include "ParseEngine/i18n.hpp"
 #include "ParseEngine/package.hpp"
@@ -65,6 +66,8 @@ struct CommandLine
     bool dumpMermaid = false;         ///< 打印教学模式的 Mermaid 状态机图
     bool preprocessOnly = false;      ///< [调试] 只跑条件编译预处理并打印结果
     bool dumpSections = false;        ///< [调试] 只打印收集到的 %epilogue / %main 段
+    bool check = false;               ///< 在内存中校验，不写出产物。
+    bool strictRegex = false;         ///< 严格校验共享正则语义。
     bool syntaxOnly = false;          ///< 只保留词法/产生式，供解析预览生成纯语法树
     /// RESULT.md 里带完整分析报告（--full-report；缺省简化版，省略末尾那一节）
     bool fullReport = false;
@@ -149,6 +152,8 @@ void printUsage(const std::string &program)
         << "  --define NAME[=VALUE] 条件编译变量（%if 用）：NAME 等价 NAME=1；\n"
         << "                        0/false/no/off 为假（大小写不敏感），其余非空为真；\n"
         << "                        可重复，同名后传覆盖先传\n"
+        << "  --check              在内存中完成生成校验并打印正则报告，不写出产物\n"
+        << "  --strict-regex       拒绝未证明共享语义的原生正则（别名 --strict）\n"
         << "  --syntax-only        预览生成：强制启用语法树，忽略语义动作、用户代码与\n"
         << "                        目标语言专属类型；用于 Token / 语法树可视化\n"
         << "  --preprocess-only     [调试] 只跑 %if 条件编译预处理，打印处理后的文本\n"
@@ -452,6 +457,14 @@ bool parseArguments(int argc, char **argv, CommandLine &parsed)
         {
             parsed.preprocessOnly = true;
         }
+        else if (arg == "--check")
+        {
+            parsed.check = true;
+        }
+        else if (arg == "--strict-regex" || arg == "--strict")
+        {
+            parsed.strictRegex = true;
+        }
         else if (arg == "--syntax-only")
         {
             parsed.syntaxOnly = true;
@@ -556,6 +569,11 @@ int main(int argc, char **argv)
                    { return static_cast<char>(std::tolower(ch)); });
     if (commandMode == "clear")
     {
+        if (options.check || options.strictRegex)
+        {
+            std::cerr << PE_TEXT("错误：clear 不能与 --check / --strict-regex 同时使用\n");
+            return 2;
+        }
         if (options.grammarFile.has_value())
         {
             std::cerr << PE_TEXT("错误：clear 模式不读取文法文件；请只指定 --out-dir\n");
@@ -903,34 +921,36 @@ int main(int argc, char **argv)
                          "java / js / gram）\n");
             return 2;
         }
-        // 生成器自带的正则编译器（source/src/regex_dfa.cpp）没认下的正则：只有 C99
-        // 真的要拿它编 DFA 表，所以那边与从前一样是硬错误（报错文案逐字不变）；
-        // 其余档的正则原样交给各自语言自带的正则库，只警告、照常往下生成。
+        // C 与显式 vm 必须能编译共享正则；原生路径保留诊断提醒。
+        // --check 在后面的逐规则报告中展示不支持的原因，不重复打印原生库提示。
         if (!cfg.regexDiagnostics.empty())
         {
-            if (lang == "c" || (lang == "cpp17" && options.cppLexer.value_or(cfg.cppLexer) == "vm"))
+            if (!options.check && (lang == "c" || (lang == "cpp17" && options.cppLexer.value_or(cfg.cppLexer) == "vm")))
             {
                 printError(cfg.regexDiagnostics.front());
                 return 1;
             }
-            for (const ParseEngine::Error &item : cfg.regexDiagnostics)
+            if (!options.check)
             {
-                std::cerr << PE_TEXT("警告：");
-                if (item.line > 0u)
+                for (const ParseEngine::Error &item : cfg.regexDiagnostics)
                 {
-                    std::cerr << PE_TEXT("第 ") << item.line << PE_TEXT(" 行：");
+                    std::cerr << PE_TEXT("警告：");
+                    if (item.line > 0u)
+                    {
+                        std::cerr << PE_TEXT("第 ") << item.line << PE_TEXT(" 行：");
+                    }
+                    std::cerr << item.message << "\n";
                 }
-                std::cerr << item.message << "\n";
+                std::cerr << PE_TEXT("      以上是生成器自带的正则编译器（C99 用来编表的那一个）"
+                             "给的判断：\n"
+                             "      ")
+                          << lang
+                          << PE_TEXT(" 的产物把正则原样交给该语言自带的正则库（C++ 的 "
+                             "std::regex / Python 的 re / C# 的 Regex / Rust 的 "
+                             "regex / Java 的 Pattern / JS 的 RegExp），\n"
+                             "      它不认识不等于目标语言不认——若你对该语言的正则语法"
+                             "十分了解、确认这条正则没问题，可以忽略本警告。\n");
             }
-            std::cerr << PE_TEXT("      以上是生成器自带的正则编译器（C99 用来编表的那一个）"
-                         "给的判断：\n"
-                         "      ")
-                      << lang
-                      << PE_TEXT(" 的产物把正则原样交给该语言自带的正则库（C++ 的 "
-                         "std::regex / Python 的 re / C# 的 Regex / Rust 的 "
-                         "regex / Java 的 Pattern / JS 的 RegExp），\n"
-                         "      它不认识不等于目标语言不认——若你对该语言的正则语法"
-                         "十分了解、确认这条正则没问题，可以忽略本警告。\n");
         }
         // --lang gram：只导出「文法原文件 + 分析报告」，没有解析器 / 词法器
         // 代码，所以后面那些「某个产物的专属写法」都不适用（全部按现有的
@@ -1426,6 +1446,7 @@ int main(int argc, char **argv)
         }
 
         ProjectRequest request;
+        request.strictRegex = options.strictRegex;
         request.grammar = &grammar;
         request.tokens = &tokens;
         request.tokenDefs = &cfg.tokenDefs;
@@ -1534,11 +1555,19 @@ int main(int argc, char **argv)
         request.analysis = isLexMode(mode) ? nullptr : &analysis;
         request.copies = &cfg.copies;
 
+        if (options.check)
+            std::cout << RegexCompatibility::markdown(RegexCompatibility::analyze(
+                lexSpec, request.lang, request.cppLexer));
         std::map<std::string, std::string> project;
         if (!Project::generateParserProject(request, project, error))
         {
             printError(error);
             return 1;
+        }
+        if (options.check)
+        {
+            std::cout << PE_TEXT("校验通过；未写出生成产物。\n");
+            return 0;
         }
         if (!buildFiles)
         {

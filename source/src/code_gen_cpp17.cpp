@@ -4,6 +4,7 @@
  */
 
 #include "ParseEngine/code_gen_cpp17.hpp"
+#include "ParseEngine/regex_compatibility.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -693,54 +694,6 @@ std::string renderDfaSkipHelpers(bool hasDfa = true)
 }
 
 /**
- * @brief 判断模式是否属于与 std::regex 等价的保守 DFA 快速路径。
- *
- * 只接受 ASCII 字面量、正字符类及末尾单个贪婪量词；其余模式交给
- * 标准库，以保留字节语义、分支顺序、断言与非贪婪语义。
- * @param pattern 原始模式。
- * @return 能保证等价时返回 true。
- */
-bool cppRegexDfaCompatible(const std::string &pattern)
-{
-    bool atom = false;
-    for (std::size_t i = 0; i < pattern.size(); ++i)
-    {
-        const unsigned char ch = static_cast<unsigned char>(pattern[i]);
-        if ((ch == 0u) || (ch >= 128u)) return false;
-        if (ch == '\\')
-        {
-            if (++i == pattern.size()) return false;
-            const char escaped = pattern[i];
-            // 扩展转义、反向引用和依赖 locale 的预定义类不进入快速路径。
-            if (std::string("nrtfv\\.[](){}*+?^$|-/").find(escaped) == std::string::npos)
-                return false;
-            atom = true;
-        }
-        else if (ch == '[')
-        {
-            const std::size_t start = ++i;
-            if ((i == pattern.size()) || (pattern[i] == '^')) return false;
-            for (; (i < pattern.size()) && (pattern[i] != ']'); ++i)
-            {
-                const unsigned char member = static_cast<unsigned char>(pattern[i]);
-                if ((member == 0u) || (member >= 128u) || (member == '[') || (member == '\\'))
-                    return false;
-            }
-            if ((i == pattern.size()) || (i == start)) return false;
-            atom = true;
-        }
-        else if ((ch == '*') || (ch == '+') || (ch == '?'))
-        {
-            return atom && (i + 1u == pattern.size());
-        }
-        else if (std::string(".|(){}^$]").find(static_cast<char>(ch)) != std::string::npos)
-            return false;
-        else atom = true;
-    }
-    return true;
-}
-
-/**
  * @brief 组装可选 DFA 词法器的全部数据（`%cpp_lexer dfa`）。
  *
  * 生成期用 `RegexDfa` 把 %token regex / %identifier / %commit 的正则编译成
@@ -777,7 +730,7 @@ bool buildCppLexDfa(const ProjectRequest &request, CppLexDfaData &data,
 
     for (const auto &pattern : patterns)
     {
-        if (!cppRegexDfaCompatible(pattern.second))
+        if (!RegexCompatibility::cppDfaCompatible(pattern.second))
         {
             // 整份词法器使用同一后端，Token、标识符和注释的行为保持一致。
             data.enabled = false;

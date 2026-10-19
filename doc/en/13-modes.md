@@ -543,7 +543,7 @@ Before taking a token, whitespace is skipped first (space / `\t` / `\n` / `\v` /
 3. The built-in number rules (integer / `1.2` float / `1e3` / suffix `u`, `d`), producing a numeric value
 4. Fixed literals (`%define` / `%token`, longer first + keyword boundary checking);
    when no regex token is written, all literals match at this step
-5. Identifiers: when `%identifier` is declared, scan with its regex (C99 looks up a DFA table; the other five profiles use
+5. Identifiers: when `%identifier` is declared, scan with its regex (C/C++ select DFA, shared execution or a native library; other targets use
    the target language's regex library), then look up the keyword table; otherwise use the built-in C identifier rule (starting with a letter/underscore,
    then letters, digits and underscores), mapped to `VARIABLE`
 

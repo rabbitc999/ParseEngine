@@ -887,12 +887,14 @@ C / C++17 / Python 完全一致（命令行 `--lang` 覆盖文法里的 `%lang`�
   .NET 的 `Regex` / `regex` 都收）。
 - **「正则能匹配空串」与引擎无关**，六档一律是硬错误（Lexer 在哪个语言里都没法前进）。
 
+逐条规则的实际引擎、已知不支持能力与严格语义校验见 [21 正则兼容性](21-regex-compatibility.md)。原生扩展的警告不代表已证明可执行。
+
 ### 13.1 词法匹配（六档同一套顺序）
 
 1. 取 Token 前先跳 `%space` 空白；
 2. 在「固定字面量 + `%token regex` + `%commit` / `%trivia`」里做最长匹配：
    字面量先按长度降序试，正则与 commit 各自从当前位置起匹配，再在规则之间比较长度
-   （C99 与 C++17 `dfa` 查 DFA 表；C++17 的两个后端保留 ECMAScript 的分支顺序与非贪婪语义；其他语言使用各自的正则语义，
+   （C 根据规则集合选择 DFA 或共享有序运行时；C++ 根据 `std` / `dfa` / `vm` 选择，Unicode 始终共享；其他语言使用原生语义，
    并且都要求「必须从当前位置起」——C++17 用 `match_continuous`、
    Python 的 `pattern.match` 本来就是锚定的、C# 额外校验 `Match.Index == start`、
    Rust 用 `Regex::find_at` 再确认 `m.start() == start`、Go 用

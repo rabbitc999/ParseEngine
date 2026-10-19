@@ -171,13 +171,13 @@ struct CopySpec
  * @brief 一条 `%commit` 声明：匹配到的文本收进容器，不进语法层。
  *
  * `type` 是容器元素的类型名（`%commit "..."` 缺省 "default"）；`pattern`
- * 是匹配模式，按 DFA 正则编译——没有正则元字符时就是固定字面量。
+ * 是匹配模式，由所选正则引擎执行——没有正则元字符时就是固定字面量。
  * `isSkip` 为 true（`%commit skip "..."`）时匹配即丢，不进容器。
  */
 struct CommitSpec
 {
     std::string type;      ///< 类型名（`%commit skip` 时是 "skip"）
-    std::string pattern;   ///< 匹配模式（DFA 正则；无元字符即固定字面量）
+    std::string pattern;   ///< 匹配模式（正则；无元字符即固定字面量）
     bool isSkip = false;   ///< 匹配即丢，不进容器
     std::size_t line = 0u; ///< 指令在**原文件**里的行号（报错 / 文档定位用）
     int order = 0;         ///< 词法声明序（同长度时先声明优先）
@@ -348,10 +348,9 @@ struct GrammarConfig
     /**
      * @brief 生成器自带的正则编译器没认下的正则（说明 + 原文件行号）。
      *
-     * 只有 C99 真的要用自带编译器（`source/src/regex_dfa.cpp`）编出来的 DFA 表，所以
-     * C99 看到它们就是**硬错误**（`main.cpp` 在进后端之前报出来，文案与从前
-     * 逐字相同）；C++17 / Python / C# / Rust 把正则原样交给各自语言自带的正则
-     * 库，只打警告、照常生成。
+     * C 与 C++ 显式 vm 必须能通过共享编译器；原生路径保留警告。
+     * RegexCompatibility 进一步拒绝已知不支持的能力，严格模式还拒绝
+     * 尚未证明与共享规范等价的原生语义。
      */
     std::vector<Error> regexDiagnostics;
     std::optional<std::string> identifierPattern;           ///< %identifier

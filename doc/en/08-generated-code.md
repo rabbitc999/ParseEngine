@@ -947,29 +947,16 @@ The match order is the same as the other targets: built-in strings → fixed lit
 **taking the longest**; on equal length, literals win, then declaration order; fragments matched by `%commit` do not
 enter the grammar level.
 
-Two points about dialect and semantics are worth noting when crossing targets:
+Across targets, distinguish matching order from character domains:
 
-- **`\b` means different things**: in `%token regex`, the C / C++17 targets treat `\b` as the ordinary character `b`
-  (write `\s` instead), whereas Python's `re`, C#'s `Regex`, Rust's `regex`, and Go's `regexp` interpret it as a
-  "word boundary" (see [`05-grammar.md`](../05-grammar.md) "Rule details"). If you only write ASCII character classes
-  plus `\s` / `\d` / `\w`, all of them agree.
-- **Longest-match execution differs**: only C99 uses a true DFA (strictly longest), while C++17 / Python / C# /
-  Rust / Go use the greedy matching of their respective regex engines. The forms used by the example grammars
-  (character class + greedy repetition, `([^"\\]|\\.)*`) give the same result; when a regex such as `a|ab` with
-  "branches of different lengths" is written, the regex engine takes the first match in branch order, which may differ
-  from the DFA's longest result. Conversely, the DFA construction pitfall recorded in
-  `05-grammar.md` — "`(A|B)*` plus a negated class never matches" — **does not exist in the
-  C++17 / Python / C# / Rust / Go artifacts** (see §12.2, §14.4, §15.5,
-  `07-codegen.md` §13).
+- The C/C++ shared runtime supports `\b` word boundaries. Byte mode uses ASCII word characters; `(?u)` uses fixed Unicode 17.0 semantics. Native libraries may use different character domains and Unicode versions.
+- Ordinary C DFA rules take the longest accepting prefix. Ordered runtimes and most native libraries follow branch and greedy/lazy order inside one rule; the lexer then compares lengths and declaration order across rules. Patterns such as `a|ab` are not automatically equivalent across engines.
+- C++ `dfa` optimizes only a proven ASCII subset, otherwise all byte rules fall back to the standard library. `vm` uses shared execution throughout, and explicit Unicode rules always use the shared path.
 
-**Generation-time validation** (one and the same across the six targets, only the handling differs): when the grammar
-is loaded, `source/src/regex_dfa.cpp` checks every `%token regex` / `%identifier` / `%commit` regex. **Only C99 treats
-a failure as a hard error** — it really has to compile this DFA into tables; Python artifacts hand the regex as-is to
-`re`, so when the built-in compiler rejects it only a **warning** is printed (`main.cpp` output, with the original file
-line number) and generation proceeds as usual: both the 32 cap on `{m,n}` and certain negated-class forms count as
-"rejected by the built-in compiler, accepted by `re`". "The regex can match the empty string" is engine-independent
-and reported as an error by all six targets. The DFA produced by validation is no longer written into Python
-artifacts.
+See [regex compatibility](../21-regex-compatibility.md) for each rule's engine, unverified native semantics and rejection reasons.
+`--check` validates generation in memory; `--strict-regex` rejects native rules without proven shared equivalence.
+C and C++ `vm` require successful shared compilation. Unrecognized native extensions may warn and proceed, but known unsupported capabilities are rejected.
+The shared bounded-repeat limit is 1000; nullable patterns are rejected.
 
 ### 10.5 Demo Program Behavior
 

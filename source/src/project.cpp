@@ -4,6 +4,7 @@
  */
 
 #include "ParseEngine/project.hpp"
+#include "ParseEngine/regex_compatibility.hpp"
 
 #include <algorithm>
 #include <filesystem>
@@ -4011,7 +4012,11 @@ bool Project::isBuildFileName(const std::string &relative)
 }
 
 
-bool Project::generateParserProject(
+/** @brief 组装已通过兼容性校验的工程。
+ * @param request 生成配置。@param out 内存产物。@param error 失败原因。
+ * @return 组装成功时为真。
+ */
+static bool generateParserProjectImpl(
     const ProjectRequest &request,
     std::map<std::string, std::string> &out, Error &error)
 {
@@ -4121,6 +4126,23 @@ bool Project::generateParserProject(
         return generateLexProject(request, copies, out, error);
     }
     return generateCustomProject(request, mode, copies, out, error);
+}
+
+/** @brief 校验正则兼容性并组装带逐规则报告的内存工程。
+ * @param request 生成配置。@param out 内存产物。@param error 第一条失败原因。
+ * @return 校验和组装均成功时为真。
+ */
+bool Project::generateParserProject(
+    const ProjectRequest &request, std::map<std::string, std::string> &out,
+    Error &error)
+{
+    const LexSpec emptyLex;
+    const auto report = RegexCompatibility::analyze(
+        request.lexSpec ? *request.lexSpec : emptyLex, request.lang, request.cppLexer);
+    if (!RegexCompatibility::validate(report, request.strictRegex, error)) return false;
+    if (!generateParserProjectImpl(request, out, error)) return false;
+    out["RESULT.md"] += RegexCompatibility::markdown(report);
+    return true;
 }
 
 bool Project::writeParserProject(

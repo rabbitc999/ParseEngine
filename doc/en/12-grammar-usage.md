@@ -72,7 +72,7 @@ An action may be written as `{ ... }`, or written at the end of the line without
 | `%left` / `%right` / `%nonassoc` | Declares token associativity and precedence; within a line it increases from left to right, and later lines are higher |
 | `%prec TOKEN` | Written at the end of a production's right-hand side to override the source of that production's precedence |
 | `%expect N` | Allows N unresolved shift/reduce conflicts to be kept |
-| `%token regex NAME "regex"` | Defines a token with a regex (**C99** compiles it into a DFA at generation time and writes it into the artifact; C++17 / Python / C# / Rust / Go hand the regex to each language's own regex library as-is) |
+| `%token regex NAME "regex"` | Defines a token with a regex (C uses DFA or the shared ordered runtime; C++ selects `std` / `dfa` / `vm`, with shared execution for Unicode; other targets use native libraries. See the [compatibility report](../21-regex-compatibility.md)) |
 | `%identifier "regex"` | Declares the identifier regex and generates the identifier-recognition and keyword-lookup interface |
 | `%commit [type] "pattern"` / `%commit skip "pattern"` | Collects text that is "recognized but does not enter the grammar layer" into a container (elements `{line, type, text}`); when the type is omitted it is `default`, and `skip` means discard on match. Patterns are compiled as regexes and share the same longest-match order as `%token` (equal lengths by declaration order); see [`%commit`](#commit-collecting-text-that-is-recognized-but-does-not-enter-the-grammar-layer). **All six profiles support it** (C99 / C++17 / Python / C# / Rust / Go); for each profile's container type and ownership see [`08-generated-code.md`](../08-generated-code.md) |
 | `%trivia "pattern"` | Discard on match: it enters neither the container nor the grammar layer. Completely equivalent to `%commit skip "pattern"` (the two spellings generate byte-for-byte identical lexical tables); using `%trivia` to express trivia is recommended; ordering and conflict rules are the same as `%commit` |
@@ -153,9 +153,8 @@ generation, handing to an AI to analyze logs), use `%commit` to collect it into 
 program := NUMBER "+" NUMBER;
 ```
 
-Rules: the pattern is a regex (a form with no metacharacters is just a fixed literal; **only for the C99 target** do you need a DFA-friendly
-form — the DFA does not support non-greedy, while the other five profiles' target regex libraries do, see
-[`05-grammar.md`](../05-grammar.md) § "Known DFA Construction Pitfalls"); the matched text **does not enter the grammar layer
+Rules: the pattern is a regex (without metacharacters it is a fixed literal; the C/C++ shared
+runtime supports lazy matching; see the [compatibility report](../21-regex-compatibility.md)); the matched text **does not enter the grammar layer
 and is not treated as a token**,
 but is appended to the container in order of appearance, with elements `{line, type, text}` — `line` is the 1-based
 line number where the fragment starts, and `text` is the original text (including the literal itself; a multi-line fragment keeps its newlines). Matching
@@ -190,24 +189,19 @@ sharing the same lexical declaration order (longest match first, equal lengths b
 is kept only for compatibility. `example/commit_demo.gram` keeps one of each (`@tag` goes through
 `%commit skip`, `#tag` goes through `%trivia`), and neither fragment enters the container.
 
-#### A Known Regex Pitfall (Block Comments Hit It Most Often)
+#### Repetition scope in block-comment regexes
 
-All of **C99**'s regexes (`%token regex` / `%commit` / `%trivia`) are compiled into a DFA by `source/src/regex_dfa.cpp`
-and written into the artifact. One class of forms **compiles but never matches**: a negated class that excludes both `*` and
-the terminating character, placed in a branch of `(A|B)*` — the `(* … *)` comment is the classic case
-(**C++17 / Python / C# / Rust / Go are not affected by this**: they hand the regex to their own language's regex
-library as-is):
+For `(* ... *)` comments use:
 
 ```gram
-%trivia "\(\*([^*]|\*+[^*)])\*+\)"     /* ✗ 永远认不出 (* ... *) */
-%trivia "\(\*([^*]|\*+[^)]+)*\*+\)"    /* ✓ 等价、能用（推荐这一族写法） */
+%trivia "\(\*([^*]|\*+[^*)])*\*+\)"
 ```
 
-When you hit it there is no hint at all: the lexer just reports `(` as an "unrecognizable character". So always write block comments in the form
-`\*+[^)]+` (the C-style `[^*/]` and `{ … }`'s `[^}]` are fine); if unsure, write the
-regex alone into a small `%mode lex` grammar, feed one line of input and look at the token list — 5 seconds to verify.
-For details and the backstory see [`05-grammar.md`](../05-grammar.md) § "Known DFA Construction Pitfalls"; a ready-made example is
-`project/pl0-ir/pl0.gram`.
+The `*` after the group permits zero or more body fragments. Omitting it changes the accepted
+language; that is not evidence of a negated-class or DFA construction bug. Empty bodies, ordinary
+text, repeated stars and Chinese text are verified with C DFA, C++ standard regex and the shared
+ordered runtime. Lazy expressions are also supported; C selects the ordered runtime for them.
+See [the compatibility report](../21-regex-compatibility.md) for actual engine selection and guarantees.
 
 ## Semantic Actions
 

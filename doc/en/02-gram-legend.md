@@ -378,6 +378,8 @@ Tangtang wrote the conclusion into three sentences and put them at the very fron
 
 ## Chapter 6 Switching Engines: The Rust Mode
 
+> This chapter records a historical backend transition. For current engine selection, hard errors and strict mode see [regex compatibility](../21-regex-compatibility.md).
+
 When the Rust backend was added back, the lexer was written following the C99 approach: at generation time each regular expression is compiled into a DFA table, the artifacts hold a `Dfa` constant plus a 256-entry character-class mapping, and at runtime it looks things up in the table. The artifacts carry no dependencies and compile fastest.
 
 "Why not use Rust's own regular expression library?"

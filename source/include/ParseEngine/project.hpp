@@ -41,6 +41,7 @@ struct ProjectRequest
     const std::vector<std::string> *tokens = nullptr;  ///< 终结符列表；必填
     const std::map<std::string, std::vector<std::string>> *tokenDefs =
         nullptr;                                ///< 固定字面量 Token
+    bool strictRegex = false;                   ///< 拒绝未证明与共享规范等价的原生正则。
     bool tree = false;                          ///< 是否 %tree
     bool teach = false;                         ///< 是否教学模式（%teach / --teach）
     bool mermaid = false;                       ///< 是否生成 mermaid/ 状态机图示

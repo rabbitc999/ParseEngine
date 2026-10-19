@@ -768,10 +768,10 @@ Grammar-layer parsing rules:
 - The form is `%commit [type] "pattern"`: the type is an identifier (`[A-Za-z_][A-Za-z0-9_]*`), defaulting to the string `default`
   when omitted; `%commit skip "pattern"` is shorthand for "discard on match"
   (`skip` is a reserved type name, and `%commit skip` without a pattern is an error).
-- The pattern must be a double-quoted literal and is **compiled as a DFA regex** (regex → NFA → subset construction →
-  minimization): a form with no regex metacharacters (such as `"//"`) is a fixed literal. The DFA does not support
-  non-greedy matching, so block comments must be written in a DFA-friendly form (the example above); a pattern that can match the empty string
-  or a regex syntax error is reported at generation time, pointing back to this line.
+- The pattern must be a double-quoted literal and is executed by the selected regex engine. A form without metacharacters is a fixed literal.
+  C supports DFA and the shared ordered runtime, including lazy matching, assertions and backreferences;
+  C++ selects `std`, `dfa` or `vm`. Nullable patterns are rejected. See
+  [regex compatibility](../21-regex-compatibility.md) for native-extension validation limits.
 - `%commit` matching goes through the **same lexical match order** as `%token` (fixed literals / `%token regex`) and the built-in comment
   rules: longest match first, and for equal length by declaration order (earlier declarations win;
   within the same line, by writing order). **The same pattern cannot be both a token and a `%commit` /
@@ -809,38 +809,19 @@ In `example/commit_demo.gram` one of each is kept (`%commit skip "@[A-Za-z]+"`
 and `%trivia "#[A-Za-z]+"`); changing the `%trivia` line to `%commit skip` and regenerating
 produces byte-for-byte identical artifacts and run results.
 
-#### A Known DFA Construction Pitfall: Negated Classes Inside "Grouping + Alternation + Star"
+#### Repetition scope in block-comment regexes
 
-Only the **C99 target**'s regexes are compiled into a DFA by `source/src/regex_dfa.cpp` and written into the artifacts. There is **a class of forms that
-compiles successfully yet never matches** (observed in practice, reproduced for `%token regex` / `%commit` / `%trivia`):
-a negated class that excludes both `*` and the terminator character, placed inside a branch of `(A|B)*`. When writing block comments
-this is the easiest to run into:
+For `(* ... *)` comments use:
 
 ```gram
-%trivia "\(\*([^*]|\*+[^*)])\*+\)"     /* ✗ 永不匹配：命中不了任何 (* ... *) */
-%trivia "\(\*([^*]|\*+[^)]+)*\*+\)"    /* ✓ 语义等价，正常匹配 */
+%trivia "\(\*([^*]|\*+[^*)])*\*+\)"
 ```
 
-Both regexes describe the same language (a comment containing `*`, `)`, and Chinese, and matching across lines), and the only difference is
-`\*+[^*)]` versus `\*+[^)]+`. When it bites, the symptom is a **silent non-match**: the lexer treats the `(` at the start of the comment
-as an "unrecognized character", neither hinting that the regex has a problem nor reporting a generation-time error. Therefore:
-
-- Write block comments in the `\*+[^)]+` family as above (the C-style `[^*/]` and brace `[^}]` forms are unaffected);
-- If unsure, put the regex alone in a small grammar, run it with `%mode lex` + one line of input, and check the token list for
-  the entry you expect — it verifies in 5 seconds, so do not guess inside the generator.
-
-This is not a recommended style but the engine's current state: fixing `regex_dfa` would change all regex artifacts (the lexical tables of the six
-backends), and this batch is frozen on "existing behavior unchanged", so for now it is worked around via documentation + writing style. For a complete example see
-the two `%trivia` lines in `project/pl0-ir/pl0.gram`.
-
-> **The C++17 / Python / C# / Rust / Go targets are unaffected by this**: their lexers do not use the generated DFA,
-> but hand the regex as-is to their own language's regex engine (C++17's `std::regex`, Python's `re`,
-> C#'s `Regex`, Rust's official `regex` crate, Go's standard-library `regexp`; see
-> [`08-generated-code.md`](../08-generated-code.md) §10.4 / §12.2 / §14.4 / §15.5 and
-> [`07-codegen.md`](../07-codegen.md) §13), and both of the above forms match normally.
-> Conversely, **the same grammar may behave differently on the C++17 / Python / C# / Rust / Go versus the C99 artifacts — one matching and
-> one not** — so for cross-target consistency write in the recommended form above. Another dialect-related difference is
-> `\b` (see "Rule details" at the start of this section).
+The `*` after the group permits zero or more body fragments. Omitting it changes the accepted
+language; that is not evidence of a negated-class or DFA construction bug. Empty bodies, ordinary
+text, repeated stars and Chinese text are verified with C DFA, C++ standard regex and the shared
+ordered runtime. Lazy expressions are also supported; C selects the ordered runtime for them.
+See [the compatibility report](../21-regex-compatibility.md) for actual engine selection and guarantees.
 
 ### How the Four "Places to Write User Code" Are Divided
 
@@ -1056,8 +1037,8 @@ After a fixed literal matches, the lexeme is written into `pToken->pName`, so `%
   rule): a misspelled name reports at generation time `符号 X 没有定义` (with the directive line number), rather than
   silently treating it as "a useless binding".
 - A regex may not match the empty string (all six backends error: no language's lexer could advance); the repetition
-  limit of `{m,n}` is 32 — **this limit is a hard error only for C99**; the target regex libraries of the other five backends support larger limits,
-  so only a warning is printed (see [`07-codegen.md`](../07-codegen.md) §13).
+  limit of `{m,n}` in the shared compiler is 1000. C and C++ `vm` require shared compilation;
+  native syntax may have different limits. See [compatibility validation](../21-regex-compatibility.md).
 - LL(1) direct left recursion is eliminated automatically, while detected indirect left recursion is an error; the unresolved conflicts of SLR/LALR/IELR
   are handled by the `%expect` rules (IELR first tries to split the conflicting states and errors only if it cannot);
 

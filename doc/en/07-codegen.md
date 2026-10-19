@@ -866,32 +866,30 @@ lookahead. The **algorithm** is identical across the six tiers, but **who matche
 
 | Backend | Regex matcher | Tables in the artifact |
 | --- | --- | --- |
-| C99 | a DFA compiled at generation time (`source/src/regex_dfa.cpp`) | the character-class partition of `s_ParserRegexDfas` / `kLexClassMap` |
-| C++17 | the standard library `<regex>` (ECMAScript) | `kRegexRes` / `kIdentifierRe` / `kCommitRes` + `lexRegexMatch()` |
+| C99 | Generated DFA or the shared ordered runtime | the character-class partition of `s_ParserRegexDfas` / `kLexClassMap` |
+| C++17 | `std` / conservative `dfa` / shared `vm`; shared Unicode | `kRegexRes` / `kIdentifierRe` / `kCommitRes` + `lexRegexMatch()` |
 | Python | the standard library `re` | `_REGEX_RULES` / `_IDENTIFIER_RE` / `_COMMIT_RES` + `_lex_regex_match()` |
 | C# | `System.Text.RegularExpressions.Regex` | `_REGEX_RE_LIST` / `_IDENTIFIER_RE` / `_COMMIT_RE_LIST` + `_lexRegexMatch()` |
 | Rust | Rust's official `regex` crate (`regex = "1"` in `Cargo.toml`) | `_REGEX_RES` / `_IDENTIFIER_RE` / `_COMMIT_RES` + `lex_regex_match()` (each compiled once inside a `OnceLock`) |
 | Go | the standard library `regexp` (RE2) | `sParserRegexRes` / `sParserIdentifierRe` / `sParserCommitRes` + `sParserLexRegexMatch()` (`regexp.MustCompile` compiles each once at package-level variable initialization) |
 
-**Only C99 artifacts carry DFA tables computed at generation time**, while the other five tiers hand the regex as-is to their respective language's regex library.
+Across targets, distinguish matching order from character domains:
 
-**Generation-time validation and error policy**: the regexes of all six tiers are validated once at **grammar load time**
-(`readRegexPattern`) using the generator's own compiler (`source/src/regex_dfa.cpp`), but **what happens when it cannot accept one differs**:
+- The C/C++ shared runtime supports `\b` word boundaries. Byte mode uses ASCII word characters; `(?u)` uses fixed Unicode 17.0 semantics. Native libraries may use different character domains and Unicode versions.
+- Ordinary C DFA rules take the longest accepting prefix. Ordered runtimes and most native libraries follow branch and greedy/lazy order inside one rule; the lexer then compares lengths and declaration order across rules. Patterns such as `a|ab` are not automatically equivalent across engines.
+- C++ `dfa` optimizes only a proven ASCII subset, otherwise all byte rules fall back to the standard library. `vm` uses shared execution throughout, and explicit Unicode rules always use the shared path.
 
-- **C99**: it really has to use them to compile DFA tables, so "regex syntax error / `{m,n}` upper bound of 32" is a **hard error**
-  (`main.cpp` branches by target language, and the error wording is identical word for word to before);
-- **C++17 / Python / C# / Rust / Go**: only a **warning** is emitted (`GrammarConfig::regexDiagnostics`
-  → `main.cpp`), and generation proceeds as usual — the built-in compiler is just "validating in passing", and its inability to recognize a regex does not mean
-  the target language cannot (a typical case is forms exceeding the 32 bound, such as `[0-9]{1,100}`, which `std::regex` / `re` /
-  .NET's `Regex` / `regex` all accept).
-- **"The regex can match the empty string" is engine-independent**, and is a hard error across all six tiers (the lexer cannot advance in any language).
+See [regex compatibility](../21-regex-compatibility.md) for each rule's engine, unverified native semantics and rejection reasons.
+`--check` validates generation in memory; `--strict-regex` rejects native rules without proven shared equivalence.
+C and C++ `vm` require successful shared compilation. Unrecognized native extensions may warn and proceed, but known unsupported capabilities are rejected.
+The shared bounded-repeat limit is 1000; nullable patterns are rejected.
 
 ### 13.1 Lexical matching (the same order across six tiers)
 
 1. Skip `%space` whitespace before fetching a Token;
 2. Do a longest match among "fixed literals + `%token regex` + `%commit` / `%trivia`":
    literals are tried first in descending length order, and regex and commit each take "the longest match starting from the current position"
-   (C99 consults DFA tables; C++17 / Python / C# / Rust / Go use the greedy matching of their own regex objects,
+   (C uses DFA or shared ordered execution; C++ selects its configured engine; other targets use native regexes,
    and all require "must start from the current position" — C++17 uses `match_continuous`,
    Python's `pattern.match` is anchored by nature, C# additionally checks `Match.Index == start`,
    Rust uses `Regex::find_at` and then confirms `m.start() == start`, Go uses

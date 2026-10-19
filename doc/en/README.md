@@ -153,3 +153,5 @@ Magel's [lambda and function-pointer callbacks](https://github.com/rabbitc999/ma
 [Magel recursion and nested ownership](https://github.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md#9-递归局部存储与嵌套拥有值): local aggregates, reference slots, arrays, function values and interface combinations; the [calculator tool-chain example](https://github.com/rabbitc999/magel/blob/master/example/calculator/README.md) includes both flat and nested ASTs.
 
 [Custom error messages for all eight targets](../19-custom-error-messages.md) and [regex runtime budgets](../20-regex-runtime-budgets.md) (Chinese).
+
+[Regex compatibility reports and validation without writing output](../21-regex-compatibility.md) (Chinese).
