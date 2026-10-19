@@ -169,6 +169,85 @@ async function extension(directory) {
     state.settings.generationProfiles = [{ name: 'Java', mode: 'dd', lang: 'java', outputDir: path.join(directory, 'java') }];
     state.selections.push({ index: 0 }); await state.commands.get('gram.generateProfile')();
     assert.ok(fs.existsSync(path.join(directory, 'java/Parser.java')));
+
+    // 跨文件引用只连接同一包含链，未保存的编辑器内容优先于磁盘。
+    const common = path.join(directory, 'tokens.gram'), parent = path.join(directory, 'parent.gram');
+    const separate = path.join(directory, 'separate.gram');
+    fs.writeFileSync(common, '%token A "a" alias "A"\n');
+    fs.writeFileSync(parent, '%include "tokens.gram"\n%start start\n%left A\nstart := A; // A\n');
+    fs.writeFileSync(separate, '%token A "other"\nother := A;\n');
+    api.workspace.findFiles = async () => [common, parent, separate].map(file => api.Uri.file(file));
+    const imported = { languageId: 'gram', uri: api.Uri.file(common), version: 1,
+      getText: () => '%token A "unsaved" alias "A"\n' };
+    api.workspace.textDocuments.push(imported);
+    const referenceProvider = state.providers.find(item => item.kind === 'references').provider;
+    const renameProvider = state.providers.find(item => item.kind === 'rename').provider;
+    const crossDefinition = state.providers.filter(item => item.kind === 'definition').at(-1).provider;
+    const uses = await referenceProvider.provideReferences(imported, new api.Position(0, 7), { includeDeclaration: false });
+    assert.equal(uses.length, 2); assert.ok(uses.every(item => item.uri.fsPath === parent));
+    const parentDocument = { languageId: 'gram', uri: api.Uri.file(parent), version: 1,
+      getText: () => fs.readFileSync(parent, 'utf8') };
+    api.workspace.textDocuments.push(parentDocument);
+    const cross = await crossDefinition.provideDefinition(parentDocument, new api.Position(3, 9));
+    assert.equal(cross.length, 1); assert.equal(cross[0].uri.fsPath, common);
+    const prepared = await renameProvider.prepareRename(imported, new api.Position(0, 7));
+    assert.equal(prepared.placeholder, 'A');
+    const renamed = await renameProvider.provideRenameEdits(imported, new api.Position(0, 7), 'ITEM');
+    assert.equal(renamed.changes.size, 2);
+    assert.equal([...renamed.changes.values()].flat().length, 3);
+    assert.ok(!renamed.changes.has(api.Uri.file(separate).toString()));
+    fs.writeFileSync(parent, '%include "tokens.gram"\n%token ITEM "item"\nstart := A;\n');
+    parentDocument.version++;
+    await assert.rejects(() => renameProvider.provideRenameEdits(imported, new api.Position(0, 7), 'ITEM'), /冲突/);
+    fs.writeFileSync(parent, '%include "tokens.gram"\nstart := A { $$ = A; };\n'); parentDocument.version++;
+    await assert.rejects(() => renameProvider.provideRenameEdits(imported, new api.Position(0, 7), 'ITEM'), /语义代码/);
+    await assert.rejects(() => renameProvider.provideRenameEdits(imported, new api.Position(0, 7), 'bad-name'), /标识符/);
+    fs.writeFileSync(parent, '%include "tokens.gram"\n%include "missing.gram"\nstart := A;\n'); parentDocument.version++;
+    await assert.rejects(() => renameProvider.provideRenameEdits(imported, new api.Position(0, 7), 'ITEM'), /无法读取包含文件/);
+    const { NavigationIndex } = require('../src/navigation');
+    let indexRequests = 0;
+    const countedClient = { running: true, request: (...args) => { ++indexRequests; return active.request(...args); } };
+    const index = new NavigationIndex({ getClient: () => countedClient });
+    const snapshot = await index.gather(imported);
+    const initialRequests = indexRequests;
+    await index.gather(imported);
+    assert.equal(indexRequests, initialRequests, '未变化的文法应复用原生符号索引');
+    imported.version++;
+    assert.equal(await index.fresh(snapshot), false);
+    const duringRead = await index.gather(imported);
+    const originalRead = fs.promises.readFile;
+    try {
+      fs.promises.readFile = async function (file, ...args) {
+        const result = await originalRead.call(this, file, ...args);
+        if (file === separate) imported.version++;
+        return result;
+      };
+      assert.equal(await index.fresh(duringRead), false, '磁盘核对期间的缓冲区编辑也应使结果失效');
+    } finally { fs.promises.readFile = originalRead; }
+    // 包含片段也可以引用入口文法声明的符号；多个入口产生歧义时拒绝修改。
+    fs.writeFileSync(parent, '%token ROOT "root"\n%include "tokens.gram"\nstart := part;\n'); parentDocument.version++;
+    imported.getText = () => 'part := ROOT;\n'; imported.version++;
+    const inherited = await crossDefinition.provideDefinition(imported, new api.Position(0, 9));
+    assert.equal(inherited[0].uri.fsPath, parent);
+    const inheritedRename = await renameProvider.provideRenameEdits(imported, new api.Position(0, 9), 'ROOT_NEW');
+    assert.equal([...inheritedRename.changes.values()].flat().length, 2);
+    fs.writeFileSync(separate, '%token ROOT "another"\n%include "tokens.gram"\nother := part;\n');
+    await assert.rejects(() => renameProvider.provideRenameEdits(imported, new api.Position(0, 9), 'ROOT_NEW'), /唯一声明/);
+    const parsedIndex = await active.request('gram/symbolIndex', { text:
+      '%include=\'sub/tokens.gram\'\n%code\n%include "not-a-grammar.gram"\n%endcode\nstart := ROOT;\n' });
+    assert.deepEqual(parsedIndex.includes, ['sub/tokens.gram']);
+    const incompleteIndex = await active.request('gram/symbolIndex', { text: 'start := ROOT { missing' });
+    assert.equal(incompleteIndex.incomplete, true);
+    const bomIndex = await active.request('gram/symbolIndex', { text: '\uFEFF%token BOM "bom"\nstart := BOM;' });
+    assert.equal(bomIndex.occurrences[0].name, 'BOM');
+    assert.equal(bomIndex.occurrences[0].range.start.character, 7);
+    const untitled = { languageId: 'gram', version: 1,
+      uri: { scheme: 'untitled', toString: () => 'untitled:Untitled-1' },
+      getText: () => '%token LOCAL "local"\nstart := LOCAL;\n' };
+    const localRename = await renameProvider.provideRenameEdits(untitled, new api.Position(0, 7), 'ITEM');
+    assert.equal([...localRename.changes.values()].flat().length, 2);
+    untitled.getText = () => '%token CLASH "clash"\nCLASH := CLASH;\n'; untitled.version++;
+    await assert.rejects(() => renameProvider.provideRenameEdits(untitled, new api.Position(0, 7), 'ITEM'), /唯一声明/);
   } finally {
     extension.deactivate(); Module._load = originalLoad; LspClient.prototype.initialize = originalInitialize;
     for (const item of subscriptions) item.dispose?.();
@@ -179,5 +258,5 @@ async function extension(directory) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'gram-p0-中文-'));
   try { await cancelClient(); await protocol(); await generation(directory); await extension(directory); }
   finally { fs.rmSync(directory, { recursive: true, force: true }); }
-  console.log('P0 回归通过：UTF-16 增量同步、版本过滤、请求取消、生成互斥及配置重跑');
+  console.log('扩展回归通过：范围同步、取消、增量生成、跨文件引用与安全重命名');
 })().catch(error => { console.error(error); process.exitCode = 1; });

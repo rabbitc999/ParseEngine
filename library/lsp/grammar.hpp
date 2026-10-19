@@ -60,6 +60,15 @@ struct Reference {
     bool literal = false;  // 是 "字面量" 而不是标识符
 };
 
+/** @brief 可重命名的文法符号出现位置；不包含字符串、注释和语义代码。 */
+struct SymbolOccurrence {
+    std::string name; ///< 符号名。
+    Range range; ///< UTF-16 区间。
+    bool declaration = false; ///< 是否为声明。
+    std::string kind; ///< token 或 rule。
+    bool priority = false; ///< 仅在没有显式声明时用作声明的优先级指令参数。
+};
+
 /**
  * 一块文法文档：一次 setText 会重扫并重算诊断。
  */
@@ -159,6 +168,21 @@ public:
      * @return 声明区间列表（同名多声明时会有多项；未命中返回空列表）
      */
     std::vector<Range> definition(Position position) const;
+
+    /** @brief 枚举声明、规则引用及指令中的符号引用。
+     * @return 可安全编辑的符号位置，按源码顺序排列。
+     */
+    std::vector<SymbolOccurrence> occurrences() const;
+
+    /** @brief 提取语义代码原文，供重命名前的保守风险检查。
+     * @return 不参与符号重命名的代码块。
+     */
+    std::vector<std::string> embeddedCode() const;
+
+    /** @brief 提取顶层包含路径，沿用生成器的引号与等号语法。
+     * @return 相对或绝对路径的原文，不包含代码块内的伪指令。
+     */
+    std::vector<std::string> includePaths() const;
 
     /**
      * 快速修复候选（由诊断派生）；目前提供"为隐式终结符补声明"一条。

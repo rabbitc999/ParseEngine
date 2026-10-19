@@ -25,6 +25,7 @@ let serverEpoch = 0;
 let serverReady = false;
 const pendingChanges = new Map();
 const providers = require('./src/providers');
+const navigation = require('./src/navigation');
 const previewPanel = require('./src/previewPanel');
 
 /** 文档改动后多久同步给服务器（毫秒）：跟打字节奏配合，避免每键一次往返。 */
@@ -69,6 +70,11 @@ function activate(context) {
 
   // 1. 语言能力：诊断由服务器推送，其余按需请求。
   providers.registerProviders(context, {
+    getClient: () => serverReady ? client : null,
+    logLine,
+    flushDocument: notifyChange,
+  });
+  navigation.registerNavigation(context, {
     getClient: () => serverReady ? client : null,
     logLine,
     flushDocument: notifyChange,

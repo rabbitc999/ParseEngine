@@ -169,7 +169,8 @@ function createVscodeStub(workspacePath) {
       }
     },
     WorkspaceEdit: class WorkspaceEdit {
-      set() {}
+      constructor() { this.changes = new Map(); }
+      set(uri, edits) { this.changes.set(uri.toString(), edits); }
     },
 
     window: {
@@ -272,6 +273,14 @@ function createVscodeStub(workspacePath) {
         state.providers.push({ kind: 'definition', selector, provider });
         return disposable();
       },
+      registerReferenceProvider: (selector, provider) => {
+        state.providers.push({ kind: 'references', selector, provider });
+        return disposable();
+      },
+      registerRenameProvider: (selector, provider) => {
+        state.providers.push({ kind: 'rename', selector, provider });
+        return disposable();
+      },
       registerDocumentSymbolProvider: (selector, provider) => {
         state.providers.push({ kind: 'symbols', selector, provider });
         return disposable();
@@ -342,7 +351,7 @@ async function main() {
     // 5. 断言注册结果。
     const kinds = state.providers.map((item) => item.kind).sort();
     console.log(`   注册的能力：${kinds.join('、')}`);
-    check('注册了 6 个语言能力', state.providers.length === 6);
+    check('注册了 8 个语言能力入口', state.providers.length === 8);
     // `.mgl`（Magel）归 magel/vscode 插件，MetroLang 的编辑器也已经从这个仓库搬走；
     // 本插件只认 `.gram` 一个语言。
     check('只注册 .gram 一个语言',

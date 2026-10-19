@@ -482,6 +482,8 @@ function main() {
     'icon.png',
     'README.md',
     'src/lspClient.js',
+    'src/generation.js',
+    'src/navigation.js',
     'src/parseEngine.js',
     'src/providers.js',
     'src/serverLocator.js',

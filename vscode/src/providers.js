@@ -263,27 +263,6 @@ function registerProviders(context, deps) {
       ' ',
     ),
 
-    vscode.languages.registerDefinitionProvider(SELECTOR, {
-      /**
-       * 跳转定义：Token / 非终结符引用 → 声明处。
-       *
-       * @param {vscode.TextDocument} document 文档。
-       * @param {vscode.Position} position 位置。
-       * @returns {Promise<vscode.Location[]>} 定义位置。
-       */
-      provideDefinition: async (document, position, token) => {
-        const result = await request('textDocument/definition', {
-          textDocument: { uri: document.uri.toString() },
-          position: { line: position.line, character: position.character },
-        }, document, token);
-        if (!Array.isArray(result)) return [];
-
-        return result
-          .filter((item) => item && item.uri && item.range)
-          .map((item) => new vscode.Location(vscode.Uri.parse(item.uri), toRange(item.range)));
-      },
-    }),
-
     vscode.languages.registerDocumentSymbolProvider(SELECTOR, {
       /**
        * 文档大纲。

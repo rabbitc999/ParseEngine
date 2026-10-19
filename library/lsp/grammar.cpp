@@ -1035,6 +1035,71 @@ std::vector<Range> GrammarDocument::definition(Position position) const {
     return {};
 }
 
+std::vector<SymbolOccurrence> GrammarDocument::occurrences() const {
+    std::vector<SymbolOccurrence> result;
+    const auto &raw = scanResult().result.tokens;
+    const auto key = [](const Range &range) {
+        return std::make_pair(range.start.line, range.start.column);
+    };
+    std::set<std::pair<std::size_t, std::size_t>> declarations, uses;
+    std::map<std::string, std::string> kinds;
+    for (const auto &token : tokens_) { declarations.insert(key(token.range)); kinds[token.name] = "token"; }
+    for (const auto &rule : rules_) kinds.emplace(rule.name, "rule");
+    for (const auto &reference : references_) if (!reference.literal) uses.insert(key(reference.range));
+    std::string directive;
+    std::size_t directiveLine = static_cast<std::size_t>(-1);
+    for (std::size_t index = 0; index < raw.size(); ++index) {
+        const auto &item = raw[index];
+        if (item.kind == Raw::Directive && item.firstOnLine) {
+            directive = item.text; directiveLine = item.range.start.line;
+        }
+        if (item.kind != Raw::Ident || isInlineKeyword(item.range)) continue;
+        bool declaration = declarations.count(key(item.range)), use = uses.count(key(item.range));
+        const bool ruleDeclaration = index + 1 < raw.size() && raw[index + 1].kind == Raw::Assign;
+        const bool priority = directiveLine == item.range.start.line &&
+            (directive == "%left" || directive == "%right" || directive == "%nonassoc");
+        if (ruleDeclaration) declaration = true;
+        if (directiveLine == item.range.start.line &&
+            (directive == "%token" || directive == "%regex" || directive == "%define")) declaration = true;
+        if (priority) declaration = true;
+        if (directiveLine == item.range.start.line &&
+            (directive == "%start" || directive == "%sync" || directive == "%type" ||
+             directive == "%left" || directive == "%right" || directive == "%nonassoc")) use = true;
+        if (declaration || use) result.push_back({item.text, item.range, declaration,
+            ruleDeclaration ? "rule" : declaration ? "token" : kinds[item.text], priority});
+    }
+    return result;
+}
+
+std::vector<std::string> GrammarDocument::embeddedCode() const {
+    std::vector<std::string> result;
+    Cursor cursor(text_);
+    for (const auto &item : scanResult().result.tokens) {
+        if (item.kind != Raw::Code) continue;
+        while (!cursor.eof() && cursor.position() < item.range.start) cursor.get();
+        const auto start = cursor.offset();
+        while (!cursor.eof() && cursor.position() < item.range.end) cursor.get();
+        result.push_back(text_.substr(start, cursor.offset() - start));
+    }
+    return result;
+}
+
+std::vector<std::string> GrammarDocument::includePaths() const {
+    std::set<std::size_t> includeLines;
+    for (const auto &directive : directives_) {
+        if (directive.name == "%include") includeLines.insert(directive.range.start.line);
+    }
+    std::vector<std::string> result;
+    std::istringstream stream(text_);
+    std::string line, included;
+    std::size_t number = 0;
+    while (std::getline(stream, line)) {
+        if (includeLines.count(number) && parseIncludeLine(line, &included)) result.push_back(included);
+        ++number;
+    }
+    return result;
+}
+
 std::vector<CodeAction> GrammarDocument::codeActions() const {
     std::vector<CodeAction> actions;
     for (const auto& diagnostic : diagnostics_) {

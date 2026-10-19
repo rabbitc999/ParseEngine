@@ -114,7 +114,7 @@ run_step "构建 ParseEngine 生成器" make -C source -j4 || exit 1
 if [ "$run_python" = 1 ]; then
     run_step "VS Code 语言服务与生成预览" node vscode/test/smoke.js
     run_step "VS Code 扩展集成" node vscode/test/extension-smoke.js
-    run_step "VS Code 增量同步、取消与生成配置" node vscode/test/p0.js
+    run_step "VS Code 增量工作流、引用与安全重命名" node vscode/test/p0.js
     run_step "C++ DFA 与标准库一致性" "$PYTHON" tests/cpp_dfa_std.py
     run_step "扩展正则跨 C/C++ 回归" "$PYTHON" tests/regex_extended.py
     run_step "Unicode 正则跨 C/C++ 回归" "$PYTHON" tests/regex_unicode.py

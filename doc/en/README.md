@@ -158,4 +158,4 @@ Magel's [lambda and function-pointer callbacks](https://github.com/rabbitc999/ma
 
 [Binary incremental generation and C++11 subset tests](../22-incremental-generation.md) (Chinese).
 
-[VS Code large-grammar editing and incremental generation](../23-vscode-workflow.md) (Chinese).
+[VS Code large-grammar editing, incremental generation and workspace rename](../23-vscode-workflow.md) (Chinese).

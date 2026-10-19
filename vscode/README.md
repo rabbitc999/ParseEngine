@@ -33,6 +33,10 @@
 
 配置示例、取消的边界与后续范围见 [23 VS Code 工作流](../doc/23-vscode-workflow.md)。
 
+1.3 版本继续加入工作区查找引用（Shift+F12）、安全重命名（F2）和跨 `%include` 跳转。
+索引复用原生扫描器，优先使用未保存的编辑内容，区分无关文法里的同名符号；
+重命名前检查名称冲突、多个入口的歧义和语义代码引用。
+
 ## 功能
 
 | 功能 | 来源 | 说明 |
@@ -144,7 +148,7 @@ node vscode/test/p0.js
 | 脚本 | 测什么 |
 | --- | --- |
 | `test/smoke.js` | LSP 全流程：初始化 → 打开文档 → 诊断 → 悬停 → 补全 → 跳转 → 大纲 → 格式化 → 快速修复；生成 Python / C++17 产物；LALR / GLR Token 与语法树预览 |
-| `test/extension-smoke.js` | 用"桩 vscode"直接加载 `extension.js`：验证 6 个语言能力与 9 个命令、预览 Webview 与内联脚本、服务器启动和 `deactivate` 收尾 |
+| `test/extension-smoke.js` | 用“桩 vscode”直接加载 `extension.js`：验证 8 个语言能力入口与 9 个命令、预览 Webview 与内联脚本、服务器启动和 `deactivate` 收尾 |
 
 ## 自动打包（.vsix）
 

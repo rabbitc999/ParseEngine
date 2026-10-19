@@ -370,6 +370,34 @@ std::string Server::handleMessage(const std::string& payload) {
         return frameMessage(notification.dump());
     }
 
+    // 编辑器工作区索引只建立文法符号模型，不读磁盘、不改已打开的文档。
+    if (method == "gram/symbolIndex") {
+        GrammarDocument model;
+        std::string text = params.getString("text");
+        if (text.compare(0, 3, "\xEF\xBB\xBF") == 0) text.erase(0, 3);
+        model.setText(std::move(text));
+        Json result = Json::object(), occurrences = Json::array(), includes = Json::array(), code = Json::array();
+        for (const auto &item : model.occurrences()) {
+            Json occurrence = Json::object();
+            occurrence.set("name", Json::string(item.name));
+            occurrence.set("range", rangeJson(item.range));
+            occurrence.set("declaration", Json::boolean(item.declaration));
+            occurrence.set("priority", Json::boolean(item.priority));
+            occurrence.set("kind", Json::string(item.kind));
+            occurrences.push(std::move(occurrence));
+        }
+        for (const auto &included : model.includePaths()) includes.push(Json::string(included));
+        for (const auto &item : model.embeddedCode()) code.push(Json::string(item));
+        bool incomplete = false;
+        for (const auto &diagnostic : model.diagnostics())
+            if (diagnostic.code.compare(0, 13, "unterminated-") == 0) incomplete = true;
+        result.set("incomplete", Json::boolean(incomplete));
+        result.set("occurrences", std::move(occurrences));
+        result.set("includes", std::move(includes));
+        result.set("code", std::move(code));
+        return frameMessage(response(id, std::move(result)).dump());
+    }
+
     Document* doc = document(params);
     if (doc == nullptr) {
         return isRequest ? frameMessage(error(id, -32602, "未打开的文本文档").dump()) : std::string();
