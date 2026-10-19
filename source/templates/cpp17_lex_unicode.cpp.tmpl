@@ -1,0 +1,23 @@
+/* 显式 Unicode 模式的共用有序运行时与生成期编译的程序。 */
+{{ runtime }}
+{% for program in programs %}
+static const PeRegexInst {{ program.name }}Code[] = {
+{% for row in program.rows %}    {{ row }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+static const uint32_t {{ program.name }}Ranges[] = {
+{% for value in program.ranges %}    {{ value }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+static const PeRegexProgram {{ program.name }} = {
+    {{ program.name }}Code, {{ program.count }}u, {{ program.entry }}u, {{ program.groups }}u,
+    {{ program.name }}Ranges, 1
+};
+{% endfor %}
+/** @brief Unicode 正则文本与不可变程序的对应关系。 */
+struct LexUnicodeEntry
+{
+    const char *pattern;
+    const PeRegexProgram *program;
+};
+static const LexUnicodeEntry kLexUnicodeEntries[] = {
+{% for program in programs %}    { {{ program.pattern }}, &{{ program.name }} }{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};

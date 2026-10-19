@@ -16,6 +16,7 @@
 #include "ParseEngine/action_translator.hpp"
 #include "ParseEngine/grammar_loader.hpp"
 #include "ParseEngine/regex_dfa.hpp"
+#include "ParseEngine/regex_vm.hpp"
 #include "ParseEngine/utils.hpp"
 
 // 产物模板（source/templates/cpp17_*.tmpl）走 library/template 的模板引擎：
@@ -328,10 +329,52 @@ std::string generatorLexRulesCpp17(
                               {{"rules", tmpl::encode(rows)}});
 }
 
+/** @brief 生成 Unicode 程序的不可变数据表。
+ * @param patterns 正则列表。 @param out 输出片段。 @return 有 Unicode 程序时返回真。
+ */
+bool generatorUnicodeRegexCpp17(const std::vector<std::string> &patterns, std::string &out)
+{
+    auto programs = std::make_shared<tmpl::Array>();
+    std::set<std::string> seen;
+    for (const auto &pattern : patterns)
+    {
+        if (!RegexVm::unicodeMode(pattern) || !seen.insert(pattern).second) continue;
+        RegexVmProgram program;
+        Error error;
+        if (!RegexVm::compile(pattern, program, error)) fatalInternal(error.message);
+        auto item = std::make_shared<tmpl::Object>();
+        item->insert("name", "s_cppUnicodeRegex" + std::to_string(programs->items.size()));
+        item->insert("pattern", Utils::varCString(pattern));
+        item->insert("count", std::to_string(program.code.size()));
+        item->insert("entry", std::to_string(program.entry));
+        item->insert("groups", std::to_string(program.groups));
+        std::vector<std::string> rows, ranges;
+        for (const auto &instruction : program.code)
+        {
+            std::string row = "{ " + std::to_string(instruction.op) + ", " + std::to_string(instruction.next) +
+                ", " + std::to_string(instruction.other) + ", " + std::to_string(instruction.value) + ", { ";
+            for (std::size_t index = 0; index < instruction.bits.size(); ++index)
+                row += (index ? ", " : "") + std::to_string(instruction.bits[index]);
+            rows.push_back(row + " }, " + std::to_string(instruction.rangeOffset) + "u, " +
+                           std::to_string(instruction.rangeCount) + "u }");
+        }
+        for (const auto point : program.ranges) ranges.push_back(std::to_string(point) + "u");
+        if (ranges.empty()) ranges.push_back("0u");
+        item->insert("rows", tmpl::encode(rows));
+        item->insert("ranges", tmpl::encode(ranges));
+        programs->items.emplace_back(item);
+    }
+    if (programs->items.empty()) return false;
+    out += tmpl::renderValues(Utils::loadTemplate("cpp17_lex_unicode.cpp"),
+        {{"runtime", Utils::loadTemplate("regex_unicode_data.h") + Utils::loadTemplate("regex_vm_runtime.h")},
+         {"programs", tmpl::Value(programs)}});
+    return true;
+}
+
 /**
  * @brief 生成 %token regex / %identifier / %commit 的**正则表**（C++17 版）。
  *
- * 产物里不再放 DFA 表：词法匹配交给标准库的 `std::regex`（ECMAScript 语法）。
+ * 字节模式交给 std::regex；显式 Unicode 模式使用生成期编译的共享程序。
  * 生成期用自带编译器做的那一遍校验在文法加载时（`readRegexPattern`）就做过了，
  * 认不下的由 `main.cpp` 分流：C99 是硬错误、其余档只警告（自带编译器不认识
  * 不等于 `std::regex` 不认，见 `GrammarConfig::regexDiagnostics`）。
@@ -347,6 +390,11 @@ void generatorLexRegexCpp17(
     const std::vector<CommitSpec> &commits,
     const std::map<std::string, int> &tokenLexOrder, std::string &outTables)
 {
+    std::vector<std::string> patterns;
+    for (const auto &entry : regexDefs) patterns.push_back(entry.second);
+    if (identifierPattern) patterns.push_back(*identifierPattern);
+    for (const auto &commit : commits) patterns.push_back(commit.pattern);
+    const bool hasUnicode = generatorUnicodeRegexCpp17(patterns, outTables);
     const bool hasIdentifier = identifierPattern.has_value();
     std::vector<std::pair<std::string, std::string>> entries;
     for (const auto &entry : regexDefs)
@@ -388,7 +436,8 @@ void generatorLexRegexCpp17(
     }
     outTables += tmpl::renderValues(
         Utils::loadTemplate("cpp17_lex_regex.cpp"),
-        {{"has_regex", !regexEntries.empty()},
+        {{"has_unicode", hasUnicode},
+         {"has_regex", !regexEntries.empty()},
          {"regex_count", std::to_string(entries.size())},
          {"regex_entries", tmpl::encode(regexEntries)},
          {"commit_count", std::to_string(commits.size())},

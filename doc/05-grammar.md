@@ -1123,3 +1123,5 @@ LL 家族**不写任何恢复指令也有恢复**——运行时会自动按下�
 - 正则编译：`source/src/regex_dfa.cpp`
 
 扩展正则的前瞻、词边界、`(?i)` 和数字反向引用，见 [17 扩展正则表达式](17-regex-extensions.md)。
+
+显式 `(?u)` / `(?iu)` 模式及 Unicode 属性、边界和码点长度，见 [18 Unicode 正则模式](18-regex-unicode.md)。

@@ -210,14 +210,19 @@ bool generatorLexVmC(
                 ", " + std::to_string(instruction.value) + ", { ";
             for (std::size_t byte = 0; byte < instruction.bits.size(); ++byte)
                 row += (byte ? ", " : "") + std::to_string(instruction.bits[byte]);
-            rows.push_back(row + " } }");
+            rows.push_back(row + " }, " + std::to_string(instruction.rangeOffset) + "u, " +
+                           std::to_string(instruction.rangeCount) + "u }");
         }
         auto item = std::make_shared<tmpl::Object>();
         item->insert("name", name);
         item->insert("rows", tmpl::encode(rows));
+        std::vector<std::string> ranges;
+        for (const auto point : program.ranges) ranges.push_back(std::to_string(point) + "u");
+        if (ranges.empty()) ranges.push_back("0u");
+        item->insert("ranges", tmpl::encode(ranges));
         programs->items.emplace_back(item);
         descriptors.push_back("{ " + name + ", " + std::to_string(program.code.size()) +
-            "u, " + std::to_string(program.entry) + "u, " + std::to_string(program.groups) + "u }");
+            "u, " + std::to_string(program.entry) + "u, " + std::to_string(program.groups) + "u, " + name + "Ranges, " + (program.unicode ? "1" : "0") + " }");
     }
     for (std::size_t index = 0; index < entries.size(); ++index)
     {
@@ -236,13 +241,15 @@ bool generatorLexVmC(
     }
     if (commits.empty())
     {
-        commitDescriptors.push_back("{ NULL, 0u, 0u, 0u }");
+        commitDescriptors.push_back("{ NULL, 0u, 0u, 0u, NULL, 0 }");
         commitTypes.push_back("NULL");
         commitSkips.push_back("0u");
         commitOrders.push_back("0");
     }
     out += tmpl::renderValues(Utils::loadTemplate("c99_lex_vm_tables.c"),
-        {{"runtime", Utils::loadTemplate("regex_vm_runtime.h")}, {"programs", tmpl::Value(programs)},
+        {{"runtime", (std::any_of(patterns.begin(), patterns.end(), [](const auto &pattern) {
+               return RegexVm::unicodeMode(pattern.second);
+           }) ? Utils::loadTemplate("regex_unicode_data.h") : std::string()) + Utils::loadTemplate("regex_vm_runtime.h")}, {"programs", tmpl::Value(programs)},
          {"has_regex", !entries.empty()}, {"has_identifier", hasIdentifier},
          {"regex_descriptors", tmpl::encode(regexDescriptors)}, {"regex_types", tmpl::encode(regexTypes)},
          {"regex_orders", tmpl::encode(regexOrders)}, {"commit_descriptors", tmpl::encode(commitDescriptors)},

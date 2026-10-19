@@ -9,10 +9,18 @@
 int main(int argc, char **argv)
 {
     using namespace Parser;
-    if (argc != 2) return 2;
+    if (argc != 1 && argc != 2) return 2;
+    ParserMemory::String input;
+    if (argc == 2) input = argv[1];
+    else
+    {
+        char buffer[4096];
+        std::size_t count;
+        while ((count = std::fread(buffer, 1, sizeof(buffer), stdin)) != 0) input.append(buffer, count);
+    }
     Engine engine;
     ParserMemory::Vector<Token> tokens;
-    const Status status = engine.tokenize(argv[1], &tokens);
+    const Status status = engine.tokenize(input, &tokens);
     for (const auto &token : tokens)
     {
         const auto text = tokenText(token);

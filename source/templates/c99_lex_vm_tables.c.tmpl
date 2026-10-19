@@ -5,6 +5,9 @@ static const PeRegexInst {{ program.name }}[] =
 {
 {% for row in program.rows %}    {{ row }}{% if loop_last %}{% else %},{% endif %}
 {% endfor %}};
+static const uint32_t {{ program.name }}Ranges[] = {
+{% for value in program.ranges %}    {{ value }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
 {% endfor %}
 {% if has_regex %}
 const ParserLexDfa_T s_ParserRegexDfas[PARSER_REGEX_COUNT] =
@@ -47,6 +50,8 @@ uint32_t Parser_LexDfaMatch(const ParserLexDfa_T *pDfa, const char *pText)
     program.count = pDfa->count;
     program.entry = pDfa->entry;
     program.groups = pDfa->groups;
+    program.ranges = pDfa->ranges;
+    program.unicode = pDfa->unicode;
     return PeRegexMatch(&program, pText);
 }
 {% if has_identifier %}

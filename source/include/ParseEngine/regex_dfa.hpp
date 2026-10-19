@@ -11,7 +11,7 @@
  *   - 字符类 `[...]`：区间、`^` 取反、`[]` 里以字面量出现的 `]`、类内联合
  *     （`[[:alpha:]]` / `[[:^alpha:]]`、`\p{L}`、`\d` 等）
  *   - 上下文语法：`^` / `$`、`(?=...)` / `(?!...)`、`\b` / `\B`、捕获组与数字
- *     反向引用、模式开头的 `(?i)`；由 RegexVm 或目标标准库执行，不能当作空串 DFA；
+ *     反向引用、模式开头的 `(?i)` / `(?u)` / `(?iu)`；由 RegexVm 或目标标准库执行，不能当作空串 DFA；
  *   - 重复 `*` `+` `?` `{m}` `{m,}` `{m,n}`（`m` 上限 k_maxRepeat），以及四种
  *     非贪婪写法 `*?` `+?` `??` `{m,n}?`（最长匹配语义下等价于贪婪版，见
  *     `RegexNode::lazy`）。
@@ -75,7 +75,8 @@ struct RegexNode
     Kind kind = Kind::Empty;                       ///< 节点类别
     Assertion assertion = Assertion::LineStart;    ///< Assertion 节点的类别
     int group = 0;                                ///< 捕获组或反向引用编号
-    bool ignoreCase = false;                       ///< ASCII 忽略大小写标记
+    bool unicode = false;                          ///< 模式开头 (?u) 的码点语义
+    bool ignoreCase = false;                       ///< 大小写标记（字节模式 ASCII，Unicode 模式简单折叠）
     bool lazy = false;                             ///< 非贪婪标记（*? +? ?? {m,n}?）
     std::shared_ptr<RegexNode> left;               ///< 一元/二元子节点
     std::shared_ptr<RegexNode> right;              ///< 二元子节点

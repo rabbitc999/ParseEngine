@@ -997,3 +997,5 @@ ParseEngine example/ielr_demo.gram --out-dir /tmp/ielr_gram --lang gram \
 C99 的普通 DFA 路径继续使用最长接受前缀语义；扩展模式使用有序运行时，详见 [17 扩展正则表达式](17-regex-extensions.md)。C/C++ 共用编译器已修复 `{m,n}`
 误变成 `{m,}`、`{m,}` 被误报上下限错误、范围重复丢失非贪婪标记和 `\0` 被误拒绝。
 回归同时直接将共用编译器的 DFA 完整匹配结果与 `std::regex_match` 对照，验证重复边界。
+
+C++ 显式 Unicode 规则使用与 C99 共用的内嵌有序运行时，可与标准库字节规则混用，见 [18 Unicode 正则模式](18-regex-unicode.md)。

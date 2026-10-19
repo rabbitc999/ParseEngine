@@ -2590,6 +2590,11 @@ std::string GramParser::readRegexPattern(const std::string &what)
     std::shared_ptr<RegexNode> ast;
     if (!RegexDfa::parse(pattern, ast, regexError))
     {
+        if (RegexVm::unicodeMode(pattern))
+        {
+            fail(what + " 的 Unicode 正则 " + quoted + " 有误：" + regexError.message);
+            return {};
+        }
         regexDiagnostic(what + " 的正则 " + quoted + " 有误：" +
                         regexError.message);
         return pattern;

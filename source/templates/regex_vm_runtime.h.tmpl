@@ -11,12 +11,15 @@ typedef struct PeRegexInst
 {
     int op, next, other, value;
     unsigned char bits[32];
+    size_t rangeOffset, rangeCount;
 } PeRegexInst;
 /** @brief 不可变正则程序。 */
 typedef struct PeRegexProgram
 {
     const PeRegexInst *code;
     size_t count, entry, groups;
+    const uint32_t *ranges;
+    int unicode;
 } PeRegexProgram;
 /** @brief 一个回溯点及其独立捕获快照。 */
 typedef struct PeRegexFrame
@@ -34,6 +37,62 @@ static int PeRegexWord(unsigned char ch)
 static unsigned char PeRegexFold(unsigned char ch)
 {
     return ((ch >= 'A') && (ch <= 'Z')) ? (unsigned char)(ch + 32) : ch;
+}
+/** @brief 严格解码一个 UTF-8 标量值。 @param text 输入。 @param length 字节数。
+ * @param pos 起点。 @param point 输出码点。 @param next 输出下一位置。 @return 合法返回真。
+ */
+static int PeRegexDecode(const char *text, size_t length, size_t pos, uint32_t *point, size_t *next)
+{
+    uint32_t value, minimum;
+    size_t count, index;
+    unsigned char lead;
+    if (pos >= length) return 0;
+    lead = (unsigned char)text[pos];
+    if (lead < 0x80) { *point = lead; *next = pos + 1; return 1; }
+    if (lead >= 0xC2 && lead <= 0xDF) { count = 2; value = lead & 31u; minimum = 0x80; }
+    else if (lead >= 0xE0 && lead <= 0xEF) { count = 3; value = lead & 15u; minimum = 0x800; }
+    else if (lead >= 0xF0 && lead <= 0xF4) { count = 4; value = lead & 7u; minimum = 0x10000; }
+    else return 0;
+    if (count > length - pos) return 0;
+    for (index = 1; index < count; ++index)
+    {
+        const unsigned char follow = (unsigned char)text[pos + index];
+        if ((follow & 0xC0u) != 0x80u) return 0;
+        value = (value << 6) | (follow & 63u);
+    }
+    if (value < minimum || value > 0x10FFFFu || (value >= 0xD800u && value <= 0xDFFFu)) return 0;
+    *point = value; *next = pos + count;
+    return 1;
+}
+/** @brief 二分查找当前 Unicode 字符类。 @param ranges 扁平区间。
+ * @param count 区间数。 @param point 码点。 @return 包含返回真。
+ */
+static int PeRegexRanges(const uint32_t *ranges, size_t count, uint32_t point)
+{
+    size_t low = 0, high = count;
+    while (low < high)
+    {
+        const size_t middle = low + (high - low) / 2;
+        if (point < ranges[2 * middle]) high = middle;
+        else if (point > ranges[2 * middle + 1]) low = middle + 1;
+        else return 1;
+    }
+    return 0;
+}
+/** @brief 查询位置上的单词属性。 @param program 模式。 @param text 输入。
+ * @param length 长度。 @param pos 位置。 @return 单词返回一，非法 UTF-8 返回负一。
+ */
+static int PeRegexWordAt(const PeRegexProgram *program, const char *text, size_t length, size_t pos)
+{
+    uint32_t point; size_t next;
+    if (pos >= length) return 0;
+    if (!program->unicode) return PeRegexWord((unsigned char)text[pos]);
+    if (!PeRegexDecode(text, length, pos, &point, &next)) return -1;
+#ifdef PE_REGEX_UNICODE_DATA_H
+    return PeUnicodeContains(PeUnicodeWord, sizeof(PeUnicodeWord) / (2 * sizeof(uint32_t)), point);
+#else
+    return point < 128u && PeRegexWord((unsigned char)point);
+#endif
 }
 /** @brief 执行有序回溯：普通回溯使用堆栈，只有语法嵌套的前瞻递归。
  * @param program 程序。 @param text 输入。 @param length 字节数。
@@ -67,11 +126,19 @@ static int PeRegexRun(const PeRegexProgram *program, const char *text, size_t le
             goto finish;
         case 1:
             if (pos >= length) goto backtrack;
+            if (program->unicode)
+            {
+                uint32_t point; size_t next;
+                if (!PeRegexDecode(text, length, pos, &point, &next) ||
+                    !PeRegexRanges(program->ranges + instruction->rangeOffset, instruction->rangeCount, point)) goto backtrack;
+                pos = next;
+            }
+            else
             {
                 const unsigned char ch = (unsigned char)text[pos];
                 if (!(instruction->bits[ch >> 3] & (1u << (ch & 7)))) goto backtrack;
+                ++pos;
             }
-            ++pos;
             pc = (size_t)instruction->next;
             break;
         case 2:
@@ -106,9 +173,17 @@ static int PeRegexRun(const PeRegexProgram *program, const char *text, size_t le
             break;
         case 6:
             {
-                const int before = pos && PeRegexWord((unsigned char)text[pos - 1]);
-                const int after = pos < length && PeRegexWord((unsigned char)text[pos]);
-                if ((before != after) == instruction->value) goto backtrack;
+                size_t previous = pos ? pos - 1 : 0;
+                int before = 0;
+                const int after = PeRegexWordAt(program, text, length, pos);
+                if (program->unicode && pos)
+                {
+                    uint32_t point; size_t next;
+                    while (previous > 0 && (((unsigned char)text[previous] & 0xC0u) == 0x80u)) --previous;
+                    if (!PeRegexDecode(text, length, previous, &point, &next) || next != pos) goto backtrack;
+                }
+                if (pos) before = PeRegexWordAt(program, text, length, previous);
+                if (before < 0 || after < 0 || ((before != after) == instruction->value)) goto backtrack;
             }
             pc = (size_t)instruction->next;
             break;
@@ -117,6 +192,28 @@ static int PeRegexRun(const PeRegexProgram *program, const char *text, size_t le
                 const size_t begin = state[2 * instruction->value];
                 const size_t stop = state[2 * instruction->value + 1];
                 if ((begin == missing) || (stop == missing)) goto backtrack;
+                if (program->unicode)
+                {
+                    size_t source = begin, cursor = pos;
+                    while (source < stop)
+                    {
+                        uint32_t a, b; size_t sourceNext, cursorNext;
+                        if (!PeRegexDecode(text, stop, source, &a, &sourceNext) ||
+                            !PeRegexDecode(text, length, cursor, &b, &cursorNext)) goto backtrack;
+                        if (instruction->other)
+                        {
+#ifdef PE_REGEX_UNICODE_DATA_H
+                            a = PeUnicodeFold(a); b = PeUnicodeFold(b);
+#else
+                            a = PeRegexFold((unsigned char)a); b = PeRegexFold((unsigned char)b);
+#endif
+                        }
+                        if (a != b) goto backtrack;
+                        source = sourceNext; cursor = cursorNext;
+                    }
+                    pos = cursor;
+                }
+                else
                 {
                     const size_t count = stop - begin;
                     if (count > length - pos) goto backtrack;
@@ -177,9 +274,9 @@ finish:
     return matched;
 }
 /** @brief 从输入起点做一次有序匹配。 @param program 程序。
- * @param text 输入。 @return 接受前缀字节数，零表示不匹配或零宽匹配。
+ * @param text 输入。 @param length 输入字节数。 @return 接受前缀字节数，零表示不匹配或零宽匹配。
  */
-static uint32_t PeRegexMatch(const PeRegexProgram *program, const char *text)
+static uint32_t PeRegexMatchLength(const PeRegexProgram *program, const char *text, size_t length)
 {
     const size_t slots = 2 * (program->groups + 1);
     size_t *captures = (size_t *)malloc(slots * sizeof(size_t));
@@ -187,8 +284,13 @@ static uint32_t PeRegexMatch(const PeRegexProgram *program, const char *text)
     int found;
     if (captures == NULL) return 0;
     for (index = 0; index < slots; ++index) captures[index] = (size_t)-1;
-    found = PeRegexRun(program, text, strlen(text), program->entry, 0, captures, &end);
+    found = PeRegexRun(program, text, length, program->entry, 0, captures, &end);
     free(captures);
     return found > 0 ? (uint32_t)end : 0;
+}
+/** @brief 匹配以 NUL 结束的文本。 @param program 程序。 @param text 输入。 @return 前缀字节数。 */
+static inline uint32_t PeRegexMatch(const PeRegexProgram *program, const char *text)
+{
+    return PeRegexMatchLength(program, text, strlen(text));
 }
 #endif

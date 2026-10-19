@@ -1,17 +1,37 @@
 /* %token regex / %identifier / %commit 的正则：用标准库 <regex> 在每个
  * 位置各做一次最长匹配（ECMAScript 语法，见 lexRegexMatch）。 */
-/** @brief 将模式开头的 (?i) 转换为标准库 icase 选项。
- * @param pattern 正则文本。 @return ECMAScript 正则对象。
- */
-inline std::regex lexCompileRegex(const char *pattern = "")
+{% if has_unicode %}
+/** @brief 标准库字节模式或共享 Unicode 程序。 */
+struct LexRegex
 {
-    const bool ignoreCase = std::strncmp(pattern, "(?i)", 4u) == 0;
+    std::regex standard;
+    const PeRegexProgram *unicode = nullptr;
+};
+{% else %}using LexRegex = std::regex;
+{% endif %}
+/** @brief 选择显式 Unicode 程序，或将 (?i) 转换为标准库选项。
+ * @param pattern 正则文本。 @return 已编译规则。
+ */
+inline LexRegex lexCompileRegex(const char *pattern = "")
+{
+{% if has_unicode %}    for (const auto &entry : kLexUnicodeEntries)
+        if (std::strcmp(pattern, entry.pattern) == 0) return {std::regex(), entry.program};
+{% endif %}    bool ignoreCase = false;
+    while (std::strncmp(pattern, "(?", 2u) == 0)
+    {
+        const char *end = pattern + 2u;
+        while (*end == 'i') ++end;
+        if (end == pattern + 2u || *end != ')') break;
+        ignoreCase = true;
+        pattern = end + 1u;
+    }
     const auto flags = std::regex_constants::ECMAScript |
         (ignoreCase ? std::regex_constants::icase : std::regex_constants::syntax_option_type{});
-    return std::regex(pattern + (ignoreCase ? 4u : 0u), flags);
-}
+{% if has_unicode %}    return {std::regex(pattern, flags), nullptr};
+{% else %}    return std::regex(pattern, flags);
+{% endif %}}
 {% if has_regex %}/* %token regex 声明的 Token：与固定字面量一起做最长匹配 */
-inline const std::regex kRegexRes[] =
+inline const LexRegex kRegexRes[] =
 {
 {% for r in regex_entries %}{% if loop_first %}{% else %},
 {% endif %}    lexCompileRegex({{ r.pattern }}){% endfor %}
@@ -30,7 +50,7 @@ inline constexpr int kRegexOrders[] =
 inline constexpr std::uint32_t kRegexCount = {{ regex_count }}u;
 
 {% endif %}/* %commit 声明的片段：与 %token 一起做最长匹配；同长度时按声明序先声明优先。 */
-inline const std::regex kCommitRes[] =
+inline const LexRegex kCommitRes[] =
 {
 {% for c in commit_entries %}{% if loop_first %}{% else %},
 {% endif %}    lexCompileRegex({{ c.pattern }}){% endfor %}
@@ -53,7 +73,7 @@ inline constexpr int kCommitOrders[] =
 inline constexpr std::size_t kCommitCount = {{ commit_count }}u;
 
 {% if has_identifier %}/* %identifier 声明的标识符正则 */
-inline const std::regex kIdentifierRe = lexCompileRegex({{ identifier_pattern }});
+inline const LexRegex kIdentifierRe = lexCompileRegex({{ identifier_pattern }});
 
 {% endif %}/**
  * @brief 用 std::regex 从 text[pos] 起匹配，返回匹配到的字节数（0 = 不匹配）。
@@ -66,7 +86,7 @@ inline const std::regex kIdentifierRe = lexCompileRegex({{ identifier_pattern }}
  * @param pos 起始位置。
  * @return 匹配到的字节数（0 表示不匹配）。
  */
-inline std::uint32_t lexRegexMatch(const std::regex &pattern,
+inline std::uint32_t lexRegexMatch(const LexRegex &pattern,
                                    const ParserMemory::String &text,
                                    std::size_t pos)
 {
@@ -74,10 +94,14 @@ inline std::uint32_t lexRegexMatch(const std::regex &pattern,
     {
         return 0u;
     }
-    std::cmatch match;
+{% if has_unicode %}    if (pattern.unicode != nullptr)
+        return PeRegexMatchLength(pattern.unicode, text.data() + pos, text.size() - pos);
+    const std::regex &standard = pattern.standard;
+{% else %}    const std::regex &standard = pattern;
+{% endif %}    std::cmatch match;
     const char *const pBegin = text.data() + pos;
     const char *const pEnd = text.data() + text.size();
-    if (!std::regex_search(pBegin, pEnd, match, pattern,
+    if (!std::regex_search(pBegin, pEnd, match, standard,
                            std::regex_constants::match_continuous))
     {
         return 0u;

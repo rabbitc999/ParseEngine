@@ -31,6 +31,17 @@ public:
         case Kind::Class:
         {
             const int pc = emit(1, next);
+            if (program.unicode)
+            {
+                program.code[pc].rangeOffset = static_cast<int>(program.ranges.size());
+                program.code[pc].rangeCount = static_cast<int>(node->ranges.size());
+                for (const auto &range : node->ranges)
+                {
+                    program.ranges.push_back(static_cast<uint32_t>(range.first));
+                    program.ranges.push_back(static_cast<uint32_t>(range.second));
+                }
+                return pc;
+            }
             for (unsigned byte = 0; byte < 256; ++byte)
                 for (const auto &range : node->ranges)
                     if ((byte >= range.first) && (byte <= range.second))
@@ -115,6 +126,26 @@ public:
     }
 };
 }
+/** @brief 识别模式开头的 u 标志。 @param pattern 模式。 @return Unicode 模式返回真。 */
+bool RegexVm::unicodeMode(const std::string &pattern)
+{
+    bool unicode = false;
+    std::size_t pos = 0;
+    while (pattern.compare(pos, 2, "(?") == 0)
+    {
+        std::size_t end = pos + 2;
+        bool found = false;
+        while (end < pattern.size() && (pattern[end] == 'i' || pattern[end] == 'u'))
+        {
+            if (pattern[end] == 'u') found = true;
+            ++end;
+        }
+        if (end == pos + 2 || end >= pattern.size() || pattern[end] != ')') break;
+        unicode = unicode || found;
+        pos = end + 1;
+    }
+    return unicode;
+}
 /** @brief 检查 DFA 无法表达的上下文节点。 @param node AST 根。 @return 需要上下文返回真。 */
 bool RegexVm::contextRequired(const std::shared_ptr<RegexNode> &node)
 {
@@ -130,7 +161,7 @@ bool RegexVm::required(const std::shared_ptr<RegexNode> &node)
 {
     if (!node) return false;
     using Kind = RegexNode::Kind;
-    return node->ignoreCase || node->lazy || node->kind == Kind::Assertion ||
+    return node->unicode || node->ignoreCase || node->lazy || node->kind == Kind::Assertion ||
         node->kind == Kind::LookAhead || node->kind == Kind::NegativeLookAhead ||
         node->kind == Kind::WordBoundary || node->kind == Kind::NotWordBoundary ||
         node->kind == Kind::Backref || required(node->left) || required(node->right);
@@ -182,17 +213,18 @@ bool RegexVm::nullable(const std::shared_ptr<RegexNode> &node)
     collectGroups(node, groups);
     return nullableNode(node, groups, active);
 }
-/** @brief 编译字节字符域的有序正则程序。
+/** @brief 编译字节或 Unicode 码点字符域的有序正则程序。
  * @param pattern 原正则。 @param out 输出程序。 @param error 解析错误。
  * @return 编译成功返回 true。
  */
 bool RegexVm::compile(const std::string &pattern, RegexVmProgram &out, Error &error)
 {
     std::shared_ptr<RegexNode> ast;
+    const bool unicode = unicodeMode(pattern);
     std::string bytePattern;
     for (const unsigned char byte : pattern)
     {
-        if (byte < 128u) bytePattern.push_back(static_cast<char>(byte));
+        if (unicode || byte < 128u) bytePattern.push_back(static_cast<char>(byte));
         else
         {
             bytePattern.push_back(static_cast<char>(0xC0u | (byte >> 6u)));
@@ -201,6 +233,7 @@ bool RegexVm::compile(const std::string &pattern, RegexVmProgram &out, Error &er
     }
     if (!RegexDfa::parse(bytePattern, ast, error)) return false;
     VmCompiler compiler;
+    compiler.program.unicode = unicode;
     compiler.emit(0);
     compiler.program.entry = compiler.build(ast, 0);
     out = std::move(compiler.program);

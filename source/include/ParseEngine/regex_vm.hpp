@@ -14,6 +14,8 @@ struct RegexVmInstruction
     int next = 0; ///< 首选后继
     int other = 0; ///< 备选后继或断言入口
     int value = 0; ///< 捕获编号或断言标志
+    int rangeOffset = 0; ///< Unicode 区间在扁平表中的起点
+    int rangeCount = 0; ///< Unicode 区间数
     std::array<unsigned, 32> bits{}; ///< 字节字符类位图
 };
 /** @brief 一条有序回溯程序。 */
@@ -21,12 +23,16 @@ struct RegexVmProgram
 {
     std::vector<RegexVmInstruction> code; ///< 指令数组
     int entry = 0; ///< 程序入口
+    bool unicode = false; ///< 是否按 UTF-8 码点执行
+    std::vector<std::uint32_t> ranges; ///< Unicode 区间的起止值
     int groups = 0; ///< 捕获组总数
 };
 /** @brief 正则 AST 到有序回溯字节码的编译器。 */
 class RegexVm
 {
 public:
+    /** @brief 识别开头的 Unicode 模式标志。 @param pattern 模式。 @return 含 u 标志返回真。 */
+    static bool unicodeMode(const std::string &pattern);
     /** @brief 检查必须读取上下文的节点。
      * @param node AST 根。 @return 存在断言或引用时返回 true。
      */

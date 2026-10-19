@@ -1,0 +1,12 @@
+// 显式 Unicode 模式：按码点识别，词素长度和捕获位置仍是 UTF-8 字节。
+%mode lex
+%token SEP ";"
+%token regex BYTE "![a-z]+"
+%token regex PAIR "(?iu)\\b(\\p{L}+)-\\1\\b(?=[;])"
+%token regex WORD "(?u)\\b\\p{L}+\\b"
+%token regex NUMBER "(?u)\\d+"
+%token regex EMOJI "(?u)[\\u{1F600}-\\u{1F64F}]+"
+%identifier "(?u)[\\p{L}_]\\w*"
+%commit note "(?u)「[^」]+」(?=[;])"
+%trivia "(?u)\\s+"
+%space ""

@@ -9,6 +9,7 @@
 
 #include "ParseEngine/regex_dfa.hpp"
 #include "ParseEngine/regex_vm.hpp"
+#include "../templates/regex_unicode_data.h.tmpl"
 
 #include <algorithm>
 #include <cctype>
@@ -783,10 +784,21 @@ public:
             fail("正则表达式不能为空");
             return {};
         }
-        if ((peek() == '(') && (peek(1) == '?') && (peek(2) == 'i') && (peek(3) == ')'))
+        while ((peek() == '(') && (peek(1) == '?') &&
+               ((peek(2) == 'i') || (peek(2) == 'u')))
         {
-            m_pos += 4u;
-            m_ignoreCase = true;
+            const std::size_t begin = m_pos;
+            m_pos += 2u;
+            bool ignoreCase = m_ignoreCase, unicode = m_unicode;
+            while ((peek() == 'i') || (peek() == 'u'))
+            {
+                if (next() == 'i') ignoreCase = true;
+                else unicode = true;
+            }
+            if (peek() != ')') { m_pos = begin; break; }
+            next();
+            m_ignoreCase = ignoreCase;
+            m_unicode = unicode;
         }
         std::shared_ptr<RegexNode> node = parseAlt();
         if (m_maxReference > m_captureCount)
@@ -803,6 +815,7 @@ public:
                  peekText() + "'");
             return {};
         }
+        node->unicode = m_unicode;
         return node;
     }
 
@@ -1097,7 +1110,7 @@ private:
                 else if (peek() == '!') kind = RegexNode::Kind::NegativeLookAhead;
                 else
                 {
-                    fail("不支持的组写法：支持 (...)、(?:...)、(?=...)、(?!...)；(?i) 只能放在模式开头");
+                    fail("不支持的组写法：支持 (...)、(?:...)、(?=...)、(?!...)；(?i) / (?u) 只能放在模式开头");
                     return {};
                 }
                 next();
@@ -1130,6 +1143,7 @@ private:
             next();
             std::vector<std::pair<char32_t, char32_t>> ranges = {
                 {0x0u, 0x9u}, {0xBu, 0xCu}, {0xEu, k_maxCodePoint}};
+            if (m_unicode) ranges = {{0u, 9u}, {11u, 12u}, {14u, 0x2027u}, {0x202Au, k_maxCodePoint}};
             return makeClass(ranges);
         }
         if (ch == '^')
@@ -1179,13 +1193,22 @@ private:
                 std::tolower(static_cast<int>(ch)));
             const bool negate = std::isupper(static_cast<int>(ch)) != 0;
             std::vector<std::pair<char32_t, char32_t>> ranges;
-            shorthandRanges(lowered, negate, ranges);
+            if (m_unicode && ((lowered == 'd') || (lowered == 'w') || (lowered == 's')))
+            {
+                unicodeRanges(lowered == 'd' ? "Nd" : (lowered == 'w' ? "Word" : "White_Space"), ranges);
+                ranges = foldCase(ranges);
+                if (negate) ranges = complementRanges(ranges);
+            }
+            else shorthandRanges(lowered, negate, ranges);
             if (ranges.empty())
             {
                 fail(std::string("\\") + static_cast<char>(ch) + " 是空字符集");
                 return {};
             }
-            return makeClass(ranges);
+            auto node = makeNode(RegexNode::Kind::Class);
+            node->ranges = ranges;
+            node->ignoreCase = m_ignoreCase;
+            return node;
         }
         if ((ch == 'p') || (ch == 'P'))
         {
@@ -1215,18 +1238,24 @@ private:
             }
             next();
             std::vector<std::pair<char32_t, char32_t>> ranges;
-            if (!propertyRanges(name, ranges))
+            if (!(m_unicode ? unicodeRanges(name, ranges) : propertyRanges(name, ranges)))
             {
+                if (m_unicode)
+                {
+                    fail("未知的 Unicode 17.0.0 属性：" + name);
+                    return {};
+                }
                 fail("不支持的码点属性 \\p{" + name +
                      "}（可用：L / Lu / Ll / N / Nd / Z / Zs / P / S / C，"
                      "或 POSIX 类名 alpha / digit / alnum / space / word …）");
                 return {};
             }
-            if (negate)
-            {
-                ranges = complementRanges(ranges);
-            }
-            return makeClass(ranges);
+            ranges = foldCase(ranges);
+            if (negate) ranges = complementRanges(ranges);
+            auto node = makeNode(RegexNode::Kind::Class);
+            node->ranges = ranges;
+            node->ignoreCase = m_ignoreCase;
+            return node;
         }
         if (ch == 'o')
         {
@@ -1473,7 +1502,14 @@ private:
                 next();
                 next();
                 std::vector<std::pair<char32_t, char32_t>> addition;
-                if (!posixClassRanges(name, classNegate, addition))
+                const bool knownClass = m_unicode ? unicodeRanges(name, addition)
+                                                 : posixClassRanges(name, classNegate, addition);
+                if (m_unicode)
+                {
+                    addition = foldCase(addition);
+                    if (classNegate) addition = complementRanges(addition);
+                }
+                if (!knownClass)
                 {
                     fail("不支持的字符类名 [:" + name + ":]");
                     return {};
@@ -1489,7 +1525,8 @@ private:
             {
                 next();
                 const bool savedCase = m_ignoreCase;
-                m_ignoreCase = false;
+                if (std::string("dDwWsShHpP").find(static_cast<char>(peek())) == std::string::npos)
+                    m_ignoreCase = false;
                 const std::shared_ptr<RegexNode> node = parseEscape(true);
                 m_ignoreCase = savedCase;
                 if (failed())
@@ -1628,6 +1665,45 @@ private:
         return node;
     }
 
+    /** @brief 查询固定版本 Unicode 属性。 @param name 属性名。 @param out 输出区间。 @return 已知属性返回真。 */
+    bool unicodeRanges(std::string name, std::vector<std::pair<char32_t, char32_t>> &out) const
+    {
+        if (name == "alpha") name = "L";
+        else if (name == "digit") name = "Nd";
+        else if (name == "lower") name = "Ll";
+        else if (name == "upper") name = "Lu";
+        else if (name == "word") name = "Word";
+        else if (name == "space") name = "White_Space";
+        else if (name == "ascii") name = "ASCII";
+        else if (name == "cntrl") name = "Cc";
+        else if (name == "punct") name = "P";
+        else if (name == "alnum")
+        {
+            unicodeRanges("L", out); unicodeRanges("N", out);
+            out = normalizeRanges(out); return true;
+        }
+        else if (name == "blank")
+        {
+            unicodeRanges("Zs", out); out.emplace_back(9u, 9u);
+            out = normalizeRanges(out); return true;
+        }
+        else if (name == "graph" || name == "print")
+        {
+            unicodeRanges("C", out); unicodeRanges("Z", out);
+            out = complementRanges(out);
+            if (name == "print") unicodeRanges("Zs", out);
+            out = normalizeRanges(out); return true;
+        }
+        else if (name == "xdigit") return posixClassRanges("xdigit", false, out);
+        if (name.compare(0, 3, "gc=") == 0) name.erase(0, 3);
+        if (name.compare(0, 17, "General_Category=") == 0) name.erase(0, 17);
+        std::size_t count = 0;
+        const auto *ranges = PeUnicodeProperty(name.c_str(), &count);
+        if (!ranges) return false;
+        for (std::size_t index = 0; index < count; ++index)
+            out.emplace_back(ranges[2 * index], ranges[2 * index + 1]);
+        return true;
+    }
     /** @brief 按 ASCII 大小写关系扩展字符集合。 @param ranges 输入区间。 @return 闭包。 */
     std::vector<std::pair<char32_t, char32_t>> foldCase(
         std::vector<std::pair<char32_t, char32_t>> ranges) const
@@ -1635,6 +1711,19 @@ private:
         if (m_ignoreCase)
         {
             const auto original = normalizeRanges(ranges);
+            if (m_unicode)
+            {
+                std::set<uint32_t> targets;
+                for (const auto &pair : PeUnicodeCasePairs)
+                    if (rangesContain(original, pair[0]) || rangesContain(original, pair[1])) targets.insert(pair[1]);
+                for (const auto &pair : PeUnicodeCasePairs)
+                    if (targets.count(pair[1]))
+                    {
+                        ranges.emplace_back(pair[0], pair[0]);
+                        ranges.emplace_back(pair[1], pair[1]);
+                    }
+                return normalizeRanges(ranges);
+            }
             for (char32_t ch = 'A'; ch <= 'Z'; ++ch)
             {
                 if (rangesContain(original, ch) || rangesContain(original, ch + 32u))
@@ -1646,6 +1735,7 @@ private:
         }
         return normalizeRanges(ranges);
     }
+    bool m_unicode = false; ///< 显式 Unicode 码点模式
     bool m_ignoreCase = false; ///< 模式开头的 (?i) 标志
     int m_captureCount = 0; ///< 已分配捕获组数
     int m_maxReference = 0; ///< 最大反向引用编号

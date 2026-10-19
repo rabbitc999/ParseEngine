@@ -25,6 +25,8 @@ typedef struct ParserLexDfa_T
     size_t count;
     size_t entry;
     size_t groups;
+    const uint32_t *ranges;
+    int unicode;
 } ParserLexDfa_T;
 {% else %}
 /** DFA 描述：转移表按“状态 × 字符类”展平。 */
