@@ -1,0 +1,181 @@
+/* C++11 语法子集，用于增量生成与 GLR 回归。
+ * 支持命名空间、类/继承、模板、枚举、函数、结构化语句及常用 C++11 表达式。
+ * 不做名字查找、类型检查、预处理或完整 C++11 一致性判定。
+ * 模板嵌套的两个右尖括号写成 > >；不提供右移运算符。
+ */
+%mode glr
+%lang cpp17
+%tree
+%start translation_unit
+%example "template<class T> class Box { public: T value; }; int main() { auto f = [](int x) -> int { return x + 1; }; for (auto x : values) { f(x); } return nullptr == nullptr; }"
+%identifier "[A-Za-z_][A-Za-z0-9_]*"
+%token regex NUMBER "[0-9]+"
+%space " \t\r\n"
+%trivia "//[^\n]*"
+%trivia "/\*([^*]|\*+[^*/])*\*+/"
+
+%token NAMESPACE "namespace"
+%token USING "using"
+%token CLASS "class"
+%token STRUCT "struct"
+%token TEMPLATE "template"
+%token TYPENAME "typename"
+%token ENUM "enum"
+%token PUBLIC "public"
+%token PROTECTED "protected"
+%token PRIVATE "private"
+%token VIRTUAL "virtual"
+%token OVERRIDE "override"
+%token FINAL "final"
+%token CONST "const"
+%token STATIC "static"
+%token INLINE "inline"
+%token CONSTEXPR "constexpr"
+%token MUTABLE "mutable"
+%token NOEXCEPT "noexcept"
+%token AUTO "auto"
+%token DECLTYPE "decltype"
+%token VOID "void"
+%token BOOL "bool"
+%token CHAR "char"
+%token INT "int"
+%token LONG "long"
+%token DOUBLE "double"
+%token UNSIGNED "unsigned"
+%token RETURN "return"
+%token IF "if"
+%token ELSE "else"
+%token WHILE "while"
+%token FOR "for"
+%token BREAK "break"
+%token CONTINUE "continue"
+%token TRUE "true"
+%token FALSE "false"
+%token NULLPTR "nullptr"
+%token THIS "this"
+%token NEW "new"
+%token DELETE "delete"
+%token LPAREN "("
+%token RPAREN ")"
+%token LBRACE "{"
+%token RBRACE "}"
+%token LBRACKET "["
+%token RBRACKET "]"
+%token SEMICOLON ";"
+%token COLON ":"
+%token SCOPE "::"
+%token COMMA ","
+%token DOT "."
+%token ARROW "->"
+%token ASSIGN "="
+%token PLUS "+"
+%token MINUS "-"
+%token STAR "*"
+%token SLASH "/"
+%token PERCENT "%"
+%token AMP "&"
+%token LAND "&&"
+%token LOR "\|\|"
+%token NOT "!"
+%token LT "<"
+%token GT ">"
+%token LE "<="
+%token GE ">="
+%token EQ "=="
+%token NE "!="
+%token INC "++"
+%token DEC "--"
+%token QUESTION "?"
+
+translation_unit := declaration_list;
+declaration_list := declaration_list declaration | declaration;
+declaration := namespace_definition | template_declaration | class_specifier SEMICOLON
+             | enum_specifier SEMICOLON | using_declaration | function_definition
+             | simple_declaration SEMICOLON;
+namespace_definition := NAMESPACE VARIABLE LBRACE declaration_list_opt RBRACE;
+declaration_list_opt := declaration_list | %empty;
+template_declaration := TEMPLATE LT template_parameters GT declaration;
+template_parameters := template_parameter | template_parameters COMMA template_parameter;
+template_parameter := CLASS VARIABLE | TYPENAME VARIABLE | CLASS VARIABLE ASSIGN type
+                    | TYPENAME VARIABLE ASSIGN type | INT VARIABLE;
+class_specifier := class_key VARIABLE base_clause_opt LBRACE member_list RBRACE;
+class_key := CLASS | STRUCT;
+base_clause_opt := COLON base_list | %empty;
+base_list := base_specifier | base_list COMMA base_specifier;
+base_specifier := access_opt qualified_name;
+access_opt := PUBLIC | PROTECTED | PRIVATE | %empty;
+member_list := member_list member | %empty;
+member := declaration | PUBLIC COLON | PROTECTED COLON | PRIVATE COLON
+        | VARIABLE LPAREN parameters_opt RPAREN compound_statement;
+enum_specifier := ENUM enum_class_opt VARIABLE enum_base_opt LBRACE enumerators RBRACE;
+enum_class_opt := CLASS | %empty;
+enum_base_opt := COLON type | %empty;
+enumerators := enumerator | enumerators COMMA enumerator;
+enumerator := VARIABLE | VARIABLE ASSIGN assignment_expression;
+using_declaration := USING NAMESPACE qualified_name SEMICOLON
+                   | USING VARIABLE ASSIGN type SEMICOLON;
+function_definition := declaration_specifiers VARIABLE LPAREN parameters_opt RPAREN function_suffix compound_statement;
+function_suffix := const_opt noexcept_opt virt_opt trailing_return_opt;
+const_opt := CONST | %empty;
+noexcept_opt := NOEXCEPT | %empty;
+virt_opt := OVERRIDE | FINAL | %empty;
+trailing_return_opt := ARROW type | %empty;
+parameters_opt := parameters | %empty;
+parameters := parameter | parameters COMMA parameter;
+parameter := type VARIABLE | type VARIABLE ASSIGN assignment_expression | VOID;
+declaration_specifiers := modifiers type;
+modifiers := modifiers STATIC | modifiers INLINE | modifiers CONSTEXPR | modifiers VIRTUAL | %empty;
+type := const_opt type_name pointer_suffix;
+type_name := VOID | BOOL | CHAR | INT | LONG | DOUBLE | UNSIGNED | AUTO
+           | qualified_name | DECLTYPE LPAREN expression RPAREN;
+pointer_suffix := pointer_suffix STAR | pointer_suffix AMP | pointer_suffix LAND | %empty;
+qualified_name := name_component | qualified_name SCOPE name_component;
+name_component := VARIABLE | VARIABLE LT type_arguments GT;
+type_arguments := type | type_arguments COMMA type;
+simple_declaration := declaration_specifiers init_declarators;
+init_declarators := init_declarator | init_declarators COMMA init_declarator;
+init_declarator := VARIABLE initializer_opt | VARIABLE LBRACKET NUMBER RBRACKET initializer_opt;
+initializer_opt := ASSIGN assignment_expression | braced_initializer | %empty;
+braced_initializer := LBRACE arguments_opt RBRACE;
+compound_statement := LBRACE statement_list RBRACE;
+statement_list := statement_list statement | %empty;
+statement := compound_statement | simple_declaration SEMICOLON | expression_opt SEMICOLON
+           | RETURN expression_opt SEMICOLON | BREAK SEMICOLON | CONTINUE SEMICOLON
+           | IF LPAREN expression RPAREN statement
+           | IF LPAREN expression RPAREN statement ELSE statement
+           | WHILE LPAREN expression RPAREN statement
+           | FOR LPAREN for_init expression_opt SEMICOLON expression_opt RPAREN statement
+           | FOR LPAREN declaration_specifiers VARIABLE COLON expression RPAREN statement;
+for_init := simple_declaration SEMICOLON | expression_opt SEMICOLON;
+expression_opt := expression | %empty;
+expression := assignment_expression | expression COMMA assignment_expression;
+assignment_expression := conditional_expression | unary_expression ASSIGN assignment_expression | lambda_expression;
+conditional_expression := logical_or_expression
+                        | logical_or_expression QUESTION expression COLON assignment_expression;
+logical_or_expression := logical_and_expression | logical_or_expression LOR logical_and_expression;
+logical_and_expression := equality_expression | logical_and_expression LAND equality_expression;
+equality_expression := relational_expression | equality_expression EQ relational_expression
+                     | equality_expression NE relational_expression;
+relational_expression := additive_expression | relational_expression LT additive_expression
+                       | relational_expression GT additive_expression | relational_expression LE additive_expression
+                       | relational_expression GE additive_expression;
+additive_expression := multiplicative_expression | additive_expression PLUS multiplicative_expression
+                     | additive_expression MINUS multiplicative_expression;
+multiplicative_expression := unary_expression | multiplicative_expression STAR unary_expression
+                           | multiplicative_expression SLASH unary_expression | multiplicative_expression PERCENT unary_expression;
+unary_expression := postfix_expression | unary_operator unary_expression | NEW type
+                  | NEW type LPAREN arguments_opt RPAREN | DELETE unary_expression;
+unary_operator := PLUS | MINUS | STAR | AMP | NOT | INC | DEC;
+postfix_expression := primary_expression | postfix_expression LPAREN arguments_opt RPAREN
+                    | postfix_expression LBRACKET expression RBRACKET | postfix_expression DOT VARIABLE
+                    | postfix_expression ARROW VARIABLE | postfix_expression INC | postfix_expression DEC;
+primary_expression := qualified_name | NUMBER | STRING | TRUE | FALSE | NULLPTR | THIS
+                    | LPAREN expression RPAREN;
+arguments_opt := arguments | %empty;
+arguments := assignment_expression | arguments COMMA assignment_expression | braced_initializer;
+lambda_expression := LBRACKET captures_opt RBRACKET lambda_parameters_opt mutable_opt trailing_return_opt compound_statement;
+captures_opt := captures | %empty;
+captures := capture | captures COMMA capture;
+capture := VARIABLE | AMP VARIABLE | AMP | ASSIGN | THIS;
+lambda_parameters_opt := LPAREN parameters_opt RPAREN | %empty;
+mutable_opt := MUTABLE | %empty;

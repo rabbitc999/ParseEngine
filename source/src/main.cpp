@@ -4,6 +4,7 @@
  */
 
 #include <algorithm>
+#include <chrono>
 #include <cctype>
 #include <cstdlib>
 #include <fstream>
@@ -32,6 +33,7 @@
 #include "ParseEngine/mermaid.hpp"
 #include "ParseEngine/preprocessor.hpp"
 #include "ParseEngine/project.hpp"
+#include "ParseEngine/generation_cache.hpp"
 #include "ParseEngine/regex_compatibility.hpp"
 #include "ParseEngine/utils.hpp"
 #include "ParseEngine/i18n.hpp"
@@ -66,6 +68,9 @@ struct CommandLine
     bool dumpMermaid = false;         ///< 打印教学模式的 Mermaid 状态机图
     bool preprocessOnly = false;      ///< [调试] 只跑条件编译预处理并打印结果
     bool dumpSections = false;        ///< [调试] 只打印收集到的 %epilogue / %main 段
+    bool incremental = false;         ///< 启用持久化二进制分析缓存。
+    bool rebuild = false;             ///< 跳过缓存读取并重新发布分析结果。
+    std::optional<std::string> cacheDir; ///< 可跨输出目录共享的缓存目录。
     bool check = false;               ///< 在内存中校验，不写出产物。
     bool strictRegex = false;         ///< 严格校验共享正则语义。
     bool syntaxOnly = false;          ///< 只保留词法/产生式，供解析预览生成纯语法树
@@ -152,6 +157,10 @@ void printUsage(const std::string &program)
         << "  --define NAME[=VALUE] 条件编译变量（%if 用）：NAME 等价 NAME=1；\n"
         << "                        0/false/no/off 为假（大小写不敏感），其余非空为真；\n"
         << "                        可重复，同名后传覆盖先传\n"
+        << "  --incremental        复用持久化二进制分析缓存，加速重复生成\n"
+        << "  --cache-dir DIR      指定缓存目录并启用增量生成\n"
+        << "  --rebuild            忽略旧缓存，重新分析并更新缓存\n"
+        << "  --no-incremental     关闭分析缓存\n"
         << "  --check              在内存中完成生成校验并打印正则报告，不写出产物\n"
         << "  --strict-regex       拒绝未证明共享语义的原生正则（别名 --strict）\n"
         << "  --syntax-only        预览生成：强制启用语法树，忽略语义动作、用户代码与\n"
@@ -456,6 +465,29 @@ bool parseArguments(int argc, char **argv, CommandLine &parsed)
         else if (arg == "--preprocess-only")
         {
             parsed.preprocessOnly = true;
+        }
+        else if (arg == "--incremental")
+        {
+            parsed.incremental = true;
+        }
+        else if (arg == "--no-incremental")
+        {
+            parsed.incremental = false;
+        }
+        else if (arg == "--rebuild")
+        {
+            parsed.rebuild = true;
+        }
+        else if (arg == "--cache-dir" || arg.rfind("--cache-dir=", 0) == 0)
+        {
+            const auto value = takeValue();
+            if (value.empty())
+            {
+                std::cerr << PE_TEXT("错误：--cache-dir 后面要跟目录名\n");
+                return false;
+            }
+            parsed.cacheDir = value;
+            parsed.incremental = true;
         }
         else if (arg == "--check")
         {
@@ -1129,142 +1161,181 @@ int main(int argc, char **argv)
         AnalysisResult analysis;
         std::string report;
         bool analyzed = true;
-        if (isLexMode(mode))
+        const auto analysisStarted = std::chrono::steady_clock::now();
+        const bool cacheEnabled = options.incremental && !isLexMode(mode);
+        const std::string cacheDirectory = options.cacheDir.value_or(
+            (std::filesystem::u8path(options.outDir) / ".parseengine-cache").u8string());
+        std::string cacheKey, cacheReason;
+        bool cacheHit = false;
+        if (cacheEnabled)
         {
-            // 词法模式没有分析层：不建表、不算 FIRST/FOLLOW、不做冲突检查，
-            // 产物里只有词法器（详见 project.cpp 的 generateLexProject）
-            report = gramTarget
-                         ? "词法模式（%mode lex）：只做词法分析（Token 表 / "
-                           "最长匹配），不生成解析器\n"
-                         : "词法模式（%mode lex）：只导出词法器，不生成解析器\n";
-        }
-        else if (isGlrMode(mode))
-        {
-            analyzed = Analysis::analyze(grammar, tokens, mode, &priority,
-                                         teach, analysis, error);
-            if (analyzed && ((mode == "earley") || (mode == "cyk")))
+            const auto build = GenerationCache::buildId(arguments[0]);
+            if (!build.empty())
             {
-                const ChartGrammar chart = buildChartGrammar(analysis);
-                report = "[生成模式] " + modeLabelText(mode) + " 图表解析\n";
-                if (mode == "earley")
+                cacheKey = GenerationCache::key(grammar, tokens, priority, mode, lookaheadK,
+                    teach, (lang == "java" || lang == "js") ? "narrow" : "wide", build);
+                if (!options.rebuild)
+                    cacheHit = GenerationCache::load(cacheDirectory, cacheKey, grammar,
+                        analysis, report, cacheReason);
+                else cacheReason = "强制重新分析";
+            }
+            else cacheReason = "无法读取生成器内容标识";
+        }
+        if (!cacheHit)
+        {
+            if (isLexMode(mode))
+            {
+                // 词法模式没有分析层：不建表、不算 FIRST/FOLLOW、不做冲突检查，
+                // 产物里只有词法器（详见 project.cpp 的 generateLexProject）
+                report = gramTarget
+                             ? "词法模式（%mode lex）：只做词法分析（Token 表 / "
+                               "最长匹配），不生成解析器\n"
+                             : "词法模式（%mode lex）：只导出词法器，不生成解析器\n";
+            }
+            else if (isGlrMode(mode))
+            {
+                analyzed = Analysis::analyze(grammar, tokens, mode, &priority,
+                                             teach, analysis, error);
+                if (analyzed && ((mode == "earley") || (mode == "cyk")))
                 {
-                    report += "[图表] 对原文法做预测、扫描与完成；产生式 " +
-                              std::to_string(chart.lhs.size()) + " 条\n";
-                }
-                else
-                {
-                    report += "[CNF] 生成期消除空产生式与单元规则并二分长规则：终结符规则 " +
-                              std::to_string(chart.terminalRules.size()) +
-                              " 条，二元规则 " +
-                              std::to_string(chart.binaryRules.size()) +
-                              " 条；空串" +
-                              (chart.acceptsEmpty ? "可接受" : "不可接受") + "\n";
-                }
-                if ((lang == "java") || (lang == "js"))
-                {
-                    report += "[结果] Earley 图表保留第一棵派生树；窄后端不执行语义动作\n";
-                }
-                else
-                {
-                    report += "[结果] 图表判定后复用 GLR 运行时重建歧义树与执行原语义动作\n";
+                    const ChartGrammar chart = buildChartGrammar(analysis);
+                    report = "[生成模式] " + modeLabelText(mode) + " 图表解析\n";
+                    if (mode == "earley")
+                    {
+                        report += "[图表] 对原文法做预测、扫描与完成；产生式 " +
+                                  std::to_string(chart.lhs.size()) + " 条\n";
+                    }
+                    else
+                    {
+                        report += "[CNF] 生成期消除空产生式与单元规则并二分长规则：终结符规则 " +
+                                  std::to_string(chart.terminalRules.size()) +
+                                  " 条，二元规则 " +
+                                  std::to_string(chart.binaryRules.size()) +
+                                  " 条；空串" +
+                                  (chart.acceptsEmpty ? "可接受" : "不可接受") + "\n";
+                    }
+                    if ((lang == "java") || (lang == "js"))
+                    {
+                        report += "[结果] Earley 图表保留第一棵派生树；窄后端不执行语义动作\n";
+                    }
+                    else
+                    {
+                        report += "[结果] 图表判定后复用 GLR 运行时重建歧义树与执行原语义动作\n";
+                    }
                 }
             }
-        }
-        else if (mode == "dd")
-        {
-            analyzed = Analysis::ddAnalyze(grammar, tokens, &priority, analysis,
-                                           error);
-            report = formatDdReport(analysis);
-            // 递归下降是「按产生式声明顺序逐条试」，不存在「同一格里有几个
-            // 动作要挑一个」的场合，所以优先级指令与 %expect 在这里都没有
-            // 落点——按 LL(1) 那套口径提示一句（不静默忽略）
-            if (!priority.precedence.empty() ||
-                priority.expectConflicts.has_value())
+            else if (mode == "dd")
             {
-                report +=
-                    "\n[提示] DD（递归下降）忽略 %left / %right / %nonassoc / "
-                    "%prec 优先级指令与 %expect：回溯式解析按产生式的声明顺序"
-                    "逐条试，没有「同一格里有几个动作要挑一个」的场合；要控制"
-                    "歧义文法的取法，请把想要的产生式写在前面\n";
+                analyzed = Analysis::ddAnalyze(grammar, tokens, &priority, analysis,
+                                               error);
+                report = formatDdReport(analysis);
+                // 递归下降是「按产生式声明顺序逐条试」，不存在「同一格里有几个
+                // 动作要挑一个」的场合，所以优先级指令与 %expect 在这里都没有
+                // 落点——按 LL(1) 那套口径提示一句（不静默忽略）
+                if (!priority.precedence.empty() ||
+                    priority.expectConflicts.has_value())
+                {
+                    report +=
+                        "\n[提示] DD（递归下降）忽略 %left / %right / %nonassoc / "
+                        "%prec 优先级指令与 %expect：回溯式解析按产生式的声明顺序"
+                        "逐条试，没有「同一格里有几个动作要挑一个」的场合；要控制"
+                        "歧义文法的取法，请把想要的产生式写在前面\n";
+                }
             }
-        }
-        else if (mode == "ielr")
-        {
-            analyzed = Analysis::ielrAnalyze(grammar, tokens, &priority, teach,
-                                             analysis, error);
-            report = formatIelrReport(analysis);
-        }
-        else if (mode == "lalr")
-        {
-            analyzed = Analysis::lalrAnalyze(grammar, tokens, &priority, teach,
-                                             analysis, error);
-            report = formatLalrReport(analysis);
-        }
-        else if (mode == "lrk")
-        {
-            analyzed = Analysis::lrkAnalyze(grammar, tokens, lookaheadK,
-                                            &priority, teach, analysis, error);
-            report = formatLrkReport(analysis);
-        }
-        else if (mode == "lalrk")
-        {
-            analyzed = Analysis::lalrkAnalyze(grammar, tokens, lookaheadK,
-                                              &priority, teach, analysis, error);
-            report = formatLalrkReport(analysis);
-        }
-        else if (mode == "slrk")
-        {
-            analyzed = Analysis::slrkAnalyze(grammar, tokens, lookaheadK,
-                                             &priority, teach, analysis, error);
-            report = formatSlrkReport(analysis);
-        }
-        else if (mode == "llk")
-        {
-            analyzed = Analysis::llkAnalyze(grammar, tokens, lookaheadK, teach,
-                                            analysis, error);
-            report = formatLlkReport(analysis);
-        }
-        else if (mode == "ll0")
-        {
-            analyzed = Analysis::llkAnalyze(grammar, tokens, 0, teach, analysis,
-                                            error);
-            report = formatLlkReport(analysis);
-        }
-        else if (mode == "lr1")
-        {
-            analyzed = Analysis::lr1Analyze(grammar, tokens, &priority, teach,
-                                            analysis, error);
-            report = formatLr1Report(analysis);
-        }
-        else if (mode == "slr")
-        {
-            analyzed = Analysis::slrAnalyze(grammar, tokens, &priority, teach,
-                                            analysis, error);
-            report = formatSlrReport(analysis);
-        }
-        else if (mode == "lr0")
-        {
-            analyzed = Analysis::lr0Analyze(grammar, tokens, &priority, teach,
-                                            analysis, error);
-            report = formatLr0Report(analysis);
-        }
-        else
-        {
-            analyzed = Analysis::prepareGrammar(grammar, tokens, analysis,
+            else if (mode == "ielr")
+            {
+                analyzed = Analysis::ielrAnalyze(grammar, tokens, &priority, teach,
+                                                 analysis, error);
+                report = formatIelrReport(analysis);
+            }
+            else if (mode == "lalr")
+            {
+                analyzed = Analysis::lalrAnalyze(grammar, tokens, &priority, teach,
+                                                 analysis, error);
+                report = formatLalrReport(analysis);
+            }
+            else if (mode == "lrk")
+            {
+                analyzed = Analysis::lrkAnalyze(grammar, tokens, lookaheadK,
+                                                &priority, teach, analysis, error);
+                report = formatLrkReport(analysis);
+            }
+            else if (mode == "lalrk")
+            {
+                analyzed = Analysis::lalrkAnalyze(grammar, tokens, lookaheadK,
+                                                  &priority, teach, analysis, error);
+                report = formatLalrkReport(analysis);
+            }
+            else if (mode == "slrk")
+            {
+                analyzed = Analysis::slrkAnalyze(grammar, tokens, lookaheadK,
+                                                 &priority, teach, analysis, error);
+                report = formatSlrkReport(analysis);
+            }
+            else if (mode == "llk")
+            {
+                analyzed = Analysis::llkAnalyze(grammar, tokens, lookaheadK, teach,
+                                                analysis, error);
+                report = formatLlkReport(analysis);
+            }
+            else if (mode == "ll0")
+            {
+                analyzed = Analysis::llkAnalyze(grammar, tokens, 0, teach, analysis,
                                                 error);
-            report = formatGrammarReport(analysis);
-            if (!priority.precedence.empty() ||
-                priority.expectConflicts.has_value())
+                report = formatLlkReport(analysis);
+            }
+            else if (mode == "lr1")
             {
-                report +=
-                    "\n[提示] LL(1) 模式忽略 %left / %right / %nonassoc / "
-                    "%prec 优先级指令与 %expect\n";
+                analyzed = Analysis::lr1Analyze(grammar, tokens, &priority, teach,
+                                                analysis, error);
+                report = formatLr1Report(analysis);
+            }
+            else if (mode == "slr")
+            {
+                analyzed = Analysis::slrAnalyze(grammar, tokens, &priority, teach,
+                                                analysis, error);
+                report = formatSlrReport(analysis);
+            }
+            else if (mode == "lr0")
+            {
+                analyzed = Analysis::lr0Analyze(grammar, tokens, &priority, teach,
+                                                analysis, error);
+                report = formatLr0Report(analysis);
+            }
+            else
+            {
+                analyzed = Analysis::prepareGrammar(grammar, tokens, analysis,
+                                                    error);
+                report = formatGrammarReport(analysis);
+                if (!priority.precedence.empty() ||
+                    priority.expectConflicts.has_value())
+                {
+                    report +=
+                        "\n[提示] LL(1) 模式忽略 %left / %right / %nonassoc / "
+                        "%prec 优先级指令与 %expect\n";
+                }
             }
         }
         if (!analyzed)
         {
             printError(error);
             return 1;
+        }
+        if (cacheEnabled)
+        {
+            const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - analysisStarted).count();
+            std::cerr << PE_TEXT("[增量生成] ")
+                      << (cacheHit ? PE_TEXT("分析缓存命中") : PE_TEXT("分析缓存未命中"))
+                      << " / " << milliseconds << " ms";
+            if (!cacheHit) std::cerr << " / " << cacheReason;
+            std::cerr << "\n";
+            if (!cacheHit && !cacheKey.empty() && !options.check)
+            {
+                std::string saveReason;
+                if (!GenerationCache::save(cacheDirectory, cacheKey, analysis, report, saveReason))
+                    std::cerr << PE_TEXT("[增量生成] 缓存写入失败，继续生成：") << saveReason << "\n";
+            }
         }
         // %sync 不进分析层（它不参与项集与 ACTION 表），但报告里单列一节，
         // 让人一眼看到运行时会在哪些 Token 上做 panic mode 恢复

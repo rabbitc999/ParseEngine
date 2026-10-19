@@ -103,6 +103,9 @@ Thumbs.db
 # 发布打包产物（tools/release.sh 的输出）
 /dist/
 
+# 生成器的本地二进制分析缓存，不属于源码或发布产物。
+.parseengine-cache/
+
 # metro-lang 是**自带 .git 的独立仓库**（不是子模块：没有 .gitmodules、索引里也没有 gitlink）。
 # 父仓库不再跟踪它的文件，只在本地保留目录；要改 MetroLang 请进 metro-lang/ 用那份
 # 仓库提交（远端 https://gitee.com/rabbitc999/metro-lang.git）。

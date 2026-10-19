@@ -58,7 +58,8 @@ def build(grammar, mode, lang):
         command(["node", "--check", "parser.ts"], cwd=out)
         return ["node", out / "parser.ts"], out
     env = os.environ.copy()
-    env["CARGO_TARGET_DIR"] = str(ROOT / "tmp" / "chart-mode-tests" / "rust-target")
+    # 不同文法工程的同名二进制不能共享 target，否则未变源码会误运行旧产物。
+    env["CARGO_TARGET_DIR"] = str(out / "target")
     command(["cargo", "build", "--offline"], cwd=out, env=env)
     return [Path(env["CARGO_TARGET_DIR"]) / "debug" / ("parser_demo" + EXE)], out
 

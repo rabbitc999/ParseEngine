@@ -3946,14 +3946,37 @@ bool removeManagedFiles(const std::filesystem::path &root,
     return true;
 }
 
+/** @brief 分块比较文件内容，未变产物保留时间戳。
+ * @param path 文件。@param bytes 预期内容。@return 完全相同时为真。
+ */
+bool sameContents(const std::filesystem::path &path, const std::string &bytes)
+{
+    std::error_code ec;
+    if (std::filesystem::file_size(path, ec) != bytes.size() || ec) return false;
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return false;
+    char buffer[65536];
+    std::size_t offset = 0;
+    while (offset < bytes.size())
+    {
+        const auto count = std::min(sizeof(buffer), bytes.size() - offset);
+        input.read(buffer, static_cast<std::streamsize>(count));
+        if (!input || !std::equal(buffer, buffer + count, bytes.data() + offset)) return false;
+        offset += count;
+    }
+    return true;
+}
+
 bool writeProjectManifest(const std::filesystem::path &root,
                           const std::set<std::string> &files, Error &error)
 {
     const std::filesystem::path manifest = root / k_projectManifestName;
+    std::string content = std::string(k_projectManifestHeader) + '\n';
+    for (const auto &file : files) content += file + '\n';
+    if (sameContents(manifest, content)) return true;
     std::ofstream output(manifest, std::ios::binary | std::ios::trunc);
     if (!output) return fail(error, "无法写入产物清单：" + manifest.u8string());
-    output << k_projectManifestHeader << '\n';
-    for (const std::string &file : files) output << file << '\n';
+    output.write(content.data(), static_cast<std::streamsize>(content.size()));
     if (!output) return fail(error, "写入产物清单失败：" + manifest.u8string());
     return true;
 }
@@ -4176,6 +4199,11 @@ bool Project::writeParserProject(
     for (const auto &entry : project)
     {
         const std::filesystem::path path = root / std::filesystem::u8path(entry.first);
+        if (sameContents(path, entry.second))
+        {
+            written.push_back(path.u8string());
+            continue;
+        }
         if (path.has_parent_path())
         {
             std::error_code parentError;
