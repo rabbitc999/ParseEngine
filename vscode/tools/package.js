@@ -454,6 +454,7 @@ function runChecks(skipTests) {
 
   runScript('测试', 'test/smoke.js');
   runScript('测试', 'test/extension-smoke.js');
+  runScript('测试', 'test/p0.js');
 }
 
 /**

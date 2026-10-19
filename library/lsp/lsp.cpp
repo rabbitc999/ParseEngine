@@ -1,8 +1,14 @@
 #include "lsp.hpp"
 
 #include <algorithm>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <set>
+#include <thread>
 #include <cstdio>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -76,6 +82,31 @@ std::string uriDirectory(const std::string& uri) {
     const std::size_t slash = decoded.find_last_of("/\\");
     if (slash == std::string::npos) return {};
     return decoded.substr(0, slash);
+}
+
+/** @brief 把 UTF-16 行列转换为 UTF-8 字节偏移，拒绝落在代理对中间的位置。
+ * @param text 当前文本。@param point 协议位置。@param offset 输出偏移。
+ * @return 位置有效时为真。
+ */
+bool editOffset(const std::string &text, const Json &point, std::size_t &offset) {
+    const auto line = point.getInteger("line", -1), character = point.getInteger("character", -1);
+    if (line < 0 || character < 0) return false;
+    offset = 0;
+    for (long long index = 0; index < line; ++index) {
+        const auto end = text.find('\n', offset);
+        if (end == std::string::npos) return false;
+        offset = end + 1;
+    }
+    long long units = 0;
+    while (units < character && offset < text.size()) {
+        const auto lead = static_cast<unsigned char>(text[offset]);
+        if (lead == '\r' || lead == '\n') return false;
+        const std::size_t length = lead < 128 ? 1 : (lead & 0xe0) == 0xc0 ? 2 : (lead & 0xf0) == 0xe0 ? 3 : 4;
+        const int width = length == 4 ? 2 : 1;
+        if (units + width > character || length > text.size() - offset) return false;
+        offset += length; units += width;
+    }
+    return units == character;
 }
 
 int symbolKind(const std::string& kind) {
@@ -181,6 +212,9 @@ Json Server::publishDiagnostics(const std::string& uri, const std::vector<Diagno
     }
     Json params = Json::object();
     params.set("uri", Json::string(uri));
+    const auto document = documents_.find(uri);
+    if (document != documents_.end() && document->second.version >= 0)
+        params.set("version", Json::integer(document->second.version));
     params.set("diagnostics", std::move(items));
     Json notification = Json::object();
     notification.set("jsonrpc", Json::string("2.0"));
@@ -211,6 +245,7 @@ void Server::openDocument(const std::string& uri, const std::string& text,
 
 void Server::changeDocument(const std::string& uri, const std::string& text) {
     Document& doc = documents_[uri];
+    if (doc.text == text) return;
     doc.text = text;
     doc.model.setText(text);
 }
@@ -250,7 +285,7 @@ std::string Server::handleMessage(const std::string& payload) {
         semantic.set("full", Json::boolean(true));
         Json sync = Json::object();
         sync.set("openClose", Json::boolean(true));
-        sync.set("change", Json::integer(1)); // 全量同步
+        sync.set("change", Json::integer(2)); // UTF-16 范围增量同步，兼容全文变更
         Json triggers = Json::array();
         for (const char* trigger : {"%", "<", " ", "$"}) triggers.push(Json::string(trigger));
         Json completion = Json::object();
@@ -287,6 +322,7 @@ std::string Server::handleMessage(const std::string& payload) {
         const Json textDocument = params.get("textDocument");
         openDocument(textDocument.getString("uri"), textDocument.getString("text"),
                      textDocument.getString("languageId"));
+        documents_[textDocument.getString("uri")].version = textDocument.getInteger("version", -1);
         const auto found = documents_.find(textDocument.getString("uri"));
         return found == documents_.end() ? std::string()
                                          : frameMessage(publishDiagnostics(
@@ -296,10 +332,24 @@ std::string Server::handleMessage(const std::string& payload) {
     if (method == "textDocument/didChange") {
         const Json textDocument = params.get("textDocument");
         const std::string uri = textDocument.getString("uri");
+        const auto existing = documents_.find(uri);
+        if (existing == documents_.end()) return {};
+        const auto version = textDocument.getInteger("version", -1);
+        if (version >= 0 && existing->second.version >= version) return {};
         const Json changes = params.get("contentChanges");
-        if (!changes.items().empty()) {
-            changeDocument(uri, changes.items().back().getString("text"));
+        std::string text = existing->second.text;
+        for (const auto &change : changes.items()) {
+            const auto range = change.get("range");
+            if (range.isNull()) text = change.getString("text");
+            else {
+                std::size_t start = 0, end = 0;
+                if (!editOffset(text, range.get("start"), start) ||
+                    !editOffset(text, range.get("end"), end) || end < start) return {};
+                text.replace(start, end - start, change.getString("text"));
+            }
         }
+        changeDocument(uri, text);
+        existing->second.version = version;
         const auto found = documents_.find(uri);
         return found == documents_.end() ? std::string()
                                          : frameMessage(publishDiagnostics(
@@ -309,8 +359,15 @@ std::string Server::handleMessage(const std::string& payload) {
     if (method == "textDocument/didClose") {
         const Json textDocument = params.get("textDocument");
         const std::string uri = textDocument.getString("uri");
+        const auto existing = documents_.find(uri);
+        const auto version = existing == documents_.end() ? -1 : existing->second.version;
         documents_.erase(uri);
-        return frameMessage(publishDiagnostics(uri, {}).dump());
+        Json notification = publishDiagnostics(uri, {});
+        if (version >= 0) {
+            Json params = notification.get("params"); params.set("version", Json::integer(version));
+            notification.set("params", params);
+        }
+        return frameMessage(notification.dump());
     }
 
     Document* doc = document(params);
@@ -448,20 +505,99 @@ std::string Server::handleMessage(const std::string& payload) {
     return {};
 }
 
+/** @brief 在线程间串行处理模型，同时接收取消和合并连续文档变更。
+ * @param server 协议服务器。@param in 输入帧。@param out 输出帧。@param log 错误日志。
+ * @return 服务器退出码。
+ */
 int runStdioServer(Server& server, std::istream& in, std::ostream& out, std::ostream& log) {
-    while (!server.exitRequested()) {
-        std::string payload;
-        std::string error;
-        if (!readMessage(in, payload, error)) {
+    // 读取线程持续接收取消；单一工作线程拥有模型，避免并发修改文档。
+    struct Job { std::string payload; Json message; };
+    std::mutex mutex; std::condition_variable ready; std::deque<Job> queue;
+    std::set<std::string> pending, cancelled;
+    std::map<std::string, long long> latest;
+    bool ended = false;
+    std::thread worker([&] {
+        for (;;) {
+            Job job;
+            { std::unique_lock<std::mutex> lock(mutex);
+              ready.wait(lock, [&] { return ended || !queue.empty(); });
+              if (queue.empty()) break;
+              job = std::move(queue.front()); queue.pop_front(); }
+            const auto id = job.message.get("id"); const auto key = id.isNull() ? std::string() : id.dump();
+            bool aborted = false;
+            { std::lock_guard<std::mutex> lock(mutex); aborted = !key.empty() && cancelled.count(key); }
+            std::string response;
+            if (!aborted) response = server.handleMessage(job.payload);
+            { std::lock_guard<std::mutex> lock(mutex);
+              if (!key.empty()) { aborted = cancelled.erase(key) || aborted; pending.erase(key); }
+              const auto method = job.message.getString("method");
+              if (method == "textDocument/didOpen" || method == "textDocument/didChange") {
+                  const auto doc = job.message.get("params").get("textDocument");
+                  const auto version = doc.getInteger("version", -1);
+                  const auto current = latest.find(doc.getString("uri"));
+                  if (version >= 0 && (current == latest.end() || current->second > version)) response.clear();
+              }
+            }
+            if (aborted) {
+                Json result = Json::object(), error = Json::object();
+                error.set("code", Json::integer(-32800)); error.set("message", Json::string("请求已取消"));
+                result.set("jsonrpc", Json::string("2.0")); result.set("id", id); result.set("error", error);
+                response = frameMessage(result.dump());
+            }
+            if (!response.empty()) { out << response; out.flush(); }
+            if (server.exitRequested()) break;
+        }
+    });
+    for (;;) {
+        Job job; std::string error;
+        if (!readMessage(in, job.payload, error)) {
             if (!error.empty()) log << "读取 LSP 消息失败：" << error << "\n";
             break;
         }
-        const std::string response = server.handleMessage(payload);
-        if (!response.empty()) {
-            out << response;
-            out.flush();
+        Json::parse(job.payload, job.message);
+        const auto method = job.message.getString("method");
+        const auto params = job.message.get("params");
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            if (method == "$/cancelRequest") {
+                const auto key = params.get("id").dump();
+                if (pending.count(key)) cancelled.insert(key);
+                continue;
+            }
+            if (method == "textDocument/didChange") {
+                const auto doc = params.get("textDocument");
+                const auto found = latest.find(doc.getString("uri"));
+                const auto version = doc.getInteger("version", -1);
+                // 合并之前就丢弃过期通知，不能把旧增量拼进一个较新的版本。
+                if (found == latest.end() || (version >= 0 && found->second >= version)) continue;
+            }
+            if (!job.message.get("id").isNull()) pending.insert(job.message.get("id").dump());
+            if (method == "textDocument/didOpen" || method == "textDocument/didChange") {
+                const auto doc = params.get("textDocument"); const auto uri = doc.getString("uri");
+                if (method == "textDocument/didOpen") latest[uri] = doc.getInteger("version", -1);
+                else latest[uri] = std::max(latest[uri], doc.getInteger("version", -1));
+            }
+            if (method == "textDocument/didClose") latest.erase(params.get("textDocument").getString("uri"));
+            bool merged = false;
+            if (method == "textDocument/didChange" && !queue.empty()) {
+                auto &previous = queue.back(); const auto oldParams = previous.message.get("params");
+                if (previous.message.getString("method") == method &&
+                    oldParams.get("textDocument").getString("uri") == params.get("textDocument").getString("uri") &&
+                    params.get("textDocument").getInteger("version", -1) > oldParams.get("textDocument").getInteger("version", -1)) {
+                    Json changes = oldParams.get("contentChanges");
+                    const Json incoming = params.get("contentChanges");
+                    for (const auto &change : incoming.items()) changes.push(change);
+                    Json combined = params; combined.set("contentChanges", changes);
+                    previous.message.set("params", combined); previous.payload = previous.message.dump(); merged = true;
+                }
+            }
+            if (!merged) queue.push_back(std::move(job));
         }
+        ready.notify_one();
+        if (method == "exit") break;
     }
+    { std::lock_guard<std::mutex> lock(mutex); ended = true; }
+    ready.notify_one(); worker.join();
     return server.exitCode();
 }
 
@@ -485,7 +621,7 @@ void useBinaryStdio() {
  * @return 读成功为 true；打不开为 false（`text` 保持为空）。
  */
 bool readWholeFile(const std::string& path, std::string& text) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(std::filesystem::u8path(path), std::ios::binary);
     if (!in) {
         text.clear();
         return false;

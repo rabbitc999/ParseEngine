@@ -178,12 +178,16 @@ function registerProviders(context, deps) {
    * @param {object} params 参数。
    * @returns {Promise<any>} 结果；失败时返回 null。
    */
-  const request = async (method, params) => {
+  const request = async (method, params, document, token) => {
     const client = usableClient();
-    if (!client) return null;
+    if (!client || token?.isCancellationRequested) return null;
+    deps.flushDocument?.(document);
+    const version = document.version;
     try {
-      return await client.request(method, params);
+      const result = await client.request(method, params, token);
+      return token?.isCancellationRequested || document.isClosed || document.version !== version || deps.getClient() !== client ? null : result;
     } catch (error) {
+      if (error.name === 'AbortError') return null;
       deps.logLine(`[请求失败] ${method}：${error.message}`);
       return null;
     }
@@ -198,11 +202,11 @@ function registerProviders(context, deps) {
        * @param {vscode.Position} position 位置。
        * @returns {Promise<vscode.Hover|null>} 悬停内容。
        */
-      provideHover: async (document, position) => {
+      provideHover: async (document, position, token) => {
         const result = await request('textDocument/hover', {
           textDocument: { uri: document.uri.toString() },
           position: { line: position.line, character: position.character },
-        });
+        }, document, token);
         if (!result || !result.contents) return null;
 
         // 1. 协议允许 contents 是字符串、{value} 对象或数组，这里都兼容。
@@ -232,11 +236,11 @@ function registerProviders(context, deps) {
          * @param {vscode.Position} position 位置。
          * @returns {Promise<vscode.CompletionItem[]>} 候选列表。
          */
-        provideCompletionItems: async (document, position) => {
+        provideCompletionItems: async (document, position, token) => {
           const result = await request('textDocument/completion', {
             textDocument: { uri: document.uri.toString() },
             position: { line: position.line, character: position.character },
-          });
+          }, document, token);
           const items = Array.isArray(result) ? result : (result && result.items) || [];
 
           // 逐条翻译；detail 与文档都原样带过去。
@@ -267,11 +271,11 @@ function registerProviders(context, deps) {
        * @param {vscode.Position} position 位置。
        * @returns {Promise<vscode.Location[]>} 定义位置。
        */
-      provideDefinition: async (document, position) => {
+      provideDefinition: async (document, position, token) => {
         const result = await request('textDocument/definition', {
           textDocument: { uri: document.uri.toString() },
           position: { line: position.line, character: position.character },
-        });
+        }, document, token);
         if (!Array.isArray(result)) return [];
 
         return result
@@ -287,10 +291,10 @@ function registerProviders(context, deps) {
        * @param {vscode.TextDocument} document 文档。
        * @returns {Promise<vscode.DocumentSymbol[]>} 符号树。
        */
-      provideDocumentSymbols: async (document) => {
+      provideDocumentSymbols: async (document, token) => {
         const result = await request('textDocument/documentSymbol', {
           textDocument: { uri: document.uri.toString() },
-        });
+        }, document, token);
         if (!Array.isArray(result)) return [];
 
         /**
@@ -323,11 +327,11 @@ function registerProviders(context, deps) {
        * @param {vscode.TextDocument} document 文档。
        * @returns {Promise<vscode.TextEdit[]>} 编辑列表。
        */
-      provideDocumentFormattingEdits: async (document) => {
+      provideDocumentFormattingEdits: async (document, options, token) => {
         const result = await request('textDocument/formatting', {
           textDocument: { uri: document.uri.toString() },
           options: { tabSize: 4, insertSpaces: true },
-        });
+        }, document, token);
         if (!Array.isArray(result)) return [];
 
         return result
@@ -347,7 +351,7 @@ function registerProviders(context, deps) {
          * @param {vscode.CodeActionContext} context 诊断上下文。
          * @returns {Promise<vscode.CodeAction[]>} 可用的修复动作。
          */
-        provideCodeActions: async (document, range, context) => {
+        provideCodeActions: async (document, range, context, token) => {
           // 1. 把 VS Code 诊断转回 LSP 形状（服务器要看 range 与 message）。
           const diagnostics = context.diagnostics.map((diagnostic) => ({
             range: {
@@ -373,7 +377,7 @@ function registerProviders(context, deps) {
               end: { line: range.end.line, character: range.end.character },
             },
             context: { diagnostics },
-          });
+          }, document, token);
           if (!Array.isArray(result)) return [];
 
           // 2. 逐条翻译成本地 CodeAction（本服务器只会编辑当前文件）。

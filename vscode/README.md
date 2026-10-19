@@ -14,7 +14,7 @@
 同样是编译器本体 `magel lsp`）；本插件只声明 `.gram` 一个后缀。
 
 生成菜单与 `gram.defaultMode` 支持全部 16 种模式，包括 `earley` / `cyk`；
-两种图表模式支持 C++17、Python、C#、Rust 目标产物。
+两种图表模式支持 C++17、Python、C#、Rust、Go、Java、JavaScript 目标产物。
 菜单列出模式不代表每个语言都支持；完整组合与增量 API 见 [15 支持矩阵](https://github.com/rabbitc999/ParseEngine/blob/master/doc/15-language-mode-support.md)。
 
 **零依赖**：不需要 `npm install`（`package.json` 没有 `dependencies` / `devDependencies`），
@@ -24,6 +24,14 @@
 
 插件图标 `icon.png` 由 `python tools/make_icon.py` 生成（同一张图也导出成各尺寸 PNG
 与 Windows `.ico` 供仓库文档使用），改图标改那个脚本即可。
+
+## 大文法与增量生成
+
+1.2 版本加入 UTF-16 范围同步、版本化诊断、请求取消、同版本扫描复用，以及生成配置、
+按上次配置重跑、强制重建和可取消生成任务。生成默认启用二进制分析缓存，状态栏显示
+缓存命中和耗时，同一输出目录的任务互斥。
+
+配置示例、取消的边界与后续范围见 [23 VS Code 工作流](../doc/23-vscode-workflow.md)。
 
 ## 功能
 
@@ -128,14 +136,15 @@ make                     # 生成 build/bin/ParseEngine
 ```text
 node vscode/test/smoke.js
 node vscode/test/extension-smoke.js
+node vscode/test/p0.js
 ```
 
-两个脚本分工不同：
+三个脚本分工不同：
 
 | 脚本 | 测什么 |
 | --- | --- |
 | `test/smoke.js` | LSP 全流程：初始化 → 打开文档 → 诊断 → 悬停 → 补全 → 跳转 → 大纲 → 格式化 → 快速修复；生成 Python / C++17 产物；LALR / GLR Token 与语法树预览 |
-| `test/extension-smoke.js` | 用"桩 vscode"直接加载 `extension.js`：验证 6 个语言能力与 5 个命令、预览 Webview 与内联脚本、服务器启动和 `deactivate` 收尾 |
+| `test/extension-smoke.js` | 用"桩 vscode"直接加载 `extension.js`：验证 6 个语言能力与 9 个命令、预览 Webview 与内联脚本、服务器启动和 `deactivate` 收尾 |
 
 ## 自动打包（.vsix）
 

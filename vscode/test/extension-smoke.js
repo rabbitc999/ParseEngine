@@ -60,6 +60,7 @@ function createVscodeStub(workspacePath) {
   const state = {
     providers: [],
     commands: new Map(),
+    events: {}, selections: [], inputs: [], settings: {}, progress: [],
     statusText: '',
     diagnosticsByUri: new Map(),
     disposables: 0,
@@ -80,6 +81,7 @@ function createVscodeStub(workspacePath) {
 
   const api = {
     StatusBarAlignment: { Left: 1, Right: 2 },
+    ProgressLocation: { Notification: 15 },
     ViewColumn: { Beside: 2 },
     DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
     CompletionItemKind: {
@@ -218,9 +220,13 @@ function createVscodeStub(workspacePath) {
       showErrorMessage: async () => undefined,
       showQuickPick: async (items) => {
         state.quickPicks.push(items);
-        return undefined;
+        return state.selections.shift();
       },
-      showInputBox: async () => undefined,
+      withProgress: async (options, task) => {
+        state.progress.push(options);
+        return task({ report() {} }, { isCancellationRequested: false, onCancellationRequested: disposable });
+      },
+      showInputBox: async () => state.inputs.shift(),
       showTextDocument: async () => undefined,
       activeTextEditor: undefined,
     },
@@ -228,17 +234,19 @@ function createVscodeStub(workspacePath) {
     workspace: {
       workspaceFolders: [{ uri: { fsPath: workspacePath } }],
       textDocuments: [],
+      getWorkspaceFolder: () => ({ uri: { fsPath: workspacePath } }),
       getConfiguration: () => ({ get: (key, fallback) => {
         // 语言服务器默认内嵌在编译器里；`LSP_SERVER` 用来临时换成独立构建的那份。
+        if (Object.prototype.hasOwnProperty.call(state.settings, key)) return state.settings[key];
         if (key === 'lspServerPath') return process.env.LSP_SERVER || fallback;
         if (key === 'parseEnginePath') return process.env.PARSE_ENGINE || fallback;
         return fallback;
       } }),
       onDidChangeConfiguration: disposable,
-      onDidOpenTextDocument: disposable,
-      onDidChangeTextDocument: disposable,
-      onDidSaveTextDocument: disposable,
-      onDidCloseTextDocument: disposable,
+      onDidOpenTextDocument: handler => { state.events.onDidOpenTextDocument = handler; return disposable(); },
+      onDidChangeTextDocument: handler => { state.events.onDidChangeTextDocument = handler; return disposable(); },
+      onDidSaveTextDocument: handler => { state.events.onDidSaveTextDocument = handler; return disposable(); },
+      onDidCloseTextDocument: handler => { state.events.onDidCloseTextDocument = handler; return disposable(); },
       openTextDocument: async () => ({}),
     },
 
@@ -348,7 +356,7 @@ async function main() {
 
     const commandIds = [...state.commands.keys()].sort();
     console.log(`   注册的命令：${commandIds.join('、')}`);
-    check('注册了 5 个命令', commandIds.length === 5);
+    check('注册了 9 个命令', commandIds.length === 9);
     check(
       '命令 id 正确',
       ['gram.check', 'gram.generate', 'gram.preview', 'gram.restartServer', 'gram.openDoc']
@@ -361,6 +369,7 @@ async function main() {
     api.window.activeTextEditor = {
       document: { languageId: 'gram', uri: api.Uri.file(path.join(repoRoot, 'example', 'calc.gram')), isDirty: false },
     };
+    state.selections.push('cpp17');
     await state.commands.get('gram.generate')();
     check('生成菜单列出 Earley / CYK', state.quickPicks.some((items) =>
       ['earley', 'cyk'].every((mode) => items.includes(mode))));
@@ -415,7 +424,8 @@ async function main() {
   process.exit(failures === 0 ? 0 : 1);
 }
 
-main().catch((error) => {
+module.exports = { createVscodeStub };
+if (require.main === module) main().catch((error) => {
   console.error('集成测试异常：', error);
   process.exit(1);
 });

@@ -411,6 +411,20 @@ std::vector<std::string> grammarCandidates(const std::string& dir) {
 
 } // namespace
 
+/** @brief 单个文档版本的扫描结果；被复制的文档可以共享，但不能修改快照。 */
+struct GrammarScan { ScanResult result; };
+
+/** @brief 复用当前版本的扫描，避免悬停、补全和跳转反复重新分词。
+ * @return 不可变词法快照。
+ */
+const GrammarScan &GrammarDocument::scanResult() const {
+    if (!scan_) {
+        auto snapshot = std::make_shared<GrammarScan>();
+        snapshot->result = scanText(text_); scan_ = std::move(snapshot);
+    }
+    return *scan_;
+}
+
 const std::vector<std::string>& GrammarDocument::modeNames() {
     static const std::vector<std::string> names = {
         "ll1", "lr0", "slr", "lalr", "lr1", "ielr", "lrk", "lalrk", "slrk", "llk", "ll0", "glr", "earley", "cyk", "dd", "lex"};
@@ -418,7 +432,7 @@ const std::vector<std::string>& GrammarDocument::modeNames() {
 }
 const std::vector<std::string>& GrammarDocument::languageNames() {
     static const std::vector<std::string> names = {
-        "c", "cpp17", "python", "csharp", "rust", "go", "gram"};
+        "c", "cpp17", "python", "csharp", "rust", "go", "java", "js", "gram"};
     return names;
 }
 const std::vector<std::pair<std::string, std::string>>& GrammarDocument::directiveTable() {
@@ -432,6 +446,7 @@ void GrammarDocument::setText(std::string text) {
 
 void GrammarDocument::loadWithStack(std::string text, std::vector<std::string>& stack) {
     text_ = std::move(text);
+    scan_.reset();
     diagnostics_.clear();
     directives_.clear();
     tokens_.clear();
@@ -545,7 +560,7 @@ bool GrammarDocument::isInlineKeyword(const Range& range) const {
 void GrammarDocument::scan() {}
 
 void GrammarDocument::buildModel() {
-    const ScanResult scanned = scanText(text_);
+    const auto &scanned = scanResult().result;
     for (const auto& diagnostic : scanned.diagnostics) diagnostics_.push_back(diagnostic);
     const auto& tokens = scanned.tokens;
 
@@ -833,7 +848,7 @@ std::vector<SymbolInfo> GrammarDocument::symbols() const {
 }
 
 std::vector<SemanticToken> GrammarDocument::semanticTokens() const {
-    const ScanResult scanned = scanText(text_);
+    const auto &scanned = scanResult().result;
     std::set<std::string> ruleNames;
     for (const auto& rule : rules_) ruleNames.insert(rule.name);
     std::vector<SemanticToken> out;
@@ -877,7 +892,7 @@ std::vector<SemanticToken> GrammarDocument::semanticTokens() const {
 }
 
 HoverResult GrammarDocument::hover(Position position) const {
-    const ScanResult scanned = scanText(text_);
+    const auto &scanned = scanResult().result;
     for (const auto& token : scanned.tokens) {
         if (!contains(token.range, position)) continue;
         std::string markdown;
@@ -934,7 +949,7 @@ HoverResult GrammarDocument::hover(Position position) const {
 }
 
 std::vector<CompletionItem> GrammarDocument::completion(Position position) const {
-    const ScanResult scanned = scanText(text_);
+    const auto &scanned = scanResult().result;
     std::vector<CompletionItem> items;
     std::string lineDirective;
     bool atLineStart = true;
@@ -1009,7 +1024,7 @@ std::vector<CompletionItem> GrammarDocument::completion(Position position) const
 }
 
 std::vector<Range> GrammarDocument::definition(Position position) const {
-    const ScanResult scanned = scanText(text_);
+    const auto &scanned = scanResult().result;
     for (const auto& token : scanned.tokens) {
         if (!contains(token.range, position)) continue;
         if (token.kind != Raw::Ident) return {};
@@ -1044,7 +1059,7 @@ std::vector<CodeAction> GrammarDocument::codeActions() const {
         } else {
             action.title = "添加规则 " + name + " := %empty;";
             Position end = insertPosition_;
-            for (const auto& token : scanText(text_).tokens) if (end < token.range.end) end = token.range.end;
+            for (const auto& token : scanResult().result.tokens) if (end < token.range.end) end = token.range.end;
             action.edit.range = Range{end, end};
             action.edit.newText = "\n" + name + " := %empty;\n";
         }

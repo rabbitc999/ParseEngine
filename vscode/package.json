@@ -2,7 +2,7 @@
   "name": "gram-editor",
   "displayName": "GramEditor - ParseEngine 文法",
   "description": "编辑 ParseEngine .gram 文法；自带编译器与内嵌语言服务器，支持诊断、补全、Token 与语法树预览、一键生成解析器。",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "publisher": "rabbitc999",
   "author": {
     "name": "小兔糖糖OvO",
@@ -32,7 +32,7 @@
   "scripts": {
     "embed": "node tools/embed-compiler.js",
     "check": "node tools/check-manifest.js",
-    "test": "node test/smoke.js && node test/extension-smoke.js",
+    "test": "node test/smoke.js && node test/extension-smoke.js && node test/p0.js",
     "vscode:prepublish": "node tools/embed-compiler.js",
     "package": "node tools/package.js",
     "package:vsce": "node tools/package-vsce.js"
@@ -93,6 +93,22 @@
       {
         "command": "gram.openDoc",
         "title": "Gram: 打开文法指令手册"
+      },
+      {
+        "command": "gram.generateAgain",
+        "title": "Gram: 按上次配置增量生成"
+      },
+      {
+        "command": "gram.rebuild",
+        "title": "Gram: 按上次配置强制重新生成"
+      },
+      {
+        "command": "gram.generateProfile",
+        "title": "Gram: 选择生成配置…"
+      },
+      {
+        "command": "gram.cancelGeneration",
+        "title": "Gram: 取消全部生成任务"
       }
     ],
     "keybindings": [
@@ -153,6 +169,8 @@
             "csharp",
             "rust",
             "go",
+            "java",
+            "js",
             "gram"
           ],
           "description": "「生成解析器」对话框里默认选中的目标语言。"
@@ -165,6 +183,97 @@
             "messages"
           ],
           "description": "把与语言服务器的协议消息写进输出面板，排查问题时打开。"
+        },
+        "gram.incrementalGeneration": {
+          "type": "boolean",
+          "default": true,
+          "description": "生成解析器时启用持久化二进制分析缓存。"
+        },
+        "gram.cacheDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "缓存目录；相对路径以文法所属工作区为基准，留空使用输出目录下的 .parseengine-cache。"
+        },
+        "gram.generationProfiles": {
+          "type": "array",
+          "default": [],
+          "description": "可重复使用的具名生成配置；路径相对文法所属工作区。",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "mode",
+              "lang"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "ll1",
+                  "lr0",
+                  "slr",
+                  "lalr",
+                  "lr1",
+                  "ielr",
+                  "lrk",
+                  "lalrk",
+                  "slrk",
+                  "llk",
+                  "ll0",
+                  "glr",
+                  "earley",
+                  "cyk",
+                  "dd",
+                  "lex"
+                ]
+              },
+              "lang": {
+                "type": "string",
+                "enum": [
+                  "c",
+                  "cpp17",
+                  "python",
+                  "csharp",
+                  "rust",
+                  "go",
+                  "java",
+                  "js",
+                  "gram"
+                ]
+              },
+              "outputDir": {
+                "type": "string"
+              },
+              "cacheDir": {
+                "type": "string"
+              },
+              "incremental": {
+                "type": "boolean"
+              },
+              "cppLexer": {
+                "type": "string",
+                "enum": [
+                  "std",
+                  "dfa",
+                  "vm"
+                ]
+              },
+              "strictRegex": {
+                "type": "boolean"
+              },
+              "teach": {
+                "type": "boolean"
+              },
+              "mermaid": {
+                "type": "boolean"
+              }
+            }
+          }
         }
       }
     }

@@ -157,3 +157,5 @@ Magel's [lambda and function-pointer callbacks](https://github.com/rabbitc999/ma
 [Regex compatibility reports and validation without writing output](../21-regex-compatibility.md) (Chinese).
 
 [Binary incremental generation and C++11 subset tests](../22-incremental-generation.md) (Chinese).
+
+[VS Code large-grammar editing and incremental generation](../23-vscode-workflow.md) (Chinese).

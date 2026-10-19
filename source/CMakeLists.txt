@@ -90,3 +90,6 @@ if(Python3_Interpreter_FOUND)
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
         COMMENT "把 doc/ 的手册正文内联成 source/src/manual_data.cpp")
 endif()
+
+find_package(Threads REQUIRED)
+target_link_libraries(ParseEngine PRIVATE Threads::Threads)

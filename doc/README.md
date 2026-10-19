@@ -48,6 +48,7 @@ Magel 当前语言基线：**1.0.0**，当前版本：**1.2.0**。
 | [20 正则运行时资源预算](20-regex-runtime-budgets.md) | 步数、工作内存、回溯、前瞻、取消及结构化失败状态 |
 | [21 正则兼容性与纯校验](21-regex-compatibility.md) | 逐规则引擎、语义保证、严格模式及不写盘校验 |
 | [22 二进制增量生成](22-incremental-generation.md) | 分析缓存、语义刷新、失效与损坏恢复、C++11 子集回归 |
+| [23 VS Code 工作流](23-vscode-workflow.md) | 大文法同步、取消、版本过滤与增量生成配置 |
 | [Magel EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) | 当前词法、全部产生式、匿名函数类型、泛型入口与语义检查边界 |
 | [Magel 语言哲学](https://github.com/rabbitc999/magel/blob/master/doc/00-philosophy.md) | 简单编写，到处运行；值语义、显式引用、资源管理与没有移动语义 |
 | [文档维护规范](../project/document/README.md) | 统一口径、技术文档模板、文档生成器与同步检查 |

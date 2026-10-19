@@ -24,72 +24,56 @@ const DIAGNOSTIC_LINE = /^(?<file>.+):(?<line>\d+):(?<column>\d+):\s*(?<level>\w
  *
  * @param {string} exe 可执行文件。
  * @param {string[]} args 参数列表。
- * @param {{cwd?: string, timeoutMs?: number, input?: string}} [options] 选项。
+ * @param {{cwd?: string, timeoutMs?: number, input?: string, signal?: AbortSignal}} [options] 选项。
  * @returns {Promise<{code: number, output: string}>} 退出码与合并后的输出。
  */
-function runProcess(exe, args, options) {
+function runProcess(exe, args, options = {}) {
+  const started = Date.now();
   return new Promise((resolve) => {
-    const timeoutMs = (options && options.timeoutMs) || 120000;
-
-    // 1. 找不到可执行文件就直接返回，交给上层提示。
-    const hasPath = exe && (path.isAbsolute(exe) || exe.includes('/') || exe.includes('\\'));
-    if (!exe || (hasPath && !fs.existsSync(exe))) {
-      resolve({ code: -1, output: `找不到可执行文件：${exe}` });
-      return;
-    }
-
-    // 2. 起进程，stdout / stderr 一起收。
-    let child;
-    try {
-      child = spawn(exe, args, {
-        cwd: (options && options.cwd) || undefined,
-        windowsHide: true,
-      });
-    } catch (error) {
-      resolve({ code: -1, output: `启动失败：${error.message}` });
-      return;
-    }
-
-    let stdout = '';
-    let stderr = '';
-    let finished = false;
-
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk.toString('utf8');
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk.toString('utf8');
-    });
-    child.stdin.on('error', () => {
-      // 子进程提前退出时可能关闭管道，最终错误由 close/error 分支统一返回。
-    });
-    child.stdin.end(options && typeof options.input === 'string' ? options.input : undefined);
-
-    // 3. 超时兜底：杀掉进程并返回超时提示。
-    const timer = setTimeout(() => {
-      if (finished) return;
-      finished = true;
-      try {
-        child.kill();
-      } catch {
-        // 已经退了。
+    let child, timer, cancellation, timedOut = false, settled = false;
+    const finish = (code, output) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abort);
+      resolve({ code, output, cancelled: !!cancellation, timedOut, durationMs: Date.now() - started });
+    };
+    const abort = () => {
+      if (settled || cancellation || timedOut) return;
+      cancellation = true;
+      terminate();
+    };
+    const terminate = () => {
+      if (!child || child.exitCode !== null) return;
+      if (process.platform === 'win32') {
+        // 取消整个生成任务，避免后代进程仍持有输出目录。
+        const killer = spawn(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe'),
+          ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+        killer.on('error', () => child.kill());
+      } else {
+        try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
       }
-      resolve({ code: -1, output: `命令超时（>${Math.round(timeoutMs / 1000)} 秒）：${exe}` });
-    }, timeoutMs);
-
-    child.on('error', (error) => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      resolve({ code: -1, output: `执行失败：${error.message}` });
-    });
-
-    child.on('close', (code) => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      const output = stderr.trim() ? `${stdout}${stdout.trim() ? '\n' : ''}${stderr}` : stdout;
-      resolve({ code: code === null ? -1 : code, output: output.trimEnd() });
+    };
+    if (options.signal?.aborted) { cancellation = true; finish(-1, '生成已取消'); return; }
+    const hasPath = exe && (path.isAbsolute(exe) || exe.includes('/') || exe.includes('\\'));
+    if (!exe || (hasPath && !fs.existsSync(exe))) { finish(-1, `找不到可执行文件：${exe}`); return; }
+    try {
+      child = spawn(exe, args, { cwd: options.cwd, windowsHide: true, detached: process.platform !== 'win32' });
+    } catch (error) { finish(-1, `启动失败：${error.message}`); return; }
+    let stdout = '', stderr = '';
+    child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
+    child.stdout.on('data', chunk => { stdout += chunk; });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.stdin.on('error', () => {});
+    child.stdin.end(typeof options.input === 'string' ? options.input : undefined);
+    options.signal?.addEventListener('abort', abort, { once: true });
+    if (options.signal?.aborted) abort();
+    timer = setTimeout(() => { timedOut = true; terminate(); }, options.timeoutMs || 120000);
+    child.on('error', error => finish(-1, `执行失败：${error.message}`));
+    child.on('close', code => {
+      const output = [stdout.trimEnd(), stderr.trimEnd(), cancellation ? '生成已取消' :
+        timedOut ? '生成超时' : ''].filter(Boolean).join('\n');
+      finish(cancellation || timedOut ? -1 : code ?? -1, output);
     });
   });
 }
@@ -174,6 +158,12 @@ function buildGenerateArgs(options) {
   if (options.teach) args.push('--teach');
   if (options.mermaid) args.push('--mermaid');
   if (options.syntaxOnly) args.push('--syntax-only');
+  if (options.incremental) args.push('--incremental');
+  if (options.cacheDir) args.push('--cache-dir', options.cacheDir);
+  if (options.incremental === false) args.push('--no-incremental');
+  if (options.rebuild) args.push('--rebuild');
+  if (options.cppLexer) args.push('--cpp-lexer', options.cppLexer);
+  if (options.strictRegex) args.push('--strict-regex');
 
   // 2. 命名空间 / 前缀 / 类名。
   if (options.namespace) args.push('--namespace', options.namespace);
@@ -196,7 +186,17 @@ function buildGenerateArgs(options) {
  */
 function listGeneratedFiles(dir) {
   const files = [];
-  const skip = new Set(['obj', 'bin', 'node_modules', '.git']);
+  try {
+    const lines = fs.readFileSync(path.join(dir, '.parseengine-manifest'), 'utf8').split(/\r?\n/);
+    if (lines.shift() === '# ParseEngine generated files v1') {
+      return lines.filter(Boolean).map(relative => {
+        const full = path.resolve(dir, relative);
+        const inside = path.relative(path.resolve(dir), full);
+        return inside && !inside.startsWith('..') && !path.isAbsolute(inside) && fs.existsSync(full) ? full : null;
+      }).filter(Boolean).sort();
+    }
+  } catch { /* 兼容不提供清单的旧生成器。 */ }
+  const skip = new Set(['obj', 'bin', 'target', 'node_modules', '.git', '.parseengine-cache']);
 
   /**
    * 递归遍历。
@@ -235,12 +235,14 @@ async function generate(parseEngine, options) {
   const args = buildGenerateArgs(options);
   const result = await runProcess(parseEngine, args, {
     cwd: path.dirname(options.grammarFile),
-    timeoutMs: 180000,
+    timeoutMs: options.timeoutMs || 180000,
+    signal: options.signal,
   });
 
   return {
-    code: result.code,
-    output: result.output,
+    ...result,
+    cache: /分析缓存命中|Analysis cache hit/.test(result.output) ? 'hit' :
+      /分析缓存未命中|Analysis cache miss/.test(result.output) ? 'miss' : 'off',
     files: fs.existsSync(options.outputDir) ? listGeneratedFiles(options.outputDir) : [],
   };
 }

@@ -5,6 +5,7 @@
 // 共用的值类型（位置 / 区间 / 诊断 / 悬停 / 补全 …）在 `types.hpp` 里；这里只放文法
 // 自己的声明与文档模型。
 #include <cstddef>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -12,6 +13,8 @@
 #include "types.hpp"
 
 namespace lsp {
+/** @brief 当前文本版本的不可变词法扫描快照。 */
+struct GrammarScan;
 
 /**
  * 一个声明出来的终结符（%token / %define / %regex / 优先级声明）。
@@ -234,6 +237,9 @@ private:
      */
     bool isInlineKeyword(const Range& range) const;
 
+    /** @brief 取得当前版本的扫描快照。@return 缓存的词法结果。 */
+    const GrammarScan &scanResult() const;
+    mutable std::shared_ptr<const GrammarScan> scan_;
     std::string text_;
     /** 文档所在目录（UTF-8，空串表示未知）；只给 `%include` 的路径补全用。 */
     std::string baseDir_;

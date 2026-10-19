@@ -24,3 +24,6 @@ if(MSVC)
   target_compile_options(lsp-tests PRIVATE /utf-8)
 endif()
 add_test(NAME lsp-tests COMMAND lsp-tests)
+
+find_package(Threads REQUIRED)
+target_link_libraries(parseengine_lsp PUBLIC Threads::Threads)

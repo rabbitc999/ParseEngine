@@ -60,3 +60,7 @@ $(BUILD_DIR):
 
 clean:
 	$(CLEAN)
+
+# LSP 的接收与分析线程使用标准线程库。
+CXXFLAGS += -pthread
+LDFLAGS += -pthread

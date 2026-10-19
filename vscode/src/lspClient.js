@@ -93,30 +93,34 @@ class LspClient extends EventEmitter {
    *
    * @param {string} method LSP 方法名，例如 textDocument/hover。
    * @param {object} [params] 参数对象。
+   * @param {object} [token] VS Code 取消令牌；取消时发送协议通知并清理等待项。
    * @returns {Promise<any>} 响应里的 result。
    */
-  request(method, params) {
+  request(method, params, token) {
     return new Promise((resolve, reject) => {
-      if (!this.running) {
-        reject(new Error('语言服务器没有运行'));
-        return;
-      }
-
-      // 1. 登记 id，等响应回来配对。
+      if (!this.running) { reject(new Error('语言服务器没有运行')); return; }
       const id = this.nextId++;
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
+      const cancel = () => {
+        const waiter = this.pending.get(id);
+        if (!waiter) return;
+        this.pending.delete(id); clearTimeout(waiter.timer); waiter.subscription?.dispose();
+        this.notify('$/cancelRequest', { id });
+        const error = new Error('请求已取消'); error.name = 'AbortError'; reject(error);
+      };
+      if (token?.isCancellationRequested) { const e = new Error('请求已取消'); e.name = 'AbortError'; reject(e); return; }
+      const waiter = { resolve, reject, timer: setTimeout(() => {
+        if (!this.pending.delete(id)) return;
+        waiter.subscription?.dispose(); this.notify('$/cancelRequest', { id });
         reject(new Error(`请求超时：${method}`));
-      }, this.timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
-
-      // 2. 发出去。
+      }, this.timeoutMs) };
+      this.pending.set(id, waiter);
       try {
         this._send({ jsonrpc: '2.0', id, method, params: params || {} });
+        waiter.subscription = token?.onCancellationRequested(cancel);
+        if (token?.isCancellationRequested) cancel();
+        if (!this.pending.has(id)) waiter.subscription?.dispose();
       } catch (error) {
-        clearTimeout(timer);
-        this.pending.delete(id);
-        reject(error);
+        clearTimeout(waiter.timer); waiter.subscription?.dispose(); this.pending.delete(id); reject(error);
       }
     });
   }
@@ -129,7 +133,8 @@ class LspClient extends EventEmitter {
    */
   notify(method, params) {
     if (!this.running) return;
-    this._send({ jsonrpc: '2.0', method, params: params || {} });
+    try { this._send({ jsonrpc: '2.0', method, params: params || {} }); }
+    catch (error) { this.emit('log', `通知失败：${error.message}`); }
   }
 
   /**
@@ -157,6 +162,7 @@ class LspClient extends EventEmitter {
         workspace: { workspaceFolders: false },
       },
     });
+    this.capabilities = result.capabilities || {};
     this.notify('initialized', {});
     return result;
   }
@@ -166,13 +172,17 @@ class LspClient extends EventEmitter {
    */
   async stop() {
     if (!this.process || this.stopped) return;
+    let grace;
     try {
-      await this.request('shutdown');
+      await Promise.race([this.request('shutdown'), new Promise(resolve => { grace = setTimeout(resolve, 500); })]);
     } catch {
       // 服务器已经不响应也没关系，下面还有强杀。
     }
+    clearTimeout(grace);
     this.notify('exit');
     this.stopped = true;
+    const stopped = new Error('语言服务器已停止'); stopped.name = 'AbortError';
+    this._failAll(stopped);
 
     // 给 300ms 让它自己退，然后强杀。
     setTimeout(() => {
@@ -251,6 +261,7 @@ class LspClient extends EventEmitter {
       if (waiter) {
         this.pending.delete(message.id);
         clearTimeout(waiter.timer);
+        waiter.subscription?.dispose();
         if (message.error) {
           waiter.reject(new Error(message.error.message || 'LSP 请求失败'));
         } else {
@@ -263,7 +274,7 @@ class LspClient extends EventEmitter {
     // 2. 诊断推送：单独发一个事件，方便上层直接接。
     if (message.method === 'textDocument/publishDiagnostics') {
       const params = message.params || {};
-      this.emit('diagnostics', { uri: params.uri, diagnostics: params.diagnostics || [] });
+      this.emit('diagnostics', { uri: params.uri, version: params.version, diagnostics: params.diagnostics || [] });
       return;
     }
 
@@ -288,6 +299,7 @@ class LspClient extends EventEmitter {
   _failAll(error) {
     for (const [, waiter] of this.pending) {
       clearTimeout(waiter.timer);
+      waiter.subscription?.dispose();
       waiter.reject(error);
     }
     this.pending.clear();

@@ -12,7 +12,7 @@
 #   sh ci/run.sh --no-python     只编 ParseEngine 本身，不跑 tests/*.py
 #   sh ci/run.sh --help
 #
-# 环境要求：g++ / gcc / make / Python >= 3.11；产物检查还需要 cmake。
+# 环境要求：g++ / gcc / make / Node.js >= 18 / Python >= 3.11；产物检查还需要 cmake。
 # --all-languages 额外要求 dotnet / cargo / rustc / go / javac / java / node。
 # Rust 回归离线执行，需要预先缓存 regex crate；JS 产物需要 Node.js >= 22.18。
 # **不需要 root**：脚本只往 build/ 与 tmp/ 写（都在 .gitignore 里）。若工作树里已有
@@ -58,6 +58,7 @@ echo "== 环境检测 =="
 missing=''
 required_tools='g++ gcc make'
 if [ "$run_python" = 1 ] && [ "$skip_vm" = 0 ]; then required_tools="$required_tools cmake"; fi
+if [ "$run_python" = 1 ]; then required_tools="$required_tools node"; fi
 if [ "$all_languages" = 1 ]; then required_tools="$required_tools dotnet cargo rustc go javac java node"; fi
 for tool in $required_tools; do
     if have "$tool"; then
@@ -111,6 +112,9 @@ run_step "构建 ParseEngine 生成器" make -C source -j4 || exit 1
 
 # ---- 2. 核心回归，缺工具或失败均明确报错，不静默跳过 ----
 if [ "$run_python" = 1 ]; then
+    run_step "VS Code 语言服务与生成预览" node vscode/test/smoke.js
+    run_step "VS Code 扩展集成" node vscode/test/extension-smoke.js
+    run_step "VS Code 增量同步、取消与生成配置" node vscode/test/p0.js
     run_step "C++ DFA 与标准库一致性" "$PYTHON" tests/cpp_dfa_std.py
     run_step "扩展正则跨 C/C++ 回归" "$PYTHON" tests/regex_extended.py
     run_step "Unicode 正则跨 C/C++ 回归" "$PYTHON" tests/regex_unicode.py

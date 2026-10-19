@@ -41,6 +41,7 @@ public:
 private:
     struct Document {
         std::string text;
+        long long version = -1; ///< 客户端文档版本；旧客户端未提供时为 -1。
         GrammarDocument model;
     };
     /**
@@ -101,7 +102,7 @@ private:
     void openDocument(const std::string& uri, const std::string& text,
                       const std::string& languageId);
     /**
-     * didChange：整文本替换（本实现只支持全文同步），替换后重扫并重推诊断。
+     * didChange：应用协议变更后替换文本，重扫并推送带版本的诊断。
      *
      * @param uri  文档 URI
      * @param text 新的全文
