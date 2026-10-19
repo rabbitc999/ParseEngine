@@ -80,7 +80,7 @@ static std::uint16_t lexDfaClass(std::uint32_t point)
 }
 
 /**
- * @brief 按一张 DFA 表从 pos 起扫，返回最长接受前缀的字节长度。
+ * @brief 按一张 DFA 表逐字节扫描，与 std::regex 的 char 字符域保持一致。
  * @param pText 文本起点。
  * @param pos 起始位置。
  * @param pTrans 转移表（状态 × 字符类展平）。
@@ -101,7 +101,8 @@ static std::uint32_t lexDfaScan(const char *pText, std::size_t pos,
             break;
         }
         std::size_t next = cursor + 1u;
-        const std::uint32_t point = lexDfaDecode(pText, cursor, next);
+        // C++ 的等价快速路径只编译 ASCII 模式，禁止将非法 UTF-8 折成 ASCII。
+        const std::uint32_t point = static_cast<unsigned char>(pText[cursor]);
         const std::uint32_t target =
             pTrans[(state * kLexClassCount) + lexDfaClass(point)];
         if (target == 0u)

@@ -48,8 +48,8 @@ inline const std::regex kIdentifierRe({{ identifier_pattern }});
 {% endif %}/**
  * @brief 用 std::regex 从 text[pos] 起匹配，返回匹配到的字节数（0 = 不匹配）。
  *
- * 词法器要的是「这个位置能匹配多长就匹配多长」：<regex> 按 ECMAScript
- * 语法的贪婪语义给出的就是最长匹配；`match_continuous` 保证匹配必须从
+ * 每条规则按 ECMAScript 的分支顺序及贪婪 / 非贪婪语义匹配；词法器再在
+ * 各条规则的结果之间取最长者。`match_continuous` 保证匹配必须从
  * pos 起（std::regex_search 默认是往后找）。
  * @param pattern 正则。
  * @param text 输入文本。

@@ -872,15 +872,15 @@ C / C++17 / Python 完全一致（命令行 `--lang` 覆盖文法里的 `%lang`�
 | Go | 标准库 `regexp`（RE2） | `sParserRegexRes` / `sParserIdentifierRe` / `sParserCommitRes` + `sParserLexRegexMatch()`（`regexp.MustCompile` 在包级变量初始化时各编译一次） |
 
 **C++17 缺省把正则交给 `std::regex`**（用 `--cpp-lexer dfa` 或 `%cpp_lexer dfa`
-切到生成期算好的 DFA 表）；**C99 只有 DFA 一条路**，其余各档把正则原样交给各自
+启用等价子集的 DFA 快速路径，其余模式自动回退标准库）；**C99 只有 DFA 一条路**，其余各档把正则原样交给各自
 语言的正则库。
 
 **生成期校验与报错口径**：六档的正则都在**文法加载时**（`readRegexPattern`）用
 生成器自带的编译器（`source/src/regex_dfa.cpp`）验一遍，但**认不下的处理不一样**：
 
-- **C99 / C++17 `dfa`**：真的要用它编 DFA 表，所以「正则语法有误 / `{m,n}` 上限 1000」
+- **C99**：需要使用自带编译器生成 DFA 表，所以「正则语法有误 / `{m,n}` 上限 1000」
   是**硬错误**（`main.cpp` 按目标语言与词法引擎分流，报错文案与从前逐字相同）；
-- **C++17 `std` / Python / C# / Rust / Go**：只打一条**警告**（`GrammarConfig::regexDiagnostics`
+- **C++17 `std` / `dfa` 回退路径 / Python / C# / Rust / Go**：只打一条**警告**（`GrammarConfig::regexDiagnostics`
   → `main.cpp`），生成照常往下走——自带编译器只是「顺手校验一遍」，它不认识不等于
   目标语言不认（`[0-9]{1,2000}` 这类超出上限的写法就是典型：`std::regex` / `re` /
   .NET 的 `Regex` / `regex` 都收）。
@@ -890,8 +890,8 @@ C / C++17 / Python 完全一致（命令行 `--lang` 覆盖文法里的 `%lang`�
 
 1. 取 Token 前先跳 `%space` 空白；
 2. 在「固定字面量 + `%token regex` + `%commit` / `%trivia`」里做最长匹配：
-   字面量先按长度降序试，正则与 commit 各自取「从当前位置起的最长匹配」
-   （C99 与 C++17 `dfa` 查 DFA 表；C++17 `std` / Python / C# / Rust / Go 用各自正则对象的贪婪匹配，
+   字面量先按长度降序试，正则与 commit 各自从当前位置起匹配，再在规则之间比较长度
+   （C99 与 C++17 `dfa` 查 DFA 表；C++17 的两个后端保留 ECMAScript 的分支顺序与非贪婪语义；其他语言使用各自的正则语义，
    并且都要求「必须从当前位置起」——C++17 用 `match_continuous`、
    Python 的 `pattern.match` 本来就是锚定的、C# 额外校验 `Match.Index == start`、
    Rust 用 `Regex::find_at` 再确认 `m.start() == start`、Go 用
@@ -986,3 +986,14 @@ ls /tmp/pl0_gram      # pl0.gram  pl0.analysis.md  RESULT.md
 ParseEngine example/ielr_demo.gram --out-dir /tmp/ielr_gram --lang gram \
     --mode lalr --teach
 ```
+
+### C++ DFA 与标准库一致性回归
+
+运行 `python tests/cpp_dfa_std.py`。该回归比较 `--cpp-lexer std` 与 `dfa`
+的实际词法输出、退出状态和位置，覆盖分支、非贪婪、范围重复、Unicode、断言、
+否定字符类、非法 UTF-8 和空白。C++ DFA 快速路径逐字节扫描，避免把过长 UTF-8 编码误解为 ASCII。可证明等价的 ASCII 模式继续生成 DFA；其余模式整份回退到
+`std::regex`，包括 `%identifier`、`%commit`、`%trivia`，避免不同规则使用不同语义。
+
+C99 继续使用自身 DFA 的最长接受前缀语义。C/C++ 共用编译器已修复 `{m,n}`
+误变成 `{m,}`、`{m,}` 被误报上下限错误、范围重复丢失非贪婪标记和 `\0` 被误拒绝。
+回归同时直接将共用编译器的 DFA 完整匹配结果与 `std::regex_match` 对照，验证重复边界。

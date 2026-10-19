@@ -1034,14 +1034,11 @@ private:
         {
             hasComma = true;
             next();
+            unbounded = !isDigit(peek());
             maximum = readRepeatCount(true, ok);
             if (failed())
             {
                 return {};
-            }
-            if (peek() == '}')
-            {
-                unbounded = true;
             }
         }
         if (peek() != '}')
@@ -1055,17 +1052,19 @@ private:
             unbounded = false;
             maximum = minimum;
         }
-        if (maximum < minimum)
+        if (!unbounded && (maximum < minimum))
         {
             fail("重复次数上限小于下限");
             return {};
         }
-        if (peek() == '?')
+        const bool lazy = (peek() == '?');
+        if (lazy)
         {
             next();
         }
         std::shared_ptr<RegexNode> result = makeNode(RegexNode::Kind::Repeat);
         result->left = node;
+        result->lazy = lazy;
         result->min = static_cast<int>(minimum);
         result->max = unbounded ? -1 : static_cast<int>(maximum);
         return result;
@@ -1261,7 +1260,7 @@ private:
                 "要匹配退格请写在字符类里 [\\b]");
             return {};
         }
-        if ((ch == 'B') || isDigit(ch) || (ch == 'k') || (ch == 'g'))
+        if ((ch == 'B') || (isDigit(ch) && (ch != '0')) || (ch == 'k') || (ch == 'g'))
         {
             fail(std::string("不支持 \\") + static_cast<char>(ch) +
                  "（词边界 / 反向引用）：词法器是单遍最长匹配，不做回溯匹配");
