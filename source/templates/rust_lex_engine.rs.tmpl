@@ -86,10 +86,14 @@ pub struct ParserLocation
     pub offset: i32,
 }
 
+/// 自定义错误提示：参数为错误码、行号、列号、默认文案，返回替换文案。
+pub type ErrorFormatter = Box<dyn FnMut(i32, u32, u32, &str) -> String>;
+
 /// `%mode lex` 的词法器：只有词法，没有分析表 / 分析栈 / 解析入口。
 pub struct Parser
 {
     errors: Vec<ParserError>,
+    error_formatter: Option<ErrorFormatter>,
     input: Vec<char>,
     /// 原始输入文本：词法正则走官方的 `regex`（以**字节**定位），
     /// 表里存的是字符，所以这里再留一份原文给 `lex_regex_match` 用。
@@ -109,6 +113,7 @@ impl Parser
     {
         Parser {
             errors: Vec::new(),
+            error_formatter: None,
             input: Vec::new(),
             text: String::new(),
             text_pos: 0,
@@ -148,13 +153,29 @@ impl Parser
         }
     }
 
+    /// 设置错误提示函数；None 恢复默认，配置跨解析保留。
+    ///
+    /// 参数 formatter 可捕获应用上下文；不得重入当前解析器。
+    pub fn set_error_formatter(&mut self, formatter: Option<ErrorFormatter>)
+    {
+        self.error_formatter = formatter;
+    }
+
+    fn append_error(&mut self, mut item: ParserError)
+    {
+        if let Some(formatter) = self.error_formatter.as_mut() {
+            item.message = formatter(item.code, item.line, item.column, &item.message);
+        }
+        self.errors.push(item);
+    }
+
     fn set_error(&mut self, code: i32, line: u32, column: u32, message: &str)
     {
         if self.errors.len() >= MAX_ERRORS
         {
             return;
         }
-        self.errors.push(ParserError::new(code, line, column, message));
+        self.append_error(ParserError::new(code, line, column, message));
     }
 
     /// 把 `text` 切成 Token 列表（末尾带一个 `TOKEN_END`）。

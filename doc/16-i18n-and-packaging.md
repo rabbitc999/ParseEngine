@@ -5,8 +5,7 @@ ParseEngine 命令行支持中文和英文。代码生成目标仍由 `--lang cp
 ```sh
 ParseEngine --help --ui-lang zh
 ParseEngine --help --ui-lang en
-ParseEngine --help --ui-lang ja
-ParseEngine example/calc.gram --lang cpp17 --out-dir build/calc --ui-lang ja
+ParseEngine example/calc.gram --lang cpp17 --out-dir build/calc --ui-lang en
 ```
 
 显示语言的优先级为显式 `--ui-lang`、`PARSEENGINE_LANG`、`LC_ALL`、`LC_MESSAGES`、`LANG`，最后查询 Windows 用户 UI 语言。中文区域选择中文，其他区域选择英文；`auto` 忽略工具环境中的固定选择并重新检测区域。支持 `zh_CN.UTF-8` 等区域串；`C` / `POSIX` 选择英文。
@@ -20,7 +19,7 @@ ParseEngine example/calc.gram --lang cpp17 --out-dir build/calc --ui-lang ja
 命令行带一份**内嵌手册**：`doc/` 与 `doc/en/` 的正文在构建期被 `tools/embed_manual.py` 压缩内联进 `source/src/manual_data.cpp`，运行时**不读仓库文件**，把可执行文件单独拷到别处也照样能查。
 
 ```sh
-ParseEngine man                     # 目录：18 页文档 + 指令 / 模式 / 语言 / 示例清单
+ParseEngine man                     # 目录：内嵌文档 + 指令 / 模式 / 语言 / 示例清单
 ParseEngine man 12-grammar-usage    # 看某一页（`man 12`、`man %token` 也行）
 ParseEngine man directives          # 全部 %指令（含每条的一句话说明）
 ParseEngine man modes               # 16 种生成模式：用法 + 一句话说明
@@ -28,7 +27,7 @@ ParseEngine man languages           # 目标语言与各自支持的模式数
 ParseEngine man examples            # example/ 里的示例文法一览
 ParseEngine man --search 展望符      # 全文搜关键词（页正文 / 指令 / 模式 / 语言）
 ParseEngine man --json              # 机器可读（编辑器 / 脚本用）
-ParseEngine man --lang en 04        # 正文语言：zh / en / ja / auto（缺省自动检测）
+ParseEngine man --lang en 04        # 正文语言：zh / en / auto（缺省自动检测）
 ```
 
 | 要点 | 说明 |
@@ -82,7 +81,7 @@ ZIP 是发布操作，由 `tools/package_compiler.py` 使用 Python 3.11+ 标准
 
 ```sh
 python tools/package_compiler.py ParseEngine out dist/ParseEngine-windows-x64.zip --ui-lang zh
-python tools/package_compiler.py magel out dist/magel-windows-x64.zip --ui-lang ja
+python tools/package_compiler.py magel out dist/magel-windows-x64.zip --ui-lang en
 ```
 
 脚本默认读取 `build/bin/ParseEngine(.exe)` 或 `magel/magel(.exe)`，可用 `--compiler FILE` 指定其他构建。输出父目录须存在；默认名称含系统和架构，Magel 在仓库内还读取 VERSION。ZIP 只包含当前平台的编译器可执行文件，不包含宿主 Python、C++ 编译器和动态库。内嵌模板、标准库与消息仍保存在可执行文件中。
@@ -91,7 +90,7 @@ ParseEngine 另外提供薄入口，释放内嵌的同一份 Python 脚本后直
 
 ```sh
 ParseEngine zip
-ParseEngine zip out dist/ParseEngine.zip --ui-lang ja
+ParseEngine zip out dist/ParseEngine.zip --ui-lang en
 ```
 
 `PARSEENGINE_PYTHON` 可指定 Python 路径。脚本本身不依赖仓库即可打包明确指定的可执行文件；ParseEngine 薄入口因此也能在解压到仓库外后使用。Magel 的发布仅使用独立 Python 脚本，不提供 `magel zip` 指令。

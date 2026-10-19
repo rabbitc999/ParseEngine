@@ -78,8 +78,12 @@ type ParserLocation struct {
 	Offset int32
 }
 
+// ErrorFormatter 接收错误码、行号、列号、默认提示，返回替换文案。
+type ErrorFormatter func(code, line, column int32, message string) string
+
 // Parser `%mode lex` 的词法器：只有词法，没有分析表 / 分析栈 / 解析入口。
 type Parser struct {
+	errorFormatter ErrorFormatter
 	errors []*ParserError
 	input  []rune
 	// text 原始输入文本：词法正则走标准库的 `regexp`（以**字节**定位），
@@ -125,11 +129,24 @@ func (p *Parser) CurrentLocation() ParserLocation {
 	}
 }
 
+// SetErrorFormatter 设置错误提示函数；nil 恢复默认，配置跨解析保留。
+// formatter 不得重入当前实例；panic 由调用方处理。
+func (p *Parser) SetErrorFormatter(formatter ErrorFormatter) {
+	p.errorFormatter = formatter
+}
+
+func (p *Parser) appendError(item *ParserError) {
+	if p.errorFormatter != nil {
+		item.Message = p.errorFormatter(item.Code, item.Line, item.Column, item.Message)
+	}
+	p.errors = append(p.errors, item)
+}
+
 func (p *Parser) setError(code int32, line int32, column int32, message string) {
 	if len(p.errors) >= sParserMaxErrors {
 		return
 	}
-	p.errors = append(p.errors, &ParserError{
+	p.appendError(&ParserError{
 		Code: code, Line: line, Column: column, Message: message,
 	})
 }

@@ -108,6 +108,31 @@ public final class Parser {
         String key() { return production + ":" + dot + ":" + origin; }
     }
 
+    /** @brief 错误提示函数。
+     * @param code 错误码。@param line 行号。@param column 列号。
+     * @param message 默认提示。@return 替换文案；null 保留默认。
+     */
+    @FunctionalInterface
+    public interface ErrorFormatter {
+        String format(int code, int line, int column, String message);
+    }
+    private ErrorFormatter errorFormatter;
+    private String lastMessage = "";
+
+    /** @brief 设置提示函数，null 恢复默认；已记录提示保持原样。
+     * @param formatter 新提示函数，不得重入当前实例。
+     */
+    public void setErrorFormatter(ErrorFormatter formatter) {
+        errorFormatter = formatter;
+    }
+
+    private static String formatError(ErrorFormatter formatter, int code,
+                                      int line, int column, String message) {
+        if (formatter == null) return message;
+        String formatted = formatter.format(code, line, column, message);
+        return formatted == null ? message : formatted;
+    }
+
     private final List<Token> tokens;
     private int position;
     private int farthest;
@@ -115,25 +140,42 @@ public final class Parser {
     private Node root;
 
     public Parser(String input) {
-        this.tokens = lex(input);
+        this(input, null);
+    }
+
+    /** @brief 构建解析器并配置词法与语法错误提示。
+     * @param input 输入文本。@param formatter 提示函数，null 使用默认。
+     */
+    public Parser(String input, ErrorFormatter formatter) {
+        errorFormatter = formatter;
+        this.tokens = lex(input, formatter);
     }
 
     public Node root() { return root; }
 
     public boolean parse() {
         root = null;
-        if (MODE.equals("dd")) return parseDd();
-        if (MODE.equals("cyk")) return parseCyk();
-        return parseEarley();
+        lastMessage = "";
+        boolean accepted = MODE.equals("dd") ? parseDd() :
+            (MODE.equals("cyk") ? parseCyk() : parseEarley());
+        if (!accepted) lastMessage = syntaxErrorMessage();
+        return accepted;
     }
 
-    public String errorMessage() {
+    /** @brief 返回本次解析记录的错误文案，不重复调用提示函数。
+     * @return 已记录提示；尚未失败时为空。
+     */
+    public String errorMessage() { return lastMessage; }
+
+    private String syntaxErrorMessage() {
         Token token = tokens.get(Math.min(farthest, tokens.size() - 1));
         List<String> names = new ArrayList<>();
         for (int type : expected) names.add(TOKEN_NAMES[type]);
         String want = names.isEmpty() ? "合法 Token" : String.join(" / ", names);
-        return "第 " + token.line + " 行第 " + token.column +
+        String message = "第 " + token.line + " 行第 " + token.column +
                " 列：期望 " + want + "，实际是 " + TOKEN_NAMES[token.type];
+        int code = expected.isEmpty() ? -21 : (token.type == END_TOKEN ? -27 : -26);
+        return formatError(errorFormatter, code, token.line, token.column, message);
     }
 
     private boolean parseDd() {
@@ -299,7 +341,7 @@ public final class Parser {
         return result;
     }
 
-    private static List<Token> lex(String input) {
+    private static List<Token> lex(String input, ErrorFormatter formatter) {
         List<Token> result = new ArrayList<>();
         int at = 0, line = 1, column = 1;
         while (at < input.length()) {
@@ -355,8 +397,8 @@ public final class Parser {
                 }
             }
             if (best == null)
-                throw new IllegalArgumentException("第 " + line + " 行第 " + column +
-                                                   " 列：无法识别字符 " + ch);
+                throw new IllegalArgumentException(formatError(formatter, -29, line, column,
+                    "第 " + line + " 行第 " + column + " 列：无法识别字符 " + ch));
             result.add(new Token(bestType, best, line, column));
             for (int i = 0; i < best.length(); ++i) {
                 if (best.charAt(i) == '\n') { ++line; column = 1; } else ++column;

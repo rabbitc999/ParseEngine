@@ -22,7 +22,8 @@ BUILD_FILES = ("Makefile", "CMakeLists.txt")
 
 def run(args, success=True, cwd=ROOT):
     result = subprocess.run(list(map(str, args)), cwd=cwd, capture_output=True,
-                            text=True, encoding="utf-8", errors="replace")
+                            text=True, encoding="utf-8", errors="replace",
+                            env={**os.environ, "PARSEENGINE_LANG": "zh"})
     assert (result.returncode == 0) == success, (args, result.returncode, result.stdout, result.stderr)
     return result
 

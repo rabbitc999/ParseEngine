@@ -8,7 +8,7 @@
 > 独立仓库 <https://github.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
 > 同名文档。
 
-ParseEngine 的[中英日显示、内嵌手册与语言服务器、发布说明](16-i18n-and-packaging.md)覆盖 `--ui-lang`、`man` 与 `lsp` 子命令、控制台与管道、两个工具的独立打包脚本。
+ParseEngine 的[中英双语显示、内嵌手册与语言服务器、发布说明](16-i18n-and-packaging.md)覆盖 `--ui-lang`、`man` 与 `lsp` 子命令、控制台与管道、两个工具的独立打包脚本。
 
 Magel 1.0.0 的名称、`.mgl` 工程布局与中文／英文／日语语言选择见[Magel 名称与三语说明](https://github.com/rabbitc999/magel/blob/master/doc/32-naming-i18n.md)。
 Magel 的[文档索引](https://github.com/rabbitc999/magel/blob/master/doc/README.md)结合正式 example 源码、expected 输出与错误边界逐步讲解。初学者从 [08 基础程序](https://github.com/rabbitc999/magel/blob/master/doc/08-first-programs.md) 开始，专项环境和验收范围见 [28 样例验证](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)。
@@ -44,7 +44,7 @@ Magel 当前语言基线：**1.0.0**，当前版本：**1.2.0**。
 | [16 双语、内嵌资产与发布](16-i18n-and-packaging.md) | 显示选项、内嵌手册与语言服务器、Unicode 控制台、独立 Python 打包脚本 |
 | [17 扩展正则表达式](17-regex-extensions.md) | 前瞻、词边界、忽略大小写、反向引用与 C99 有序匹配运行时 |
 | [18 Unicode 正则模式](18-regex-unicode.md) | UTF-8 码点、Unicode 17.0 属性、词边界和简单大小写折叠 |
-| [19 自定义错误提示](19-custom-error-messages.md) | C/C++ 运行时错误提示回调、上下文与默认提示恢复 |
+| [19 自定义错误提示](19-custom-error-messages.md) | 全部八种语言的错误提示回调、上下文与默认提示恢复 |
 | [Magel EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) | 当前词法、全部产生式、匿名函数类型、泛型入口与语义检查边界 |
 | [Magel 语言哲学](https://github.com/rabbitc999/magel/blob/master/doc/00-philosophy.md) | 简单编写，到处运行；值语义、显式引用、资源管理与没有移动语义 |
 | [文档维护规范](../project/document/README.md) | 统一口径、技术文档模板、文档生成器与同步检查 |

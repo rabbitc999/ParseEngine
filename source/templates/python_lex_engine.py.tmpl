@@ -31,6 +31,7 @@ class {{ class }}(object):
 
     def __init__(self):
         # 错误表
+        self._error_formatter = None
         self._errors = []
         # %commit 收集到的片段（ParserCommit 列表；没有 %commit 时恒为空）
         self.commits = []
@@ -61,11 +62,30 @@ class {{ class }}(object):
         """
         return ParserLocation(self._line, self._column, self._byte_pos)
 
+    def set_error_formatter(self, formatter):
+        """设置错误提示函数；None 恢复默认，配置跨解析保留。
+
+        :param formatter: 接收 (code, line, column, default_message)，返回字符串。
+        """
+        if formatter is not None and not callable(formatter):
+            raise TypeError("formatter 必须可调用或为 None")
+        self._error_formatter = formatter
+
+    def _append_error(self, error):
+        """格式化新诊断，保留结构化字段；回调异常传播给调用方。"""
+        if self._error_formatter is not None:
+            message = self._error_formatter(error.code, error.line,
+                                            error.column, error.message)
+            if not isinstance(message, str):
+                raise TypeError("错误提示函数必须返回字符串")
+            error.message = message
+        self._errors.append(error)
+
     def _set_error(self, code, line, column, message):
         """往错误表里追加一条（表满就不再记）。"""
         if len(self._errors) >= self.max_errors:
             return
-        self._errors.append(ParserError(code, line, column, message))
+        self._append_error(ParserError(code, line, column, message))
 
     # ---------- 词法状态 ----------
 

@@ -563,6 +563,9 @@ struct DdMark
 // 解析器
 // ============================================================
 
+/// 自定义错误提示：参数为错误码、行号、列号、默认文案，返回替换文案。
+pub type ErrorFormatter = Box<dyn FnMut(i32, u32, u32, &str) -> String>;
+
 /// {{ mode_name }} 解析器：一次解析的全部状态都在这里。
 ///
 /// 同一个解析器实例可以连续解析多次：每次 `run_text` / `run` / `parse_tree`
@@ -570,6 +573,7 @@ struct DdMark
 pub struct Parser
 {
     errors: Vec<ParserError>,
+    error_formatter: Option<ErrorFormatter>,
     result_value: {{ value_type }},
 
     input: Vec<char>,
@@ -644,6 +648,7 @@ impl Parser
     {
         Parser {
             errors: Vec::new(),
+            error_formatter: None,
             result_value: Default::default(),
             input: Vec::new(),
             text: String::new(),
@@ -797,13 +802,29 @@ impl Parser
 
     // ---------- 错误记录 ----------
 
+    /// 设置错误提示函数；None 恢复默认，配置跨解析保留。
+    ///
+    /// 参数 formatter 可捕获应用上下文；不得重入当前解析器。
+    pub fn set_error_formatter(&mut self, formatter: Option<ErrorFormatter>)
+    {
+        self.error_formatter = formatter;
+    }
+
+    fn append_error(&mut self, mut item: ParserError)
+    {
+        if let Some(formatter) = self.error_formatter.as_mut() {
+            item.message = formatter(item.code, item.line, item.column, &item.message);
+        }
+        self.errors.push(item);
+    }
+
     fn set_error(&mut self, code: i32, line: u32, column: u32, message: &str)
     {
         if self.errors.len() >= MAX_ERRORS
         {
             return;
         }
-        self.errors.push(ParserError::new(code, line, column, message));
+        self.append_error(ParserError::new(code, line, column, message));
     }
 
     fn set_expected_one_error(&mut self, expected_kind: i32)
@@ -826,7 +847,7 @@ impl Parser
         item.token_kind = self.current.kind;
         item.token_text = self.current.text.clone();
         item.expected = vec![expected_kind];
-        self.errors.push(item);
+        self.append_error(item);
     }
 
     fn set_syntax_error(&mut self, row: i32, expected_kinds: &[i32])
@@ -889,7 +910,7 @@ impl Parser
         item.token_text = self.current.text.clone();
         item.state = row;
         item.expected = expected;
-        self.errors.push(item);
+        self.append_error(item);
     }
 
     // ---------- 解析入口 ----------

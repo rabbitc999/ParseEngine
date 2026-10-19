@@ -3,6 +3,17 @@
 // Uses erasable TypeScript annotations; Node.js 22+ can run this file directly.
 
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+
+/** @brief 接收错误码、行号、列号、默认提示，返回自定义文案。 */
+export type ErrorFormatter = (code: number, line: number, column: number, message: string) => string;
+
+/** @brief 格式化新诊断，异常由调用方处理。 */
+function formatError(formatter: ErrorFormatter | null, code: number,
+                     line: number, column: number, message: string): string {
+    return formatter === null ? message : formatter(code, line, column, message);
+}
 
 type Token = {
     type: number;
@@ -111,7 +122,7 @@ function better(hit: string, order: number, best: string | null,
         (hit.length === best.length && order < bestOrder);
 }
 
-function lex(input: string): Token[] {
+function lex(input: string, formatter: ErrorFormatter | null): Token[] {
     const result: Token[] = [];
     let at = 0;
     let line = 1;
@@ -167,7 +178,7 @@ function lex(input: string): Token[] {
             }
         }
         if (best === null)
-            throw new Error(`第 ${line} 行第 ${column} 列：无法识别字符 ${ch}`);
+            throw new Error(formatError(formatter, -29, line, column, `第 ${line} 行第 ${column} 列：无法识别字符 ${ch}`));
         result.push({type: bestType, text: best, line, column});
         for (const item of best) {
             if (item === "\n") { ++line; column = 1; } else ++column;
@@ -185,22 +196,43 @@ export class Parser {
     private expected: Set<number> = new Set<number>();
     root: SyntaxNode | null = null;
 
-    constructor(input: string) {
-        this.tokens = lex(input);
+    private errorFormatter: ErrorFormatter | null;
+    private lastMessage = "";
+
+    /** @brief 构建解析器并配置词法与语法提示；词法分析在构造期间执行。
+     * @param input 输入文本。@param formatter 提示函数，null 使用默认。
+     */
+    constructor(input: string, formatter: ErrorFormatter | null = null) {
+        this.errorFormatter = formatter;
+        this.tokens = lex(input, formatter);
+    }
+
+    /** @brief 设置后续错误的提示函数，null 恢复默认。
+     * @param formatter 提示函数，不得重入当前实例。
+     */
+    setErrorFormatter(formatter: ErrorFormatter | null): void {
+        this.errorFormatter = formatter;
     }
 
     parse(): boolean {
         this.root = null;
-        if (MODE === "dd") return this.parseDd();
-        if (MODE === "cyk") return this.parseCyk();
-        return this.parseEarley();
+        this.lastMessage = "";
+        const accepted = MODE === "dd" ? this.parseDd() :
+            (MODE === "cyk" ? this.parseCyk() : this.parseEarley());
+        if (!accepted) this.lastMessage = this.syntaxErrorMessage();
+        return accepted;
     }
 
-    errorMessage(): string {
+    /** @brief 返回已记录提示，读取时不会重复调用提示函数。 */
+    errorMessage(): string { return this.lastMessage; }
+
+    private syntaxErrorMessage(): string {
         const token = this.tokens[Math.min(this.farthest, this.tokens.length - 1)];
         const names = Array.from(this.expected).map((type: number): string => TOKEN_NAMES[type]);
         const want = names.length === 0 ? "合法 Token" : names.join(" / ");
-        return `第 ${token.line} 行第 ${token.column} 列：期望 ${want}，实际是 ${TOKEN_NAMES[token.type]}`;
+        const message = `第 ${token.line} 行第 ${token.column} 列：期望 ${want}，实际是 ${TOKEN_NAMES[token.type]}`;
+        const code = this.expected.size === 0 ? -21 : (token.type === END_TOKEN ? -27 : -26);
+        return formatError(this.errorFormatter, code, token.line, token.column, message);
     }
 
     private parseDd(): boolean {
@@ -360,6 +392,8 @@ export class Parser {
     }
 }
 
+// 作为模块导入时只导出 API，直接运行时执行演示入口。
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
 const input: string = fs.readFileSync(0, "utf8");
 console.log("解析输入: " + input.trim());
 try {
@@ -378,4 +412,5 @@ try {
 } catch (error: unknown) {
     console.log("解析失败: " + (error instanceof Error ? error.message : String(error)));
     process.exitCode = 1;
+}
 }

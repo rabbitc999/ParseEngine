@@ -430,13 +430,35 @@
 
     // ---------- 错误记录 ----------
 
+    /** @brief 错误提示函数。
+     * @param code 错误码。@param line 行号。@param column 列号。
+     * @param message 默认提示。@return 自定义文案；null 保留默认。
+     */
+    public delegate string ErrorFormatter(int code, int line, int column, string message);
+    private ErrorFormatter _errorFormatter;
+
+    /** @brief 设置错误提示函数，null 恢复默认，配置跨解析保留。
+     * @param formatter 提示函数；不得重入当前实例，异常向调用方传播。
+     */
+    public void setErrorFormatter(ErrorFormatter formatter)
+    {
+        _errorFormatter = formatter;
+    }
+
+    private void _appendError(ParserError item)
+    {
+        if (_errorFormatter != null)
+            item.message = _errorFormatter(item.code, item.line, item.column, item.message) ?? item.message;
+        _errors.Add(item);
+    }
+
     private void _setError(int code, int line, int column, string message)
     {
         if (_errors.Count >= MAX_ERRORS)
         {
             return;
         }
-        _errors.Add(new ParserError(code, line, column, message));
+        _appendError(new ParserError(code, line, column, message));
     }
 
     private void _setExpectedOneError(int expectedType)
@@ -452,7 +474,7 @@
         item.tokenType = _current.type;
         item.tokenText = (_current.text == null) ? "" : _current.text;
         item.expected = new int[] {expectedType};
-        _errors.Add(item);
+        _appendError(item);
     }
 
     private void _setSyntaxError(int row, int[] expectedTypes)
@@ -510,7 +532,7 @@
         item.tokenText = (_current.text == null) ? "" : _current.text;
         item.state = row;
         item.expected = expected;
-        _errors.Add(item);
+        _appendError(item);
     }
 
     // ---------- 解析入口 ----------

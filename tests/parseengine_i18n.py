@@ -1,4 +1,4 @@
-"""验收 ParseEngine 三语、Windows 控制台编码、Unicode 路径和独立 ZIP 发布脚本。"""
+"""验收 ParseEngine 双语、Windows 控制台编码、Unicode 路径和独立 ZIP 发布脚本。"""
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -34,7 +34,7 @@ def main():
         assert result.returncode==0 and result.stdout=='C++ 中文 / 日本語\n' and result.stderr=='C stdio 中文 / 日本語\n',result
         if os.name=='nt':
             # Magel 已拆分为独立仓库：这里只顺带检查本地那份二进制，不在就跳过这一项。
-            checks=[(engine,['--help','--ui-lang','ja'],'使い方')]
+            checks=[(engine,['--help','--ui-lang','en'],'Usage')]
             if magel.exists():
                 checks.append((magel,['help','lang','zh'],'用法'))
             else:
@@ -45,15 +45,16 @@ def main():
                 for tool,arguments,word in checks:
                     result=run(helper,cp,tool,*arguments)
                     assert result.returncode==0 and word in result.stdout,result
-        for code,word in (('zh','用法'),('en','Usage'),('ja','使い方')):
+        for code,word in (('zh','用法'),('en','Usage')):
             result=run(engine,'--help','--ui-lang',code)
             assert result.returncode==0 and word in result.stdout and '--lang' in result.stdout and '--ui-lang' in result.stdout,result
             result=run(engine,'--help',extra={'PARSEENGINE_LANG':code})
             assert result.returncode==0 and word in result.stdout,result
             result=run(engine,'--bad-中文',f'--ui-lang={code}')
             assert result.returncode==2 and '--bad-中文' in result.stderr,result
-            assert {'zh':'错误','en':'Error','ja':'エラー'}[code] in result.stderr,result
-        assert '使い方' in run(engine,'--help',extra={'PARSEENGINE_LANG':'auto','LC_ALL':'ja_JP.UTF-8'}).stdout
+            assert {'zh':'错误','en':'Error'}[code] in result.stderr,result
+        assert 'Usage' in run(engine,'--help',extra={'PARSEENGINE_LANG':'auto','LC_ALL':'ja_JP.UTF-8'}).stdout
+        assert run(engine,'--help','--ui-lang','ja').returncode==2
         assert 'Usage' in run(engine,'--help',extra={'LC_ALL':'C','LANG':'ja_JP.UTF-8'}).stdout
         assert 'Usage' in run(engine,'--help','--ui-lang','en',extra={'PARSEENGINE_LANG':'ja'}).stdout
         assert run(engine,'--help','--ui-lang','invalid').returncode==2
@@ -61,18 +62,18 @@ def main():
         source=work/'中文-日本語.gram'
         source.write_text('%mode ielr\n%lang cpp17\n%tree\n%token HELLO "hello"\n%space " \\t\\r\\n"\n%start document\ndocument := HELLO\n',encoding='utf-8')
         snapshots=[]
-        for code in ('zh','en','ja'):
+        for code in ('zh','en'):
             output=work/('工程-日本語-'+code)
             result=run(engine,source,'--out-dir',output,'--lang','cpp17','--ui-lang',code,'--report',work/(code+'-报告.md'))
             assert result.returncode==0,result
-            assert {'zh':'解析完成','en':'Generation complete','ja':'生成完了'}[code] in result.stdout,result
+            assert {'zh':'解析完成','en':'Generation complete'}[code] in result.stdout,result
             snapshots.append({p.name:p.read_bytes() for p in output.iterdir() if p.suffix in ('.cpp','.hpp','.h','.c')})
-        assert snapshots[0] and snapshots[0]==snapshots[1]==snapshots[2]
-        result=run(engine,work/'不存在-日本語.gram','--ui-lang','ja')
-        assert result.returncode==1 and '文法ファイルを開けません' in result.stderr and '不存在-日本語.gram' in result.stderr,result
+        assert snapshots[0] and snapshots[0]==snapshots[1]
+        result=run(engine,work/'不存在-日本語.gram','--ui-lang','en')
+        assert result.returncode==1 and 'Cannot open grammar file' in result.stderr and '不存在-日本語.gram' in result.stderr,result
         archive=work/'安装包-日本語.zip'
-        result=run(engine,'zip','out',archive,'--ui-lang','ja',cwd=work)
-        assert result.returncode==0 and 'パッケージ化しました' in result.stdout,result
+        result=run(engine,'zip','out',archive,'--ui-lang','en',cwd=work)
+        assert result.returncode==0 and 'Packaged' in result.stdout,result
         original=engine.read_bytes();before=archive.read_bytes()
         with zipfile.ZipFile(archive) as bundle:
             name='ParseEngine.exe' if os.name=='nt' else 'ParseEngine'
@@ -81,8 +82,8 @@ def main():
             assert bundle.getinfo(name).compress_type==zipfile.ZIP_DEFLATED
             extracted=work/'outside';bundle.extractall(extracted)
         if os.name!='nt':(extracted/name).chmod(0o755)
-        result=run(extracted/name,'--help','--ui-lang','ja',cwd=extracted)
-        assert result.returncode==0 and '使い方' in result.stdout,result
+        result=run(extracted/name,'--help','--ui-lang','en',cwd=extracted)
+        assert result.returncode==0 and 'Usage' in result.stdout,result
         result=run(extracted/name,'zip','out',work/'再次打包.zip','--ui-lang','en',cwd=extracted)
         assert result.returncode==0 and 'Packaged' in result.stdout,result
         assert run(engine,'zip','out',archive).returncode!=0 and archive.read_bytes()==before
@@ -100,6 +101,6 @@ def main():
             else:raise AssertionError('写入失败未上报')
         assert not partial.exists()
         console='Windows 控制台代码页 936、932' if os.name=='nt' else '重定向 UTF-8（本机不运行 Windows 控制台检查）'
-        print(f'ParseEngine 三语 / Unicode / ZIP 通过；{console}；ZIP {len(original)} -> {len(before)} 字节')
+        print(f'ParseEngine 双语 / Unicode / ZIP 通过；{console}；ZIP {len(original)} -> {len(before)} 字节')
 
 if __name__=='__main__':main()

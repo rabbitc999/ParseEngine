@@ -3,6 +3,19 @@
 生成目标与模式范围见 [12 支持矩阵](15-language-mode-support.md)。这里的增量构建
 （Make/CMake/Cargo）与生成解析器的增量解析 API 是不同概念。
 
+## 统一回归入口
+
+```sh
+sh ci/run.sh                 # C/C++/Python 核心回归及产物/打包检查
+sh ci/run.sh --all-languages # 增加其余五语言及 Rust 增量回归
+sh ci/run.sh --no-python     # 仅更新内嵌资产并构建，不运行 Python 测试
+sh ci/run.sh --skip-vm-tests # 兼容旧选项：仅跳过产物清单与打包检查
+```
+
+入口每次都重新生成内嵌模板和离线手册，然后增量构建生成器，避免复用过期二进制。核心检查包括 DFA/标准库一致性、扩展正则、Unicode、自定义错误提示、生成文件保护、Earley/CYK，以及 C++ 的 GLR/Earley/CYK 增量语义复用。`--no-python` 仍需要 Python 来生成构建资产，只跳过测试。
+
+`--all-languages` 要求 C#、Rust、Go、Java、Node.js 工具链齐全，缺少工具退出 2，不静默省略语言；Rust 依赖必须已缓存。其他检查失败后仍运行剩余独立检查，最后返回 1。构建失败直接返回 1，防止后续测试使用旧生成器。每步日志位于 `tmp/ci/logs/`。`--all-languages` 不能与 `--no-python` 同用。
+
 ## 增量解析专项回归
 
 先在仓库根目录运行 `tools/lock.sh build`，再按目标后端执行：
@@ -22,7 +35,7 @@ Rust 使用 `cargo run --offline`，需要本机已有 `regex` 依赖缓存。
 生成器和 Cargo 位于不同环境时，可在生成器环境加 `--generate-only`，再到对应的
 `tmp/glr-incremental-rust-tests/`（Earley/CYK 分别在子目录 `earley/`、`cyk/`）运行
 `cargo run --offline --quiet --bin incremental_check`，并在其 `nullable/` 子目录再运行一次。
-这些专项脚本独立于已停用的冒烟脚本。
+这些专项脚本也已纳入统一入口：C++ 默认执行，Rust 在 `--all-languages` 时执行。
 
 ## 1. 依赖
 
