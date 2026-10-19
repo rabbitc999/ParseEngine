@@ -313,7 +313,8 @@ bool generatorLexDfaC(
     // DFA 结构体、按条件出现的三段声明都在那边用 `{% if %}` 选。
     outDecls = tmpl::renderValues(
         Utils::loadTemplate("c99_lex_dfa_decls.h"),
-        {{"has_vm", hasVm},
+        {{"regex_limits", Utils::loadTemplate("regex_limits.h")},
+         {"has_vm", hasVm},
          {"has_dfa", hasDfa},
          {"has_regex", hasRegex},
          {"has_identifier", hasIdentifier},
@@ -327,6 +328,7 @@ bool generatorLexDfaC(
         // 那一段，不会引用任何 DFA / commit 表，这里什么都不用发。
         return true;
     }
+    outTables += Utils::loadTemplate("c99_regex_config.c");
     if (hasVm)
     {
         return generatorLexVmC(patterns, entries, hasIdentifier, commits,
@@ -2029,6 +2031,7 @@ std::string CodeGenC99::customParserH(const std::string &defines,
     return tmpl::renderValues(
         Utils::loadTemplate("c99_parser_h_custom.h"),
         {{"mode_name", modeLabel},
+         {"regex_status", Utils::loadTemplate("c99_regex_status.c")},
          {"user_include", include},
          {"defines", allDefines},
          {"error_type", errorType},
@@ -2066,6 +2069,7 @@ std::string CodeGenC99::lexerOnlyH(const std::string &defines,
     return tmpl::renderValues(
         Utils::loadTemplate("c99_lexer_h_custom.h"),
         {{"mode_name", "LEX"},
+         {"regex_status", Utils::loadTemplate("c99_regex_status.c")},
          {"user_include", include},
          {"defines", allDefines},
          {"error_type", errorType}});
@@ -2086,6 +2090,7 @@ std::string CodeGenC99::lexerOnlyC(
     return tmpl::renderValues(
         Utils::loadTemplate("c99_lexer_c_custom.c"),
         {{"mode_name", "LEX"},
+         {"regex_status", Utils::loadTemplate("c99_regex_status.c")},
          {"user_include", customUserInclude(userCode, unionBody, valueType)},
          {"lex_rules", generatorLexRules(tokenDefs, lexSpec.tokenLexOrder)},
          {"lexer", lexer}});
@@ -2212,6 +2217,7 @@ bool CodeGenC99::customParserC(
     out = tmpl::renderValues(
         Utils::loadTemplate("c99_parser_c_custom.c"),
         {{"mode_name", modeLabel},
+         {"regex_status", Utils::loadTemplate("c99_regex_status.c")},
          {"user_include", customUserInclude(userCode, unionBody, valueType)},
          {"table_decls", tableDeclsC(mode, analysis)},
          {"custom_item_types",

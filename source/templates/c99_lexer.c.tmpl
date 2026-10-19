@@ -48,7 +48,9 @@ static int32_t Parser_Advance(ParserCtx_T *pCtx)
                                    ? "字符串没有闭合"
                                    : ((ret == PARSER_ERR_LEX_CHAR)
                                           ? "认不出来的字符"
-                                          : "词法解析失败");
+                                          : (ret == PARSER_ERR_REGEX_LIMIT ? "正则匹配超出资源预算" :
+                                             ret == PARSER_ERR_REGEX_CANCELLED ? "正则匹配已取消" :
+                                             ret == PARSER_ERR_REGEX_MEMORY ? "正则匹配内存不足" : "词法解析失败"));
             Parser_SetError(ret, pCtx->current.line, pCtx->current.column,
                             pWhy);
             pCtx->current.type = TOKEN_INVALID;

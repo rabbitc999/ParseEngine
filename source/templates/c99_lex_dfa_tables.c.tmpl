@@ -100,23 +100,56 @@ const int32_t s_ParserCommitOrders[{{ commit_slots }}] =
 {% endif %}
 };
 
-/** @brief 用 DFA 做最长前缀匹配。 @param pDfa DFA。
- *  @param pText 文本。 @retval 匹配到的字节数（0 表示不匹配）。 */
+/** @brief 用 DFA 执行受预算控制的最长前缀匹配。
+ * @param pDfa DFA。@param pText 文本。@param length 输入字节数。
+ * @param pLimits 可空的预算。@return 匹配状态、长度与执行步数。
+ */
+PeRegexResult Parser_LexDfaMatchEx(const ParserLexDfa_T *pDfa, const char *pText,
+                                 size_t length, const PeRegexLimits *pLimits)
+{
+    PeRegexResult result;
+    PeRegexLimits limits;
+    size_t at, best = 0;
+    uint16_t state;
+    int found;
+    memset(&result, 0, sizeof(result));
+    memset(&limits, 0, sizeof(limits));
+    if (pLimits != NULL) limits = *pLimits;
+    if (!limits.maxSteps) limits.maxSteps = 1000000u;
+    if ((pDfa == NULL) || (pText == NULL)) return result;
+    state = pDfa->startState;
+    found = pDfa->pAccept[state] != 0;
+    for (at = 0; at < length; ++at) {
+        uint8_t cls;
+        if (limits.cancel != NULL && limits.cancel(limits.userData)) {
+            result.status = PE_REGEX_CANCELLED; return result;
+        }
+        if (result.steps >= limits.maxSteps) {
+            result.status = PE_REGEX_LIMIT; return result;
+        }
+        ++result.steps;
+        cls = s_ParserLexClassMap[(unsigned char)pText[at]];
+        state = pDfa->pTrans[(uint32_t)state * (uint32_t)s_ParserLexClassCount + cls];
+        if (state == pDfa->trapState) break;
+        if (pDfa->pAccept[state] != 0u) { best = at + 1; found = 1; }
+    }
+    result.status = found ? PE_REGEX_MATCH : PE_REGEX_NO_MATCH;
+    result.byteLength = found ? best : 0;
+    return result;
+}
+/** @brief 使用配置预算匹配并保存结果。@param pDfa DFA。
+ * @param pText 输入。@param length 输入字节数。@return 前缀字节数。
+ */
+uint32_t Parser_LexDfaMatchLength(const ParserLexDfa_T *pDfa, const char *pText, size_t length)
+{
+    if (s_ParserRegexResult.status < 0) return 0;
+    s_ParserRegexResult = Parser_LexDfaMatchEx(pDfa, pText, length, &s_ParserRegexLimits);
+    return s_ParserRegexResult.status == PE_REGEX_MATCH ? (uint32_t)s_ParserRegexResult.byteLength : 0;
+}
+/** @brief 兼容以 NUL 结束的输入。@param pDfa DFA。@param pText 文本。@return 字节数。 */
 uint32_t Parser_LexDfaMatch(const ParserLexDfa_T *pDfa, const char *pText)
 {
-    uint32_t length = 0u;
-    uint32_t best = 0u;
-    uint16_t state = 0u;
-    if ((pDfa == NULL) || (pText == NULL)) { return 0u; }
-    state = pDfa->startState;
-    while (pText[length] != '\0') {
-        uint8_t cls = s_ParserLexClassMap[(unsigned char)pText[length]];
-        state = pDfa->pTrans[(uint32_t)state * (uint32_t)s_ParserLexClassCount + cls];
-        if (state == pDfa->trapState) { break; }
-        length++;
-        if (pDfa->pAccept[state] != 0u) { best = length; }
-    }
-    return best;
+    return pText == NULL ? 0 : Parser_LexDfaMatchLength(pDfa, pText, strlen(pText));
 }
 
 {% if has_identifier %}

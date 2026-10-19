@@ -39,20 +39,38 @@ const int32_t s_ParserCommitOrders[{{ commit_slots }}] =
 {
 {% for order in commit_orders %}    {{ order }}{% if loop_last %}{% else %},{% endif %}
 {% endfor %}};
-/** @brief 扩展正则有序匹配，接口与 DFA 路径一致。
- * @param pDfa 程序描述。 @param pText 输入。 @return 接受前缀的字节数。
+/** @brief 用有序运行时执行受预算控制的前缀匹配。
+ * @param pDfa 程序描述。@param pText 输入。@param length 输入字节数。
+ * @param pLimits 可空的预算。@return 匹配状态、长度与资源计数。
  */
-uint32_t Parser_LexDfaMatch(const ParserLexDfa_T *pDfa, const char *pText)
+PeRegexResult Parser_LexDfaMatchEx(const ParserLexDfa_T *pDfa, const char *pText,
+                                 size_t length, const PeRegexLimits *pLimits)
 {
     PeRegexProgram program;
-    if ((pDfa == NULL) || (pText == NULL) || (pDfa->code == NULL)) return 0;
+    PeRegexResult empty;
+    memset(&empty, 0, sizeof(empty));
+    if ((pDfa == NULL) || (pText == NULL) || (pDfa->code == NULL)) return empty;
     program.code = pDfa->code;
     program.count = pDfa->count;
     program.entry = pDfa->entry;
     program.groups = pDfa->groups;
     program.ranges = pDfa->ranges;
     program.unicode = pDfa->unicode;
-    return PeRegexMatch(&program, pText);
+    return PeRegexMatchEx(&program, pText, length, pLimits);
+}
+/** @brief 使用配置预算匹配并保存结果。@param pDfa 程序。
+ * @param pText 输入。@param length 输入字节数。@return 前缀字节数。
+ */
+uint32_t Parser_LexDfaMatchLength(const ParserLexDfa_T *pDfa, const char *pText, size_t length)
+{
+    if (s_ParserRegexResult.status < 0) return 0;
+    s_ParserRegexResult = Parser_LexDfaMatchEx(pDfa, pText, length, &s_ParserRegexLimits);
+    return s_ParserRegexResult.status == PE_REGEX_MATCH ? (uint32_t)s_ParserRegexResult.byteLength : 0;
+}
+/** @brief 兼容以 NUL 结束的输入。@param pDfa 程序。@param pText 文本。@return 字节数。 */
+uint32_t Parser_LexDfaMatch(const ParserLexDfa_T *pDfa, const char *pText)
+{
+    return pText == NULL ? 0 : Parser_LexDfaMatchLength(pDfa, pText, strlen(pText));
 }
 {% if has_identifier %}
 static const ParserLexDfa_T s_ParserIdentifierVm = {{ identifier_descriptor }};

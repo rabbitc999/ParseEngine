@@ -84,41 +84,72 @@ inline const LexRegex kIdentifierRe = lexCompileRegex({{ identifier_pattern }});
  * @param pattern 正则。
  * @param text 输入文本。
  * @param pos 起始位置。
+ * @param limits 有序运行时的可选预算，标准库路径不提供预算保证。
+ * @param result 可空的结构化结果输出。
  * @return 匹配到的字节数（0 表示不匹配）。
  */
 inline std::uint32_t lexRegexMatch(const LexRegex &pattern,
                                    const ParserMemory::String &text,
-                                   std::size_t pos)
+                                   std::size_t pos,
+                                   const PeRegexLimits *limits = nullptr,
+                                   PeRegexResult *result = nullptr)
 {
     if (pos > text.size())
     {
         return 0u;
     }
 {% if has_unicode %}    if (pattern.unicode != nullptr)
-        return PeRegexMatchLength(pattern.unicode, text.data() + pos, text.size() - pos);
+    {
+        const PeRegexResult matched = PeRegexMatchEx(pattern.unicode, text.data() + pos, text.size() - pos, limits);
+        if (result != nullptr) *result = matched;
+        return matched.status == PE_REGEX_MATCH ? static_cast<std::uint32_t>(matched.byteLength) : 0u;
+    }
     const std::regex &standard = pattern.standard;
 {% else %}    const std::regex &standard = pattern;
-{% endif %}    std::cmatch match;
+{% endif %}    if (result != nullptr) *result = {};
+    (void)limits;
+    std::cmatch match;
     const char *const pBegin = text.data() + pos;
     const char *const pEnd = text.data() + text.size();
-    if (!std::regex_search(pBegin, pEnd, match, standard,
-                           std::regex_constants::match_continuous))
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+    try
+#endif
     {
+        if (!std::regex_search(pBegin, pEnd, match, standard,
+                               std::regex_constants::match_continuous)) return 0u;
+        if (result != nullptr) {
+            result->status = PE_REGEX_MATCH;
+            result->byteLength = static_cast<std::size_t>(match.length());
+        }
+        return static_cast<std::uint32_t>(match.length());
+    }
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+    catch (const std::bad_alloc &) {
+        if (result != nullptr) result->status = PE_REGEX_NO_MEMORY;
+        return 0u;
+    } catch (const std::regex_error &error) {
+        if (result != nullptr) result->status =
+            (error.code() == std::regex_constants::error_space ||
+             error.code() == std::regex_constants::error_stack) ? PE_REGEX_NO_MEMORY : PE_REGEX_LIMIT;
         return 0u;
     }
-    return static_cast<std::uint32_t>(match.length());
+#endif
 }
 
 {% if has_identifier %}/**
  * @brief 取最长标识符前缀长度。
  * @param text 输入文本。
  * @param pos 起始位置。
+ * @param limits 可选预算。
+ * @param result 可空的结构化结果输出。
  * @return 长度（0 表示不是标识符开头）。
  */
 inline std::uint32_t identifierLength(const ParserMemory::String &text,
-                                      std::size_t pos)
+                                      std::size_t pos,
+                                   const PeRegexLimits *limits = nullptr,
+                                   PeRegexResult *result = nullptr)
 {
-    return lexRegexMatch(kIdentifierRe, text, pos);
+    return lexRegexMatch(kIdentifierRe, text, pos, limits, result);
 }
 
 {% endif %}

@@ -127,6 +127,7 @@
             }
             if (!ddMatch(production, treeMode, values))
             {
+                if (m_regexResult.status < 0) { --m_ddFrameDepth; return false; }
                 continue;
             }
             if (requireEnd && (m_current.type != TokenType::TOKEN_END))
@@ -374,6 +375,7 @@
             }
             // 失败：回到这一段起点，把「最远失败的那个 Token」摆到 current 上
             // 报错（报完再放回去，好接着往后找同步 Token）
+            if (m_regexResult.status < 0) return static_cast<Status>(m_regexResult.status);
             ddRestore(mark);
             if (m_ddFarthestTypes.empty())
             {

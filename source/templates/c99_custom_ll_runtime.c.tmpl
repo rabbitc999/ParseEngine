@@ -11,7 +11,7 @@ static int32_t Parser_FillLookaheadWindow(ParserCtx_T *pCtx)
     const ParserToken_T head = pCtx->current;
     uint32_t index = 0u;
     for (index = 0u; (index + 1u) < PARSER_LOOKAHEAD_K; index++) {
-        if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+        if (Parser_Advance(pCtx) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
         pCtx->lookahead[index] = pCtx->current;
     }
     pCtx->current = head;
@@ -28,7 +28,7 @@ static int32_t Parser_AdvanceLookahead(ParserCtx_T *pCtx)
 #if PARSER_LOOKAHEAD_K > 1
     ParserToken_T fresh;
     uint32_t index = 0u;
-    if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_Advance(pCtx) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
     fresh = pCtx->current;
     pCtx->current = pCtx->lookahead[0];
     for (index = 0u; (index + 1u) < (PARSER_LOOKAHEAD_K - 1u); index++) {

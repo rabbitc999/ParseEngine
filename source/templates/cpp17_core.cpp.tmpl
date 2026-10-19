@@ -1,3 +1,6 @@
+    RegexLimits m_regexLimits{}; ///< 当前实例的正则预算。
+    RegexMatchResult m_regexResult{}; ///< 最近匹配或本次解析的首个资源失败。
+
     /** @brief 统一格式化并保存错误，保留结构化诊断字段。 */
     template<class... Extra>
     void appendError(std::int32_t code, std::uint32_t line, std::uint32_t column,
@@ -166,6 +169,7 @@
     Status prepareCommon()
     {
         m_errors.clear();
+        m_regexResult = {};
         m_commits.clear();
         m_lexeme.clear();
         m_errorStatus = 0;
@@ -279,10 +283,13 @@
                 const char *why =
                     (status == Status::ErrLexUnterminated)
                         ? "字符串没有闭合"
-                        : ((status == Status::ErrLexChar) ? "认不出来的字符"
-                                                          : "词法解析失败");
+                        : (status == Status::ErrRegexLimit ? "正则匹配超出资源预算" :
+                           status == Status::ErrRegexCancelled ? "正则匹配已取消" :
+                           status == Status::ErrRegexMemory ? "正则匹配内存不足" :
+                           ((status == Status::ErrLexChar) ? "认不出来的字符" : "词法解析失败"));
                 setError(failCode(status == Status::ErrLexUnterminated ||
-                                          status == Status::ErrLexChar
+                                          status == Status::ErrLexChar ||
+                                          static_cast<int>(status) <= -30
                                       ? status
                                       : Status::ErrLexer),
                          token.line, token.column, why);

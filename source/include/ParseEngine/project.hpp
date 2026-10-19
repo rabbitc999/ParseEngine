@@ -85,8 +85,9 @@ struct ProjectRequest
     /**
      * @brief C++17 产物的词法引擎（`%cpp_lexer` / `--cpp-lexer`）。
      *
-     * `std`（缺省）用标准库 `std::regex`；`dfa` 用生成期编译好、写进产物的
-     * DFA 表（产物不依赖 `<regex>`）。只对 `--lang cpp17` 有意义。
+     * `std`（缺省）使用标准库字节正则；`dfa` 仅优化已证明等价的 ASCII 子集；
+     * `vm` 使用支持预算的有序运行时。显式 Unicode 规则始终使用共享运行时。
+     * 只对 `--lang cpp17` 有意义。
      */
     std::string cppLexer = "std";
     /**

@@ -23,6 +23,7 @@
             token.column = m_column;
             const char *pStart = &m_text[m_textPos];
             token.offset = static_cast<std::uint32_t>(m_textPos);
+            if (m_regexResult.status < 0) return static_cast<Status>(m_regexResult.status);
             if (*pStart == '\0')
             {
                 token.type = TokenType::TOKEN_END;

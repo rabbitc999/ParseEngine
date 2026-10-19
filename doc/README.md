@@ -45,6 +45,7 @@ Magel 当前语言基线：**1.0.0**，当前版本：**1.2.0**。
 | [17 扩展正则表达式](17-regex-extensions.md) | 前瞻、词边界、忽略大小写、反向引用与 C99 有序匹配运行时 |
 | [18 Unicode 正则模式](18-regex-unicode.md) | UTF-8 码点、Unicode 17.0 属性、词边界和简单大小写折叠 |
 | [19 自定义错误提示](19-custom-error-messages.md) | 全部八种语言的错误提示回调、上下文与默认提示恢复 |
+| [20 正则运行时资源预算](20-regex-runtime-budgets.md) | 步数、工作内存、回溯、前瞻、取消及结构化失败状态 |
 | [Magel EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) | 当前词法、全部产生式、匿名函数类型、泛型入口与语义检查边界 |
 | [Magel 语言哲学](https://github.com/rabbitc999/magel/blob/master/doc/00-philosophy.md) | 简单编写，到处运行；值语义、显式引用、资源管理与没有移动语义 |
 | [文档维护规范](../project/document/README.md) | 统一口径、技术文档模板、文档生成器与同步检查 |

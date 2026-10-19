@@ -307,7 +307,7 @@ static int32_t Parser_SynchronizeLL(ParserCtx_T *pCtx,
         if (pCtx->current.type == TOKEN_END) { return PARSER_ERR_SYNTAX; }
         if (Parser_AdvanceLookahead(pCtx) != PARSER_OK)
         {
-            return PARSER_ERR_LEXER;
+            return Parser_AdjustStatus(PARSER_ERR_LEXER);
         }
         budget--;
     }
@@ -343,7 +343,7 @@ static int32_t Parser_ParseLoop(ParserCtx_T *pCtx, ParserValue_T *pOut)
                 return PARSER_ERR_STACK;
             }
             if (Parser_AdvanceLookahead(pCtx) != PARSER_OK) {
-                return PARSER_ERR_LEXER;
+                return Parser_AdjustStatus(PARSER_ERR_LEXER);
             }
         } else if (item.kind == PARSER_ITEM_NONTERM) {
             int16_t production = -1;
@@ -486,14 +486,14 @@ int32_t Parser_Run(const ParserToken_T *pTokens, uint32_t count,
     pContext->tokenCount = count;
     pContext->line = 1u;
     pContext->column = 1u;
-    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_Advance(pContext) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
     if (Parser_FillLookaheadWindow(pContext) != PARSER_OK)
     {
-        return PARSER_ERR_LEXER;
+        return Parser_AdjustStatus(PARSER_ERR_LEXER);
     }
     status = Parser_ParseLoop(pContext, pResult);
     if (status != PARSER_OK) { Parser_ReleaseContext(pContext); }
-    return status;
+    return Parser_AdjustStatus(status);
 }
 
 /** 
@@ -513,13 +513,13 @@ int32_t Parser_RunText(const char *pText, ParserValue_T *pResult)
     pContext->textMode = 1u;
     pContext->line = 1u;
     pContext->column = 1u;
-    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_Advance(pContext) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
     if (Parser_FillLookaheadWindow(pContext) != PARSER_OK)
     {
-        return PARSER_ERR_LEXER;
+        return Parser_AdjustStatus(PARSER_ERR_LEXER);
     }
     status = Parser_ParseLoop(pContext, pResult);
     if (status != PARSER_OK) { Parser_ReleaseContext(pContext); }
-    return status;
+    return Parser_AdjustStatus(status);
 }
 

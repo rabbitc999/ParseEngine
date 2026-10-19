@@ -77,3 +77,4 @@ space_demo	c,cpp17,python,csharp,rust,go	a b
 sync_recovery	c,cpp17	1 + + 2 ; 3
 token_dict_demo	c,cpp17	let num2 + num3 manual_b
 union_demo	c,cpp17	1 + 2 * 3
+regex_budget	cpp17

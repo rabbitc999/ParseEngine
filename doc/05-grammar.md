@@ -59,7 +59,7 @@ expr := expr PLUS term { $$ = $1 + $3; }
 | `%token NAME "..." [alias "显示名"]` | 等价于 `%define`（不带 `regex` 时只拆字面量）；`alias` 只改变显示名称，不改变 Token 身份 |
 | `%token NAME include "词表.csv" [alias "显示名"]` | **追加**字面量别名：CSV 里第一列等于 `NAME` 的那些行，第二列作为字面量追加到 `NAME` 的别名列表。只追加别名、不新建 Token；第二列一律当**字面量**（不编译正则）；带 `<成员>` 也能用。见下面「用 CSV 维护字面量别名表」一节 |
 | `%token regex NAME "正则" [alias "显示名"]` | 正则 Token 的可选显示别名；正则匹配规则和 Token 身份保持不变 |
-| `%token regex NAME "正则"` | 用正则定义 Token，生成期编译成 DFA |
+| `%token regex NAME "正则"` | 定义正则 Token，按目标与语法选择 DFA、有序运行时或目标原生库 |
 | `%identifier "正则"` | 声明标识符正则，生成标识符识别与关键字查表接口 |
 | `%identifier "正则" [alias "显示名"]` | 声明标识符正则；别名显示在内建 `VARIABLE` 名称上 |
 | `%commit [类型] "模式" [alias "显示名"]` / `%commit skip "模式"` | 把「识别但不进语法层」的文本收进容器（元素 `{line, type, text}`）；不写类型时是 `"default"`，`skip` 表示匹配即丢、不进容器（**等价于 `%trivia`，推荐用 `%trivia`**）。`alias` 只用于类型表和诊断显示，不改变 `type` 字段。模式按 DFA 正则编译（没有元字符的写法就是固定字面量）；与 `%token` / 内建注释规则同一份最长匹配顺序，同长度按声明先后。见下面「`%commit`」一节 |
@@ -76,7 +76,7 @@ expr := expr PLUS term { $$ = $1 + $3; }
 | `%epilogue` | 段标记：之后的正文原样贴到生成的 `parser.c`（C++17 是 `parser.cpp`，Python 是 `parser.py`）末尾 |
 | `%main` | 段标记：之后的正文替换产物 `main.c`（C++17 是 `main.cpp`，Python 是 `main.py` 的演示体）里的内建 demo main |
 | `%cpp_only` | 声明「这份文法只能生成 C++17 产物」：命令行再写 `--lang c` / `--lang python` / `--lang csharp` / `--lang rust` / `--lang go` 会直接报错（`%lang` 里写那几个也一样）。文法依赖 C++17 产物才有的东西（`Engine`、`std::string_view`、兼容层）时用它提前拦住误用 |
-| `%cpp_lexer std\|dfa` | C++17 产物的词法引擎，等价命令行 `--cpp-lexer`（命令行优先）。`std`（**缺省**）把 `%token regex` / `%identifier` / `%commit` 的正则交给 `std::regex`，产物行为与标准库一致；`dfa` 对能保证与标准库等价的 ASCII 字面量、正字符类及末尾单个贪婪量词生成 DFA 表；含分支、断言、非贪婪、非 ASCII 或其他模式时，整份词法器自动回退到 `<regex>`，保留标准库的匹配结果。配非 `--lang cpp17` 的目标时，写指令报错、写命令行只提示并忽略 |
+| `%cpp_lexer std\|dfa\|vm` | C++17 词法引擎，命令行 `--cpp-lexer` 优先。`std`（缺省）使用标准库字节正则；`dfa` 只优化已证明等价的 ASCII 子集，其余回退标准库；`vm` 将全部规则编译到支持资源预算的有序运行时。显式 `(?u)` 规则始终使用共享运行时。非 C++ 目标不接受文法中的此指令。详见 [正则资源预算](20-regex-runtime-budgets.md)。 |
 | `%tree` | 生成 CST 接口，纯 `%tree` 文法可以不写语义动作 |
 | `%left` / `%right` / `%nonassoc` | 声明 Token 结合性与优先级，行越靠下优先级越高 |
 | `%prec TOKEN` | 写在分支右部末尾，覆盖该产生式的优先级来源 |

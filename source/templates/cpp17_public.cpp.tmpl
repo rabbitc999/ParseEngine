@@ -11,6 +11,9 @@ const char *statusName(Status status) noexcept
     case Status::ErrDuplicate: return "ErrDuplicate";
     case Status::ErrUndefined: return "ErrUndefined";
     case Status::ErrSystem: return "ErrSystem";
+    case Status::ErrRegexLimit: return "ErrRegexLimit";
+    case Status::ErrRegexCancelled: return "ErrRegexCancelled";
+    case Status::ErrRegexMemory: return "ErrRegexMemory";
     }
     return "Unknown";
 }
@@ -123,6 +126,19 @@ void Tree::print(std::FILE *stream) const
 }
 
 Engine::~Engine() = default;
+
+/** @brief 设置当前实例的正则预算。@param limits 新预算。@return 是否完整支持。 */
+bool Engine::setRegexLimits(const RegexLimits &limits)
+{
+    if (!kRegexBudgetSupported) return false;
+    d->m_regexLimits = limits;
+    return true;
+}
+/** @brief 返回最近的匹配结果。@return 结构化状态与统计。 */
+const RegexMatchResult &Engine::lastRegexResult() const noexcept
+{
+    return d->m_regexResult;
+}
 
 /** @brief 设置当前实例的错误提示函数。
  * @param formatter 空函数恢复默认提示。

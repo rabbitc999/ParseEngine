@@ -114,6 +114,7 @@ if [ "$run_python" = 1 ]; then
     run_step "C++ DFA 与标准库一致性" "$PYTHON" tests/cpp_dfa_std.py
     run_step "扩展正则跨 C/C++ 回归" "$PYTHON" tests/regex_extended.py
     run_step "Unicode 正则跨 C/C++ 回归" "$PYTHON" tests/regex_unicode.py
+    run_step "正则预算、取消、分配失败与增量缓存" "$PYTHON" tests/regex_budget.py
     run_step "C/C++ 自定义错误提示" "$PYTHON" tests/error_formatter.py
     run_step "Python 全模式自定义错误提示" "$PYTHON" tests/error_formatter_languages.py --langs python
     run_step "生成文件清理与用户文件保护" "$PYTHON" tests/clear_mode.py

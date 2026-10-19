@@ -18,6 +18,8 @@
 #include "parser.h"
 #include "parser_token.h"
 
+{{ regex_status }}
+
 typedef struct __ParseResult_T
 {
     ParserValue_T value;
@@ -109,6 +111,9 @@ static void Parser_ClearErrors(void)
 {
     PARSER_MEMSET(s_ParserErrors, 0, sizeof(s_ParserErrors));
     s_ParserErrorCount = 0u;
+#ifdef PARSER_HAS_REGEX_RUNTIME
+    Parser_ResetRegexResult();
+#endif
     /* %commit：上一批片段的内存要在这里还掉（谁分配、谁释放） */
     Parser_FreeCommits();
 }

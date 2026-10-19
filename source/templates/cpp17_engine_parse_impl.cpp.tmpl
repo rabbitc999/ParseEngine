@@ -1,17 +1,24 @@
 Status Engine::runText(std::string_view text, ParserValue_T *result)
 {
-    return d->runText(text, result);
+    d->m_regexResult = {};
+    const Status status = d->runText(text, result);
+    return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }
 
 {% if incremental %}Status Engine::runTextIncremental(std::string_view text, ParserValue_T *result,
                                   IncrementalCache &cache)
 {
-    return d->runTextIncremental(text, result, cache);
+    d->m_regexResult = {};
+    const Status status = d->runTextIncremental(text, result, cache);
+    if (d->m_regexResult.status < 0) cache.valid = false;
+    return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }
 
 {% endif %}
 Status Engine::run(const ParserMemory::Vector<Token> &tokens, ParserValue_T *result)
 {
-    return d->runTokens(tokens, result);
+    d->m_regexResult = {};
+    const Status status = d->runTokens(tokens, result);
+    return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }
 

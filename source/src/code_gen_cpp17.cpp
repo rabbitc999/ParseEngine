@@ -329,25 +329,46 @@ std::string generatorLexRulesCpp17(
                               {{"rules", tmpl::encode(rows)}});
 }
 
-/** @brief 生成 Unicode 程序的不可变数据表。
- * @param patterns 正则列表。 @param out 输出片段。 @return 有 Unicode 程序时返回真。
+/** @brief 当前配置能否对全部正则执行预算。
+ * @param request 生成请求。@return 显式 vm 或全 Unicode 正则时为真。
  */
-bool generatorUnicodeRegexCpp17(const std::vector<std::string> &patterns, std::string &out)
+bool regexBudgetSupportedCpp17(const ProjectRequest &request)
 {
+    if (request.cppLexer == "vm") return true;
+    if (request.lexSpec == nullptr) return false;
+    std::vector<std::string> patterns;
+    for (const auto &rule : request.lexSpec->regex) patterns.push_back(rule.second);
+    if (request.lexSpec->identifier) patterns.push_back(*request.lexSpec->identifier);
+    for (const auto &rule : request.lexSpec->commits) patterns.push_back(rule.pattern);
+    return !patterns.empty() && std::all_of(patterns.begin(), patterns.end(),
+        [](const std::string &pattern) { return RegexVm::unicodeMode(pattern); });
+}
+
+/** @brief 生成共享有序程序的不可变数据表。
+ * @param patterns 正则列表。@param out 输出片段。@param forceVm 是否编译全部规则。
+ * @param hasPrograms 成功时是否生成了至少一个程序。@param error 失败说明。
+ * @return 编译并渲染成功返回真。
+ */
+bool generatorUnicodeRegexCpp17(const std::vector<std::string> &patterns, std::string &out,
+                                 bool forceVm, bool &hasPrograms, Error &error)
+{
+    hasPrograms = false;
     auto programs = std::make_shared<tmpl::Array>();
     std::set<std::string> seen;
     for (const auto &pattern : patterns)
     {
-        if (!RegexVm::unicodeMode(pattern) || !seen.insert(pattern).second) continue;
+        if ((!forceVm && !RegexVm::unicodeMode(pattern)) || !seen.insert(pattern).second) continue;
         RegexVmProgram program;
-        Error error;
-        if (!RegexVm::compile(pattern, program, error)) fatalInternal(error.message);
+        Error cause;
+        if (!RegexVm::compile(pattern, program, cause))
+            return fail(error, cause, "无法编译 C++ 共享正则：");
         auto item = std::make_shared<tmpl::Object>();
         item->insert("name", "s_cppUnicodeRegex" + std::to_string(programs->items.size()));
         item->insert("pattern", Utils::varCString(pattern));
         item->insert("count", std::to_string(program.code.size()));
         item->insert("entry", std::to_string(program.entry));
         item->insert("groups", std::to_string(program.groups));
+        item->insert("unicode", program.unicode ? "1" : "0");
         std::vector<std::string> rows, ranges;
         for (const auto &instruction : program.code)
         {
@@ -364,9 +385,10 @@ bool generatorUnicodeRegexCpp17(const std::vector<std::string> &patterns, std::s
         item->insert("ranges", tmpl::encode(ranges));
         programs->items.emplace_back(item);
     }
-    if (programs->items.empty()) return false;
+    if (programs->items.empty()) return true;
+    hasPrograms = true;
     out += tmpl::renderValues(Utils::loadTemplate("cpp17_lex_unicode.cpp"),
-        {{"runtime", Utils::loadTemplate("regex_unicode_data.h") + Utils::loadTemplate("regex_vm_runtime.h")},
+        {{"runtime", (std::any_of(patterns.begin(), patterns.end(), [](const std::string &pattern) { return RegexVm::unicodeMode(pattern); }) ? Utils::loadTemplate("regex_unicode_data.h") : std::string()) + Utils::loadTemplate("regex_vm_runtime.h")},
          {"programs", tmpl::Value(programs)}});
     return true;
 }
@@ -374,7 +396,7 @@ bool generatorUnicodeRegexCpp17(const std::vector<std::string> &patterns, std::s
 /**
  * @brief 生成 %token regex / %identifier / %commit 的**正则表**（C++17 版）。
  *
- * 字节模式交给 std::regex；显式 Unicode 模式使用生成期编译的共享程序。
+ * 默认字节模式交给 std::regex；显式 vm 和 Unicode 模式使用生成期编译的共享程序。
  * 生成期用自带编译器做的那一遍校验在文法加载时（`readRegexPattern`）就做过了，
  * 认不下的由 `main.cpp` 分流：C99 是硬错误、其余档只警告（自带编译器不认识
  * 不等于 `std::regex` 不认，见 `GrammarConfig::regexDiagnostics`）。
@@ -383,18 +405,21 @@ bool generatorUnicodeRegexCpp17(const std::vector<std::string> &patterns, std::s
  * @param commits %commit 声明（声明序）；没有时为空。
  * @param tokenLexOrder Token 名 -> 词法声明序（%commit 同长度比较用）。
  * @param outTables 输出表定义段。
+ * @param forceVm 是否将全部规则编译到有序运行时。
+ * @param error 共享程序的编译错误。@return 成功返回真。
  */
-void generatorLexRegexCpp17(
+bool generatorLexRegexCpp17(
     const std::map<std::string, std::string> &regexDefs,
     const std::optional<std::string> &identifierPattern,
     const std::vector<CommitSpec> &commits,
-    const std::map<std::string, int> &tokenLexOrder, std::string &outTables)
+    const std::map<std::string, int> &tokenLexOrder, std::string &outTables, bool forceVm, Error &error)
 {
     std::vector<std::string> patterns;
     for (const auto &entry : regexDefs) patterns.push_back(entry.second);
     if (identifierPattern) patterns.push_back(*identifierPattern);
     for (const auto &commit : commits) patterns.push_back(commit.pattern);
-    const bool hasUnicode = generatorUnicodeRegexCpp17(patterns, outTables);
+    bool hasUnicode = false;
+    if (!generatorUnicodeRegexCpp17(patterns, outTables, forceVm, hasUnicode, error)) return false;
     const bool hasIdentifier = identifierPattern.has_value();
     std::vector<std::pair<std::string, std::string>> entries;
     for (const auto &entry : regexDefs)
@@ -445,6 +470,7 @@ void generatorLexRegexCpp17(
          {"has_identifier", hasIdentifier},
          {"identifier_pattern",
           hasIdentifier ? Utils::varCString(*identifierPattern) : std::string()}});
+    return true;
 }
 
 /* ---------------- 可选 DFA 词法器（%cpp_lexer dfa） ---------------- */
@@ -1991,15 +2017,15 @@ bool buildLexerBlocks(const ProjectRequest &request, LexerBlocks &blocks,
  *
  * 解析产物与词法模式共用；`terminals` 是 Token 列表（解析产物用
  * `analysis.terminals`，词法模式用 project.cpp 算好的那张表）。
- * 这一段没有失败路径：正则认不下只是在 `generatorLexRegexCpp17` 里打警告。
+ * 标准库正则保留生成期警告口径，共享程序的编译失败向上传递。
  * @param request 组装入参。
  * @param terminals Token 列表。
  * @param out 追加写入的表段。
  * @param dfa 可选 DFA 词法器的数据；nullptr 表示走 std::regex。
  */
-void buildLexTables(const ProjectRequest &request,
+bool buildLexTables(const ProjectRequest &request,
                     const std::vector<std::string> &terminals,
-                    std::string &out, const CppLexDfaData *dfa = nullptr)
+                    std::string &out, const CppLexDfaData *dfa, Error &error)
 {
     const std::map<std::string, std::vector<std::string>> emptyTokenDefs;
     const auto &tokenDefs =
@@ -2016,10 +2042,10 @@ void buildLexTables(const ProjectRequest &request,
     if (dfa != nullptr)
     {
         out += dfa->body;
-        return;
+        return true;
     }
-    generatorLexRegexCpp17(lexSpec.regex, lexSpec.identifier, lexSpec.commits,
-                           lexSpec.tokenLexOrder, out);
+    return generatorLexRegexCpp17(lexSpec.regex, lexSpec.identifier, lexSpec.commits,
+                           lexSpec.tokenLexOrder, out, request.cppLexer == "vm", error);
 }
 
 /**
@@ -2046,18 +2072,18 @@ std::string wrapTables(const std::string &lexTables,
 /**
  * @brief 组装 parser.cpp 里未命名命名空间的表段。
  *
- * 这一段没有失败路径（词法段的正则认不下只打警告）。
+ * 共享正则程序的编译错误通过 Error 原样向上传递。
  * @param request 组装入参。
  * @param mode 归一化后的生成模式。
  * @param analysis 分析结果。
  * @param out 输出表段。
  */
-void buildTables(const ProjectRequest &request, const std::string &mode,
+bool buildTables(const ProjectRequest &request, const std::string &mode,
                  const AnalysisResult &analysis, std::string &out,
-                 const CppLexDfaData *dfa = nullptr)
+                 const CppLexDfaData *dfa, Error &error)
 {
     std::string lexTables;
-    buildLexTables(request, analysis.terminals, lexTables, dfa);
+    if (!buildLexTables(request, analysis.terminals, lexTables, dfa, error)) return false;
     std::string analysisTables = "/* ---------- 分析表 ---------- */\n";
     if (isLrMode(mode))
     {
@@ -2090,6 +2116,7 @@ void buildTables(const ProjectRequest &request, const std::string &mode,
                      generatorDdTablesCpp17(analysis);
     }
     out = wrapTables(lexTables, analysisTables, treeTables, modeTables);
+    return true;
 }
 
 } // namespace
@@ -2290,7 +2317,9 @@ bool CodeGenCpp17::parserHpp(const ProjectRequest &request,
 
     std::string text = tmpl::renderValues(
         Utils::loadTemplate("cpp17_parser.hpp"),
-        {{"mode_name", modeLabelText(mode)},
+        {{"regex_limits", Utils::loadTemplate("regex_limits.h")},
+         {"regex_bounded", regexBudgetSupportedCpp17(request)},
+         {"mode_name", modeLabelText(mode)},
          {"ns", nameSpace},
          {"guard", guardNameOf(hppName(request))},
          {"user_include", userInclude},
@@ -2358,7 +2387,7 @@ bool CodeGenCpp17::parserCpp(const ProjectRequest &request,
     }
 
     std::string tables;
-    buildTables(request, mode, analysis, tables, dfa);
+    if (!buildTables(request, mode, analysis, tables, dfa, error)) return false;
 
     // 未命名命名空间里的辅助函数：名字表逐行交给 `cpp17_helpers.cpp.tmpl`
     std::vector<std::string> treeNontermNames;
@@ -2765,7 +2794,9 @@ bool CodeGenCpp17::lexerHpp(const ProjectRequest &request,
     // Engine 入口换成 tokenize，文档标题与措辞由模板里的 `{% if lex %}` 选。
     std::string text = tmpl::renderValues(
         Utils::loadTemplate("cpp17_parser.hpp"),
-        {{"mode_name", "LEX(词法模式)"},
+        {{"regex_limits", Utils::loadTemplate("regex_limits.h")},
+         {"regex_bounded", regexBudgetSupportedCpp17(request)},
+         {"mode_name", "LEX(词法模式)"},
          {"ns", nameSpace},
          {"guard", "LEXER_HPP"},
          {"user_include", userInclude},
@@ -2792,8 +2823,6 @@ bool CodeGenCpp17::lexerCpp(const ProjectRequest &request,
 {
     // %union 正文只在 lexer.hpp 里落地（ParserValue_T 的定义在头文件里）
     (void)unionBodyWithLines;
-    // 词法段的正则认不下只打警告，这一段没有要往 error 里写的东西
-    (void)error;
     const std::string nameSpace = namespaceName(request);
     const bool unioned = unionMode(request);
     // 可选 DFA 词法器（与解析产物同一套开关）
@@ -2809,7 +2838,7 @@ bool CodeGenCpp17::lexerCpp(const ProjectRequest &request,
     }
     // 词法表（词法模式没有分析表 / 语法树表）
     std::string lexTables;
-    buildLexTables(request, terminals, lexTables, dfa);
+    if (!buildLexTables(request, terminals, lexTables, dfa, error)) return false;
     const std::string tables =
         wrapTables(lexTables, std::string(), std::string());
     // helpers：与解析产物同一份模板，词法模式下没有 error / %sync /

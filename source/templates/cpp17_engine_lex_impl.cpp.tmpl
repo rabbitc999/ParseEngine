@@ -1,5 +1,7 @@
 Status Engine::tokenize(std::string_view text, ParserMemory::Vector<Token> *out)
 {
-    return d->tokenize(text, out);
+    d->m_regexResult = {};
+    const Status status = d->tokenize(text, out);
+    return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }
 

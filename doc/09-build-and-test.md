@@ -12,7 +12,7 @@ sh ci/run.sh --no-python     # 仅更新内嵌资产并构建，不运行 Python
 sh ci/run.sh --skip-vm-tests # 兼容旧选项：仅跳过产物清单与打包检查
 ```
 
-入口每次都重新生成内嵌模板和离线手册，然后增量构建生成器，避免复用过期二进制。核心检查包括 DFA/标准库一致性、扩展正则、Unicode、自定义错误提示、生成文件保护、Earley/CYK，以及 C++ 的 GLR/Earley/CYK 增量语义复用。`--no-python` 仍需要 Python 来生成构建资产，只跳过测试。
+入口每次都重新生成内嵌模板和离线手册，然后增量构建生成器，避免复用过期二进制。核心检查包括 DFA/标准库一致性、扩展正则、Unicode、正则资源预算与分配失败、自定义错误提示、生成文件保护、Earley/CYK，以及 C++ 的 GLR/Earley/CYK 增量语义复用。`--no-python` 仍需要 Python 来生成构建资产，只跳过测试。
 
 `--all-languages` 要求 C#、Rust、Go、Java、Node.js 工具链齐全，缺少工具退出 2，不静默省略语言；Rust 依赖必须已缓存。其他检查失败后仍运行剩余独立检查，最后返回 1。构建失败直接返回 1，防止后续测试使用旧生成器。每步日志位于 `tmp/ci/logs/`。`--all-languages` 不能与 `--no-python` 同用。
 

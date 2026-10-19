@@ -127,10 +127,11 @@ void printUsage(const std::string &program)
         << "                        %namespace 指定；命令行优先）。NAME 取\n"
         << "                        [A-Za-z_][A-Za-z0-9_]*、不能是 C++ 关键字；\n"
         << "                        不传或传空串 = 命名空间 Parser、文件名不带前缀\n"
-        << "  --cpp-lexer {std,dfa} C++17 产物的词法引擎（也可用 %cpp_lexer 指定；\n"
-        << "                        命令行优先）。std（缺省）把正则交给 <regex>；\n"
-        << "                        dfa 在生成期把正则编译成 DFA 表写进产物，产物不\n"
-        << "                        依赖 <regex>，每个位置只扫一遍输入（大文法更快）\n"
+        << "  --cpp-lexer {std,dfa,vm} C++17 产物的词法引擎（也可用 %cpp_lexer 指定；\n"
+        << "                        命令行优先）。std（缺省）使用标准库字节正则；\n"
+        << "                        dfa 使用等价 ASCII 子集的表，其余回退标准库；\n"
+        << "                        vm 使用支持资源预算的有序运行时。Unicode 规则\n"
+        << "                        在三种配置下都使用共享运行时。\n"
         << "  --prefix NAME        C99 产物的公开符号前缀（也可用 %prefix 指定；\n"
         << "                        命令行优先；不能以 Parser/PARSER 开头）\n"
         << "  --class NAME          Python 产物的解析器类名（也可用 %class 指定；\n"
@@ -400,9 +401,9 @@ bool parseArguments(int argc, char **argv, CommandLine &parsed)
         else if (arg.rfind("--cpp-lexer", 0) == 0)
         {
             const std::string value = takeValue();
-            if ((value != "std") && (value != "dfa"))
+            if ((value != "std") && (value != "dfa") && (value != "vm"))
             {
-                std::cerr << PE_TEXT("错误：--cpp-lexer 只接受 std 或 dfa，实际得到 '")
+                std::cerr << PE_TEXT("错误：--cpp-lexer 只接受 std、dfa 或 vm，实际得到 '")
                           << value << "'\n";
                 return false;
             }
@@ -907,7 +908,7 @@ int main(int argc, char **argv)
         // 其余档的正则原样交给各自语言自带的正则库，只警告、照常往下生成。
         if (!cfg.regexDiagnostics.empty())
         {
-            if (lang == "c")
+            if (lang == "c" || (lang == "cpp17" && options.cppLexer.value_or(cfg.cppLexer) == "vm"))
             {
                 printError(cfg.regexDiagnostics.front());
                 return 1;

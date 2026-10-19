@@ -1,0 +1,11 @@
+/** @brief 保留本轮首个正则资源失败，避免被恢复流程的通用状态遮蔽。
+ * @param status 普通解析状态。@return 正则资源错误或原状态。
+ */
+static int32_t Parser_AdjustStatus(int32_t status)
+{
+#ifdef PARSER_HAS_REGEX_RUNTIME
+    const PeRegexResult *result = Parser_GetLastRegexResult();
+    if (result->status < 0) return (int32_t)result->status;
+#endif
+    return status;
+}

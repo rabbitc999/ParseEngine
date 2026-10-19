@@ -1,0 +1,8 @@
+/* 有资源预算的共享有序运行时，API 配置见 doc/20-regex-runtime-budgets.md。 */
+%mode lex
+%lang cpp17
+%cpp_lexer vm
+%example "word-word;"
+%token regex PAIR "(?iu)([a-z]+)-\\1(?=;)"
+%token SEMICOLON ";"
+%token regex WORD "(?u)\\p{L}+"

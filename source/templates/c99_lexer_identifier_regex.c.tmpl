@@ -1,6 +1,7 @@
     /* 标识符：用 %identifier 的 DFA 扫描，再查关键字表。 */
     {
         uint32_t identLength = Parser_TokenIdentifierLength(pStart);
+        if (Parser_GetLastRegexResult()->status < 0) return (int32_t)Parser_GetLastRegexResult()->status;
         if (identLength > 0u) {
             ParserTokenType_T keyword = TOKEN_INVALID;
             if (identLength >= sizeof(pCtx->lexeme)) { return PARSER_ERR_LEXER; }

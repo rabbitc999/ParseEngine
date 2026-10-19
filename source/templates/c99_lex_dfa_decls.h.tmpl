@@ -16,6 +16,14 @@
  *  @retval 关键字对应的 Token；不是关键字时返回 TOKEN_INVALID。 */
 ParserTokenType_T Parser_TokenKeyword(const char *pText);
 {% if has_dfa %}
+#define PARSER_HAS_REGEX_RUNTIME 1
+{{ regex_limits }}
+/** @brief 配置单规则匹配预算，跨解析保留。@param pLimits NULL 使用默认。@return 无。 */
+void Parser_SetRegexLimits(const PeRegexLimits *pLimits);
+/** @brief 最近一次匹配或本轮资源失败。@return 内部只读结果。 */
+const PeRegexResult *Parser_GetLastRegexResult(void);
+/** @brief 清除结果而保留预算；解析初始化自动调用。@return 无。 */
+void Parser_ResetRegexResult(void);
 {% if has_vm %}
 struct PeRegexInst;
 /** @brief 有序正则程序描述，沿用词法器规则接口。 */
@@ -43,6 +51,16 @@ typedef struct ParserLexDfa_T
 /** @brief 从当前位置匹配一条正则规则。 @param pDfa DFA 或有序程序。
  *  @param pText 文本。 @retval 匹配到的字节数（0 表示不匹配）。 */
 uint32_t Parser_LexDfaMatch(const ParserLexDfa_T *pDfa, const char *pText);
+/** @brief 用已知长度匹配，使用当前配置并保存结构化结果。
+ * @param pDfa 程序。@param pText 输入。@param length 字节数。@return 前缀字节数。
+ */
+uint32_t Parser_LexDfaMatchLength(const ParserLexDfa_T *pDfa, const char *pText, size_t length);
+/** @brief 独立的结构化匹配，不修改全局配置或最近结果。
+ * @param pDfa 程序。@param pText 输入。@param length 输入字节数。
+ * @param pLimits 可空的预算。@return 状态、匹配长度和资源计数。
+ */
+PeRegexResult Parser_LexDfaMatchEx(const ParserLexDfa_T *pDfa, const char *pText,
+                                 size_t length, const PeRegexLimits *pLimits);
 
 {% if has_vm %}{% else %}
 extern const uint8_t s_ParserLexClassMap[256];

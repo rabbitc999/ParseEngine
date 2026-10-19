@@ -76,7 +76,7 @@ initializer := assignment_expression        { $$ = $1; }
 | `%prec TOKEN` | 写在产生式右部末尾，覆盖该产生式的优先级来源 |
 | `%expect N` | 允许保留 N 个未消解的移进/归约冲突 |
 | `%token regex NAME "正则"` | 用正则定义 Token（**C99** 与 **C++17 的 `dfa` 词法器**在生成期编译成 DFA 写进产物；C++17 的 `std` 档以及 Python / C# / Rust / Go 把正则原样交给各自语言的正则库。C++17 缺省就是 `std` 档） |
-| `%cpp_lexer std\|dfa` | C++17 产物的词法引擎，等价命令行 `--cpp-lexer`（命令行优先）。`std`（**缺省**）把 `%token regex` / `%identifier` / `%commit` 的正则交给 `std::regex`，产物行为与标准库一致；`dfa` 在生成期把它们编译成 DFA 表写进产物，产物不依赖 `<regex>`，每个位置只扫一遍输入。配非 `--lang cpp17` 的目标时，写指令报错、写命令行只提示并忽略 |
+| `%cpp_lexer std\|dfa\|vm` | C++17 词法引擎，命令行 `--cpp-lexer` 优先。`std`（缺省）使用标准库字节正则；`dfa` 只优化已证明等价的 ASCII 子集，其余回退标准库；`vm` 将全部规则编译到支持资源预算的有序运行时。显式 `(?u)` 规则始终使用共享运行时。非 C++ 目标不接受文法中的此指令。详见 [正则资源预算](20-regex-runtime-budgets.md)。 |
 | `%identifier "正则"` | 声明标识符正则，生成标识符识别与关键字查表接口 |
 | `%commit [类型] "模式"` / `%commit skip "模式"` | 把「识别但不进语法层」的文本收进容器（元素 `{line, type, text}`）；类型缺省 `default`，`skip` 匹配即丢。模式按正则编译，与 `%token` 同一份最长匹配顺序（同长度按声明先后）；见 [`%commit`](#commit把识别但不进语法层的文本收进容器)。**六档都支持**（C99 / C++17 / Python / C# / Rust / Go），各档的容器类型与所有权见 [`08-generated-code.md`](08-generated-code.md) |
 | `%trivia "模式"` | 匹配即丢：不进容器、不进语法层。与 `%commit skip "模式"` 完全等价（两种写法生成的词法表逐字相同），推荐用 `%trivia` 表达 trivia；排序与冲突规则同 `%commit` |

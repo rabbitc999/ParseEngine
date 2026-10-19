@@ -32,6 +32,8 @@
 #include <unordered_map>
 #include <utility>
 
+{{ regex_limits }}
+
 {{ user_include }}
 
 namespace {{ ns }}
@@ -69,7 +71,10 @@ enum class Status : std::int32_t
         ErrExpected = -26, ///< 期望若干 Token，实际是别的
         ErrUnexpectedEof = -27, ///< 提前遇到输入末尾
         ErrLexUnterminated = -28, ///< 未闭合的字符串 / 注释
-        ErrLexChar = -29  ///< 认不出来的字符
+        ErrLexChar = -29, ///< 认不出来的字符
+        ErrRegexLimit = -30, ///< 正则达到资源预算
+        ErrRegexCancelled = -31, ///< 正则被调用方取消
+        ErrRegexMemory = -32 ///< 正则内存分配失败
 };
 
 /**
@@ -436,6 +441,15 @@ using ErrorFormatter = std::function<ParserMemory::String(
     std::int32_t code, std::uint32_t line, std::uint32_t column,
     const ParserMemory::String &message)>;
 
+/// @brief 正则匹配资源预算；零字段使用默认值。
+using RegexLimits = PeRegexLimits;
+/// @brief 正则匹配、无匹配及资源失败状态。
+using RegexStatus = PeRegexStatus;
+/// @brief 正则匹配结果与工作资源统计。
+using RegexMatchResult = PeRegexResult;
+/// @brief 当前引擎是否对全部正则提供可配置的执行预算。
+inline constexpr bool kRegexBudgetSupported = {% if regex_bounded %}true{% else %}false{% endif %};
+
 /**
  * @brief {% if lex %}词法引擎：一次词法分析的全部状态都在这里{% else %}解析引擎：一次解析的全部状态都在这里{% endif %}（Qt 风格的私有 d-pointer）。
  *
@@ -452,6 +466,16 @@ public:
      * @param formatter 提示函数；不得重入当前引擎，异常由调用方处理。
      */
     void setErrorFormatter(ErrorFormatter formatter);
+
+    /** @brief 设置正则预算，跨解析保留；vm 或全部为 Unicode 正则时可用。
+     * @param limits 预算与可选取消函数。
+     * @return 全部正则可控时返回 true；含标准库或 C++ DFA 路径时返回 false。
+     */
+    bool setRegexLimits(const RegexLimits &limits);
+    /** @brief 取最近一次规则匹配的结果；资源失败保留到下一次完整解析。
+     * @return 匹配状态与计数。
+     */
+    const RegexMatchResult &lastRegexResult() const noexcept;
 
     Engine(const Engine &) = delete;
     Engine &operator=(const Engine &) = delete;

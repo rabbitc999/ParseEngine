@@ -94,7 +94,7 @@ static int32_t Parser_FillLookaheadWindow(ParserCtx_T *pCtx)
     const ParserToken_T head = pCtx->current;
     uint32_t index = 0u;
     for (index = 0u; (index + 1u) < PARSER_LOOKAHEAD_K; index++) {
-        if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+        if (Parser_Advance(pCtx) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
         pCtx->lookahead[index] = pCtx->current;
     }
     pCtx->current = head;
@@ -110,7 +110,7 @@ static int32_t Parser_AdvanceWindow(ParserCtx_T *pCtx)
 {
     ParserToken_T fresh;
     uint32_t index = 0u;
-    if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_Advance(pCtx) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
     fresh = pCtx->current;
     pCtx->current = pCtx->lookahead[0];
     for (index = 0u; (index + 1u) < (PARSER_LOOKAHEAD_K - 1u); index++) {
@@ -408,9 +408,9 @@ static int32_t Parser_LRRecover(ParserCtx_T *pCtx, ParserLRStack_T *pStack
         while (pCtx->current.type != TOKEN_END)
         {
 #if PARSER_LOOKAHEAD_K > 1
-            if (Parser_AdvanceWindow(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+            if (Parser_AdvanceWindow(pCtx) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
 #else
-            if (Parser_Advance(pCtx) != PARSER_OK) { return PARSER_ERR_LEXER; }
+            if (Parser_Advance(pCtx) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
 #endif
 #if PARSER_LOOKAHEAD_K > 1
             if (((uint32_t)pCtx->current.type < {{ terminal_count }}u) &&
@@ -473,7 +473,7 @@ static int32_t Parser_LRRecover(ParserCtx_T *pCtx, ParserLRStack_T *pStack
                     if (Parser_Advance(pCtx) != PARSER_OK)
 #endif
                     {
-                        return PARSER_ERR_LEXER;
+                        return Parser_AdjustStatus(PARSER_ERR_LEXER);
                     }
                 }
                 if (pCtx->current.type == TOKEN_END)
@@ -499,7 +499,7 @@ static int32_t Parser_LRRecover(ParserCtx_T *pCtx, ParserLRStack_T *pStack
                         if (Parser_Advance(pCtx) != PARSER_OK)
 #endif
                         {
-                            return PARSER_ERR_LEXER;
+                            return Parser_AdjustStatus(PARSER_ERR_LEXER);
                         }
                         pCtx->errorStatus =
                             (int32_t)PARSER_ERROR_RECOVERY_TOKENS;
@@ -596,7 +596,7 @@ static int32_t Parser_ParseLoopLR(ParserCtx_T *pCtx, ParserValue_T *pOut{% if tr
 {% if has_discard_stack %}
             Parser_LRDiscardStack(&stack);
 {% endif %}
-                return PARSER_ERR_LEXER;
+                return Parser_AdjustStatus(PARSER_ERR_LEXER);
             }
             /* 3 Token 规则：恢复过程中每成功移进一个真实 Token 就递减，
              * 降到 0 就退出错误状态（下一个错误重新上报） */
@@ -653,15 +653,15 @@ int32_t Parser_Run(const ParserToken_T *pTokens, uint32_t count,
     pContext->tokenCount = count;
     pContext->line = 1u;
     pContext->column = 1u;
-    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_Advance(pContext) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
 #if PARSER_LOOKAHEAD_K > 1
     if (Parser_FillLookaheadWindow(pContext) != PARSER_OK)
     {
-        return PARSER_ERR_LEXER;
+        return Parser_AdjustStatus(PARSER_ERR_LEXER);
     }
 #endif
     status = Parser_ParseLoopLR(pContext, pResult{% if tree %}, NULL{% endif %});
-    return status;
+    return Parser_AdjustStatus(status);
 }
 
 /** 
@@ -681,13 +681,13 @@ int32_t Parser_RunText(const char *pText, ParserValue_T *pResult)
     pContext->textMode = 1u;
     pContext->line = 1u;
     pContext->column = 1u;
-    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_Advance(pContext) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
 #if PARSER_LOOKAHEAD_K > 1
     if (Parser_FillLookaheadWindow(pContext) != PARSER_OK)
     {
-        return PARSER_ERR_LEXER;
+        return Parser_AdjustStatus(PARSER_ERR_LEXER);
     }
 #endif
     status = Parser_ParseLoopLR(pContext, pResult{% if tree %}, NULL{% endif %});
-    return status;
+    return Parser_AdjustStatus(status);
 }

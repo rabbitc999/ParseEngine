@@ -19,6 +19,8 @@
 #include "lexer.h"
 #include "parser_token.h"
 
+{{ regex_status }}
+
 /* 词法模式的上下文与公开的 ParserLexer_T 是同一个布局：直接给个别名，
    下面生成出来的词法器代码（按 ParserCtx_T 写）原样可用 */
 typedef ParserLexer_T ParserCtx_T;
@@ -51,6 +53,9 @@ static void Parser_ClearErrors(void)
 {
     PARSER_MEMSET(s_ParserErrors, 0, sizeof(s_ParserErrors));
     s_ParserErrorCount = 0u;
+#ifdef PARSER_HAS_REGEX_RUNTIME
+    Parser_ResetRegexResult();
+#endif
 }
 
 /**
@@ -285,5 +290,5 @@ int32_t Parser_NextToken(ParserLexer_T *pLexer, ParserToken_T *pToken)
     {
         *pToken = pLexer->current;
     }
-    return status;
+    return Parser_AdjustStatus(status);
 }

@@ -863,22 +863,23 @@ C / C++17 / Python 完全一致（命令行 `--lang` 覆盖文法里的 `%lang`�
 
 | 后端 | 正则匹配器 | 产物里的表 |
 | --- | --- | --- |
-| C99 | 生成期编好的 DFA（`source/src/regex_dfa.cpp`） | `s_ParserRegexDfas` / `kLexClassMap` 那套字符类划分 |
+| C99 | 等价普通模式使用 DFA，其余使用共享有序运行时 | `s_ParserRegexDfas` / `kLexClassMap` 那套字符类划分 |
 | C++17 `std`（**缺省**） | 标准库 `<regex>`（ECMAScript） | `kRegexRes` / `kIdentifierRe` / `kCommitRes` + `lexRegexMatch()` |
-| C++17 `dfa` | 生成期编好的 DFA（同一份 `regex_dfa.cpp`） | `kLexClassMap` / `kLexPageIndex` / `kLexPageData` + 每条规则的 `trans` / `accept` 表 + `lexDfaScan()` |
+| C++17 `vm` | 全规则使用共享有序运行时，支持资源预算 | `PeRegexMatchEx()` |
+| C++17 `dfa` | 仅已证明等价的 ASCII 子集使用 DFA，其余回退标准库 | `kLexClassMap` / `kLexPageIndex` / `kLexPageData` + 每条规则的 `trans` / `accept` 表 + `lexDfaScan()` |
 | Python | 标准库 `re` | `_REGEX_RULES` / `_IDENTIFIER_RE` / `_COMMIT_RES` + `_lex_regex_match()` |
 | C# | `System.Text.RegularExpressions.Regex` | `_REGEX_RE_LIST` / `_IDENTIFIER_RE` / `_COMMIT_RE_LIST` + `_lexRegexMatch()` |
 | Rust | Rust 官方的 `regex` crate（`Cargo.toml` 里的 `regex = "1"`） | `_REGEX_RES` / `_IDENTIFIER_RE` / `_COMMIT_RES` + `lex_regex_match()`（`OnceLock` 里各编译一次） |
 | Go | 标准库 `regexp`（RE2） | `sParserRegexRes` / `sParserIdentifierRe` / `sParserCommitRes` + `sParserLexRegexMatch()`（`regexp.MustCompile` 在包级变量初始化时各编译一次） |
 
 **C++17 缺省把正则交给 `std::regex`**（用 `--cpp-lexer dfa` 或 `%cpp_lexer dfa`
-启用等价子集的 DFA 快速路径，其余模式自动回退标准库）；**C99 对普通模式使用 DFA，上下文语法使用内嵌有序正则运行时**，其余各档把正则原样交给各自
+启用等价子集的 DFA 快速路径，其余模式自动回退标准库；`--cpp-lexer vm` 对全部规则使用有序运行时）；**C99 对普通模式使用 DFA，上下文语法使用内嵌有序正则运行时**，其余各档把正则原样交给各自
 语言的正则库。
 
 **生成期校验与报错口径**：六档的正则都在**文法加载时**（`readRegexPattern`）用
 生成器自带的编译器（`source/src/regex_dfa.cpp`）验一遍，但**认不下的处理不一样**：
 
-- **C99**：需要使用自带编译器生成 DFA 表，所以「正则语法有误 / `{m,n}` 上限 1000」
+- **C99 / C++17 `vm`**：需要使用自带编译器生成不可变程序，所以「正则语法有误 / `{m,n}` 上限 1000」
   是**硬错误**（`main.cpp` 按目标语言与词法引擎分流，报错文案与从前逐字相同）；
 - **C++17 `std` / `dfa` 回退路径 / Python / C# / Rust / Go**：只打一条**警告**（`GrammarConfig::regexDiagnostics`
   → `main.cpp`），生成照常往下走——自带编译器只是「顺手校验一遍」，它不认识不等于
@@ -999,3 +1000,5 @@ C99 的普通 DFA 路径继续使用最长接受前缀语义；扩展模式使�
 回归同时直接将共用编译器的 DFA 完整匹配结果与 `std::regex_match` 对照，验证重复边界。
 
 C++ 显式 Unicode 规则使用与 C99 共用的内嵌有序运行时，可与标准库字节规则混用，见 [18 Unicode 正则模式](18-regex-unicode.md)。
+
+正则的步数、回溯、工作内存、前瞻深度、取消与结构化失败状态见 [20 正则运行时资源预算](20-regex-runtime-budgets.md)。

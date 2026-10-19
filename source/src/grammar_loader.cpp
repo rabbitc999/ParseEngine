@@ -5376,13 +5376,13 @@ void GramParser::parseCppLexerDirective()
     if ((peekToken() == nullptr) || (token == "\n"))
     {
         fail("%cpp_lexer 后面要写词法引擎：std（缺省，交给 std::regex）"
-             "或 dfa（生成期编译成 DFA 表，产物不依赖 <regex>）",
+             "或 dfa（等价子集使用 DFA 表）或 vm（支持资源预算的有序运行时）",
              line);
         return;
     }
-    if ((token != "std") && (token != "dfa"))
+    if ((token != "std") && (token != "dfa") && (token != "vm"))
     {
-        fail("%cpp_lexer 只接受 std 或 dfa，实际得到 '" + token + "'", line);
+        fail("%cpp_lexer 只接受 std、dfa 或 vm，实际得到 '" + token + "'", line);
         return;
     }
     if (m_cppLexerDeclared)

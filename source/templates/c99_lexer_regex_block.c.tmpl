@@ -1,5 +1,6 @@
     /* 固定字面量与 %token regex / %commit 的 DFA 一起做最长匹配，字面量优先。 */
     {
+        const size_t regexRemaining = strlen(pStart);
         uint32_t bestLength = 0u;
         ParserTokenType_T bestType = TOKEN_INVALID;
         uint8_t bestFromRegex = 0u;
@@ -32,8 +33,9 @@
 {% if has_regex %}        for (uint32_t regexIndex = 0u;
              regexIndex < PARSER_REGEX_COUNT;
              regexIndex++) {
-            uint32_t matched = Parser_LexDfaMatch(
-                &s_ParserRegexDfas[regexIndex], pStart);
+            uint32_t matched = Parser_LexDfaMatchLength(
+                &s_ParserRegexDfas[regexIndex], pStart, regexRemaining);
+            if (Parser_GetLastRegexResult()->status < 0) return (int32_t)Parser_GetLastRegexResult()->status;
             if (matched > bestLength) {
                 bestLength = matched;
                 bestType = s_ParserRegexTypes[regexIndex];
@@ -45,8 +47,9 @@
             uint32_t commitLength = 0u;
             uint32_t commitIndex = 0u;
             for (index = 0u; index < PARSER_COMMIT_COUNT; index++) {
-                uint32_t matched = Parser_LexDfaMatch(
-                    &s_ParserCommitDfas[index], pStart);
+                uint32_t matched = Parser_LexDfaMatchLength(
+                    &s_ParserCommitDfas[index], pStart, regexRemaining);
+                if (Parser_GetLastRegexResult()->status < 0) return (int32_t)Parser_GetLastRegexResult()->status;
                 if (matched > commitLength) {
                     commitLength = matched;
                     commitIndex = index;

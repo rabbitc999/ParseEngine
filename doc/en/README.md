@@ -151,3 +151,5 @@ Magel keeps only AOT and `.svmb` compilation artifacts and removes the embedded 
 Magel's [lambda and function-pointer callbacks](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#lambda-与函数指针回调) support iterator chains and callback signature inference, support independent by-value captured environments, and reject reference captures and captures of resources lacking a safe copy protocol; for the full sample see [lambda_callbacks.mgl](https://github.com/rabbitc999/magel/blob/master/example/samples/lambda_callbacks.mgl).
 
 [Magel recursion and nested ownership](https://github.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md#9-递归局部存储与嵌套拥有值): local aggregates, reference slots, arrays, function values and interface combinations; the [calculator tool-chain example](https://github.com/rabbitc999/magel/blob/master/example/calculator/README.md) includes both flat and nested ASTs.
+
+[Custom error messages for all eight targets](../19-custom-error-messages.md) and [regex runtime budgets](../20-regex-runtime-budgets.md) (Chinese).

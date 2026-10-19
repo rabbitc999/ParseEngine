@@ -311,6 +311,7 @@ static uint8_t Parser_DdParse(ParserCtx_T *pCtx, uint16_t nonterm,
         PARSER_MEMSET(slots, 0, sizeof(slots));
         if (Parser_DdMatch(pCtx, production, treeMode, slots) == 0u) {
             Parser_DdFreeSlots(slots, (uint16_t)PARSER_VALUE_SLOTS);
+            if (Parser_AdjustStatus(PARSER_OK) < 0) { pCtx->ddFrameDepth--; return 0u; }
             continue;
         }
         if ((requireEnd != 0u) && (pCtx->current.type != TOKEN_END)) {
@@ -457,6 +458,8 @@ static int32_t Parser_DdParseAll(ParserCtx_T *pCtx, uint8_t treeMode)
             }
             return PARSER_OK;
         }
+        /* 资源错误不能当成可回溯的语法不匹配。 */
+        if (Parser_AdjustStatus(PARSER_OK) < 0) return Parser_AdjustStatus(PARSER_ERR_LEXER);
         /* 失败：回到这一段起点，把「最远失败的那个 Token」摆到 current 上报错
          * （报完再放回去，好接着往后找同步 Token） */
         Parser_DdRestore(pCtx, &mark);
@@ -492,7 +495,7 @@ static int32_t Parser_DdParseAll(ParserCtx_T *pCtx, uint8_t treeMode)
                     break;
                 }
                 if (Parser_Advance(pCtx) != PARSER_OK) {
-                    return PARSER_ERR_LEXER;
+                    return Parser_AdjustStatus(PARSER_ERR_LEXER);
                 }
             }
             if ((found == 0u) || (Parser_Advance(pCtx) != PARSER_OK)) {
@@ -525,10 +528,10 @@ int32_t Parser_Run(const ParserToken_T *pTokens, uint32_t count,
     pContext->tokenCount = count;
     pContext->line = 1u;
     pContext->column = 1u;
-    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_Advance(pContext) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
     status = Parser_DdParseAll(pContext, 0u);
     if (status == PARSER_OK) { *pResult = pContext->rootResult; }
-    return status;
+    return Parser_AdjustStatus(status);
 }
 
 /** 
@@ -548,8 +551,8 @@ int32_t Parser_RunText(const char *pText, ParserValue_T *pResult)
     pContext->textMode = 1u;
     pContext->line = 1u;
     pContext->column = 1u;
-    if (Parser_Advance(pContext) != PARSER_OK) { return PARSER_ERR_LEXER; }
+    if (Parser_Advance(pContext) != PARSER_OK) { return Parser_AdjustStatus(PARSER_ERR_LEXER); }
     status = Parser_DdParseAll(pContext, 0u);
     if (status == PARSER_OK) { *pResult = pContext->rootResult; }
-    return status;
+    return Parser_AdjustStatus(status);
 }

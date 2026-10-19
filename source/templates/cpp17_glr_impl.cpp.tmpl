@@ -5,24 +5,34 @@ void Engine::setAmbiguityResolver(AmbiguityResolver resolver)
 
 Status Engine::runGlr(std::string_view text)
 {
-    return d->runGlr(text, false);
+    d->m_regexResult = {};
+    const Status status = d->runGlr(text, false);
+    return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }
 
 Status Engine::runGlrIncremental(std::string_view text,
                                  GlrIncrementalCache &cache)
 {
-    return d->runGlrIncremental(text, cache, false);
+    d->m_regexResult = {};
+    const Status status = d->runGlrIncremental(text, cache, false);
+    if (d->m_regexResult.status < 0) cache.valid = false;
+    return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }
 
 Status Engine::runGlrTree(std::string_view text)
 {
-    return d->runGlr(text, true);
+    d->m_regexResult = {};
+    const Status status = d->runGlr(text, true);
+    return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }
 
 Status Engine::runGlrTreeIncremental(std::string_view text,
                                      GlrIncrementalCache &cache)
 {
-    return d->runGlrIncremental(text, cache, true);
+    d->m_regexResult = {};
+    const Status status = d->runGlrIncremental(text, cache, true);
+    if (d->m_regexResult.status < 0) cache.valid = false;
+    return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }
 
 std::size_t Engine::glrResultCount() const noexcept

@@ -51,6 +51,9 @@ __SEC_DEFINES_BEGIN__#ifndef PARSER_MAX_STACK_DEPTH
 #define PARSER_ERR_EXPECTED -26          /* 期望若干 Token，实际是别的 */
 #define PARSER_ERR_UNEXPECTED_EOF -27    /* 提前遇到输入末尾 */
 #define PARSER_ERR_LEX_UNTERMINATED -28  /* 未闭合的字符串 / 注释 */
+#define PARSER_ERR_REGEX_LIMIT -30       /* 正则达到资源预算 */
+#define PARSER_ERR_REGEX_CANCELLED -31   /* 正则被调用方取消 */
+#define PARSER_ERR_REGEX_MEMORY -32      /* 正则内存分配失败 */
 #define PARSER_ERR_LEX_CHAR -29          /* 认不出来的字符 */
 #ifndef PARSER_MAX_EXPECTED
 #define PARSER_MAX_EXPECTED 8u           /* 每条错误最多记几个「期望 Token」 */

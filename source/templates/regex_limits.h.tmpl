@@ -1,0 +1,43 @@
+#ifndef PE_REGEX_LIMITS_H
+#define PE_REGEX_LIMITS_H
+#include <stddef.h>
+#include <stdint.h>
+
+/** @brief 正则匹配状态，负值与生成运行时的错误码一致。 */
+typedef enum PeRegexStatus
+{
+    PE_REGEX_NO_MATCH = 0, /**< 未匹配。 */
+    PE_REGEX_MATCH = 1, /**< 匹配成功，允许零宽结果。 */
+    PE_REGEX_LIMIT = -30, /**< 达到资源预算。 */
+    PE_REGEX_CANCELLED = -31, /**< 调用方取消。 */
+    PE_REGEX_NO_MEMORY = -32 /**< 系统内存分配失败。 */
+} PeRegexStatus;
+
+/** @brief 取消函数。@param userData 调用方上下文。@return 非零表示取消。 */
+typedef int (*PeRegexCancel)(void *userData);
+
+/** @brief 单条规则一次匹配的预算，嵌套前瞻共享计数；零字段使用默认预算。
+ * 默认一百万步、64 MiB 工作内存、十万次回退、十万个待处理回溯状态和 64 层前瞻。
+ */
+typedef struct PeRegexLimits
+{
+    size_t maxSteps; /**< 指令及反向引用字符比较的总数。 */
+    size_t maxMemory; /**< 工作内存字节上限，包含分配头和栈容量。 */
+    size_t maxBacktracks; /**< 实际回退次数上限。 */
+    size_t maxStates; /**< 同时保留的回溯状态数量上限。 */
+    size_t maxLookaheadDepth; /**< 前瞻嵌套层数上限。 */
+    PeRegexCancel cancel; /**< 可选取消函数，不得重入、抛出异常或 longjmp。 */
+    void *userData; /**< 调用方管理的取消上下文。 */
+} PeRegexLimits;
+
+/** @brief 单次匹配结果，失败与零宽匹配通过 status 区分。 */
+typedef struct PeRegexResult
+{
+    PeRegexStatus status; /**< 匹配状态。 */
+    size_t byteLength; /**< 成功时的前缀字节数。 */
+    size_t steps; /**< 已执行的步数。 */
+    size_t peakMemory; /**< 工作内存峰值。 */
+    size_t backtracks; /**< 实际回退次数。 */
+    size_t peakStates; /**< 同时保留的回溯状态峰值。 */
+} PeRegexResult;
+#endif

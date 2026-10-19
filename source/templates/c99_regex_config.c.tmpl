@@ -1,0 +1,21 @@
+/** @brief 全局正则预算，沿用 C 错误表的运行时配置方式。 */
+static PeRegexLimits s_ParserRegexLimits;
+/** @brief 最近匹配结果；资源失败保持到下一次解析初始化。 */
+static PeRegexResult s_ParserRegexResult;
+
+/** @brief 设置正则预算。@param pLimits NULL 恢复默认；配置跨解析保留。@return 无。 */
+void Parser_SetRegexLimits(const PeRegexLimits *pLimits)
+{
+    if (pLimits != NULL) s_ParserRegexLimits = *pLimits;
+    else memset(&s_ParserRegexLimits, 0, sizeof(s_ParserRegexLimits));
+}
+/** @brief 读取最近结果。@return 内部只读状态与统计，不得释放。 */
+const PeRegexResult *Parser_GetLastRegexResult(void)
+{
+    return &s_ParserRegexResult;
+}
+/** @brief 清除上一轮结果，保留预算配置。@return 无。 */
+void Parser_ResetRegexResult(void)
+{
+    memset(&s_ParserRegexResult, 0, sizeof(s_ParserRegexResult));
+}

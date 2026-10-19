@@ -9,7 +9,7 @@ static const uint32_t {{ program.name }}Ranges[] = {
 {% endfor %}};
 static const PeRegexProgram {{ program.name }} = {
     {{ program.name }}Code, {{ program.count }}u, {{ program.entry }}u, {{ program.groups }}u,
-    {{ program.name }}Ranges, 1
+    {{ program.name }}Ranges, {{ program.unicode }}
 };
 {% endfor %}
 /** @brief Unicode 正则文本与不可变程序的对应关系。 */
