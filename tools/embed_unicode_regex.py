@@ -61,12 +61,12 @@ def main():
     assert all(target not in folding for target in folding.values())
     aliases = dict(zip("L M N P S Z C Lu Ll Lt Lm Lo Mn Mc Me Nd Nl No Pc Pd Ps Pe Pi Pf Po Sm Sc Sk So Zs Zl Zp Cc Cf Cs Co Cn".split(),
         "Letter Mark Number Punctuation Symbol Separator Other Uppercase_Letter Lowercase_Letter Titlecase_Letter Modifier_Letter Other_Letter Nonspacing_Mark Spacing_Mark Enclosing_Mark Decimal_Number Letter_Number Other_Number Connector_Punctuation Dash_Punctuation Open_Punctuation Close_Punctuation Initial_Punctuation Final_Punctuation Other_Punctuation Math_Symbol Currency_Symbol Modifier_Symbol Other_Symbol Space_Separator Line_Separator Paragraph_Separator Control Format Surrogate Private_Use Unassigned".split()))
-    notice = [' * ' + line for line in (DATA / "LICENSE.txt").read_text(encoding="utf-8").splitlines()]
+    notice = [' * ' + line if line else ' *' for line in (DATA / "LICENSE.txt").read_text(encoding="utf-8").splitlines()]
     out = ['/* Unicode 17.0.0，生成自 source/unicode/17.0.0。'] + notice + [' */',
            '#ifndef PE_REGEX_UNICODE_DATA_H', '#define PE_REGEX_UNICODE_DATA_H',
            '#include <stdint.h>', '#include <stddef.h>', '#include <string.h>']
     for filename in ("UnicodeData.txt", "CaseFolding.txt", "PropList.txt"):
-        out.append('/* ' + filename + ' SHA256: ' + hashlib.sha256((DATA / filename).read_bytes()).hexdigest() + ' */')
+        out.append('/* ' + filename + ' SHA256: ' + hashlib.sha256((DATA / filename).read_bytes().replace(b"\r\n", b"\n")).hexdigest() + ' */')
     for name, spans in properties.items():
         out.append('static const uint32_t PeUnicode' + name + '[] = {')
         out.extend('    0x%Xu, 0x%Xu,' % tuple(span) for span in spans)
