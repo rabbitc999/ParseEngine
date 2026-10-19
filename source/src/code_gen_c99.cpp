@@ -21,6 +21,7 @@
 #include "ParseEngine/error.hpp"
 #include "ParseEngine/grammar_loader.hpp"
 #include "ParseEngine/regex_dfa.hpp"
+#include "ParseEngine/regex_vm.hpp"
 #include "ParseEngine/utils.hpp"
 
 // C99 产物模板（source/templates/c99_*.tmpl）走 library/template 的模板引擎：
@@ -182,6 +183,76 @@ struct LexDfaDescriptor
 };
 
 /**
+ * @brief 生成扩展正则的有序程序、规则描述和元数据。
+ * @param patterns 全部正则。 @param entries Token 规则。 @param hasIdentifier 有无标识符。
+ * @param commits 注释规则。 @param tokenLexOrder 声明顺序。 @param out 输出表。
+ * @param error 错误说明。 @return 成功返回 true。
+ */
+bool generatorLexVmC(
+    const std::vector<std::pair<std::string, std::string>> &patterns,
+    const std::vector<std::pair<std::string, std::string>> &entries,
+    bool hasIdentifier, const std::vector<CommitSpec> &commits,
+    const std::map<std::string, int> &tokenLexOrder, std::string &out, Error &error)
+{
+    auto programs = std::make_shared<tmpl::Array>();
+    std::vector<std::string> descriptors, regexDescriptors, regexTypes, regexOrders;
+    std::vector<std::string> commitDescriptors, commitTypes, commitSkips, commitOrders;
+    for (std::size_t index = 0; index < patterns.size(); ++index)
+    {
+        RegexVmProgram program;
+        if (!RegexVm::compile(patterns[index].second, program, error)) return false;
+        const std::string name = "s_ParserRegexVm" + std::to_string(index);
+        std::vector<std::string> rows;
+        for (const auto &instruction : program.code)
+        {
+            std::string row = "{ " + std::to_string(instruction.op) + ", " +
+                std::to_string(instruction.next) + ", " + std::to_string(instruction.other) +
+                ", " + std::to_string(instruction.value) + ", { ";
+            for (std::size_t byte = 0; byte < instruction.bits.size(); ++byte)
+                row += (byte ? ", " : "") + std::to_string(instruction.bits[byte]);
+            rows.push_back(row + " } }");
+        }
+        auto item = std::make_shared<tmpl::Object>();
+        item->insert("name", name);
+        item->insert("rows", tmpl::encode(rows));
+        programs->items.emplace_back(item);
+        descriptors.push_back("{ " + name + ", " + std::to_string(program.code.size()) +
+            "u, " + std::to_string(program.entry) + "u, " + std::to_string(program.groups) + "u }");
+    }
+    for (std::size_t index = 0; index < entries.size(); ++index)
+    {
+        regexDescriptors.push_back(descriptors[index]);
+        regexTypes.push_back("TOKEN_" + entries[index].first);
+        const auto found = tokenLexOrder.find(entries[index].first);
+        regexOrders.push_back(std::to_string(found == tokenLexOrder.end() ? static_cast<int>(index) : found->second));
+    }
+    const std::size_t commitStart = entries.size() + (hasIdentifier ? 1u : 0u);
+    for (std::size_t index = 0; index < commits.size(); ++index)
+    {
+        commitDescriptors.push_back(descriptors[commitStart + index]);
+        commitTypes.push_back(Utils::varCString(commits[index].type));
+        commitSkips.push_back(commits[index].isSkip ? "1u" : "0u");
+        commitOrders.push_back(std::to_string(commits[index].order));
+    }
+    if (commits.empty())
+    {
+        commitDescriptors.push_back("{ NULL, 0u, 0u, 0u }");
+        commitTypes.push_back("NULL");
+        commitSkips.push_back("0u");
+        commitOrders.push_back("0");
+    }
+    out += tmpl::renderValues(Utils::loadTemplate("c99_lex_vm_tables.c"),
+        {{"runtime", Utils::loadTemplate("regex_vm_runtime.h")}, {"programs", tmpl::Value(programs)},
+         {"has_regex", !entries.empty()}, {"has_identifier", hasIdentifier},
+         {"regex_descriptors", tmpl::encode(regexDescriptors)}, {"regex_types", tmpl::encode(regexTypes)},
+         {"regex_orders", tmpl::encode(regexOrders)}, {"commit_descriptors", tmpl::encode(commitDescriptors)},
+         {"commit_types", tmpl::encode(commitTypes)}, {"commit_skips", tmpl::encode(commitSkips)},
+         {"commit_orders", tmpl::encode(commitOrders)}, {"commit_slots", std::to_string(commitTypes.size())},
+         {"identifier_descriptor", hasIdentifier ? descriptors[entries.size()] : std::string()}});
+    return true;
+}
+
+/**
  * @brief 生成 %token regex / %identifier 的 DFA 表与识别接口。
  * @param tokenDefs 固定字面量 Token。
  * @param regexDefs 正则 Token（有序）。
@@ -214,6 +285,15 @@ bool generatorLexDfaC(
         patterns.emplace_back("__commit" + std::to_string(index) + "__",
                               commits[index].pattern);
     }
+    bool hasVm = false;
+    for (const auto &pattern : patterns)
+    {
+        std::shared_ptr<RegexNode> ast;
+        if (!RegexDfa::parse(pattern.second, ast, error)) return false;
+        hasVm = hasVm || RegexVm::required(ast) ||
+            std::any_of(pattern.second.begin(), pattern.second.end(),
+                        [](unsigned char byte) { return byte >= 128u; });
+    }
     // 关键字表先出来：它是独立的一段产物（在下面两份模板之外）
     outTables = generatorKeywordC(tokenDefs, "");
 
@@ -226,7 +306,8 @@ bool generatorLexDfaC(
     // DFA 结构体、按条件出现的三段声明都在那边用 `{% if %}` 选。
     outDecls = tmpl::renderValues(
         Utils::loadTemplate("c99_lex_dfa_decls.h"),
-        {{"has_dfa", hasDfa},
+        {{"has_vm", hasVm},
+         {"has_dfa", hasDfa},
          {"has_regex", hasRegex},
          {"has_identifier", hasIdentifier},
          {"regex_count", std::to_string(entries.size())},
@@ -238,6 +319,11 @@ bool generatorLexDfaC(
         // 没有 %token regex / %identifier / %commit 时词法器走「固定字面量」
         // 那一段，不会引用任何 DFA / commit 表，这里什么都不用发。
         return true;
+    }
+    if (hasVm)
+    {
+        return generatorLexVmC(patterns, entries, hasIdentifier, commits,
+                               tokenLexOrder, outTables, error);
     }
     RegexCompileResult compileResult;
     if (!RegexDfa::compileAll(patterns, compileResult, error))

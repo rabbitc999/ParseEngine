@@ -8,6 +8,7 @@
  */
 
 #include "ParseEngine/regex_dfa.hpp"
+#include "ParseEngine/regex_vm.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -636,10 +637,7 @@ bool shorthandRanges(char ch, bool negate,
     }
     else if (ch == 's')
     {
-        out = {{0x9u, 0xDu}, {0x20u, 0x20u}, {0x85u, 0x85u},
-               {0xA0u, 0xA0u}, {0x1680u, 0x1680u}, {0x2000u, 0x200Au},
-               {0x2028u, 0x2029u}, {0x202Fu, 0x202Fu}, {0x205Fu, 0x205Fu},
-               {0x3000u, 0x3000u}};
+        out = {{0x9u, 0xDu}, {0x20u, 0x20u}};
     }
     else if (ch == 'h')
     {
@@ -785,7 +783,16 @@ public:
             fail("正则表达式不能为空");
             return {};
         }
+        if ((peek() == '(') && (peek(1) == '?') && (peek(2) == 'i') && (peek(3) == ')'))
+        {
+            m_pos += 4u;
+            m_ignoreCase = true;
+        }
         std::shared_ptr<RegexNode> node = parseAlt();
+        if (m_maxReference > m_captureCount)
+        {
+            fail("反向引用编号超过捕获组数量");
+        }
         if (failed())
         {
             return {};
@@ -1080,32 +1087,33 @@ private:
         if (ch == '(')
         {
             next();
+            RegexNode::Kind kind = RegexNode::Kind::Group;
+            int group = 0;
             if (peek() == '?')
             {
                 next();
-                if (peek() == ':')
-                {
-                    next(); // (?: ... ) 非捕获组：语义上与分组相同
-                }
+                if (peek() == ':') kind = RegexNode::Kind::Empty;
+                else if (peek() == '=') kind = RegexNode::Kind::LookAhead;
+                else if (peek() == '!') kind = RegexNode::Kind::NegativeLookAhead;
                 else
                 {
-                    fail(
-                        "不支持的组写法 '(?'：只支持非捕获组 (?:...)（词法器不需要"
-                        "捕获组）");
+                    fail("不支持的组写法：支持 (...)、(?:...)、(?=...)、(?!...)；(?i) 只能放在模式开头");
                     return {};
                 }
+                next();
             }
-            std::shared_ptr<RegexNode> node = parseAlt();
-            if (failed())
-            {
-                return {};
-            }
+            else group = ++m_captureCount;
+            auto child = parseAlt();
+            if (failed()) return {};
             if (peek() != ')')
             {
                 fail("缺少右括号 )");
                 return {};
             }
             next();
+            if (kind == RegexNode::Kind::Empty) return child;
+            auto node = makeUnary(kind, child);
+            node->group = group;
             return node;
         }
         if (ch == '[')
@@ -1121,7 +1129,7 @@ private:
         {
             next();
             std::vector<std::pair<char32_t, char32_t>> ranges = {
-                {0x0u, 0x9u}, {0xBu, k_maxCodePoint}};
+                {0x0u, 0x9u}, {0xBu, 0xCu}, {0xEu, k_maxCodePoint}};
             return makeClass(ranges);
         }
         if (ch == '^')
@@ -1151,8 +1159,8 @@ private:
     /**
      * @brief 读取 `\` 之后的转义（调用前 `\` 已消费）。
      *
-     * 返回值：普通字符 / 预定义类 / 属性类。`\b`（词边界）与反向引用一律报错：
-     * 词法器是单遍最长匹配，用不到也不支持。
+     * 返回普通字符、预定义类、属性类、词边界或数字反向引用节点。
+     * 词边界和反向引用由有序运行时执行；类内 `\b` 表示退格。
      * @param inClass 是否在 `[...]` 里（`\b` 在类里是退格）。
      * @return 解析出的节点；出错返回 nullptr。
      */
@@ -1249,21 +1257,41 @@ private:
             next();
             return makeClass({{value, value}});
         }
-        if (ch == 'b')
+        if (((ch == 'b') && !inClass) || (ch == 'B'))
         {
             if (inClass)
             {
-                return makeClass({{0x8u, 0x8u}});
+                fail("字符类内不支持 \\B");
+                return {};
             }
-            fail(
-                "不支持 \\b（词边界）：词法器只做单遍最长匹配，用不到断言；"
-                "要匹配退格请写在字符类里 [\\b]");
-            return {};
+            return makeNode(ch == 'b' ? RegexNode::Kind::WordBoundary : RegexNode::Kind::NotWordBoundary);
         }
-        if ((ch == 'B') || (isDigit(ch) && (ch != '0')) || (ch == 'k') || (ch == 'g'))
+        if ((ch >= '1') && (ch <= '9'))
         {
-            fail(std::string("不支持 \\") + static_cast<char>(ch) +
-                 "（词边界 / 反向引用）：词法器是单遍最长匹配，不做回溯匹配");
+            if (inClass)
+            {
+                fail("字符类内不支持反向引用");
+                return {};
+            }
+            int group = static_cast<int>(ch - '0');
+            while (isDigit(peek()))
+            {
+                if (group > k_maxRepeat)
+                {
+                    fail("反向引用编号过大");
+                    return {};
+                }
+                group = group * 10 + static_cast<int>(next() - '0');
+            }
+            m_maxReference = std::max(m_maxReference, group);
+            auto node = makeNode(RegexNode::Kind::Backref);
+            node->group = group;
+            node->ignoreCase = m_ignoreCase;
+            return node;
+        }
+        if ((ch == 'k') || (ch == 'g'))
+        {
+            fail("暂不支持命名反向引用，请使用数字编号 \\1、\\2");
             return {};
         }
         const char32_t value = escapedValue(ch);
@@ -1286,6 +1314,7 @@ private:
         case 'v': return '\v';
         case 'a': return 0x7;
         case 'e': return 0x1B;
+        case 'b': return 0x8;
         case '0': return 0x0;
         default: break;
         }
@@ -1459,12 +1488,16 @@ private:
             if (ch == '\\')
             {
                 next();
+                const bool savedCase = m_ignoreCase;
+                m_ignoreCase = false;
                 const std::shared_ptr<RegexNode> node = parseEscape(true);
+                m_ignoreCase = savedCase;
                 if (failed())
                 {
                     return {};
                 }
-                if (node->kind == RegexNode::Kind::Class)
+                if ((node->ranges.size() != 1u) ||
+                    (node->ranges.front().first != node->ranges.front().second))
                 {
                     unionRanges(ranges, node->ranges);
                     continue;
@@ -1490,7 +1523,10 @@ private:
                 if (peek() == '\\')
                 {
                     next();
+                    const bool savedCase = m_ignoreCase;
+                    m_ignoreCase = false;
                     const std::shared_ptr<RegexNode> node = parseEscape(true);
+                    m_ignoreCase = savedCase;
                     if (failed())
                     {
                         return {};
@@ -1519,7 +1555,7 @@ private:
             }
             ranges.emplace_back(start, start);
         }
-        ranges = normalizeRanges(ranges);
+        ranges = foldCase(normalizeRanges(ranges));
         if (negate)
         {
             ranges = complementRanges(ranges);
@@ -1529,7 +1565,10 @@ private:
             fail("字符集不能为空");
             return {};
         }
-        return makeClass(ranges);
+        auto node = makeNode(RegexNode::Kind::Class);
+        node->ranges = ranges;
+        node->ignoreCase = m_ignoreCase;
+        return node;
     }
 
     /**
@@ -1537,11 +1576,12 @@ private:
      * @param ranges 码点区间（已排序、互不重叠）。
      * @return 新建节点。
      */
-    static std::shared_ptr<RegexNode> makeClass(
+    std::shared_ptr<RegexNode> makeClass(
         const std::vector<std::pair<char32_t, char32_t>> &ranges)
     {
         std::shared_ptr<RegexNode> node = makeNode(RegexNode::Kind::Class);
-        node->ranges = ranges;
+        node->ranges = foldCase(ranges);
+        node->ignoreCase = m_ignoreCase;
         return node;
     }
 
@@ -1588,6 +1628,27 @@ private:
         return node;
     }
 
+    /** @brief 按 ASCII 大小写关系扩展字符集合。 @param ranges 输入区间。 @return 闭包。 */
+    std::vector<std::pair<char32_t, char32_t>> foldCase(
+        std::vector<std::pair<char32_t, char32_t>> ranges) const
+    {
+        if (m_ignoreCase)
+        {
+            const auto original = normalizeRanges(ranges);
+            for (char32_t ch = 'A'; ch <= 'Z'; ++ch)
+            {
+                if (rangesContain(original, ch) || rangesContain(original, ch + 32u))
+                {
+                    ranges.emplace_back(ch, ch);
+                    ranges.emplace_back(ch + 32u, ch + 32u);
+                }
+            }
+        }
+        return normalizeRanges(ranges);
+    }
+    bool m_ignoreCase = false; ///< 模式开头的 (?i) 标志
+    int m_captureCount = 0; ///< 已分配捕获组数
+    int m_maxReference = 0; ///< 最大反向引用编号
     std::vector<char32_t> m_points; ///< 正则文本的码点序列
     std::size_t m_pos = 0;          ///< 当前解析位置
     Error m_error;                  ///< 第一个错误
@@ -1693,10 +1754,11 @@ private:
             addClassEdges(start, end, node->ranges);
             return {start, end};
         }
+        case RegexNode::Kind::Group:
+            return buildNode(node->left);
         case RegexNode::Kind::Assertion:
         {
-            // 断言按「匹配零宽」处理：^ 与 $ 的语义由词法器保证（它总是从当前
-            // 位置起匹配到行尾，所以 ^ 恒真、$ 在换行 / 结尾处成立）。
+            // buildDfa 在入口拒绝上下文断言，此分支不会用于生成可执行 DFA。
             const int start = newState();
             const int end = newState();
             m_eps[start].insert(end);
@@ -2091,6 +2153,9 @@ void RegexDfa::collectClassSets(const std::shared_ptr<RegexNode> &node,
         collectClassSets(node->left, found);
         collectClassSets(node->right, found);
         break;
+    case RegexNode::Kind::Group:
+    case RegexNode::Kind::LookAhead:
+    case RegexNode::Kind::NegativeLookAhead:
     case RegexNode::Kind::Star:
     case RegexNode::Kind::Plus:
     case RegexNode::Kind::Opt:
@@ -2239,6 +2304,10 @@ bool RegexDfa::buildDfa(const std::string &pattern,
     if (!parse(pattern, ast, error))
     {
         return false;
+    }
+    if (RegexVm::contextRequired(ast))
+    {
+        return fail(error, "该正则包含上下文断言或反向引用，需要有序正则运行时");
     }
     RegexNfa nfa(cells);
     nfa.build(ast);

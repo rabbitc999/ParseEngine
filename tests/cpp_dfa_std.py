@@ -68,7 +68,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     unit = OUT / ("regex_dfa_std" + EXE)
     run(["g++", "-std=c++17", "-O1", "-Isource/include", "tests/regex_dfa_std.cpp",
-         "source/src/regex_dfa.cpp", "-o", str(unit)])
+         "source/src/regex_dfa.cpp", "source/src/regex_vm.cpp", "-o", str(unit)])
     run([str(unit)])
     cases = [
         ("[a-z]+", "abc xyz", True),

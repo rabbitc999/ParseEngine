@@ -16,6 +16,17 @@
  *  @retval 关键字对应的 Token；不是关键字时返回 TOKEN_INVALID。 */
 ParserTokenType_T Parser_TokenKeyword(const char *pText);
 {% if has_dfa %}
+{% if has_vm %}
+struct PeRegexInst;
+/** @brief 有序正则程序描述，沿用词法器规则接口。 */
+typedef struct ParserLexDfa_T
+{
+    const struct PeRegexInst *code;
+    size_t count;
+    size_t entry;
+    size_t groups;
+} ParserLexDfa_T;
+{% else %}
 /** DFA 描述：转移表按“状态 × 字符类”展平。 */
 typedef struct ParserLexDfa_T
 {
@@ -25,13 +36,16 @@ typedef struct ParserLexDfa_T
     uint16_t startState;
     uint16_t trapState;
 } ParserLexDfa_T;
+{% endif %}
 
-/** @brief 用 DFA 做最长前缀匹配。 @param pDfa DFA。
+/** @brief 从当前位置匹配一条正则规则。 @param pDfa DFA 或有序程序。
  *  @param pText 文本。 @retval 匹配到的字节数（0 表示不匹配）。 */
 uint32_t Parser_LexDfaMatch(const ParserLexDfa_T *pDfa, const char *pText);
 
+{% if has_vm %}{% else %}
 extern const uint8_t s_ParserLexClassMap[256];
 extern const uint16_t s_ParserLexClassCount;
+{% endif %}
 {% if has_regex %}
 #define PARSER_REGEX_COUNT {{ regex_count }}u
 extern const ParserLexDfa_T s_ParserRegexDfas[PARSER_REGEX_COUNT];

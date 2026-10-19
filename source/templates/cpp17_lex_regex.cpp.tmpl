@@ -1,10 +1,20 @@
 /* %token regex / %identifier / %commit 的正则：用标准库 <regex> 在每个
  * 位置各做一次最长匹配（ECMAScript 语法，见 lexRegexMatch）。 */
+/** @brief 将模式开头的 (?i) 转换为标准库 icase 选项。
+ * @param pattern 正则文本。 @return ECMAScript 正则对象。
+ */
+inline std::regex lexCompileRegex(const char *pattern = "")
+{
+    const bool ignoreCase = std::strncmp(pattern, "(?i)", 4u) == 0;
+    const auto flags = std::regex_constants::ECMAScript |
+        (ignoreCase ? std::regex_constants::icase : std::regex_constants::syntax_option_type{});
+    return std::regex(pattern + (ignoreCase ? 4u : 0u), flags);
+}
 {% if has_regex %}/* %token regex 声明的 Token：与固定字面量一起做最长匹配 */
 inline const std::regex kRegexRes[] =
 {
 {% for r in regex_entries %}{% if loop_first %}{% else %},
-{% endif %}    std::regex({{ r.pattern }}){% endfor %}
+{% endif %}    lexCompileRegex({{ r.pattern }}){% endfor %}
 };
 inline constexpr TokenType kRegexTypes[] =
 {
@@ -23,7 +33,7 @@ inline constexpr std::uint32_t kRegexCount = {{ regex_count }}u;
 inline const std::regex kCommitRes[] =
 {
 {% for c in commit_entries %}{% if loop_first %}{% else %},
-{% endif %}    std::regex({{ c.pattern }}){% endfor %}
+{% endif %}    lexCompileRegex({{ c.pattern }}){% endfor %}
 };
 inline constexpr const char *const kCommitTypes[][2] =
 {
@@ -43,7 +53,7 @@ inline constexpr int kCommitOrders[] =
 inline constexpr std::size_t kCommitCount = {{ commit_count }}u;
 
 {% if has_identifier %}/* %identifier 声明的标识符正则 */
-inline const std::regex kIdentifierRe({{ identifier_pattern }});
+inline const std::regex kIdentifierRe = lexCompileRegex({{ identifier_pattern }});
 
 {% endif %}/**
  * @brief 用 std::regex 从 text[pos] 起匹配，返回匹配到的字节数（0 = 不匹配）。

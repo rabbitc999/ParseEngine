@@ -872,7 +872,7 @@ C / C++17 / Python 完全一致（命令行 `--lang` 覆盖文法里的 `%lang`�
 | Go | 标准库 `regexp`（RE2） | `sParserRegexRes` / `sParserIdentifierRe` / `sParserCommitRes` + `sParserLexRegexMatch()`（`regexp.MustCompile` 在包级变量初始化时各编译一次） |
 
 **C++17 缺省把正则交给 `std::regex`**（用 `--cpp-lexer dfa` 或 `%cpp_lexer dfa`
-启用等价子集的 DFA 快速路径，其余模式自动回退标准库）；**C99 只有 DFA 一条路**，其余各档把正则原样交给各自
+启用等价子集的 DFA 快速路径，其余模式自动回退标准库）；**C99 对普通模式使用 DFA，上下文语法使用内嵌有序正则运行时**，其余各档把正则原样交给各自
 语言的正则库。
 
 **生成期校验与报错口径**：六档的正则都在**文法加载时**（`readRegexPattern`）用
@@ -994,6 +994,6 @@ ParseEngine example/ielr_demo.gram --out-dir /tmp/ielr_gram --lang gram \
 否定字符类、非法 UTF-8 和空白。C++ DFA 快速路径逐字节扫描，避免把过长 UTF-8 编码误解为 ASCII。可证明等价的 ASCII 模式继续生成 DFA；其余模式整份回退到
 `std::regex`，包括 `%identifier`、`%commit`、`%trivia`，避免不同规则使用不同语义。
 
-C99 继续使用自身 DFA 的最长接受前缀语义。C/C++ 共用编译器已修复 `{m,n}`
+C99 的普通 DFA 路径继续使用最长接受前缀语义；扩展模式使用有序运行时，详见 [17 扩展正则表达式](17-regex-extensions.md)。C/C++ 共用编译器已修复 `{m,n}`
 误变成 `{m,}`、`{m,}` 被误报上下限错误、范围重复丢失非贪婪标记和 `\0` 被误拒绝。
 回归同时直接将共用编译器的 DFA 完整匹配结果与 `std::regex_match` 对照，验证重复边界。

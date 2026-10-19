@@ -10,8 +10,8 @@
  *     `\o{…}`（八进制码点）；
  *   - 字符类 `[...]`：区间、`^` 取反、`[]` 里以字面量出现的 `]`、类内联合
  *     （`[[:alpha:]]` / `[[:^alpha:]]`、`\p{L}`、`\d` 等）
- *   - 断言 `^` / `$`：只在整条模式的最外层有意义（词法器总是从当前位置起匹配
- *     到行尾，所以 `^` 等价于空串、`$` 表示「行尾」）；
+ *   - 上下文语法：`^` / `$`、`(?=...)` / `(?!...)`、`\b` / `\B`、捕获组与数字
+ *     反向引用、模式开头的 `(?i)`；由 RegexVm 或目标标准库执行，不能当作空串 DFA；
  *   - 重复 `*` `+` `?` `{m}` `{m,}` `{m,n}`（`m` 上限 k_maxRepeat），以及四种
  *     非贪婪写法 `*?` `+?` `??` `{m,n}?`（最长匹配语义下等价于贪婪版，见
  *     `RegexNode::lazy`）。
@@ -54,6 +54,12 @@ struct RegexNode
         Star,       ///< 闭包，left 有效
         Plus,       ///< 正闭包，left 有效
         Opt,        ///< 可选，left 有效
+        Group,      ///< 捕获组，group 为从 1 开始的编号
+        LookAhead,  ///< 正前瞻，left 为断言表达式
+        NegativeLookAhead, ///< 负前瞻
+        WordBoundary, ///< 单词边界
+        NotWordBoundary, ///< 非单词边界
+        Backref,    ///< 数字反向引用，group 为目标组号
         Repeat,     ///< 有界重复 {m,n}，left 有效，min / max 有效
     };
 
@@ -68,6 +74,8 @@ struct RegexNode
 
     Kind kind = Kind::Empty;                       ///< 节点类别
     Assertion assertion = Assertion::LineStart;    ///< Assertion 节点的类别
+    int group = 0;                                ///< 捕获组或反向引用编号
+    bool ignoreCase = false;                       ///< ASCII 忽略大小写标记
     bool lazy = false;                             ///< 非贪婪标记（*? +? ?? {m,n}?）
     std::shared_ptr<RegexNode> left;               ///< 一元/二元子节点
     std::shared_ptr<RegexNode> right;              ///< 二元子节点

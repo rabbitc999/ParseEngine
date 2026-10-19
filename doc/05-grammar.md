@@ -1121,3 +1121,5 @@ LL 家族**不写任何恢复指令也有恢复**——运行时会自动按下�
 - 数据模型：`source/include/ParseEngine/grammar_types.hpp`
 - 动作翻译：`source/src/action_translator.cpp`
 - 正则编译：`source/src/regex_dfa.cpp`
+
+扩展正则的前瞻、词边界、`(?i)` 和数字反向引用，见 [17 扩展正则表达式](17-regex-extensions.md)。

@@ -1,0 +1,11 @@
+// C99 / C++17 扩展正则：前瞻、边界、全局大小写标志和捕获反向引用。
+%mode lex
+%token COLON ":"
+%token SEMI ";"
+%token regex PAIR "(?i)\\b([a-z]+)-\\1\\b(?=[:;])"
+%token regex LOOKCAP "(?=(z))\\1"
+%token regex SAFE "\\bfoo\\b(?!:)"
+%identifier "[a-zA-Z_][a-zA-Z0-9_]*"
+%commit note "(?i)\\b(note)-\\1\\b"
+%trivia "\\bskip\\b(?=;)"
+%space " \t\r\n"

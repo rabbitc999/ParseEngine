@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "ParseEngine/regex_dfa.hpp"
+#include "ParseEngine/regex_vm.hpp"
 // 图的源码、页面骨架与文案都在模板里（AGENTS.md §1 规则 10：产物文本一律进模板）
 #include "ParseEngine/utils.hpp"
 #include "template/engine.hpp"
@@ -758,6 +759,12 @@ std::vector<std::pair<std::string, std::string>> regexPatterns(
     {
         patterns.emplace_back(k_identifierToken, *lexSpec.identifier);
     }
+    // 上下文断言和反向引用没有等价的普通 DFA，不能把它们画成空串边。
+    patterns.erase(std::remove_if(patterns.begin(), patterns.end(), [](const auto &entry) {
+        std::shared_ptr<RegexNode> ast;
+        Error error;
+        return RegexDfa::parse(entry.second, ast, error) && RegexVm::contextRequired(ast);
+    }), patterns.end());
     return patterns;
 }
 
@@ -891,8 +898,12 @@ std::string Mermaid::lexerIntro(
     Error &error)
 {
     const auto patterns = regexPatterns(lexSpec);
+    const std::size_t originalCount = lexSpec.regex.size() + (lexSpec.identifier.has_value() ? 1u : 0u);
+    const std::string runtimeNote = patterns.size() < originalCount
+        ? Utils::loadTemplate("mermaid_lexer_intro_runtime.html") : std::string();
     if (patterns.empty())
     {
+        if (!runtimeNote.empty()) return runtimeNote;
         // 没有正则可画：页面导语是一份静态片段（原文末尾不带换行）
         return tmpl::renderValues(
             Utils::loadTemplate("mermaid_lexer_intro_empty.html"));
@@ -926,7 +937,7 @@ std::string Mermaid::lexerIntro(
         row.text = htmlEscape(cellText(compiled.cells[index]));
         cells.push_back(std::move(row));
     }
-    return tmpl::renderValues(
+    return runtimeNote + tmpl::renderValues(
         Utils::loadTemplate("mermaid_lexer_intro.html"),
         {{"literal_tokens", tmpl::encode(literalTokens)},
          {"rows", tmpl::encode(rows)},

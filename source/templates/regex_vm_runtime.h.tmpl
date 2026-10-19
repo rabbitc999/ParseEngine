@@ -1,0 +1,194 @@
+/* 有序正则运行时：C99 / C++17 均可编译，运行时不读取模板。 */
+#ifndef PE_REGEX_VM_RUNTIME_H
+#define PE_REGEX_VM_RUNTIME_H
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+/** @brief 正则指令：0 接受、1 字符、2 分支、3 捕获、4/5 锚点、6 边界、
+ * 7 引用、8 前瞻、9 空循环保护。 */
+typedef struct PeRegexInst
+{
+    int op, next, other, value;
+    unsigned char bits[32];
+} PeRegexInst;
+/** @brief 不可变正则程序。 */
+typedef struct PeRegexProgram
+{
+    const PeRegexInst *code;
+    size_t count, entry, groups;
+} PeRegexProgram;
+/** @brief 一个回溯点及其独立捕获快照。 */
+typedef struct PeRegexFrame
+{
+    size_t pc, pos;
+    size_t *state;
+} PeRegexFrame;
+/** @brief ASCII 单词字符判断。 @param ch 字节。 @return 属于单词返回真。 */
+static int PeRegexWord(unsigned char ch)
+{
+    return (ch == '_') || ((ch >= '0') && (ch <= '9')) ||
+        ((ch >= 'A') && (ch <= 'Z')) || ((ch >= 'a') && (ch <= 'z'));
+}
+/** @brief ASCII 大小写折叠。 @param ch 字节。 @return 小写形式。 */
+static unsigned char PeRegexFold(unsigned char ch)
+{
+    return ((ch >= 'A') && (ch <= 'Z')) ? (unsigned char)(ch + 32) : ch;
+}
+/** @brief 执行有序回溯：普通回溯使用堆栈，只有语法嵌套的前瞻递归。
+ * @param program 程序。 @param text 输入。 @param length 字节数。
+ * @param entry 子程序入口。 @param start 起点。 @param captures 捕获输入输出。
+ * @param end 成功时的结束位置。 @return 匹配成功返回 1，失败返回 0，分配失败返回 -1。
+ */
+static int PeRegexRun(const PeRegexProgram *program, const char *text, size_t length,
+                      size_t entry, size_t start, size_t *captures, size_t *end)
+{
+    const size_t missing = (size_t)-1;
+    const size_t captureSlots = 2 * (program->groups + 1);
+    const size_t slots = captureSlots + program->count;
+    size_t *state = (size_t *)malloc(slots * sizeof(size_t));
+    PeRegexFrame *stack = NULL;
+    size_t capacity = 0, top = 0, pc = entry, pos = start, index;
+    int matched = 0;
+    if (state == NULL) return -1;
+    memcpy(state, captures, captureSlots * sizeof(size_t));
+    for (index = captureSlots; index < slots; ++index) state[index] = missing;
+    for (;;)
+    {
+        const PeRegexInst *instruction;
+        if (pc >= program->count) goto backtrack;
+        instruction = &program->code[pc];
+        switch (instruction->op)
+        {
+        case 0:
+            memcpy(captures, state, captureSlots * sizeof(size_t));
+            *end = pos;
+            matched = 1;
+            goto finish;
+        case 1:
+            if (pos >= length) goto backtrack;
+            {
+                const unsigned char ch = (unsigned char)text[pos];
+                if (!(instruction->bits[ch >> 3] & (1u << (ch & 7)))) goto backtrack;
+            }
+            ++pos;
+            pc = (size_t)instruction->next;
+            break;
+        case 2:
+            if (top == capacity)
+            {
+                const size_t grownCapacity = capacity ? capacity * 2 : 16;
+                PeRegexFrame *grown = (PeRegexFrame *)realloc(stack, grownCapacity * sizeof(PeRegexFrame));
+                if (grown == NULL) { matched = -1; goto finish; }
+                stack = grown;
+                capacity = grownCapacity;
+            }
+            stack[top].state = (size_t *)malloc(slots * sizeof(size_t));
+            if (stack[top].state == NULL) { matched = -1; goto finish; }
+            memcpy(stack[top].state, state, slots * sizeof(size_t));
+            stack[top].pc = (size_t)instruction->other;
+            stack[top].pos = pos;
+            ++top;
+            pc = (size_t)instruction->next;
+            break;
+        case 3:
+            state[instruction->value] = pos;
+            if ((instruction->value & 1) == 0) state[instruction->value + 1] = missing;
+            pc = (size_t)instruction->next;
+            break;
+        case 4:
+            if (pos != 0) goto backtrack;
+            pc = (size_t)instruction->next;
+            break;
+        case 5:
+            if (pos != length) goto backtrack;
+            pc = (size_t)instruction->next;
+            break;
+        case 6:
+            {
+                const int before = pos && PeRegexWord((unsigned char)text[pos - 1]);
+                const int after = pos < length && PeRegexWord((unsigned char)text[pos]);
+                if ((before != after) == instruction->value) goto backtrack;
+            }
+            pc = (size_t)instruction->next;
+            break;
+        case 7:
+            {
+                const size_t begin = state[2 * instruction->value];
+                const size_t stop = state[2 * instruction->value + 1];
+                if ((begin == missing) || (stop == missing)) goto backtrack;
+                {
+                    const size_t count = stop - begin;
+                    if (count > length - pos) goto backtrack;
+                    for (index = 0; index < count; ++index)
+                    {
+                        unsigned char a = (unsigned char)text[begin + index];
+                        unsigned char b = (unsigned char)text[pos + index];
+                        if (instruction->other) { a = PeRegexFold(a); b = PeRegexFold(b); }
+                        if (a != b) goto backtrack;
+                    }
+                    pos += count;
+                }
+            }
+            pc = (size_t)instruction->next;
+            break;
+        case 8:
+            {
+                size_t ignoredEnd = pos;
+                size_t *nested = (size_t *)malloc(captureSlots * sizeof(size_t));
+                int found;
+                if (nested == NULL) { matched = -1; goto finish; }
+                memcpy(nested, state, captureSlots * sizeof(size_t));
+                found = PeRegexRun(program, text, length, (size_t)instruction->other,
+                                   pos, nested, &ignoredEnd);
+                if (found < 0)
+                {
+                    free(nested);
+                    matched = -1;
+                    goto finish;
+                }
+                if (found && !instruction->value)
+                    memcpy(state, nested, captureSlots * sizeof(size_t));
+                free(nested);
+                if (found == instruction->value) goto backtrack;
+            }
+            pc = (size_t)instruction->next;
+            break;
+        case 9:
+            if (state[captureSlots + pc] == pos) goto backtrack;
+            state[captureSlots + pc] = pos;
+            pc = (size_t)instruction->next;
+            break;
+        default: goto backtrack;
+        }
+        continue;
+backtrack:
+        if (top == 0) break;
+        free(state);
+        --top;
+        state = stack[top].state;
+        pc = stack[top].pc;
+        pos = stack[top].pos;
+    }
+finish:
+    free(state);
+    while (top) free(stack[--top].state);
+    free(stack);
+    return matched;
+}
+/** @brief 从输入起点做一次有序匹配。 @param program 程序。
+ * @param text 输入。 @return 接受前缀字节数，零表示不匹配或零宽匹配。
+ */
+static uint32_t PeRegexMatch(const PeRegexProgram *program, const char *text)
+{
+    const size_t slots = 2 * (program->groups + 1);
+    size_t *captures = (size_t *)malloc(slots * sizeof(size_t));
+    size_t index, end = 0;
+    int found;
+    if (captures == NULL) return 0;
+    for (index = 0; index < slots; ++index) captures[index] = (size_t)-1;
+    found = PeRegexRun(program, text, strlen(text), program->entry, 0, captures, &end);
+    free(captures);
+    return found > 0 ? (uint32_t)end : 0;
+}
+#endif

@@ -1,0 +1,65 @@
+/* 正则扩展模式：有序回溯保留前瞻、捕获和反向引用语义。 */
+{{ runtime }}
+{% for program in programs %}
+static const PeRegexInst {{ program.name }}[] =
+{
+{% for row in program.rows %}    {{ row }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+{% endfor %}
+{% if has_regex %}
+const ParserLexDfa_T s_ParserRegexDfas[PARSER_REGEX_COUNT] =
+{
+{% for descriptor in regex_descriptors %}    {{ descriptor }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+const ParserTokenType_T s_ParserRegexTypes[PARSER_REGEX_COUNT] =
+{
+{% for token in regex_types %}    {{ token }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+const int32_t s_ParserRegexOrders[PARSER_REGEX_COUNT] =
+{
+{% for order in regex_orders %}    {{ order }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+{% endif %}
+const ParserLexDfa_T s_ParserCommitDfas[{{ commit_slots }}] =
+{
+{% for descriptor in commit_descriptors %}    {{ descriptor }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+const char *const s_ParserCommitTypes[{{ commit_slots }}] =
+{
+{% for type in commit_types %}    {{ type }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+const uint8_t s_ParserCommitSkips[{{ commit_slots }}] =
+{
+{% for skip in commit_skips %}    {{ skip }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+const int32_t s_ParserCommitOrders[{{ commit_slots }}] =
+{
+{% for order in commit_orders %}    {{ order }}{% if loop_last %}{% else %},{% endif %}
+{% endfor %}};
+/** @brief 扩展正则有序匹配，接口与 DFA 路径一致。
+ * @param pDfa 程序描述。 @param pText 输入。 @return 接受前缀的字节数。
+ */
+uint32_t Parser_LexDfaMatch(const ParserLexDfa_T *pDfa, const char *pText)
+{
+    PeRegexProgram program;
+    if ((pDfa == NULL) || (pText == NULL) || (pDfa->code == NULL)) return 0;
+    program.code = pDfa->code;
+    program.count = pDfa->count;
+    program.entry = pDfa->entry;
+    program.groups = pDfa->groups;
+    return PeRegexMatch(&program, pText);
+}
+{% if has_identifier %}
+static const ParserLexDfa_T s_ParserIdentifierVm = {{ identifier_descriptor }};
+/** @brief 取标识符前缀。 @param pText 输入。 @return 字节长度。 */
+uint32_t Parser_TokenIdentifierLength(const char *pText)
+{
+    return Parser_LexDfaMatch(&s_ParserIdentifierVm, pText);
+}
+/** @brief 判断整个文本是否为标识符。 @param pText 输入。 @return 是则返回真。 */
+uint8_t Parser_TokenIsIdentifier(const char *pText)
+{
+    const uint32_t length = Parser_TokenIdentifierLength(pText);
+    return pText != NULL && length > 0 && pText[length] == '\0';
+}
+{% endif %}

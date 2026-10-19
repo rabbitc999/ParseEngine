@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "ParseEngine/regex_dfa.hpp"
+#include "ParseEngine/regex_vm.hpp"
 #include "ParseEngine/utils.hpp"
 #include "ParseEngine/analysis.hpp"
 
@@ -2591,6 +2592,15 @@ std::string GramParser::readRegexPattern(const std::string &what)
     {
         regexDiagnostic(what + " 的正则 " + quoted + " 有误：" +
                         regexError.message);
+        return pattern;
+    }
+    if (RegexVm::required(ast))
+    {
+        if (RegexVm::nullable(ast))
+        {
+            fail(what + " 的正则 " + quoted + " 可能零宽匹配，Lexer 无法前进");
+            return {};
+        }
         return pattern;
     }
     std::vector<RegexDfa::RangeList> classSets;
