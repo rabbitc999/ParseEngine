@@ -132,6 +132,21 @@ static int32_t Parser_CommitAppend(ParserCtx_T *pCtx, int32_t line,
     return PARSER_OK;
 }
 
+/** @brief 当前运行时使用的错误提示函数。 */
+static ParserErrorFormatter s_ParserErrorFormatter = NULL;
+/** @brief 调用方的错误提示上下文。 */
+static void *s_ParserErrorFormatterData = NULL;
+
+/** @brief 设置运行时的错误提示函数。
+ * @param formatter 空指针恢复默认提示。
+ * @param userData 调用方持有的上下文。
+ */
+void Parser_SetErrorFormatter(ParserErrorFormatter formatter, void *userData)
+{
+    s_ParserErrorFormatter = formatter;
+    s_ParserErrorFormatterData = userData;
+}
+
 /** 
  * @brief 追加一条错误。 
  * @param code 错误码。 
@@ -155,6 +170,13 @@ static void Parser_SetError(int32_t code, uint32_t line, uint32_t column,
     snprintf(pEntry->message, sizeof(pEntry->message),
              "%.*s", (int)(sizeof(pEntry->message) - 1u),
              (pMessage != NULL) ? pMessage : "词法错误");
+    if (s_ParserErrorFormatter != NULL) {
+        char defaultMessage[sizeof(pEntry->message)];
+        memcpy(defaultMessage, pEntry->message, sizeof(defaultMessage));
+        s_ParserErrorFormatter(code, line, column, defaultMessage,
+            pEntry->message, (uint32_t)sizeof(pEntry->message), s_ParserErrorFormatterData);
+        pEntry->message[sizeof(pEntry->message) - 1u] = '\0';
+    }
     pEntry->tokenType = 0u;
     pEntry->state = 0u;
     pEntry->expectedCount = 0u;

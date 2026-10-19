@@ -27,6 +27,25 @@
 {{ defines }}
 {{ error_type }}
 /**
+ * @brief 自定义错误提示，向 output 写入以零结尾的文案。
+ * @param code 错误码。
+ * @param line 行号（1 起）。
+ * @param column 列号（1 起）。
+ * @param message 默认提示；只在调用期间有效。
+ * @param output 输出缓冲区，初始内容为默认提示。
+ * @param capacity 输出容量（包括结尾零）。
+ * @param userData 调用方上下文；不得重入解析器。
+ */
+typedef void (*ParserErrorFormatter)(int32_t code, uint32_t line, uint32_t column,
+    const char *message, char *output, uint32_t capacity, void *userData);
+/** @brief 设置错误提示函数，NULL 恢复默认；配置跨解析保留。
+ * @param formatter 提示函数。
+ * @param userData 调用方上下文，生命周期由调用方管理。
+ */
+void Parser_SetErrorFormatter(ParserErrorFormatter formatter, void *userData);
+
+
+/**
  * @brief 词法器状态（调用方在栈上分配即可，生命周期内不用释放）。
  *
  * 字段是「生成器自用 + 调用方只读」：调用方只读 `line` / `column` 与最近一次

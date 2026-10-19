@@ -124,6 +124,14 @@ void Tree::print(std::FILE *stream) const
 
 Engine::~Engine() = default;
 
+/** @brief 设置当前实例的错误提示函数。
+ * @param formatter 空函数恢复默认提示。
+ */
+void Engine::setErrorFormatter(ErrorFormatter formatter)
+{
+    d->m_errorFormatter = std::move(formatter);
+}
+
 {{ engine_parse_impl }}{{ glr_impl }}{% if parse_tree %}ParserMemory::UniquePtr<Tree> Engine::parseTree(std::string_view text)
 {
     return d->parseTree(text);

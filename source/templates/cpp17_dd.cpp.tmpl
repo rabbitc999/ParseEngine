@@ -332,7 +332,7 @@
         {
             return;
         }
-        m_errors.emplace_back(code, m_current.line, m_current.column, message,
+        appendError(code, m_current.line, m_current.column, message,
                               static_cast<std::uint32_t>(m_current.type),
                               ParserMemory::String(m_current.text), 0u,
                               std::move(expected),

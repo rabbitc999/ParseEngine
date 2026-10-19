@@ -1,3 +1,14 @@
+    /** @brief 统一格式化并保存错误，保留结构化诊断字段。 */
+    template<class... Extra>
+    void appendError(std::int32_t code, std::uint32_t line, std::uint32_t column,
+                     ParserMemory::String message, Extra&&... extra)
+    {
+        if (m_errorFormatter) message = m_errorFormatter(code, line, column, message);
+        m_errors.emplace_back(code, line, column, std::move(message),
+                              std::forward<Extra>(extra)...);
+    }
+    ErrorFormatter m_errorFormatter; ///< 调用方提供的错误提示函数。
+
     /* ---------- 错误表 ---------- */
 
     /// @return 本次解析累积的错误。
@@ -17,7 +28,7 @@
         {
             return;
         }
-        m_errors.emplace_back(code, line, column, std::move(message));
+        appendError(code, line, column, std::move(message));
     }
 
     /// 记一条「期望某个 Token」的语法错误（终结符不匹配时用，文案与 C 目标一致）。
@@ -33,7 +44,7 @@
         {
             return;
         }
-        m_errors.emplace_back(static_cast<std::int32_t>(Status::ErrExpected),
+        appendError(static_cast<std::int32_t>(Status::ErrExpected),
                               m_current.line, m_current.column,
                               std::move(message),
                               static_cast<std::uint32_t>(m_current.type),

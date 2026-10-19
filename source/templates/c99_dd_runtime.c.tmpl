@@ -328,7 +328,8 @@ static uint8_t Parser_DdParse(ParserCtx_T *pCtx, uint16_t nonterm,
         }
         for (slot = 0u; slot < (uint16_t)PARSER_VALUE_SLOTS; slot++) {
             slots[slot].isTree = 0u;
-            slots[slot].pNode = NULL;
+{% if tree %}            slots[slot].pNode = NULL;
+{% endif %}
         }
         pCtx->ddFrameDepth--;
         return 1u;
