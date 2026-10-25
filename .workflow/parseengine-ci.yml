@@ -1,4 +1,4 @@
-# Gitee Go 流水线：ParseEngine 门禁的草稿位。
+# Github Go 流水线：ParseEngine 门禁的草稿位。
 #
 # 定位：Gitee 是草稿纸，GitHub 才是舞台。这条流水线只用来随手验证，不构成判据——
 # 判据永远只有 `sh ci/run.sh` 一个入口，GitHub 上跑的是同一份，本地跑的也是同一份。

@@ -97,9 +97,8 @@ ParseEngine 生成的**（它们既是用户，也是最好的用例）。各工
 
 | 工程 | 是什么 | 入口 |
 | --- | --- | --- |
-| **MetroLang** | 地铁线网数据语言工具链：编译器、模板化反编译器、自包含 HTML/SVG 地图、Dijkstra 路线查询与交互式查看器；前端由 `metrolang.gram` 生成（169 个关键字各占一条产生式，842 状态 · 0 冲突）——**已拆分为独立仓库** | <https://gitee.com/rabbitc999/metro-lang> |
-| **RustView** | 极简 Rust 伪代码的**借用语义可视化**（教学用）：Move / 借用 / 冲突 / 悬垂画成零依赖 SVG + HTML；前端由 `rust_subset.gram` 生成，1.0 功能已冻结——**已拆分为独立仓库** | <https://gitee.com/rabbitc999/rust-view> |
-| **Magel** | 由 ParseEngine 生成前端、编译到 StackVM 的语言与工具链（标准库、宿主胶水、C ABI、板端 VM）——**已拆分为独立仓库** | <https://github.com/rabbitc999/magel> |
+| **MetroLang** | 地铁线网数据语言工具链：编译器、模板化反编译器、自包含 HTML/SVG 地图、Dijkstra 路线查询与交互式查看器；前端由 `metrolang.gram` 生成（169 个关键字各占一条产生式，842 状态 · 0 冲突）——**已拆分为独立仓库** | <https://github.com/rabbitc999/metro-lang> |
+| **RustView** | 极简 Rust 伪代码的**借用语义可视化**（教学用）：Move / 借用 / 冲突 / 悬垂画成零依赖 SVG + HTML；前端由 `rust_subset.gram` 生成，1.0 功能已冻结——**已拆分为独立仓库** | <https://github.com/rabbitc999/rust-view> |
 
 与生成器并列的通用库——[`library/allocator`](library/allocator/README.md)（C99 池与 `Memory`
 命名空间的容器适配）、[`library/transfer`](library/transfer/README.md)（四元式 → 基本块 / CFG /

@@ -1,12 +1,7 @@
 # 01 仓库文档总览
 
-> **Magel 的那段光辉历史**：这门语言早期就在本仓库里长大——生成器、StackVM、标准库、
-> 胶水与反射都是在这里一起打磨出来的（下面这些 Magel 文档就是那段记录）。它现已拆分为
-> 独立仓库 <https://github.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
-> 同名文档。
->
 > **RustView 的那条线**：它同样在本仓库里长大——极简 Rust 文法、借用分析与零依赖
-> SVG / HTML 都是在这里定型的。它现已拆分为独立仓库 <https://gitee.com/rabbitc999/rust-view>；
+> SVG / HTML 都是在这里定型的。它现已拆分为独立仓库 <https://github.com/rabbitc999/rust-view>；
 > 本文里指向 `rust-view/` 的链接都改指新仓库的同名文档。
 
 本页说明 ParseEngine 仓库各处文档的归属。仓库总入口是[根目录 README](../README.md)；生成器、Magel、MetroLang、RustView 各有独立工程文档。
@@ -16,9 +11,8 @@
 | 工程 | 文档 | 内容 |
 | --- | --- | --- |
 | ParseEngine 解析器生成器 | [使用入口](../source/README.md) · [专题文档索引](README.md) | `.gram` 文法、分析模式、八种目标语言、生成产物和实现 |
-| Magel | [语言入口](https://github.com/rabbitc999/magel/blob/master/README.md) · [EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) · [专题文档](https://github.com/rabbitc999/magel/blob/master/doc/README.md) · [Magel 导出器](https://github.com/rabbitc999/magel/blob/master/magel-emit/README.md) | 语言语法基线、标准库、StackVM、胶水与导出 |
-| MetroLang | [工具链入口](https://gitee.com/rabbitc999/metro-lang/blob/master/README.md) · [语言参考](https://gitee.com/rabbitc999/metro-lang/blob/master/doc/01-metrolang-reference.md) · [JSON 格式](https://gitee.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md) · [交互式查看器](https://gitee.com/rabbitc999/metro-lang/blob/master/map_view/README.md) | 地铁线网数据语言：文法、编译 / 反编译、SVG 地图与路线查询（**独立仓库**） |
-| RustView | [项目入口](https://gitee.com/rabbitc999/rust-view/blob/master/README.md) · [效果图与演示页](https://gitee.com/rabbitc999/rust-view/blob/master/doc/preview.html) · [文法](https://gitee.com/rabbitc999/rust-view/blob/master/rust_subset.gram) | 极简 Rust 伪代码的借用语义可视化：ParseEngine 生成前端、作用域栈 + 借用状态表分析、手写 SVG / HTML；**1.0 功能冻结**（**独立仓库**） |
+| MetroLang | [工具链入口](https://github.com/rabbitc999/metro-lang/blob/master/README.md) · [语言参考](https://github.com/rabbitc999/metro-lang/blob/master/doc/01-metrolang-reference.md) · [JSON 格式](https://github.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md) · [交互式查看器](https://github.com/rabbitc999/metro-lang/blob/master/map_view/README.md) | 地铁线网数据语言：文法、编译 / 反编译、SVG 地图与路线查询（**独立仓库**） |
+| RustView | [项目入口](https://github.com/rabbitc999/rust-view/blob/master/README.md) · [效果图与演示页](https://github.com/rabbitc999/rust-view/blob/master/doc/preview.html) · [文法](https://github.com/rabbitc999/rust-view/blob/master/rust_subset.gram) | 极简 Rust 伪代码的借用语义可视化：ParseEngine 生成前端、作用域栈 + 借用状态表分析、手写 SVG / HTML；**1.0 功能冻结**（**独立仓库**） |
 
 ## 解析器生成器文档
 

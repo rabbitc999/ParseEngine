@@ -1385,9 +1385,9 @@ Magel 语言工程。`project/` 留给生成器的示例和课程实验，
 **MetroLang** 整套做出来——编译器、模板化反编译器、自包含 SVG 地图、路线查询，
 外加一个能同时读 metro-lang JSON 与老编辑器 JSON 的交互式查看器。它不是解析器生成器的
 试验田，而是"生成器 + 三个可复用库"能不能撑起一个真工程的那次验收；如今也像 Magel
-一样拆成了独立仓库（<https://gitee.com/rabbitc999/metro-lang>）：用法见
-[`README.md`](https://gitee.com/rabbitc999/metro-lang/blob/master/README.md)，JSON 口径见
-[`doc/02`](https://gitee.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md)。
+一样拆成了独立仓库（<https://github.com/rabbitc999/metro-lang>）：用法见
+[`README.md`](https://github.com/rabbitc999/metro-lang/blob/master/README.md)，JSON 口径见
+[`doc/02`](https://github.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md)。
 
 地图还没画完。最近又挂上了一扇门：`rust-view/`。它同样拿这同一台生成器做前端，
 但目标不是再写一门语言，而是把 Rust 里最难用文字讲清的那半张图——
@@ -1396,8 +1396,8 @@ Magel 语言工程。`project/` 留给生成器的示例和课程实验，
 **作用域栈**加一张**借用状态表**；遇到"不支持的结构"（比如字段级访问 `s.a`），
 它宁可报错退出、一个文件都不写，也不肯画一张带错的图。这一扇门开完就交钥匙了：
 `RustView` 停在 **1.0**，功能冻结，除明确 BUG 外不再改动。它也拆成了独立仓库
-（<https://gitee.com/rabbitc999/rust-view>）：用法与语言边界见
-[`README.md`](https://gitee.com/rabbitc999/rust-view/blob/master/README.md)。
+（<https://github.com/rabbitc999/rust-view>）：用法与语言边界见
+[`README.md`](https://github.com/rabbitc999/rust-view/blob/master/README.md)。
 
 这不是把旧目录换个名字就完事。根目录构建入口必须先生成 ParseEngine，再用它刷新 Magel
 的语法前端，最后构建各个工程和示例；README 也要先把解析器生成器讲清楚，再告诉读者

@@ -1,10 +1,6 @@
 #!/bin/sh
 # build-all.sh —— 一键构建：ParseEngine + 库和示例（不跑测试）
 #
-# Magel、MetroLang 与 RustView 已拆分为独立仓库（https://github.com/rabbitc999/magel、
-# https://gitee.com/rabbitc999/metro-lang、https://gitee.com/rabbitc999/rust-view），
-# 它们的构建与门禁都在各自仓库里。
-#
 # 为什么要有它：独立工程位于 source/；
 # `library/` 下 10 个 C/C++ 库 + 7 个 Rust crate，`project/` 下另有 7 个带 Makefile 的示例，
 # 挨个敲容易漏。这个脚本按固定顺序全过一遍，**跳过测试**（`make check` / `check.sh` /
@@ -150,7 +146,7 @@ echo
 echo "== 将要构建（只编译，不跑测试）=="
 echo "  生成器     build/bin/ParseEngine${generator_target:+（release）}"
 echo "  C++ 库     $cpp_libs"
-echo "  独立工程   （Magel、MetroLang、RustView 已独立：Magel 见 https://github.com/rabbitc999/magel，MetroLang 见 https://gitee.com/rabbitc999/metro-lang，RustView 见 https://gitee.com/rabbitc999/rust-view）"
+echo "  独立工程   （MetroLang、RustView 已独立：MetroLang 见 https://github.com/rabbitc999/metro-lang，RustView 见 https://github.com/rabbitc999/rust-view）"
 if [ "$build_rust" = 1 ]; then
     echo "  Rust crate $rust_libs"
 else
@@ -297,12 +293,6 @@ for name in $cpp_libs; do
 done
 mkdir -p "$(dirname "$library_stamp")"
 printf '%s\n' "$host_platform" >"$library_stamp"
-
-# 3.2a MetroLang、Magel、RustView 也都拆成了独立仓库（分别见
-# https://gitee.com/rabbitc999/metro-lang、https://github.com/rabbitc999/magel、
-# https://gitee.com/rabbitc999/rust-view），它们的构建与门禁都在各自仓库里；
-# 父仓库不再构建任何独立工程。
-
 
 # 3.3 Rust crate
 if [ "$build_rust" = 1 ]; then

@@ -1,0 +1,274 @@
+# simple_ast data: magic_c
+# str_1 : string
+str_1: "before delete: %d %d
+"
+# str_2 : string
+str_2: "after delete: %d
+"
+# obj_3 : struct Option__char {__tag: i32, __v0_value: u8 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+#   meta: value
+obj_3: {0, 0}
+# obj_4 : struct Option__char {__tag: i32, __v0_value: u8 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+#   meta: value
+obj_4: {1, 0}
+# obj_5 : struct Option__int {__tag: i32, __v0_value: i64 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+#   meta: value
+obj_5: {0, 0}
+# obj_6 : struct Option__int {__tag: i32, __v0_value: i64 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+#   meta: value
+obj_6: {1, 0}
+# obj_7 : struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_7: {0, 0, 0, 0, 0, 0, 0}
+# obj_8 : struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_8: {1, 0, 0, 0, 0, 0, 0}
+# obj_9 : struct IResult__bool__ParseError {__tag: i32, __v0_value: bool, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_9: {0, 0, 0}
+# obj_10 : struct IResult__bool__ParseError {__tag: i32, __v0_value: bool, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_10: {1, 0, 0}
+# obj_11 : struct IResult__f64__ParseError {__tag: i32, __v0_value: f64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_11: {0, 0.0, 0}
+# obj_12 : struct IResult__f64__ParseError {__tag: i32, __v0_value: f64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_12: {1, 0.0, 0}
+# obj_13 : struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_13: {0, 0, 0}
+# obj_14 : struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_14: {1, 0, 0}
+# obj_15 : struct IResult__int64__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_15: {0, 0, 0, 0, 0, 0, 0}
+# obj_16 : struct IResult__int64__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_16: {1, 0, 0, 0, 0, 0, 0}
+# obj_17 : struct IResult__int64__ParseError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_17: {0, 0, 0}
+# obj_18 : struct IResult__int64__ParseError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_18: {1, 0, 0}
+# obj_19 : struct IResult__int__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_19: {0, 0, 0, 0, 0, 0, 0}
+# obj_20 : struct IResult__int__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_20: {1, 0, 0, 0, 0, 0, 0}
+# obj_21 : struct IResult__string__IoError {__tag: i32, __v0_value: string, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_21: {0, 0, 0, 0, 0, 0, 0}
+# obj_22 : struct IResult__string__IoError {__tag: i32, __v0_value: string, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_22: {1, 0, 0, 0, 0, 0, 0}
+# obj_23 : struct IResult__uint64__ParseError {__tag: i32, __v0_value: u64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_23: {0, 0, 0}
+# obj_24 : struct IResult__uint64__ParseError {__tag: i32, __v0_value: u64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_24: {1, 0, 0}
+# obj_25 : struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+#   meta: value
+obj_25: {0, 0, 0, 0, 0}
+# obj_26 : struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+#   meta: value
+obj_26: {1, 0, 0, 0, 0}
+# obj_27 : struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+#   meta: value
+obj_27: {2, 0, 0, 0, 0}
+# obj_28 : struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+#   meta: value
+obj_28: {3, 0, 0, 0, 0}
+# obj_29 : struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+#   meta: value
+obj_29: {4, 0, 0, 0, 0}
+# obj_30 : struct ParseError {__tag: i32}{value}
+#   meta: value
+obj_30: {0}
+# obj_31 : struct ParseError {__tag: i32}{value}
+#   meta: value
+obj_31: {1}
+# obj_32 : struct ParseError {__tag: i32}{value}
+#   meta: value
+obj_32: {2}
+# obj_33 : struct SeekOrigin {__tag: i32}{value}
+#   meta: value
+obj_33: {0}
+# obj_34 : struct SeekOrigin {__tag: i32}{value}
+#   meta: value
+obj_34: {1}
+# obj_35 : struct SeekOrigin {__tag: i32}{value}
+#   meta: value
+obj_35: {2}
+# obj_58 : struct Random {state: u64 | methods: nextUInt64 nextInt nextFloat64}{value}
+#   meta: value
+obj_58: {0}
+# obj_59 : struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_59: {0, 0, 0}
+# obj_60 : struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_60: {0, 0, 0, 0, 0, 0, 0}
+# obj_63 : struct FileStream {handle: i64 | methods: read write flush seek close}{value}
+#   meta: value
+obj_63: {0}
+# obj_80 : struct MemoryStats {liveBytes: i64, liveBlocks: i64, peakBytes: i64}{value}
+#   meta: value
+obj_80: {0, 0, 0}
+# obj_81 : struct Arena {handle: u64 | methods: allocate reset drop}{value}
+#   meta: value
+obj_81: {0}
+# obj_88 : struct __Range {start: i64, stop: i64, step: i64 | methods: iterator}{value}
+#   meta: value
+obj_88: {0, 0, 0}
+# obj_89 : struct __Range {start: i64, stop: i64, step: i64 | methods: iterator}{value}
+#   meta: value
+obj_89: {0, 0, 0}
+# str_92 : string
+str_92: "fileOpen failed"
+# str_101 : string
+str_101: "called IResult.unwrap() on Err"
+# obj_110 : struct ParseError {__tag: i32}{value}
+#   meta: value
+obj_110: {0}
+# str_113 : string
+str_113: "called IResult.error() on Ok"
+# obj_116 : struct IResult__int64__ParseError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_116: {0, 0, 0}
+# obj_121 : struct IResult__int64__ParseError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_121: {0, 0, 0}
+# str_134 : string
+str_134: "called IResult.unwrap() on Err"
+# obj_143 : struct ParseError {__tag: i32}{value}
+#   meta: value
+obj_143: {0}
+# str_146 : string
+str_146: "called IResult.error() on Ok"
+# obj_149 : struct IResult__uint64__ParseError {__tag: i32, __v0_value: u64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_149: {0, 0, 0}
+# obj_154 : struct IResult__uint64__ParseError {__tag: i32, __v0_value: u64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_154: {0, 0, 0}
+# str_167 : string
+str_167: "called IResult.unwrap() on Err"
+# obj_176 : struct ParseError {__tag: i32}{value}
+#   meta: value
+obj_176: {0}
+# str_179 : string
+str_179: "called IResult.error() on Ok"
+# obj_182 : struct IResult__f64__ParseError {__tag: i32, __v0_value: f64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_182: {0, 0.0, 0}
+# obj_187 : struct IResult__f64__ParseError {__tag: i32, __v0_value: f64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_187: {0, 0.0, 0}
+# str_200 : string
+str_200: "called IResult.unwrap() on Err"
+# obj_209 : struct ParseError {__tag: i32}{value}
+#   meta: value
+obj_209: {0}
+# str_212 : string
+str_212: "called IResult.error() on Ok"
+# obj_215 : struct IResult__bool__ParseError {__tag: i32, __v0_value: bool, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_215: {0, 0, 0}
+# obj_220 : struct IResult__bool__ParseError {__tag: i32, __v0_value: bool, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_220: {0, 0, 0}
+# str_233 : string
+str_233: "called IResult.unwrap() on Err"
+# obj_242 : struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+#   meta: value
+obj_242: {0, 0, 0, 0, 0}
+# str_245 : string
+str_245: "called IResult.error() on Ok"
+# obj_248 : struct IResult__string__IoError {__tag: i32, __v0_value: string, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_248: {0, 0, 0, 0, 0, 0, 0}
+# obj_253 : struct IResult__string__IoError {__tag: i32, __v0_value: string, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_253: {0, 0, 0, 0, 0, 0, 0}
+# str_266 : string
+str_266: "called IResult.unwrap() on Err"
+# obj_275 : struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+#   meta: value
+obj_275: {0, 0, 0, 0, 0}
+# str_278 : string
+str_278: "called IResult.error() on Ok"
+# obj_281 : struct IResult__int__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_281: {0, 0, 0, 0, 0, 0, 0}
+# obj_286 : struct IResult__int__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_286: {0, 0, 0, 0, 0, 0, 0}
+# str_299 : string
+str_299: "called IResult.unwrap() on Err"
+# obj_308 : struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+#   meta: value
+obj_308: {0, 0, 0, 0, 0}
+# str_311 : string
+str_311: "called IResult.error() on Ok"
+# obj_314 : struct IResult__int64__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_314: {0, 0, 0, 0, 0, 0, 0}
+# obj_319 : struct IResult__int64__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_319: {0, 0, 0, 0, 0, 0, 0}
+# obj_328 : struct FileStream {handle: i64 | methods: read write flush seek close}{value}
+#   meta: value
+obj_328: {0}
+# str_333 : string
+str_333: "called IResult.unwrap() on Err"
+# obj_334 : struct FileStream {handle: i64 | methods: read write flush seek close}{value}
+#   meta: value
+obj_334: {0}
+# obj_339 : struct FileStream {handle: i64 | methods: read write flush seek close}{value}
+#   meta: value
+obj_339: {0}
+# obj_344 : struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+#   meta: value
+obj_344: {0, 0, 0, 0, 0}
+# str_347 : string
+str_347: "called IResult.error() on Ok"
+# obj_350 : struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_350: {0, 0, 0, 0, 0, 0, 0}
+# obj_355 : struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_355: {0, 0, 0, 0, 0, 0, 0}
+# str_368 : string
+str_368: "called IResult.unwrap() on Err"
+# str_379 : string
+str_379: "called IResult.error() on Ok"
+# obj_382 : struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_382: {0, 0, 0}
+# obj_387 : struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+#   meta: value
+obj_387: {0, 0, 0}
+# obj_392 : struct Span__char {data: ref<u8>?{nullable}, length: i64 | methods: index iterator len}{value}
+#   meta: value
+obj_392: {0, 0}
+# str_405 : string
+str_405: "called Option.unwrap() on None"
+# obj_414 : struct Option__int {__tag: i32, __v0_value: i64 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+#   meta: value
+obj_414: {0, 0}
+# obj_419 : struct Option__int {__tag: i32, __v0_value: i64 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+#   meta: value
+obj_419: {0, 0}
+# str_432 : string
+str_432: "called Option.unwrap() on None"
+# obj_441 : struct Option__char {__tag: i32, __v0_value: u8 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+#   meta: value
+obj_441: {0, 0}
+# obj_446 : struct Option__char {__tag: i32, __v0_value: u8 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+#   meta: value
+obj_446: {0, 0}

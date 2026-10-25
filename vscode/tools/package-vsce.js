@@ -7,7 +7,7 @@
  * `vsce`，校验更严（README 链接、图标尺寸、仓库字段都会查），产物也能直接
  * `vsce publish` 到市场。两条路的产物名对齐：`dist/gram-editor-<版本>-<平台>.vsix`。
  *
- * 仓库在 Gitee 上，vsce 只自动识别 GitHub / GitLab，所以这里显式传
+ * 仓库在 github 上，vsce 只自动识别 GitHub / GitLab，所以这里显式传
  * `--baseContentUrl` / `--baseImagesUrl`，README 里的链接才不会被判成会失效。
  *
  * 用法（在 vscode/ 里跑）：
@@ -51,9 +51,9 @@ const outDir = path.resolve(EXT_ROOT, option('--out', 'dist'));
 const target = option('--target', `${process.platform}-${process.arch}`);
 const vsix = path.join(outDir, `${manifest.name}-${manifest.version}-${target}.vsix`);
 
-// 仓库在 Gitee 上——vsce 只自动识别 GitHub / GitLab，所以显式告诉它内容与图片的
+// 仓库在 github 上——vsce 只自动识别 GitHub / GitLab，所以显式告诉它内容与图片的
 // 根地址，README 里的相对链接才不会被判成"会失效"。相对路径以 vscode/ 为基准。
-const REPO_ROOT = 'https://gitee.com/rabbitc999/ParseEngine/raw/master';
+const REPO_ROOT = 'https://github.com/rabbitc999/ParseEngine/raw/master';
 const baseContentUrl = option('--baseContentUrl', `${REPO_ROOT}/vscode`);
 const baseImagesUrl = option('--baseImagesUrl', `${REPO_ROOT}/vscode`);
 

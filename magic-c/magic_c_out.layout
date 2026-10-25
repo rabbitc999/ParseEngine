@@ -1,0 +1,98 @@
+str_1 offset=8 size=22 stride=8 type=string
+str_2 offset=32 size=18 stride=8 type=string
+obj_3 offset=56 size=16 stride=8 type=struct Option__char {__tag: i32, __v0_value: u8 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+obj_4 offset=72 size=16 stride=8 type=struct Option__char {__tag: i32, __v0_value: u8 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+obj_5 offset=88 size=16 stride=8 type=struct Option__int {__tag: i32, __v0_value: i64 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+obj_6 offset=104 size=16 stride=8 type=struct Option__int {__tag: i32, __v0_value: i64 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+obj_7 offset=120 size=56 stride=8 type=struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_8 offset=176 size=56 stride=8 type=struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_9 offset=232 size=24 stride=8 type=struct IResult__bool__ParseError {__tag: i32, __v0_value: bool, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_10 offset=256 size=24 stride=8 type=struct IResult__bool__ParseError {__tag: i32, __v0_value: bool, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_11 offset=280 size=24 stride=8 type=struct IResult__f64__ParseError {__tag: i32, __v0_value: f64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_12 offset=304 size=24 stride=8 type=struct IResult__f64__ParseError {__tag: i32, __v0_value: f64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_13 offset=328 size=24 stride=8 type=struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_14 offset=352 size=24 stride=8 type=struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_15 offset=376 size=56 stride=8 type=struct IResult__int64__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_16 offset=432 size=56 stride=8 type=struct IResult__int64__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_17 offset=488 size=24 stride=8 type=struct IResult__int64__ParseError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_18 offset=512 size=24 stride=8 type=struct IResult__int64__ParseError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_19 offset=536 size=56 stride=8 type=struct IResult__int__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_20 offset=592 size=56 stride=8 type=struct IResult__int__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_21 offset=648 size=56 stride=8 type=struct IResult__string__IoError {__tag: i32, __v0_value: string, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_22 offset=704 size=56 stride=8 type=struct IResult__string__IoError {__tag: i32, __v0_value: string, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_23 offset=760 size=24 stride=8 type=struct IResult__uint64__ParseError {__tag: i32, __v0_value: u64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_24 offset=784 size=24 stride=8 type=struct IResult__uint64__ParseError {__tag: i32, __v0_value: u64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_25 offset=808 size=40 stride=8 type=struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+obj_26 offset=848 size=40 stride=8 type=struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+obj_27 offset=888 size=40 stride=8 type=struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+obj_28 offset=928 size=40 stride=8 type=struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+obj_29 offset=968 size=40 stride=8 type=struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+obj_30 offset=1008 size=8 stride=8 type=struct ParseError {__tag: i32}{value}
+obj_31 offset=1016 size=8 stride=8 type=struct ParseError {__tag: i32}{value}
+obj_32 offset=1024 size=8 stride=8 type=struct ParseError {__tag: i32}{value}
+obj_33 offset=1032 size=8 stride=8 type=struct SeekOrigin {__tag: i32}{value}
+obj_34 offset=1040 size=8 stride=8 type=struct SeekOrigin {__tag: i32}{value}
+obj_35 offset=1048 size=8 stride=8 type=struct SeekOrigin {__tag: i32}{value}
+obj_58 offset=1056 size=8 stride=8 type=struct Random {state: u64 | methods: nextUInt64 nextInt nextFloat64}{value}
+obj_59 offset=1064 size=24 stride=8 type=struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_60 offset=1088 size=56 stride=8 type=struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_63 offset=1144 size=8 stride=8 type=struct FileStream {handle: i64 | methods: read write flush seek close}{value}
+obj_80 offset=1152 size=24 stride=8 type=struct MemoryStats {liveBytes: i64, liveBlocks: i64, peakBytes: i64}{value}
+obj_81 offset=1176 size=8 stride=8 type=struct Arena {handle: u64 | methods: allocate reset drop}{value}
+obj_88 offset=1184 size=24 stride=8 type=struct __Range {start: i64, stop: i64, step: i64 | methods: iterator}{value}
+obj_89 offset=1208 size=24 stride=8 type=struct __Range {start: i64, stop: i64, step: i64 | methods: iterator}{value}
+str_92 offset=1232 size=16 stride=8 type=string
+str_101 offset=1248 size=31 stride=8 type=string
+obj_110 offset=1280 size=8 stride=8 type=struct ParseError {__tag: i32}{value}
+str_113 offset=1288 size=29 stride=8 type=string
+obj_116 offset=1320 size=24 stride=8 type=struct IResult__int64__ParseError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_121 offset=1344 size=24 stride=8 type=struct IResult__int64__ParseError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+str_134 offset=1368 size=31 stride=8 type=string
+obj_143 offset=1400 size=8 stride=8 type=struct ParseError {__tag: i32}{value}
+str_146 offset=1408 size=29 stride=8 type=string
+obj_149 offset=1440 size=24 stride=8 type=struct IResult__uint64__ParseError {__tag: i32, __v0_value: u64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_154 offset=1464 size=24 stride=8 type=struct IResult__uint64__ParseError {__tag: i32, __v0_value: u64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+str_167 offset=1488 size=31 stride=8 type=string
+obj_176 offset=1520 size=8 stride=8 type=struct ParseError {__tag: i32}{value}
+str_179 offset=1528 size=29 stride=8 type=string
+obj_182 offset=1560 size=24 stride=8 type=struct IResult__f64__ParseError {__tag: i32, __v0_value: f64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_187 offset=1584 size=24 stride=8 type=struct IResult__f64__ParseError {__tag: i32, __v0_value: f64, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+str_200 offset=1608 size=31 stride=8 type=string
+obj_209 offset=1640 size=8 stride=8 type=struct ParseError {__tag: i32}{value}
+str_212 offset=1648 size=29 stride=8 type=string
+obj_215 offset=1680 size=24 stride=8 type=struct IResult__bool__ParseError {__tag: i32, __v0_value: bool, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_220 offset=1704 size=24 stride=8 type=struct IResult__bool__ParseError {__tag: i32, __v0_value: bool, __v1_error.__tag: i32 | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+str_233 offset=1728 size=31 stride=8 type=string
+obj_242 offset=1760 size=40 stride=8 type=struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+str_245 offset=1800 size=29 stride=8 type=string
+obj_248 offset=1832 size=56 stride=8 type=struct IResult__string__IoError {__tag: i32, __v0_value: string, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_253 offset=1888 size=56 stride=8 type=struct IResult__string__IoError {__tag: i32, __v0_value: string, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+str_266 offset=1944 size=31 stride=8 type=string
+obj_275 offset=1976 size=40 stride=8 type=struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+str_278 offset=2016 size=29 stride=8 type=string
+obj_281 offset=2048 size=56 stride=8 type=struct IResult__int__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_286 offset=2104 size=56 stride=8 type=struct IResult__int__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+str_299 offset=2160 size=31 stride=8 type=string
+obj_308 offset=2192 size=40 stride=8 type=struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+str_311 offset=2232 size=29 stride=8 type=string
+obj_314 offset=2264 size=56 stride=8 type=struct IResult__int64__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_319 offset=2320 size=56 stride=8 type=struct IResult__int64__IoError {__tag: i32, __v0_value: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_328 offset=2376 size=8 stride=8 type=struct FileStream {handle: i64 | methods: read write flush seek close}{value}
+str_333 offset=2384 size=31 stride=8 type=string
+obj_334 offset=2416 size=8 stride=8 type=struct FileStream {handle: i64 | methods: read write flush seek close}{value}
+obj_339 offset=2424 size=8 stride=8 type=struct FileStream {handle: i64 | methods: read write flush seek close}{value}
+obj_344 offset=2432 size=40 stride=8 type=struct IoError {__tag: i32, __v0_message: string, __v1_message: string, __v2_message: string, __v3_message: string}{value}
+str_347 offset=2472 size=29 stride=8 type=string
+obj_350 offset=2504 size=56 stride=8 type=struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_355 offset=2560 size=56 stride=8 type=struct IResult__FileStream__IoError {__tag: i32, __v0_value.handle: i64, __v1_error.__tag: i32, __v1_error.__v0_message: string, __v1_error.__v1_message: string, __v1_error.__v2_message: string, __v1_error.__v3_message: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+str_368 offset=2616 size=31 stride=8 type=string
+str_379 offset=2648 size=29 stride=8 type=string
+obj_382 offset=2680 size=24 stride=8 type=struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_387 offset=2704 size=24 stride=8 type=struct IResult__file__string {__tag: i32, __v0_value: i64, __v1_error: string | methods: isOk isErr unwrap unwrapOr expect error transform andThen}{value}
+obj_392 offset=2728 size=16 stride=8 type=struct Span__char {data: ref<u8>?{nullable}, length: i64 | methods: index iterator len}{value}
+str_405 offset=2744 size=32 stride=8 type=string
+obj_414 offset=2776 size=16 stride=8 type=struct Option__int {__tag: i32, __v0_value: i64 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+obj_419 offset=2792 size=16 stride=8 type=struct Option__int {__tag: i32, __v0_value: i64 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+str_432 offset=2808 size=32 stride=8 type=string
+obj_441 offset=2840 size=16 stride=8 type=struct Option__char {__tag: i32, __v0_value: u8 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}
+obj_446 offset=2856 size=16 stride=8 type=struct Option__char {__tag: i32, __v0_value: u8 | methods: isValue isNone unwrap unwrapOr expect transform andThen}{value}

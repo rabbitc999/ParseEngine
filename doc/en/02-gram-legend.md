@@ -1390,9 +1390,9 @@ Even later another door was opened: `metro-lang/`. It uses the same generator as
 **MetroLang**: a compiler, a templated decompiler, self-contained SVG maps, route queries,
 plus an interactive viewer that can read both metro-lang JSON and the old editor's JSON. It isn't a test bed for the parser generator,
 but that acceptance of whether "generator + three reusable libraries" can hold up a real project; now it has also been split into its own repository like Magel
-(<https://gitee.com/rabbitc999/metro-lang>): usage in
-[`README.md`](https://gitee.com/rabbitc999/metro-lang/blob/master/README.md), the JSON contract in
-[`doc/02`](https://gitee.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md).
+(<https://github.com/rabbitc999/metro-lang>): usage in
+[`README.md`](https://github.com/rabbitc999/metro-lang/blob/master/README.md), the JSON contract in
+[`doc/02`](https://github.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md).
 
 The map isn't finished. Recently another door was hung: `rust-view/`. It also uses this same generator as a front end,
 but its goal isn't to write another language, but to draw directly the half of the picture that's hardest to explain in words in Rust —
@@ -1401,8 +1401,8 @@ a small handful of Rust pseudocode (`fn` / `let` / `mut` / `&` / `&mut` / `{}`),
 **scope stack** plus a **borrow-state table**; when it encounters "unsupported constructs" (like field-level access `s.a`),
 it would rather error out and write not a single file than draw a graph with mistakes in it. Once this door was opened, the key was handed over:
 `RustView` stops at **1.0**, feature-frozen, no further changes except for confirmed BUGs. It too has been split into its own repository
-(<https://gitee.com/rabbitc999/rust-view>): usage and language boundaries in
-[`README.md`](https://gitee.com/rabbitc999/rust-view/blob/master/README.md).
+(<https://github.com/rabbitc999/rust-view>): usage and language boundaries in
+[`README.md`](https://github.com/rabbitc999/rust-view/blob/master/README.md).
 
 This isn't just renaming old directories and calling it done. The root build entry must first generate ParseEngine, then use it to refresh Magel's
 syntax front end, and finally build the various projects and examples; the README must also explain the parser generator clearly first, then tell readers
