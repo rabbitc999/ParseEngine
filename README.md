@@ -3,7 +3,7 @@
 <img src="image/gram-editor-256.png" alt="ParseEngine 解析器生成器图标" width="120" align="right" />
 
 ParseEngine 从一份 `.gram` 文法生成词法器、解析器和可构建的工程，并附上分析报告。它面向语言前端、
-配置格式与教学示例：**八种目标语言**、**十六种分析模式**，C++17 与 Rust 另提供增量 API。
+配置格式与教学示例：**九种目标语言**、**十六种分析模式**，C++17 与 Rust 另提供增量 API。
 一份文法同时是语法定义与文档——`%token`、`%identifier`、`%trivia` 这些声明就是词法规则，
 产生式里点得出关键字、块与命令，而不是靠一个大正则去"提取词素"。
 
@@ -32,10 +32,30 @@ Windows 上可执行文件为 `build/bin/ParseEngine.exe`。默认目标语言�
 | C99 | 13 种模式 |
 | C++17、Python、C#、Rust、Go | 各 16 种模式 |
 | Java、JavaScript/TypeScript | DD、Earley、CYK |
+| ChaLi | LL(1)、SLR(1)、LALR(1)、LR(1)、IELR(1) |
 | `--lang gram` | 导出原文法与分析报告，覆盖全部 16 种模式 |
 
 十六种模式包括 LL、LR、GLR、Earley、CYK、递归下降 DD 和仅生成词法器的 `lex`。各模式的准确支持
 范围、限制和 C++17 / Rust 增量 API 以[支持矩阵](doc/15-language-mode-support.md)为准。
+
+## 生成 ChaLi 代码
+
+使用 `--lang chali`（或文法中的 `%lang chali`），从 `.gram` 直接生成自包含的
+`parser.chl` 和 `RESULT.md`，可由 ChaLi 编译器运行或构建为原生程序：
+
+```sh
+./build/bin/ParseEngine example/chali_lr1.gram --lang chali --mode ielr --out-dir build/examples/chali-parser
+chali run build/examples/chali-parser/parser.chl
+# 输入 1+(2*3)，输出 7
+chali build build/examples/chali-parser/parser.chl --out build/examples/chali-parser/parser
+```
+
+仅支持 `ll1`、`slr`、`lalr`、`lr1`、`ielr`，其他模式明确报错。
+生成的解析器提供 `Parser::runText`、`Parser::runTokens` 和语法树结果；
+语义动作及 `%code` / `%main` / `%epilogue` 中须使用 ChaLi 代码。
+默认入口从标准输入读取一行，默认语义值为 `float64`。
+完整 API、指令限制与回归命令见 [ChaLi 后端](doc/17-chali-backend.md)，
+LL(1) 示例见 [`chali_ll1.gram`](example/chali_ll1.gram)。
 
 ## 实现结构
 
@@ -105,4 +125,3 @@ ParseEngine 生成的**（它们既是用户，也是最好的用例）。各工
 目标机）、[`library/preprocess`](library/preprocess/README.md)、[`library/template`](library/template/README.md)、
 [`library/json`](library/json/README.md)、[`library/toml`](library/toml/README.md) 等——各有自己的 README。
 
-ChaLi 原生输出：`--lang chali --mode ielr`（支持 LL(1)、SLR(1)、LALR(1)、LR(1)、IELR(1)），见 [ChaLi 后端](doc/17-chali-backend.md)。

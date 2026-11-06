@@ -4,7 +4,7 @@
 
 ParseEngine generates a lexer, a parser and a buildable project from a single `.gram` grammar, together
 with an analysis report. It targets language front ends, configuration formats and teaching examples:
-**eight target languages** and **sixteen analysis modes**, with incremental APIs for C++17 and Rust.
+**nine target languages** and **sixteen analysis modes**, with incremental APIs for C++17 and Rust.
 One grammar is both the syntax definition and the documentation — declarations such as `%token`,
 `%identifier` and `%trivia` *are* the lexical rules, and productions name keywords, blocks and
 commands instead of "extracting lexemes" with one large regular expression.
@@ -38,11 +38,31 @@ command-line option see the [usage manual](doc/12-grammar-usage.md).
 | C99 | 13 modes |
 | C++17, Python, C#, Rust, Go | 16 modes each |
 | Java, JavaScript/TypeScript | DD, Earley, CYK |
+| ChaLi | LL(1), SLR(1), LALR(1), LR(1), IELR(1) |
 | `--lang gram` | Export the original grammar and the analysis report; covers all 16 modes |
 
 The sixteen modes include LL, LR, GLR, Earley, CYK, recursive-descent DD and `lex`, which emits the
 lexer only. The exact coverage, limits and the C++17 / Rust incremental APIs are governed by the
 [support matrix](doc/15-language-mode-support.md).
+
+## Generate ChaLi code
+
+Use `--lang chali` (or `%lang chali` in the grammar) to generate a self-contained
+`parser.chl` and `RESULT.md` directly from `.gram`. Run or compile it with ChaLi:
+
+```sh
+./build/bin/ParseEngine example/chali_lr1.gram --lang chali --mode ielr --out-dir build/examples/chali-parser
+chali run build/examples/chali-parser/parser.chl
+# Enter 1+(2*3) to get 7
+chali build build/examples/chali-parser/parser.chl --out build/examples/chali-parser/parser
+```
+
+Only `ll1`, `slr`, `lalr`, `lr1`, and `ielr` are supported; other modes are explicitly rejected.
+The generated parser provides `Parser::runText`, `Parser::runTokens`, and syntax-tree results.
+Semantic actions and `%code` / `%main` / `%epilogue` sections must contain ChaLi code.
+The default entry point reads one line from standard input; the default semantic value is `float64`.
+See the [ChaLi backend reference](doc/17-chali-backend.md) for APIs, directive limitations and
+regression commands, and [`chali_ll1.gram`](example/chali_ll1.gram) for an LL(1) example.
 
 ## Implementation structure
 
@@ -135,4 +155,3 @@ pools and container adapters for the `Memory` namespace), [`library/transfer`](l
 [`library/template`](library/template/README.md), [`library/json`](library/json/README.md),
 [`library/toml`](library/toml/README.md) and others — each have their own README.
 
-Native ChaLi output: `--lang chali --mode ielr` supports LL(1), SLR(1), LALR(1), LR(1), and IELR(1). See the [ChaLi backend reference](doc/17-chali-backend.md).

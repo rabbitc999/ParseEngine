@@ -231,7 +231,7 @@ def build() -> Canvas:
     # ---------- 标题 ----------
     c.text(40, 58, "ParseEngine 解析器生成器 · 仓库全景", f_h1, TITLE)
     c.text(40, 88,
-           "一份 .gram → 16 种生成模式 → 8 种目标语言 + 文法导出档 · "
+           "一份 .gram → 16 种生成模式 → 9 种目标语言 + 文法导出档 · "
            "生成器 / 应用 / 附加库 / 工具四层，核心生成器无第三方依赖",
            f_sub, SUBTITLE)
 
@@ -273,10 +273,11 @@ def build() -> Canvas:
         c.rect(cx, cy, w, chip_h, CHIP_FILL, CHIP_EDGE, radius=7)
         c.text_center(cx + w / 2, cy + 14, label, f_chip, CHIP_TEXT)
 
-    # 六个完整后端 + 两个 DD/Earley/CYK 窄后端，排成两行、每行四个。
-    c.text(x + 18, COL_TOP + 450, "8 种目标语言（6 完整 + 2 窄）+ 导出档", f_ctitle, CTITLE)
+    # 九种目标语言；ChaLi 单列第三行，并在下方标明五种支持模式。
+    c.text(x + 18, COL_TOP + 450, "9 种目标语言 + 文法导出档", f_ctitle, CTITLE)
     langs = (("C99", 0, 0), ("C++17", 1, 0), ("Python", 2, 0), ("C#", 3, 0),
-             ("Rust", 0, 1), ("Go", 1, 1), ("Java*", 2, 1), ("JS/TS*", 3, 1))
+             ("Rust", 0, 1), ("Go", 1, 1), ("Java*", 2, 1), ("JS/TS*", 3, 1),
+             ("ChaLi", 0, 2))
     lang_w = (COL_W - 36 - 3 * gap) // 4
     for label, col, row in langs:
         cx = x + 18 + col * (lang_w + gap)
@@ -284,15 +285,17 @@ def build() -> Canvas:
         c.rect(cx, cy, lang_w, chip_h, LANG_FILL, LANG_EDGE, radius=7)
         c.text_center(cx + lang_w / 2, cy + 14, label, f_lang, LANG_TEXT)
 
-    # 生成器要点
-    c.text(x + 18, COL_TOP + 546, "要点", f_ctitle, CTITLE)
+    c.text(x + 106, COL_TOP + 550, "--lang chali → parser.chl", f_code, CODE)
+
+    # 后端范围与部署方式，避免把九种语言误读为各支持十六种模式。
+    c.text(x + 18, COL_TOP + 580, "生成与支持范围", f_ctitle, CTITLE)
     for i, line in enumerate((
-            "C++17 只用标准库，无第三方依赖",
-            "source/templates/ 构建期内联，运行时无依赖",
-            "单个可执行文件，运行不读目录",
-            "47 条指令全部带生成期校验与行号",
-            "* Java / JS-TS 当前仅支持 DD / Earley / CYK")):
-        c.text(x + 18, COL_TOP + 568 + i * 20, line, f_note, NOTE)
+            "生成器：C++17 标准库，模板构建期内嵌",
+            "* Java / JS-TS：DD / Earley / CYK",
+            "ChaLi：LL(1) / SLR(1) / LALR(1)",
+            "             LR(1) / IELR(1)，共 5 种模式",
+            "自包含 .chl → ChaLi 编译器 → 原生程序")):
+        c.text(x + 18, COL_TOP + 602 + i * 20, line, f_note, NOTE)
 
     # ============================================================
     # ② 应用
