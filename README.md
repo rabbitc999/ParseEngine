@@ -117,6 +117,7 @@ ParseEngine 生成的**（它们既是用户，也是最好的用例）。各工
 
 | 工程 | 是什么 | 入口 |
 | --- | --- | --- |
+| **ChaLi（原 Magel）** | 静态类型语言，提供值语义、显式借用与移动、生命周期检查；`source/chali.gram` 经 ParseEngine 生成 C++17 前端，再从已检查的 AST 生成 LLVM 原生代码。它也是 ParseEngine 新增的 ChaLi 代码生成目标所使用的编译器 | <https://github.com/rabbitc999/ChaLi> |
 | **MetroLang** | 地铁线网数据语言工具链：编译器、模板化反编译器、自包含 HTML/SVG 地图、Dijkstra 路线查询与交互式查看器；前端由 `metrolang.gram` 生成（169 个关键字各占一条产生式，842 状态 · 0 冲突）——**已拆分为独立仓库** | <https://github.com/rabbitc999/metro-lang> |
 | **RustView** | 极简 Rust 伪代码的**借用语义可视化**（教学用）：Move / 借用 / 冲突 / 悬垂画成零依赖 SVG + HTML；前端由 `rust_subset.gram` 生成，1.0 功能已冻结——**已拆分为独立仓库** | <https://github.com/rabbitc999/rust-view> |
 
@@ -124,4 +125,3 @@ ParseEngine 生成的**（它们既是用户，也是最好的用例）。各工
 命名空间的容器适配）、[`library/transfer`](library/transfer/README.md)（四元式 → 基本块 / CFG /
 目标机）、[`library/preprocess`](library/preprocess/README.md)、[`library/template`](library/template/README.md)、
 [`library/json`](library/json/README.md)、[`library/toml`](library/toml/README.md) 等——各有自己的 README。
-

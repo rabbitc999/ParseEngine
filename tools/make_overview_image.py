@@ -8,7 +8,7 @@
 
 排版：四栏 —— ① 生成器 ② 应用 ③ 附加库 ④ 工具。
 信息都对应仓库现有内容（src/ · project/ · library/ · vscode/；
-    magel / metro-lang / rust-view 已全部拆独立仓库），
+    ChaLi（原 Magel）/ metro-lang / rust-view 已独立维护），
 改这些目录时记得一起改本脚本的文案。
 
 为什么不用 SVG/HTML：README 在 GitHub 上渲染 PNG 最稳，且这张图文字多，
@@ -303,7 +303,7 @@ def build() -> Canvas:
     x = COL_X[1]
     c.rect(x, COL_TOP, COL_W, COL_H, PANEL, PANEL_EDGE, radius=14, width=1.5)
     c.text(x + 18, COL_TOP + 30, "② 应用", f_ptitle, PTITLE)
-    c.text(x + 18, COL_TOP + 52, "根目录工程 · project/ · example/", f_label, NOTE)
+    c.text(x + 18, COL_TOP + 52, "独立工程 · project/ · example/", f_label, NOTE)
 
     # 两套课程实验：摘要独立成卡，具体工程仍列入下方完整工程清单。
     c.text(x + 18, COL_TOP + 76, "课程实验（2 套 · 8 份报告）", f_ctitle, CTITLE)
@@ -317,14 +317,19 @@ def build() -> Canvas:
         c.text(x + 28, top + 19, name, f_code, CODE)
         c.text(x + 28, top + 37, desc, f_note, NOTE)
 
-    # 根目录应用工程：magel / metro-lang / rust-view 全部拆成独立仓库。
-    c.text(x + 18, COL_TOP + 208, "根目录应用工程（0 个，均已拆分独立仓库）", f_ctitle, CTITLE)
-    root_projects = ()
-    root_w = (COL_W - 36 - 2 * 6) // 3
+    # 已独立维护的应用；Magel 是 ChaLi 的原名，不重复计数。
+    c.text(x + 18, COL_TOP + 208, "独立应用工程（3 个，前端由 ParseEngine 生成）", f_ctitle, CTITLE)
+    root_projects = (
+        ("ChaLi（原 Magel）", "静态类型语言 · LLVM 编译"),
+        ("MetroLang", "地铁线网语言工具链"),
+        ("RustView", "Rust 借用语义可视化"),
+    )
+    root_w = (COL_W - 36 - 8) / 2
     for i, (name, desc) in enumerate(root_projects):
-        left = x + 18 + (i % 3) * (root_w + 6)
-        top = COL_TOP + 222 + (i // 3) * 50
-        c.rect(left, top, root_w, 44, CARD, CARD_EDGE, radius=8)
+        left = x + 18 + (i % 2) * (root_w + 8)
+        top = COL_TOP + 222 + (i // 2) * 50
+        card_w = COL_W - 36 if i == 2 else root_w
+        c.rect(left, top, card_w, 44, CARD, CARD_EDGE, radius=8)
         c.text(left + 7, top + 17, name, f_code, CODE)
         c.text(left + 7, top + 35, desc, f_grid, NOTE)
 
@@ -464,7 +469,7 @@ def build() -> Canvas:
     # ============================================================
     c.text(40, 846,
            "四层关系：生成器（①）产出解析器工程；应用（②）含 project/ 实验"
-           "（magel / metro-lang / rust-view 已拆独立仓库）；"
+           "（ChaLi（原 Magel）/ metro-lang / rust-view 已独立维护）；"
            "附加库（③）提供数据模型与后端；工具（④）辅助开发和验证",
            f_foot, FOOT)
     c.text(40, 872,

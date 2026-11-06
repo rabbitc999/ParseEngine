@@ -2,13 +2,13 @@
 
 > This is the English edition. The Chinese edition is the default and is the one maintained first — see [中文文档](../README.md)。
 
-This chapter was split out of [`README.md`](../README.md): the selection and artifact forms of the eight target languages (C99 / C++17 / Python / C# / Rust / Go / Java / JS-TS) and of the export profile `--lang gram` that produces "only the grammar and an analysis report"; the several language-related switches `%namespace` / `%cpp_only` / `%class`; the list of generated artifacts; and the API and memory management of the generated code.
+This chapter was split out of [`README.md`](../README.md): the selection and artifact forms of the nine target languages (C99 / C++17 / Python / C# / Rust / Go / Java / JS-TS / ChaLi) and of the export profile `--lang gram` that produces "only the grammar and an analysis report"; the several language-related switches `%namespace` / `%cpp_only` / `%class`; the list of generated artifacts; and the API and memory management of the generated code.
 
 Language backend implementations and templates are in [`07-codegen.md`](../07-codegen.md); the API details of each artifact profile are in [`08-generated-code.md`](../08-generated-code.md); artifacts of the lexical mode are in [`13-modes.md`](../13-modes.md). The unified matrix of the modes available per language and of the incremental API is in [12 Modes Supported by Each Language](15-language-mode-support.md).
 
-## Target Languages (C99 / C++17 / Python / C# / Rust / Go / Java / JS-TS)
+## Target Languages (C99 / C++17 / Python / C# / Rust / Go / Java / JS-TS / ChaLi)
 
-The same analysis result can produce projects in eight languages; the choice comes from three sources, in descending priority:
+The same analysis result can produce projects in nine languages; the choice comes from three sources, in descending priority:
 
 1. the command line `--lang {c,cpp17,python,csharp,rust,go,java,js,chali,gram}`;
 2. `%lang {c,cpp17,python,csharp,rust,go,java,js,chali,gram}` in the grammar;
@@ -253,6 +253,68 @@ Three directives that take effect for go: `%package` (module path), `%import` (g
 
 To use it only as a parsing library: drop `main.go` and add `parser.go` / `token.go` to your own package (they are all `package main`; just change them to your package name).
 
+### ChaLi Output (`--lang chali`)
+
+ChaLi is the ninth code-generation target. The emitted native ChaLi runtime uses the
+LL(1) prediction table or LR ACTION/GOTO tables built by the generator, including
+split IELR states. Only `ll1`, `slr`, `lalr`, `lr1`, and `ielr` are supported;
+other modes are explicitly rejected.
+
+| Item | ChaLi output |
+| --- | --- |
+| Source | Self-contained `parser.chl`: lexer, parser, user code, and entry point |
+| Report | `RESULT.md`; `--full-report` includes the full analysis report |
+| Build files | No Makefile / CMakeLists.txt; compile directly with ChaLi |
+| Text entry | `Parser::runText(String)` |
+| Token entry | `Parser::runTokens(List<ParserToken>)` |
+| Token IDs | `Parser::tokenKind(String)`; returns -1 for unknown names |
+| Result | `ParserResult`: `ok`, `value`, `tree`, `message`, `offset` |
+| Default value | `float64`; NUMBER is converted automatically |
+| Errors | Stops at the first error; `offset` is a UTF-8 byte offset; no recovery or incremental API |
+
+```sh
+./build/bin/ParseEngine example/chali_lr1.gram --lang chali --mode ielr --out-dir build/examples/chali-parser
+chali run build/examples/chali-parser/parser.chl
+# Enter 1+(2*3) on standard input to get 7
+chali build build/examples/chali-parser/parser.chl --out build/examples/chali-parser/parser
+```
+
+The default entry point reads one line from standard input. Use `%main` to provide
+your own ChaLi entry point, for example by appending this to the grammar:
+
+```text
+%main
+void main() {
+    ParserResult result = Parser::runText("1+(2*3)");
+    if (!result.ok) {
+        println("error at {}: {}", result.offset, result.message);
+        return;
+    }
+    println("{}", result.value);
+}
+```
+
+Actions use ChaLi syntax: `$$` is the result and `$n` is the nth right-hand-side
+value, starting at 1. ChaLi code in `%code`, `%epilogue`, and `%main` is embedded
+verbatim in `parser.chl`; C/C++ headers, macros, and functions are not translated.
+`%value_type` accepts a ChaLi type. For custom types, the `runTokens` caller supplies
+Token values. `ParserToken` contains `kind`, `text`, `offset`, and `value`;
+the sequence must contain exactly one END Token at the end.
+
+Supported directives include literal `%token`, `%token regex`, `%identifier`,
+`%space`, `%trivia`, `%commit skip`, and `%tree`. Lexing uses longest match, then
+declaration order for ties. Regexes use native ECMAScript semantics through ChaLi
+`std::regex::Regex`. With `%tree`, the default entry prints the parenthesized tree;
+the API also exposes tree text through the `tree` field.
+The backend currently rejects `%union`, member annotations, `%destructor`, `error`,
+`%sync`, value-carrying `%commit`, `%class_body`, `%package`, `%import`, and `%copy`.
+LL(1) requires an LL(1) grammar supplied directly; actions from automatic
+left-recursion rewriting are not supported.
+
+See the [ChaLi backend reference](../17-chali-backend.md) for full limitations and
+regression commands, and the runnable examples
+[`chali_ll1.gram`](../../example/chali_ll1.gram) and [`chali_lr1.gram`](../../example/chali_lr1.gram).
+
 ### Grammar Export (`--lang gram`)
 
 The last profile is not a programming language but the export profile that gives **only the grammar and an analysis report, no code**: the output directory contains only the input `.gram` (exported byte for byte), its analysis report `<grammar name>.analysis.md` (conflict resolution / unresolved conflicts + the full analysis report) and `RESULT.md` (generation info + artifact list + how to use it). There is no parser, no lexer, and no build script.
@@ -282,6 +344,7 @@ Purpose: to archive / commit / hand over "this grammar + the analysis result at 
 - To integrate with a .NET project: `--lang csharp`; the artifact uses `dotnet build` + `dotnet run`.
 - To integrate with a Rust project: `--lang rust`; the artifact is a Cargo project (the only dependency is the official `regex`), and `cargo build` will do (standard library only, the semantic value must be `Copy + Default + Debug`, no `%destructor`).
 - To integrate with a Go project: `--lang go`; the artifact is a Go module, and `go build` / `go run .` will do (standard library only, semantic values copied by value, no `%destructor`).
+- To integrate with ChaLi: `--lang chali` emits a self-contained `parser.chl` for the ChaLi compiler.
 - To keep only "a grammar + an analysis report" and no code at all (archiving, handover, writing a lab report): `--lang gram`; the artifact is the original `.gram` file and `RESULT.md`; switching `--mode` and exporting again gives another set of analyses (for example `--mode lalr --teach` to inspect conflicts).
 
 ## Generated Artifacts
@@ -399,5 +462,3 @@ To replace the tree allocation with a static pool / RTOS heap / an allocator wit
 The C# profile has neither allocator hooks nor `memset` / `memcpy` hooks: semantic values and the syntax tree are reclaimed by the GC, and `%destructor` is an immediate error under this profile.
 
 `parser_user.h` is included by multiple `.c` files; write helper functions that sit directly in the header as `static inline`, and it is advisable to put global state such as tables inside a function's `static` to avoid keeping one copy per translation unit.
-
-The `--lang chali` target emits a self-contained `parser.chl` and `RESULT.md` for LL(1) and the LR(1) family. See the [ChaLi reference](../17-chali-backend.md) for APIs and limitations.

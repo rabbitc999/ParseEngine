@@ -146,6 +146,7 @@ both users and the best test cases). Overview diagrams for each project are in
 
 | Project | What it is | Entry point |
 | --- | --- | --- |
+| **ChaLi (formerly Magel)** | A statically typed language with value semantics, explicit borrowing and moves, and lifetime checks. ParseEngine generates its C++17 front end from `source/chali.gram`; the checked AST is compiled through LLVM. Its compiler also builds the new ChaLi output target of ParseEngine | <https://github.com/rabbitc999/ChaLi> |
 | **MetroLang** | Toolchain for a metro-network data language: compiler, templated decompiler, self-contained HTML/SVG maps, Dijkstra route queries and an interactive viewer; the front end is generated from `metrolang.gram` (169 keywords, one production each, 842 states · 0 conflicts) — **split into a standalone repository** | <https://github.com/rabbitc999/metro-lang> |
 | **RustView** | **Borrow-semantics visualisation** for a minimalist Rust pseudo-language (teaching): moves, borrows, conflicts and dangling references drawn as dependency-free SVG + HTML; the front end is generated from `rust_subset.gram`, with the 1.0 feature set frozen — **split into a standalone repository** | <https://github.com/rabbitc999/rust-view> |
 
@@ -154,4 +155,3 @@ pools and container adapters for the `Memory` namespace), [`library/transfer`](l
 (quadruples → basic blocks / CFG / target machine), [`library/preprocess`](library/preprocess/README.md),
 [`library/template`](library/template/README.md), [`library/json`](library/json/README.md),
 [`library/toml`](library/toml/README.md) and others — each have their own README.
-

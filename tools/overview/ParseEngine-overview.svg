@@ -86,7 +86,7 @@
   <text x="58" y="800" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">自包含 .chl → ChaLi 编译器 → 原生程序</text>
   <rect x="410" y="118" width="360" height="700" rx="14" fill="#ffffff" stroke="#d8e1ee" stroke-width="1.5"/>
   <text x="428" y="148" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="17" font-weight="700" fill="#14507e">② 应用</text>
-  <text x="428" y="170" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">根目录工程 · project/ · example/</text>
+  <text x="428" y="170" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">独立工程 · project/ · example/</text>
   <text x="428" y="194" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">课程实验（2 套 · 8 份报告）</text>
   <rect x="428" y="206" width="324" height="46" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
   <text x="438" y="225" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">lab_report_axhu</text>
@@ -94,7 +94,16 @@
   <rect x="428" y="258" width="324" height="46" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
   <text x="438" y="277" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">lab_report_nju</text>
   <text x="438" y="295" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">南京大学：5 份 · 严格 C-- 编译全流程</text>
-  <text x="428" y="326" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">根目录应用工程（0 个，均已拆分独立仓库）</text>
+  <text x="428" y="326" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">独立应用工程（3 个，前端由 ParseEngine 生成）</text>
+  <rect x="428" y="340" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="435" y="357" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">ChaLi（原 Magel）</text>
+  <text x="435" y="375" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">静态类型语言 · LLVM 编译</text>
+  <rect x="594" y="340" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="601" y="357" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">MetroLang</text>
+  <text x="601" y="375" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">地铁线网语言工具链</text>
+  <rect x="428" y="390" width="324" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
+  <text x="435" y="407" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">RustView</text>
+  <text x="435" y="425" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="11" fill="#55677f">Rust 借用语义可视化</text>
   <text x="428" y="454" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="13" font-weight="700" fill="#33475f">project/ 完整工程（9 个）</text>
   <rect x="428" y="468" width="158" height="44" rx="8" fill="#f7f9fc" stroke="#e2e9f3" stroke-width="1"/>
   <text x="438" y="485" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#22405f">pl0-ir</text>
@@ -219,6 +228,6 @@
   <text x="1168" y="674" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">sh build.sh   统一构建，产物位于 build/</text>
   <text x="1168" y="694" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">make -C source test-repro   两次生成逐字一致</text>
   <text x="1168" y="714" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#55677f">project/document/   模板与文档同步生成器</text>
-  <text x="40" y="846" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#64748b">四层关系：生成器（①）产出解析器工程；应用（②）含 project/ 实验（magel / metro-lang / rust-view 已拆独立仓库）；附加库（③）提供数据模型与后端；工具（④）辅助开发和验证</text>
+  <text x="40" y="846" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#64748b">四层关系：生成器（①）产出解析器工程；应用（②）含 project/ 实验（ChaLi（原 Magel）/ metro-lang / rust-view 已独立维护）；附加库（③）提供数据模型与后端；工具（④）辅助开发和验证</text>
   <text x="40" y="872" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#64748b">人机协同：需求、文法与算法选型由人，实现由 Codex + DeepSeek；真实生成、目标工具链与回归样例负责验收，当前口径见 doc/15 与专题文档</text>
 </svg>

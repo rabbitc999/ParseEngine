@@ -1,6 +1,6 @@
 # 11 目标语言、产物与 API（用户手册）
 
-本章从 [`README.md`](../README.md) 拆出：八种目标语言（C99 / C++17 / Python / C# / Rust / Go / Java / JS-TS）与
+本章从 [`README.md`](../README.md) 拆出：九种目标语言（C99 / C++17 / Python / C# / Rust / Go / Java / JS-TS / ChaLi）与
 「只要文法与分析报告」的导出档 `--lang gram` 的选择与
 产物形态、`%namespace` / `%cpp_only` / `%class` 几个语言相关开关、生成产物清单、生成代码的 API
 与内存管理。
@@ -9,9 +9,9 @@
 [`08-generated-code.md`](08-generated-code.md)，词法模式的产物见 [`13-modes.md`](13-modes.md)。
 各语言可用模式及增量 API 的统一矩阵见 [12 各语言支持的模式](15-language-mode-support.md)。
 
-## 目标语言（C99 / C++17 / Python / C# / Rust / Go / Java / JS-TS）
+## 目标语言（C99 / C++17 / Python / C# / Rust / Go / Java / JS-TS / ChaLi）
 
-同一套分析结果可以产出八种语言的工程，由三个来源决定，优先级从高到低：
+同一套分析结果可以产出九种语言的工程，由三个来源决定，优先级从高到低：
 
 1. 命令行 `--lang {c,cpp17,python,csharp,rust,go,java,js,chali,gram}`；
 2. 文法里的 `%lang {c,cpp17,python,csharp,rust,go,java,js,chali,gram}`；
@@ -368,6 +368,63 @@ cd /tmp/go && go build && printf '1+2*3' | go run .
 只当解析库用时：去掉 `main.go`，把 `parser.go` / `token.go` 加进你自己的包
 （它们都是 `package main`，改成你的包名即可）。
 
+### ChaLi 产物（`--lang chali`）
+
+ChaLi 是第九种代码生成目标。它直接生成原生 ChaLi 源码，运行时使用生成器构造的
+LL(1) 预测表或 LR ACTION/GOTO 表；IELR 使用拆分后的状态表。
+仅支持 `ll1`、`slr`、`lalr`、`lr1`、`ielr` 五种模式，其他模式明确报错。
+
+| 项目 | ChaLi 产物 |
+| --- | --- |
+| 源码 | 自包含 `parser.chl`，包含词法器、解析器、用户代码和入口 |
+| 报告 | `RESULT.md`；`--full-report` 可附完整分析报告 |
+| 构建文件 | 不生成 Makefile / CMakeLists.txt，直接交给 ChaLi 编译器 |
+| 文本入口 | `Parser::runText(String)` |
+| Token 入口 | `Parser::runTokens(List<ParserToken>)` |
+| Token 编号 | `Parser::tokenKind(String)`；未知名称返回 -1 |
+| 结果 | `ParserResult`：`ok`、`value`、`tree`、`message`、`offset` |
+| 默认语义值 | `float64`；NUMBER 自动转换为数值 |
+| 错误 | 首个错误立即返回，`offset` 是 UTF-8 字节偏移；没有错误恢复或增量 API |
+
+```sh
+./build/bin/ParseEngine example/chali_lr1.gram --lang chali --mode ielr --out-dir build/examples/chali-parser
+chali run build/examples/chali-parser/parser.chl
+# 标准输入：1+(2*3)，输出：7
+chali build build/examples/chali-parser/parser.chl --out build/examples/chali-parser/parser
+```
+
+默认入口读取标准输入的一行；可用 `%main` 提供自己的 ChaLi 入口。
+例如在文法末尾添加以下代码，可以直接调用解析 API：
+
+```text
+%main
+void main() {
+    ParserResult result = Parser::runText("1+(2*3)");
+    if (!result.ok) {
+        println("error at {}: {}", result.offset, result.message);
+        return;
+    }
+    println("{}", result.value);
+}
+```
+
+语义动作使用 ChaLi 语法；`$$` 表示结果，`$n` 表示从 1 起的右部语义值。
+`%code`、`%epilogue`、`%main` 中的 ChaLi 代码原样嵌入 `parser.chl`，
+已有 C/C++ 文法中的头文件、宏和函数不会自动转换。
+`%value_type` 可指定 ChaLi 类型；自定义类型的 Token 值由 `runTokens` 调用方填写。
+`ParserToken` 包含 `kind`、`text`、`offset`、`value`，序列必须恰有一个末尾 END Token。
+
+支持字面量 `%token`、`%token regex`、`%identifier`、`%space`、`%trivia`、
+`%commit skip` 和 `%tree`。词法规则采用最长匹配，同长度按声明顺序；
+正则使用 ChaLi `std::regex::Regex` 的原生 ECMAScript 规则。
+`%tree` 使默认入口打印括号形式的语法树，API 的 `tree` 字段也可获取树文本。
+当前拒绝 `%union`、成员标注、`%destructor`、`error`、`%sync`、带值 `%commit`、
+`%class_body`、`%package`、`%import` 和 `%copy`。
+LL(1) 暂不支持自动左递归改写后的语义动作，须直接提供 LL(1) 文法。
+
+完整边界与回归命令见 [ChaLi 后端](17-chali-backend.md)；可运行示例见
+[`chali_ll1.gram`](../example/chali_ll1.gram) 和 [`chali_lr1.gram`](../example/chali_lr1.gram)。
+
 ### 文法导出（`--lang gram`）
 
 最后一档不是编程语言，而是**只要文法与分析报告、不要代码**的导出档：产物目录里
@@ -407,6 +464,7 @@ head -n 30 out/pl0.analysis.md  # 冲突消解 / 未消解冲突 / 分析报告
   （只用标准库，语义值要 `Copy + Default + Debug`，没有 `%destructor`）。
 - 和 Go 工程集成：`--lang go`，产物是一个 Go 模块，`go build` / `go run .` 即可
   （只用标准库，语义值按值拷贝，没有 `%destructor`）。
+- 和 ChaLi 工程集成：`--lang chali`，生成自包含 `parser.chl`，用 ChaLi 编译器运行或构建。
 - 只想留一份「文法 + 分析报告」、不要任何代码（归档、交接、写实验报告）：
   `--lang gram`，产物就是 `.gram` 原文件与 `RESULT.md`；换 `--mode` 再导一次
   就是另一套分析（例如 `--mode lalr --teach` 看冲突）。
@@ -569,5 +627,3 @@ C# 这一档没有分配器钩子、也没有 `memset` / `memcpy` 钩子：语�
 
 `parser_user.h` 会被多个 `.c` 包含，直接写在头里的辅助函数请用 `static inline`，
 表之类的全局状态建议放在函数内部的 `static` 里，避免每个编译单元各留一份。
-
-ChaLi 目标 `--lang chali` 生成自包含 `parser.chl` 与 `RESULT.md`，支持 LL(1) 和 LR(1) 系列；运行方式、API 和限制见 [ChaLi 后端](17-chali-backend.md)。
