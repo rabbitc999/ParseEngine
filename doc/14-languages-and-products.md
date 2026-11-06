@@ -13,8 +13,8 @@
 
 同一套分析结果可以产出八种语言的工程，由三个来源决定，优先级从高到低：
 
-1. 命令行 `--lang {c,cpp17,python,csharp,rust,go,java,js,gram}`；
-2. 文法里的 `%lang {c,cpp17,python,csharp,rust,go,java,js,gram}`；
+1. 命令行 `--lang {c,cpp17,python,csharp,rust,go,java,js,chali,gram}`；
+2. 文法里的 `%lang {c,cpp17,python,csharp,rust,go,java,js,chali,gram}`；
 3. 都没有时取默认值 `cpp17`。
 
 也就是说 `--lang` 覆盖 `%lang`（和 `--mode` 覆盖 `%mode` 的策略一致），不报错。
@@ -569,3 +569,5 @@ C# 这一档没有分配器钩子、也没有 `memset` / `memcpy` 钩子：语�
 
 `parser_user.h` 会被多个 `.c` 包含，直接写在头里的辅助函数请用 `static inline`，
 表之类的全局状态建议放在函数内部的 `static` 里，避免每个编译单元各留一份。
+
+ChaLi 目标 `--lang chali` 生成自包含 `parser.chl` 与 `RESULT.md`，支持 LL(1) 和 LR(1) 系列；运行方式、API 和限制见 [ChaLi 后端](17-chali-backend.md)。

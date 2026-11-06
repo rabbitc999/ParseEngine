@@ -1,0 +1,220 @@
+// ParseEngine 生成的 ChaLi 解析器；本文件可独立编译。
+import std::regex;
+import std::parse;
+{{ user_code }}
+
+/** @brief 词法单元；offset 是输入中的字节偏移。 */
+struct ParserToken {
+    int64 kind; String text; int64 offset; {{ value_type }} value;
+};
+/** @brief 解析结果；失败时 message 与 offset 指示首个错误。 */
+struct ParserResult {
+    bool ok; {{ value_type }} value; String tree; String message; int64 offset;
+};
+/** @brief 执行一条产生式的语义动作。
+ * @param production 产生式编号。@param values 从 $1 起的右部值。
+ * @return $$ 的值；缺省取 $1，空产生式取类型缺省值。
+ */
+{{ value_type }} parserReduce(int64 production, List<{{ value_type }}> values) {
+    {{ value_type }} result;
+    if (values.len() > 0) { result = values[0]; }
+{{ reductions }}
+    return result;
+}
+
+/** @brief 单次解析的独立状态，Parser 静态入口负责初始化。 */
+struct Parser {
+    List<ParserToken> tokens;
+    int64 position;
+    String message;
+    List<int64> lhs;
+    List<int64> starts;
+    List<int64> lengths;
+    List<int64> rhs;
+    List<String> names;
+    List<String> nontermNames;
+{% if ll %}
+    List<int64> table;
+{% else %}
+    List<int64> actions;
+    List<int64> gotos;
+{% endif %}
+    /** @brief 返回当前位置的失败结果。@return 首个失败位置与原因。 */
+    ParserResult failure() {
+        ParserResult result; result.message = self.message;
+        result.offset = self.tokens[self.position].offset;
+        return result;
+    }
+{% if ll %}
+    /** @brief 递归预测一个非终结符。
+     * @param nonterm 非终结符编号。@param depth 当前递归深度。@return 该符号的结果。
+     */
+    ParserResult node(int64 nonterm, int64 depth) {
+        if (depth >= {{ max_depth }}) { self.message = "解析栈深度超限"; return self.failure(); }
+        int64 production = self.table[nonterm * {{ terminal_count }} + self.tokens[self.position].kind];
+        if (production < 0) { self.message = "无可用产生式"; return self.failure(); }
+        List<{{ value_type }}> values;
+        String tree = "(" + self.nontermNames[nonterm];
+        int64 i = 0;
+        while (i < self.lengths[production]) {
+            int64 symbol = self.rhs[self.starts[production] + i];
+            if (symbol < {{ terminal_count }}) {
+                if (self.tokens[self.position].kind != symbol) { self.message = "终结符不匹配"; return self.failure(); }
+                values.push(self.tokens[self.position].value);
+                tree = tree + " " + self.tokens[self.position].text;
+                // END 是哨兵，不推进到输入末尾之外。
+                if (symbol != {{ end }}) { self.position = self.position + 1; }
+            } else {
+                ParserResult child = self.node(symbol - {{ terminal_count }}, depth + 1);
+                if (!child.ok) { return child; }
+                values.push(child.value); tree = tree + " " + child.tree;
+            }
+            i = i + 1;
+        }
+        ParserResult result; result.ok = true;
+        result.value = parserReduce(production, values);
+        result.tree = tree + ")"; return result;
+    }
+{% endif %}
+    /** @brief 解析显式 Token 序列。
+     * @param input 以 END 结尾的序列，Token 值由调用方填写。@return 解析结果。
+     */
+    static ParserResult runTokens(List<ParserToken> input) {
+        Parser parser; parser.tokens = input;
+        parser.lhs = [{{ lhs }}];
+        parser.starts = [{{ starts }}];
+        parser.lengths = [{{ lengths }}];
+        parser.rhs = [{{ rhs }}];
+        parser.names = [{{ names }}];
+        parser.nontermNames = [{{ nonterm_names }}];
+{% if ll %}
+        parser.table = [{{ ll_table }}];
+{% else %}
+        parser.actions = [{{ actions }}];
+        parser.gotos = [{{ gotos }}];
+{% endif %}
+        ParserResult invalid;
+        if (input.len() == 0) { invalid.message = "缺少 END Token"; return invalid; }
+        int64 i = 0;
+        while (i < input.len()) {
+            if (input[i].kind < 0 || input[i].kind >= {{ terminal_count }} ||
+                (input[i].kind == {{ end }} && i != input.len() - 1)) {
+                invalid.message = "Token 编号或 END 位置无效"; invalid.offset = input[i].offset; return invalid;
+            }
+            i = i + 1;
+        }
+        if (input[input.len() - 1].kind != {{ end }}) { invalid.message = "缺少 END Token"; return invalid; }
+{% if ll %}
+        ParserResult result = parser.node({{ start }}, 0);
+        if (result.ok && parser.tokens[parser.position].kind != {{ end }}) {
+            parser.message = "输入尚未结束"; return parser.failure();
+        }
+        return result;
+{% else %}
+        List<int64> states = [0];
+        List<{{ value_type }}> values;
+        List<String> trees;
+        while (true) {
+            int64 token = parser.tokens[parser.position].kind;
+            int64 command = parser.actions[states[states.len() - 1] * {{ terminal_count }} + token];
+            if (command == 2147483647) {
+                ParserResult result; result.ok = true;
+                if (values.len() > 0) { result.value = values[values.len() - 1]; result.tree = trees[trees.len() - 1]; }
+                return result;
+            }
+            if (command == 0) { parser.message = "意外 Token: " + parser.names[token]; return parser.failure(); }
+            if (command > 0) {
+                if (states.len() >= {{ max_depth }}) { parser.message = "解析栈深度超限"; return parser.failure(); }
+                states.push(command - 1); values.push(parser.tokens[parser.position].value);
+                trees.push(parser.tokens[parser.position].text);
+                if (token != {{ end }}) { parser.position = parser.position + 1; }
+            } else {
+                int64 production = 0 - command - 1;
+                int64 count = parser.lengths[production];
+                List<{{ value_type }}> children;
+                String tree = "(" + parser.nontermNames[parser.lhs[production]];
+                i = values.len() - count;
+                while (i < values.len()) { children.push(values[i]); tree = tree + " " + trees[i]; i = i + 1; }
+                i = 0;
+                while (i < count) { values.pop(); states.pop(); trees.pop(); i = i + 1; }
+                int64 next = parser.gotos[states[states.len() - 1] * {{ nonterm_count }} + parser.lhs[production]];
+                if (next < 0) { parser.message = "GOTO 表缺项"; return parser.failure(); }
+                if (states.len() >= {{ max_depth }}) { parser.message = "解析栈深度超限"; return parser.failure(); }
+                states.push(next); values.push(parserReduce(production, children)); trees.push(tree + ")");
+            }
+        }
+        return invalid;
+{% endif %}
+    }
+    /** @brief 最长匹配词法分析后运行解析器。
+     * @param text 完整输入文本。@return 成功值或首个词法/语法错误。
+     */
+    static ParserResult runText(String text) {
+        List<String> patterns = [{{ patterns }}];
+        List<int64> types = [{{ types }}];
+        List<int64> orders = [{{ orders }}];
+        List<Regex> rules;
+        for (String pattern in patterns) {
+            let compiled = Regex::compile(pattern);
+            if (compiled.isErr()) { ParserResult result; result.message = "正则表达式编译失败"; return result; }
+            rules.push(compiled.unwrap());
+        }
+        List<ParserToken> tokens;
+        String spaces = {{ space }};
+        int64 position = 0;
+        while (position < text.length()) {
+            String tail = text.substring(position);
+            int64 best = -1; int64 size = 0; int64 order = 2147483647;
+            int64 i = 0;
+            while (i < rules.len()) {
+                String matched = rules[i].capture(tail, 0);
+                if (matched.length() > size || (matched.length() > 0 && matched.length() == size && orders[i] < order)) {
+                    best = i; size = matched.length(); order = orders[i];
+                }
+                i = i + 1;
+            }
+            if (best < 0) {
+                if (spaces.contains(text.substring(position, 1))) { position = position + 1; }
+                else { ParserResult result; result.message = "无法识别的输入"; result.offset = position; return result; }
+            } else {
+                if (types[best] >= 0) {
+                    ParserToken token; token.kind = types[best]; token.offset = position;
+                    token.text = text.substring(position, size);
+{% if numeric %}
+                    if (token.kind == {{ number }}) {
+                        let parsed = Parse::parseFloat64(token.text);
+                        if (parsed.isOk()) { token.value = parsed.unwrap(); }
+                    }
+{% endif %}
+                    tokens.push(token);
+                }
+                position = position + size;
+            }
+        }
+        ParserToken end; end.kind = {{ end }}; end.offset = text.length(); tokens.push(end);
+        return Parser::runTokens(tokens);
+    }
+    /** @brief 查询 Token 编号，供 runTokens 调用方使用。
+     * @param name 文法终结符名称。@return 编号；未知名称返回 -1。
+     */
+    static int64 tokenKind(String name) {
+        List<String> names = [{{ names }}]; int64 i = 0;
+        while (i < names.len()) { if (names[i] == name) { return i; } i = i + 1; }
+        return 0 - 1;
+    }
+};
+{{ epilogue }}
+{% if custom_main %}
+{{ main }}
+{% else %}
+/** @brief 从标准输入读取一行并打印解析结果。 */
+void main() {
+    ParserResult result = Parser::runText(readLine());
+    if (!result.ok) { println("error at {}: {}", result.offset, result.message); panic(result.message); }
+{% if tree %}
+    println("{}", result.tree);
+{% else %}
+    println("{}", result.value);
+{% endif %}
+}
+{% endif %}

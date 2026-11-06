@@ -1,5 +1,8 @@
 # Repository Documentation
 
+The [ChaLi backend reference](../17-chali-backend.md) describes native `.chl` output,
+LL(1), SLR(1), LALR(1), LR(1), IELR(1), APIs and current limitations.
+
 > This is the English edition. The Chinese edition is the default and is the one maintained first — see [中文文档](../../doc/README.md)。
 
 > **Magel's glorious history**: This language grew up in this repository in its early days — the generator, StackVM, standard library, glue and reflection were all polished together here (the Magel documents below are the record of that era). It has since been split into an independent repository at <https://github.com/rabbitc999/magel>; links to `magel/` in this document now point to the corresponding documents in the new repository.

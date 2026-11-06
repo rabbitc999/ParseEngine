@@ -4,10 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const engine = require('./parseEngine');
 const MODES = ['ll1', 'lr0', 'slr', 'lalr', 'lr1', 'ielr', 'lrk', 'lalrk', 'slrk', 'llk', 'll0', 'glr', 'earley', 'cyk', 'dd', 'lex'];
-const LANGUAGES = ['c', 'cpp17', 'python', 'csharp', 'rust', 'go', 'java', 'js', 'gram'];
+const LANGUAGES = ['c', 'cpp17', 'python', 'csharp', 'rust', 'go', 'java', 'js', 'chali', 'gram'];
 
 /** @brief 按目标支持矩阵筛选模式。@param {string} lang 目标。@returns {string[]} 可用模式。 */
 function allowedModes(lang) {
+  if (lang === 'chali') return ['ll1', 'slr', 'lalr', 'lr1', 'ielr'];
   if (['java', 'js'].includes(lang)) return ['dd', 'earley', 'cyk'];
   return lang === 'c' ? MODES.filter(mode => !['glr', 'earley', 'cyk'].includes(mode)) : [...MODES];
 }
@@ -23,6 +24,8 @@ function resolveProfile(profile, grammarFile, root) {
     throw new Error(`${lang} 只支持 dd、earley、cyk`);
   if (lang === 'c' && ['glr', 'earley', 'cyk'].includes(mode))
     throw new Error('C 目标不支持 glr、earley、cyk');
+  if (lang === 'chali' && !allowedModes(lang).includes(mode))
+    throw new Error('ChaLi 只支持 ll1、slr、lalr、lr1、ielr');
   const base = root || path.dirname(grammarFile);
   const result = { ...profile, grammarFile, mode, lang,
     outputDir: path.resolve(base, profile.outputDir || engine.defaultOutputDir(grammarFile, lang)) };

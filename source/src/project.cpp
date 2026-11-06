@@ -20,6 +20,7 @@
 #include "ParseEngine/code_gen_python.hpp"
 #include "ParseEngine/code_gen_go.hpp"
 #include "ParseEngine/code_gen_java.hpp"
+#include "ParseEngine/code_gen_chali.hpp"
 #include "ParseEngine/code_gen_js.hpp"
 #include "ParseEngine/code_gen_rust.hpp"
 #include "ParseEngine/grammar_loader.hpp"
@@ -3505,6 +3506,8 @@ bool generateCustomProject(const ProjectRequest &request,
     }
     const AnalysisResult &analysis =
         (request.analysis == nullptr) ? owned : *request.analysis;
+    if (request.lang == "chali")
+        return generateChaLiProject(request, analysis, out, error);
     // Java 与 JavaScript/TypeScript 是窄后端，只接 DD / Earley / CYK。要在 C99
     // prologue、DFA 与表生成之前分流，避免不相关的 C 产物逻辑介入。
     if (request.lang == "java")
@@ -4058,6 +4061,9 @@ static bool generateParserProjectImpl(
                                "（只支持 lex、ll1、lr0、slr、lalr、lr1、"
                                "ielr、glr、earley、cyk、dd、lrk、lalrk、slrk 或 llk）");
     }
+    if (request.lang == "chali" && mode != "ll1" && mode != "slr" &&
+        mode != "lalr" && mode != "lr1" && mode != "ielr")
+        return fail(error, "--lang chali 只支持 ll1 / slr / lalr / lr1 / ielr");
     // GLR 家族只在带相应运行时的后端生成；C99 暂不支持。
     const bool narrowChart = ((mode == "earley") || (mode == "cyk")) &&
         ((request.lang == "java") || (request.lang == "js"));

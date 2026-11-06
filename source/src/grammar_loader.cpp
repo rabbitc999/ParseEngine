@@ -3265,11 +3265,11 @@ void GramParser::parseLangDirective()
     const std::string token = peekText();
     if ((token != "c") && (token != "cpp17") && (token != "python") &&
         (token != "csharp") && (token != "rust") && (token != "go") &&
-        (token != "java") && (token != "js") && (token != "gram"))
+        (token != "java") && (token != "js") && (token != "chali") && (token != "gram"))
     {
         fail(
             "%lang 只支持 c / cpp17 / python / csharp / rust / go / java / "
-            "js / gram，"
+            "js / chali / gram，"
             "实际得到 '" + token + "'");
         return;
     }

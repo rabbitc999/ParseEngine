@@ -10,8 +10,8 @@ Language backend implementations and templates are in [`07-codegen.md`](../07-co
 
 The same analysis result can produce projects in eight languages; the choice comes from three sources, in descending priority:
 
-1. the command line `--lang {c,cpp17,python,csharp,rust,go,java,js,gram}`;
-2. `%lang {c,cpp17,python,csharp,rust,go,java,js,gram}` in the grammar;
+1. the command line `--lang {c,cpp17,python,csharp,rust,go,java,js,chali,gram}`;
+2. `%lang {c,cpp17,python,csharp,rust,go,java,js,chali,gram}` in the grammar;
 3. when neither is present, the default `cpp17`.
 
 In other words `--lang` overrides `%lang` (the same policy as `--mode` overriding `%mode`), without an error. When `%mode` and `--mode` disagree, the command line likewise wins.
@@ -399,3 +399,5 @@ To replace the tree allocation with a static pool / RTOS heap / an allocator wit
 The C# profile has neither allocator hooks nor `memset` / `memcpy` hooks: semantic values and the syntax tree are reclaimed by the GC, and `%destructor` is an immediate error under this profile.
 
 `parser_user.h` is included by multiple `.c` files; write helper functions that sit directly in the header as `static inline`, and it is advisable to put global state such as tables inside a function's `static` to avoid keeping one copy per translation unit.
+
+The `--lang chali` target emits a self-contained `parser.chl` and `RESULT.md` for LL(1) and the LR(1) family. See the [ChaLi reference](../17-chali-backend.md) for APIs and limitations.

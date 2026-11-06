@@ -1,0 +1,18 @@
+/* ChaLi LL(1)：数字列表求和，显式尾部与空产生式。 */
+%lang chali
+%mode ll1
+%start sum
+%example "1+2+3"
+%token PLUS "+"
+%token regex NUMBER "[0-9]+"
+%trivia "//[^\n]*"
+%space " \t\r\n"
+
+%code
+/** @brief 合并两个已解析的数值。 */
+float64 addValues(float64 left, float64 right) { return left + right; }
+%endcode
+
+sum := NUMBER tail { $$ = addValues($1, $2); };
+tail := PLUS NUMBER tail { $$ = addValues($2, $3); }
+      | %empty { $$ = 0; };

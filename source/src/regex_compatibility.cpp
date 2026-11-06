@@ -107,6 +107,7 @@ std::string nativeEngine(const std::string &language)
     if (language == "go") return "regexp";
     if (language == "java") return "java.util.regex.Pattern";
     if (language == "js") return "RegExp";
+    if (language == "chali") return "std::regex::Regex (ECMAScript)";
     return "unknown";
 }
 
@@ -245,7 +246,9 @@ RegexCompatibilityReport RegexCompatibility::analyze(const LexSpec &lex,
         std::string unsupported;
         if ((language == "rust" || language == "go") && (ability.lookAhead || ability.lookBehind || ability.backref))
             unsupported = "当前 " + nativeEngine(language) + " 后端不支持前瞻、后顾或反向引用";
-        else if (language == "cpp17" && ability.lookBehind) unsupported = "std::regex 的 ECMAScript 路径不支持后顾断言";
+        else if ((language == "cpp17" || language == "chali") && ability.lookBehind) unsupported = "std::regex 的 ECMAScript 路径不支持后顾断言";
+        else if (language == "chali" && (ability.unicode || ability.ignoreCase || ability.properties))
+            unsupported = "ChaLi 原生 ECMAScript 正则不支持共享 Unicode 属性或 (?i)/(?u) 前缀";
         else if ((language == "js" && (ability.ignoreCase || ability.unicode)) ||
                  ((language == "csharp" || language == "go") && ability.unicode))
             unsupported = "当前后端原样传递正则，未转换该全局 (?i)/(?u) 前缀";

@@ -332,7 +332,7 @@ const std::vector<std::pair<std::string, std::string>>& directiveDocs() {
         {"%teach", "打开教学模式（等价命令行 --teach）"},
         {"%mermaid", "生成 Mermaid 状态机图（等价命令行 --mermaid）"},
         {"%glr_max_results", "GLR 一次解析最多缓存几个结果（1..4096，缺省 16；只对 %mode glr 有意义）"},
-        {"%lang", "产物语言：c / cpp17 / python / csharp / rust / go / gram，缺省 cpp17"},
+        {"%lang", "产物语言：c / cpp17 / python / csharp / rust / go / java / js / chali / gram，缺省 cpp17"},
         {"%class", "Python 产物的解析器类名（只对 --lang python 有效）"},
         {"%package", "C# namespace / Rust crate 名 / Go module path（只对 --lang csharp / rust / go 有效）"},
         {"%import", "C# using / Rust use / Go import（只对 --lang csharp / rust / go 有效，可重复）"},
@@ -432,7 +432,7 @@ const std::vector<std::string>& GrammarDocument::modeNames() {
 }
 const std::vector<std::string>& GrammarDocument::languageNames() {
     static const std::vector<std::string> names = {
-        "c", "cpp17", "python", "csharp", "rust", "go", "java", "js", "gram"};
+        "c", "cpp17", "python", "csharp", "rust", "go", "java", "js", "chali", "gram"};
     return names;
 }
 const std::vector<std::pair<std::string, std::string>>& GrammarDocument::directiveTable() {

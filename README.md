@@ -104,3 +104,5 @@ ParseEngine 生成的**（它们既是用户，也是最好的用例）。各工
 命名空间的容器适配）、[`library/transfer`](library/transfer/README.md)（四元式 → 基本块 / CFG /
 目标机）、[`library/preprocess`](library/preprocess/README.md)、[`library/template`](library/template/README.md)、
 [`library/json`](library/json/README.md)、[`library/toml`](library/toml/README.md) 等——各有自己的 README。
+
+ChaLi 原生输出：`--lang chali --mode ielr`（支持 LL(1)、SLR(1)、LALR(1)、LR(1)、IELR(1)），见 [ChaLi 后端](doc/17-chali-backend.md)。

@@ -134,3 +134,5 @@ pools and container adapters for the `Memory` namespace), [`library/transfer`](l
 (quadruples → basic blocks / CFG / target machine), [`library/preprocess`](library/preprocess/README.md),
 [`library/template`](library/template/README.md), [`library/json`](library/json/README.md),
 [`library/toml`](library/toml/README.md) and others — each have their own README.
+
+Native ChaLi output: `--lang chali --mode ielr` supports LL(1), SLR(1), LALR(1), LR(1), and IELR(1). See the [ChaLi backend reference](doc/17-chali-backend.md).

@@ -95,6 +95,8 @@ async function generation(directory) {
   assert.equal((await manager.run(exe, { ...options, outputDir: path.join(out, '..', 'shared out') })).busy, true);
   manager.dispose(); assert.equal((await first).cancelled, true); assert.equal(manager.tasks.size, 0);
   assert.throws(() => resolveProfile({ mode: 'lalr', lang: 'js' }, options.grammarFile, root));
+  assert.equal(resolveProfile({ mode: 'ielr', lang: 'chali' }, options.grammarFile, root).lang, 'chali');
+  assert.throws(() => resolveProfile({ mode: 'glr', lang: 'chali' }, options.grammarFile, root));
   const grammar = path.join(directory, 'simple.gram');
   fs.writeFileSync(grammar, '%mode dd\n%tree\n%token A "a"\nstart := A;\n');
   options.grammarFile = grammar; options.mode = 'dd';

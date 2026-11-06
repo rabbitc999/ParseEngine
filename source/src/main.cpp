@@ -114,7 +114,7 @@ void printUsage(const std::string &program)
         << "  --lookahead K         LR(k) / LALR(k) 的 k（也可用 %lookahead 指定；\n"
         << "                        命令行优先）。K 取 1..3、默认 2，只对 --mode lrk /\n"
         << "                        lalrk 有意义；k = 1 时两者分别等于 lr1 / lalr\n"
-        << "  --lang {c,cpp17,python,csharp,rust,go,java,js,gram}  目标语言（默认 cpp17；\n"
+        << "  --lang {c,cpp17,python,csharp,rust,go,java,js,chali,gram}  目标语言（默认 cpp17；\n"
         << "                        也可用 %lang 指定）\n"
         << "                        python 产物是 parser.py + main.py（类名可用\n"
         << "                        %class / --class 改），不需要编译\n"
@@ -946,11 +946,11 @@ int main(int argc, char **argv)
         }
         if ((lang != "c") && (lang != "cpp17") && (lang != "python") &&
             (lang != "csharp") && (lang != "rust") && (lang != "go") &&
-            (lang != "java") && (lang != "js") && (lang != "gram"))
+            (lang != "java") && (lang != "js") && (lang != "chali") && (lang != "gram"))
         {
             std::cerr << PE_TEXT("错误：未知的目标语言 ") << lang
                       << PE_TEXT("（只支持 c / cpp17 / python / csharp / rust / go / "
-                         "java / js / gram）\n");
+                         "java / js / chali / gram）\n");
             return 2;
         }
         // C 与显式 vm 必须能编译共享正则；原生路径保留诊断提醒。

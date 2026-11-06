@@ -2,7 +2,7 @@
 
 > This is the English edition. The Chinese edition is the default and is the one maintained first — see [中文文档](../README.md)。
 
-This chapter records the supported scope of the current version in one place. The eight code-generation targets are C99, C++17, Python, C#, Rust, Go, Java, and JavaScript/TypeScript; `gram` is the grammar-and-analysis-report export profile, not a ninth programming language. The default target is `cpp17` and the default mode is `ielr`. The command line `--lang` / `--mode` overrides `%lang` / `%mode` in the grammar.
+This chapter records the supported scope of the current version in one place. The nine code-generation targets are C99, C++17, Python, C#, Rust, Go, Java, JavaScript/TypeScript, and ChaLi; `gram` is the grammar-and-analysis-report export profile, not a programming-language target. The default target is `cpp17` and the default mode is `ielr`. The command line `--lang` / `--mode` overrides `%lang` / `%mode` in the grammar.
 
 The algorithm, applicable scenarios and limitations of each mode are in [10 Generation Modes and Runtimes](13-modes.md), and artifacts and invocation are in [11 Target Languages, Output Artifacts, and API](14-languages-and-products.md).
 
@@ -10,25 +10,25 @@ The algorithm, applicable scenarios and limitations of each mode are in [10 Gene
 
 "Supported" means the backend accepts that mode; the grammar must still satisfy the corresponding conflict, left-recursion, semantic-action and directive constraints. "Export" in the `gram` column only means the grammar and the analysis report are generated, not a parser, lexer or incremental API.
 
-| Mode | Algorithm or purpose | C99 `c` | C++17 `cpp17` | Python `python` | C# `csharp` | Rust `rust` | Go `go` | Java `java` | JS/TS `js` | `gram` export |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ll0` | LL(0) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `ll1` | LL(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `llk` | LL(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `lr0` | Canonical LR(0) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `slr` | SLR(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `slrk` | SLR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `lalr` | LALR(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `lalrk` | LALR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `lr1` | Canonical LR(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `lrk` | Canonical LR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `ielr` | IELR(1), default mode | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `glr` | GSS multi-path parsing | Not supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| `earley` | Earley chart parsing | Not supported | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Export |
-| `cyk` | CNF conversion, CYK decision and result-tree reconstruction | Not supported | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Export |
-| `dd` | Backtracking recursive descent | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Export |
-| `lex` | Lexing only | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Export |
-| Total | 16 modes | 13 | 16 | 16 | 16 | 16 | 16 | 3 | 3 | 16 |
+| Mode | Algorithm or purpose | C99 `c` | C++17 `cpp17` | Python `python` | C# `csharp` | Rust `rust` | Go `go` | Java `java` | JS/TS `js` | ChaLi `chali` | `gram` export |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `ll0` | LL(0) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `ll1` | LL(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
+| `llk` | LL(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `lr0` | Canonical LR(0) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `slr` | SLR(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
+| `slrk` | SLR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `lalr` | LALR(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
+| `lalrk` | LALR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `lr1` | Canonical LR(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
+| `lrk` | Canonical LR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `ielr` | IELR(1), default mode | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
+| `glr` | GSS multi-path parsing | Not supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `earley` | Earley chart parsing | Not supported | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Export |
+| `cyk` | CNF conversion, CYK decision and result-tree reconstruction | Not supported | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Export |
+| `dd` | Backtracking recursive descent | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Export |
+| `lex` | Lexing only | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| Total | 16 modes | 13 | 16 | 16 | 16 | 16 | 16 | 3 | 3 | 5 | 16 |
 
 C99 does not provide GLR, Earley or CYK runtimes; Go, like the other four full backends, provides GLR, Earley and CYK. Go's Earley/CYK first decides the whole input with a chart algorithm, then rebuilds all result trees against the original grammar via GSS and executes semantic actions.
 Java and JS/TS are narrow DD/Earley/CYK backends: Java generates a self-contained `Parser.java`, and JS generates `parser.ts` with erasable TypeScript type annotations. Both profiles support `%tree` but do not execute semantic actions, and do not support `%value_type` / `%union`, `%sync`, `%commit`, `%copy` or user code sections; Earley keeps the first derivation tree, and once the CYK decision passes, the first tree is recovered using the original-grammar Earley table, without showing CNF synthetic nodes.
@@ -38,7 +38,7 @@ The `gram` export profile does not generate a runtime, so all 16 modes can be ex
 
 "Incremental" here means the generated parser handles modifications to the input text, not incremental builds by Make/CMake/Cargo. Currently only C++17 and Rust provide incremental parsing APIs; supporting ordinary code generation does not mean incremental parsing is supported.
 
-| Mode | C++17 | Rust | C99 / Python / C# / Go / Java / JS |
+| Mode | C++17 | Rust | C99 / Python / C# / Go / Java / JS / ChaLi |
 | --- | --- | --- | --- |
 | `ll0` / `ll1` / `llk` / `dd` | Conservative caching | Conservative caching | No incremental API |
 | `lr0` / `slr` / `slrk` / `lalr` / `lalrk` / `lr1` / `lrk` / `ielr` | token cache + prefix checkpoint | token cache + prefix checkpoint | No incremental API |
@@ -94,3 +94,5 @@ On 2026-09-28, Go's Earley/CYK artifacts were verified with `english-syntax`, `c
 On 2026-09-27, Java/JS DD and Earley artifacts were also verified with `dd_expr` and `chart_nullable`: Java 22 compiled and ran successfully, and Node.js 26 syntax-checked and directly ran `parser.ts` successfully, with output matching the existing `.expected`; the remaining modes are rejected at generation time. This is a generation-support check, not a compile test of all artifacts. Language limitations are in `Project::generateParserProject` of [`source/src/project.cpp`](../../source/src/project.cpp); mode classification is in [`source/src/analysis.cpp`](../../source/src/analysis.cpp).
 The incremental implementation lives in the C++17 and Rust runtime templates of [`source/templates/`](../../source/templates/).
 The dedicated regression entry point is in [06 Build, Templates and Small Tests](09-build-and-test.md).
+
+ChaLi supports only `ll1`, `slr`, `lalr`, `lr1`, and `ielr`. It emits a self-contained `parser.chl` with native semantic actions and a Token API. See the [ChaLi reference](../17-chali-backend.md) for directives, lexical rules, and limitations.

@@ -171,6 +171,7 @@
             "go",
             "java",
             "js",
+            "chali",
             "gram"
           ],
           "description": "「生成解析器」对话框里默认选中的目标语言。"
@@ -243,6 +244,7 @@
                   "go",
                   "java",
                   "js",
+                  "chali",
                   "gram"
                 ]
               },
