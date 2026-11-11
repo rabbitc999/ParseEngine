@@ -1,5 +1,6 @@
 """ChaLi 原生后端回归；--chali 指定可运行的 ChaLi 编译器。"""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
 import subprocess
@@ -34,7 +35,12 @@ def main():
                       "--out-dir", out], ok=ok)
         return out, output
 
+    cases = []
+
     def execute(text, name, mode, body):
+        cases.append((text, name, mode, body))
+
+    def run_case(text, name, mode, body):
         text += "\n%main\nvoid main() {\n" + body + '\nprintln("passed");\n}\n'
         out, _ = generate(text, name, mode)
         output = run([chali, "run", out / "parser.chl"])
@@ -44,6 +50,44 @@ def main():
         generate(text, name, mode)
         assert before == (out / "parser.chl").read_bytes()
         assert not (out / "parser.cpp").exists()
+
+    lexicalOnly = """%lang chali
+%mode lex
+%token A "@"
+%trivia keep "//[^\\n]*"
+%postlex
+token.text = "matched";
+%endpostlex
+"""
+    execute(lexicalOnly, "lex", "lex", """
+ParserLexResult result = Parser::tokenize("@ //note");
+assert(result.ok && result.tokens.len() == 2 && result.comments.len() == 1);
+assert(result.tokens[0].kind == Parser::tokenKind("A") && result.tokens[0].text == "matched");
+assert(result.tokens[1].kind == Parser::tokenKind("END") && result.tokens[1].offset == 8);
+assert(result.comments[0].text == "//note" && result.comments[0].offset == 2);
+assert(!Parser::tokenize("@?").ok);
+""")
+    simple = """%lang chali
+%token A "@"
+%token B "+"
+s := A B { $$ = 7; };
+"""
+    for mode in ("ll0", "lr0"):
+        execute(simple, mode, mode, """
+assert(Parser::runText("@+").value == 7);
+assert(!Parser::runText("@").ok);
+""")
+    backtracking = """%lang chali
+%token A "@"
+%token B "+"
+s := prefix B { $$ = $1; };
+prefix := A B { $$ = 2; } | A { $$ = 1; };
+"""
+    execute(backtracking, "dd", "dd", """
+assert(Parser::runText("@+").value == 1);
+assert(Parser::runText("@++").value == 2);
+assert(!Parser::runText("@").ok);
+""")
 
     for mode in ("ll1", "slr", "lalr", "lr1", "ielr"):
         example = "chali_ll1" if mode == "ll1" else "chali_lr1"
@@ -141,7 +185,8 @@ s := x A A { $$ = $1; } | y A B { $$ = $1; };
 x := C { $$ = 4; };
 y := C { $$ = 5; };
 """
-    execute(lrk, "lrk", "lrk", """
+    for mode in ("lrk", "slrk", "lalrk"):
+        execute(lrk, mode, mode, """
 assert(Parser::runText("@++").value == 4);
 assert(Parser::runText("@+-").value == 5);
 assert(!Parser::runText("@+").ok);
@@ -152,7 +197,8 @@ assert(!Parser::runText("@+").ok);
 %trivia keep "//[^\\n]*"
 e := e SUB e { $$ = $1 - $3; } | NUMBER { $$ = $1; };
 """
-    execute(glr, "glr", "glr", """
+    for mode in ("glr", "earley", "cyk"):
+        execute(glr, mode, mode, """
 ParserResult r = Parser::runText("8-3-2 // note");
 assert(r.ok && !r.truncated && r.alternatives.len() == 2);
 float64 a = r.alternatives[0].value;
@@ -169,7 +215,8 @@ s := a { $$ = $1; } | b { $$ = $1; };
 a := %empty { $$ = 1; };
 b := %empty { $$ = 2; };
 """
-    execute(nullable, "glr-nullable", "glr", """
+    for mode in ("glr", "earley", "cyk"):
+        execute(nullable, mode + "-nullable", mode, """
 ParserResult r = Parser::runText("");
 assert(r.ok && r.alternatives.len() == 2);
 """)
@@ -177,14 +224,15 @@ assert(r.ok && r.alternatives.len() == 2);
              "glr-cycle", "glr", ok=False)
 
     base = '%lang chali\n%start s\ns := NUMBER { $$ = $1; };\n'
-    for mode in ("lex", "ll0", "lr0", "slrk", "lalrk", "dd", "earley", "cyk"):
-        _, output = generate(base, "unsupported-" + mode, mode, ok=False)
-        assert "chali" in output, output
     for name, extra in (("sync", '%sync NUMBER\n'), ("commit", '%commit Keep "abc"\n'),
                         ("regex", '%token regex NUMBER "(?i)[a-z]+"\n')):
         generate(extra + base, "reject-" + name, "ielr", ok=False)
     generate(base.replace("$1", "$2"), "bad-action", "ielr", ok=False)
-    print("ChaLi：八种模式、k 元组、GLR 歧义、IELR 拆分、原生动作、词法、树、Token API 与拒绝路径全部通过")
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results = [pool.submit(run_case, *case) for case in cases]
+        for result in results:
+            result.result()
+    print("ChaLi：十六种模式、k 元组、GLR 歧义、IELR 拆分、原生动作、词法、树、Token API 与拒绝路径全部通过")
 
 
 if __name__ == "__main__":

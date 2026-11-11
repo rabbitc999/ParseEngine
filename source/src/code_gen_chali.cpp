@@ -1,5 +1,6 @@
 /** @file code_gen_chali.cpp @brief ChaLi LL / LR / GLR 代码生成。 */
 #include "ParseEngine/code_gen_chali.hpp"
+#include "ParseEngine/chart_grammar.hpp"
 #include "ParseEngine/utils.hpp"
 #include "template/engine.hpp"
 #include <algorithm>
@@ -126,19 +127,24 @@ bool hasZeroWidthCycle(const AnalysisResult &analysis) {
 }
 
 bool supportsChaLiMode(const std::string &mode) {
-    return mode == "ll1" || mode == "llk" || mode == "slr" || mode == "lalr" ||
-           mode == "lr1" || mode == "ielr" || mode == "lrk" || mode == "glr";
+    return mode == "ll0" || mode == "ll1" || mode == "llk" || mode == "lr0" ||
+           mode == "slr" || mode == "slrk" || mode == "lalr" || mode == "lalrk" ||
+           mode == "lr1" || mode == "ielr" || mode == "lrk" || mode == "glr" ||
+           mode == "dd" || mode == "earley" || mode == "cyk" || mode == "lex";
 }
 
 bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a,
                           std::map<std::string, std::string> &out, Error &error) {
     const auto &mode = request.mode;
     if (!supportsChaLiMode(mode))
-        return fail(error, "--lang chali 只支持 ll1 / llk / slr / lalr / lr1 / ielr / lrk / glr");
-    const bool llMode = mode == "ll1" || mode == "llk";
-    const bool glrMode = mode == "glr";
+        return fail(error, "--lang chali 的模式无效：" + mode);
+    const bool lexMode = mode == "lex";
+    const bool llMode = mode == "ll0" || mode == "ll1" || mode == "llk";
+    const bool ddMode = mode == "dd";
+    const bool chartMode = mode == "earley" || mode == "cyk";
+    const bool glrMode = mode == "glr" || chartMode;
     if (glrMode && hasZeroWidthCycle(a))
-        return fail(error, "ChaLi GLR 不支持不消耗 Token 的归约环");
+        return fail(error, "ChaLi 多路径结果重建不支持不消耗 Token 的归约环");
     if (request.unionBody || request.symbolValueMember ||
         (request.destructors && !request.destructors->empty()) || request.usesError ||
         (request.syncTokens && !request.syncTokens->empty()) ||
@@ -168,7 +174,8 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
     }
     const bool wide = a.lookaheadK > 1;
     const auto &columns = a.lookaheadColumns;
-    const int width = wide ? static_cast<int>(columns.size()) : terminals;
+    const int width = mode == "ll0" ? 1 :
+        (wide ? static_cast<int>(columns.size()) : terminals);
     std::vector<int> keys, reductionsByWindow(wide && !llMode ? states * width : 0, 0);
     std::vector<int> ll(llMode ? nonterms * width : 0, -1);
     std::vector<int> actions(!llMode && !glrMode ? states * terminals : 0, 0);
@@ -182,8 +189,9 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
     }
     for (const auto &entry : a.table) {
         const int row = indexOf(a.nonterms, entry.first.first);
-        const int col = wide ? a.lookaheadColumnIndex.at(entry.first.second)
-                             : indexOf(a.terminals, entry.first.second);
+        const int col = mode == "ll0" ? 0 :
+            (wide ? a.lookaheadColumnIndex.at(entry.first.second)
+                  : indexOf(a.terminals, entry.first.second));
         ll[row * width + col] = entry.second;
     }
     if (glrMode) {
@@ -271,13 +279,38 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
     std::string main;
     if (request.mainBlocks) for (const auto &block : *request.mainBlocks) main += block + "\n";
     const std::string valueType = request.valueType ? *request.valueType : "float64";
+    const std::string derivationRuntime = glrMode || ddMode ? tmpl::renderValues(
+        Utils::loadTemplate("chali_derivation.chl"), {{"value_type", valueType}}) : "";
+    const std::string ddRuntime = ddMode ? tmpl::renderValues(
+        Utils::loadTemplate("chali_dd.chl"),
+        {{"terminal_count", terminals}, {"end", indexOf(a.terminals, "END")},
+         {"start", indexOf(a.nonterms, a.grammar.start)},
+         {"max_depth", request.maxStackDepth.value_or(k_maxStackDepthDefault)}}) : "";
+    std::string chartRuntime;
+    if (chartMode) {
+        const ChartGrammar chart = buildChartGrammar(a);
+        std::vector<int> unary, binary;
+        for (const auto &rule : chart.terminalRules)
+            unary.insert(unary.end(), rule.begin(), rule.end());
+        for (const auto &rule : chart.binaryRules)
+            binary.insert(binary.end(), rule.begin(), rule.end());
+        chartRuntime = tmpl::renderValues(Utils::loadTemplate("chali_chart.chl"),
+            {{"earley", mode == "earley"}, {"start", chart.startNonterm},
+             {"terminal_count", terminals}, {"nonterm_count", chart.nontermCount},
+             {"accepts_empty", chart.acceptsEmpty},
+             {"unary", numbers(unary)}, {"binary", numbers(binary)}});
+    }
     const std::string glrRuntime = glrMode ? tmpl::renderValues(
         Utils::loadTemplate("chali_glr.chl"),
         {{"value_type", valueType}, {"terminal_count", terminals},
          {"nonterm_count", nonterms}, {"end", indexOf(a.terminals, "END")},
          {"max_depth", request.maxStackDepth.value_or(k_maxStackDepthDefault)}}) : "";
     out["parser.chl"] = tmpl::renderValues(Utils::loadTemplate("chali_parser.chl"), {
-        {"glr_runtime", glrRuntime},
+        {"glr_runtime", glrRuntime}, {"dd_runtime", ddRuntime},
+        {"derivation_runtime", derivationRuntime}, {"chart_runtime", chartRuntime},
+        {"lex", lexMode}, {"ll0", mode == "ll0"}, {"dd", ddMode},
+        {"derivations", glrMode || ddMode}, {"chart", chartMode},
+        {"earley", mode == "earley"},
         {"post_lex", lex.postLex},
         {"post_tokens", lex.postTokens},
         {"ll", llMode}, {"glr", glrMode}, {"tree", request.tree},
@@ -306,6 +339,9 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
     if (wide) out["RESULT.md"] += "\n展望符窗口：" + std::to_string(a.lookaheadK) + " 个 Token。\n";
     if (glrMode) out["RESULT.md"] +=
         "\nGLR 结果通过 alternatives 返回；truncated 表示有路径超过栈深度限制。\n";
+    if (lexMode) out["RESULT.md"] =
+        "# ChaLi 词法器\n\n`Parser::tokenize(String)` 返回 `ParserLexResult`，"
+        "包含 Token、保留注释及词法错误位置。成功时 Token 序列以 END 结尾。\n";
     if (request.fullReport) out["RESULT.md"] += "\n" + request.reportText;
     return true;
 }

@@ -38,7 +38,7 @@ command-line option see the [usage manual](doc/12-grammar-usage.md).
 | C99 | 13 modes |
 | C++17, Python, C#, Rust, Go | 16 modes each |
 | Java, JavaScript/TypeScript | DD, Earley, CYK |
-| ChaLi | LL(1), LL(k), SLR(1), LALR(1), LR(1), IELR(1), LR(k), GLR |
+| ChaLi | All 16 modes |
 | `--lang gram` | Export the original grammar and the analysis report; covers all 16 modes |
 
 The sixteen modes include LL, LR, GLR, Earley, CYK, recursive-descent DD and `lex`, which emits the

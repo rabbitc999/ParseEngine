@@ -257,7 +257,7 @@ To use it only as a parsing library: drop `main.go` and add `parser.go` / `token
 
 ChaLi is the ninth code-generation target. The emitted native ChaLi runtime uses the
 LL prediction table or LR ACTION/GOTO tables built by the generator, including
-split IELR states. Supported modes are `ll1`, `llk`, `slr`, `lalr`, `lr1`, `ielr`, `lrk`, and `glr`.
+split IELR states. All 16 modes are supported, including DD backtracking, Earley and CYK recognition, and lexer-only generation.
 
 | Item | ChaLi output |
 | --- | --- |

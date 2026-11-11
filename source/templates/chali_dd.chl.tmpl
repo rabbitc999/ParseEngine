@@ -1,0 +1,70 @@
+    /** @brief 按声明顺序回溯，直到整段输入匹配。 */
+    ParserResult runDd() {
+        ParserDerivation base;
+        self.derivations.push(base);
+        ParserDdTask root;
+        root.symbol = {{ terminal_count }} + {{ start }}; root.next = 0 - 1;
+        List<ParserDdTask> tasks = [root];
+        ParserDdBranch initial;
+        List<ParserDdBranch> pending = [initial];
+        int64 farthest = 0;
+        bool depthExceeded = false;
+        while (pending.len() > 0) {
+            ParserDdBranch branch = pending[pending.len() - 1]; pending.pop();
+            while (branch.task >= 0) {
+                if (branch.position > farthest) { farthest = branch.position; }
+                ParserDdTask task = tasks[branch.task];
+                branch.task = task.next;
+                if (task.symbol < 0) {
+                    ParserDerivation node;
+                    node.production = 0 - task.symbol - 1;
+                    node.parent = branch.head;
+                    int64 count = self.lengths[node.production];
+                    while (count > 0) {
+                        node.children.push(node.parent);
+                        node.parent = self.derivations[node.parent].parent;
+                        count = count - 1;
+                    }
+                    branch.head = self.derivations.len(); self.derivations.push(node);
+                } else if (task.symbol < {{ terminal_count }}) {
+                    if (self.tokens[branch.position].kind != task.symbol) { break; }
+                    ParserDerivation node;
+                    node.production = 0 - 1;
+                    node.token = branch.position; node.parent = branch.head;
+                    branch.head = self.derivations.len(); self.derivations.push(node);
+                    if (task.symbol != {{ end }}) { branch.position = branch.position + 1; }
+                } else {
+                    if (task.depth >= {{ max_depth }}) { depthExceeded = true; break; }
+                    int64 production = self.lhs.len();
+                    while (production > 0) {
+                        production = production - 1;
+                        if (self.lhs[production] != task.symbol - {{ terminal_count }}) { continue; }
+                        ParserDdTask reduce;
+                        reduce.symbol = 0 - production - 1; reduce.next = task.next;
+                        int64 next = tasks.len(); tasks.push(reduce);
+                        int64 index = self.lengths[production];
+                        while (index > 0) {
+                            index = index - 1;
+                            ParserDdTask child;
+                            child.symbol = self.rhs[self.starts[production] + index];
+                            child.depth = task.depth + 1; child.next = next;
+                            next = tasks.len(); tasks.push(child);
+                        }
+                        ParserDdBranch alternative = branch;
+                        alternative.task = next; pending.push(alternative);
+                    }
+                    break;
+                }
+                if (branch.task < 0 && self.tokens[branch.position].kind == {{ end }}) {
+                    ParserAlternative item = self.evaluateDerivation(branch.head);
+                    ParserResult result; result.ok = true;
+                    result.value = item.value; result.tree = item.tree;
+                    return result;
+                }
+            }
+        }
+        self.position = farthest;
+        self.message = "意外 Token: " + self.names[self.tokens[farthest].kind];
+        if (depthExceeded) { self.message = "递归下降解析栈深度超限"; }
+        return self.failure();
+    }

@@ -1,43 +1,7 @@
-    /** @brief 物化已接受的派生，按从左到右的后序执行语义动作。 */
-    ParserAlternative glrEvaluate(int64 head) {
-        List<int64> visits = [head];
-        List<{{ value_type }}> values;
-        List<String> trees;
-        while (visits.len() > 0) {
-            int64 index = visits[visits.len() - 1]; visits.pop();
-            if (index >= 0) {
-                if (self.glrNodes[index].production < 0) {
-                    int64 token = self.glrNodes[index].token;
-                    values.push(self.tokens[token].value);
-                    trees.push(self.tokens[token].text);
-                } else {
-                    visits.push(0 - index - 1);
-                    for (int64 child in self.glrNodes[index].children) { visits.push(child); }
-                }
-            } else {
-                int64 production = self.glrNodes[0 - index - 1].production;
-                int64 count = self.lengths[production];
-                int64 start = values.len() - count;
-                List<{{ value_type }}> children;
-                String tree = "(" + self.nontermNames[self.lhs[production]];
-                int64 i = start;
-                while (i < values.len()) {
-                    children.push(values[i]); tree = tree + " " + trees[i];
-                    i = i + 1;
-                }
-                while (values.len() > start) { values.pop(); trees.pop(); }
-                values.push(parserReduce(production, children)); trees.push(tree + ")");
-            }
-        }
-        ParserAlternative result;
-        result.value = values[0]; result.tree = trees[0];
-        return result;
-    }
-
     /** @brief 遍历 LR 冲突的候选路径，使用共享栈前缀。 */
     ParserResult runGlr() {
-        ParserGlrNode base;
-        self.glrNodes.push(base);
+        ParserDerivation base;
+        self.derivations.push(base);
         ParserGlrBranch initial;
         List<ParserGlrBranch> pending = [initial];
         ParserResult result;
@@ -46,20 +10,20 @@
             ParserGlrBranch branch = pending[pending.len() - 1]; pending.pop();
             if (branch.position > farthest) { farthest = branch.position; }
             int64 token = self.tokens[branch.position].kind;
-            int64 cell = self.glrNodes[branch.head].state * {{ terminal_count }} + token;
+            int64 cell = self.derivations[branch.head].state * {{ terminal_count }} + token;
             int64 first = self.actionOffsets[cell];
             int64 slot = self.actionOffsets[cell + 1];
             while (slot > first) {
                 slot = slot - 1;
                 int64 command = self.actionCommands[slot];
                 if (command == 2147483647) {
-                    ParserAlternative item = self.glrEvaluate(branch.head);
+                    ParserAlternative item = self.evaluateDerivation(branch.head);
                     result.alternatives.push(item);
                     if (!result.ok) {
                         result.ok = true; result.value = item.value; result.tree = item.tree;
                     }
                 } else {
-                    ParserGlrNode node;
+                    ParserDerivation node;
                     ParserGlrBranch next;
                     next.position = branch.position;
                     node.parent = branch.head;
@@ -73,18 +37,18 @@
                         int64 count = self.lengths[node.production];
                         while (count > 0) {
                             node.children.push(node.parent);
-                            node.parent = self.glrNodes[node.parent].parent;
+                            node.parent = self.derivations[node.parent].parent;
                             count = count - 1;
                         }
-                        node.state = self.gotos[self.glrNodes[node.parent].state * {{ nonterm_count }} +
+                        node.state = self.gotos[self.derivations[node.parent].state * {{ nonterm_count }} +
                             self.lhs[node.production]];
                         if (node.state < 0) { continue; }
                     }
-                    node.depth = self.glrNodes[node.parent].depth + 1;
+                    node.depth = self.derivations[node.parent].depth + 1;
                     if (node.depth >= {{ max_depth }}) {
                         result.truncated = true; continue;
                     }
-                    next.head = self.glrNodes.len(); self.glrNodes.push(node); pending.push(next);
+                    next.head = self.derivations.len(); self.derivations.push(node); pending.push(next);
                 }
             }
         }

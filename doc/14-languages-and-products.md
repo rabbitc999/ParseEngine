@@ -372,7 +372,7 @@ cd /tmp/go && go build && printf '1+2*3' | go run .
 
 ChaLi 是第九种代码生成目标。它直接生成原生 ChaLi 源码，运行时使用生成器构造的
 LL 预测表或 LR ACTION/GOTO 表；IELR 使用拆分后的状态表。
-支持 `ll1`、`llk`、`slr`、`lalr`、`lr1`、`ielr`、`lrk` 和 `glr`。
+支持全部 16 种模式，包括 DD 回溯、Earley / CYK 图表判定及纯词法模式。
 
 | 项目 | ChaLi 产物 |
 | --- | --- |

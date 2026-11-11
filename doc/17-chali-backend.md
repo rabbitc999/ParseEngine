@@ -1,13 +1,21 @@
 # ChaLi 目标语言
 
 `--lang chali` 或文法中的 `%lang chali` 生成原生 ChaLi 源码 `parser.chl` 与
-`RESULT.md`。支持 LL(1)、LL(k)、SLR(1)、LALR(1)、规范 LR(1)、IELR(1)、规范 LR(k) 和 GLR。
-模式名分别为 `ll1`、`llk`、`slr`、`lalr`、`lr1`、`ielr`、`lrk`、`glr`。默认使用 IELR。
+`RESULT.md`。支持全部 16 种生成模式，默认使用 IELR。
 
-- LL(k) 和 LR(k) 使用 `%lookahead K` 或 `--lookahead K` 配置窗口，支持 1 到 3。也可写 `--mode "LL(2)"` 或 `--mode "LR(2)"`。输入末尾用 END 补齐。
+| 类别 | 模式 |
+| --- | --- |
+| 预测分析 | `ll0`、`ll1`、`llk` |
+| LR | `lr0`、`slr`、`slrk`、`lalr`、`lalrk`、`lr1`、`ielr`、`lrk` |
+| 多路径与图表 | `glr`、`earley`、`cyk` |
+| 回溯 | `dd` |
+| 纯词法 | `lex` |
+
+- LL(k)、LR(k)、SLR(k) 和 LALR(k) 使用 `%lookahead K` 或 `--lookahead K` 配置窗口，默认是 2；上限取决于该文法的终结符数量和 64 位展望符编码。也可写 `--mode "LL(2)"` 或 `--mode "LR(2)"`。输入末尾用 END 补齐。
 - GLR 遍历分析表保留的冲突动作，路径共享栈前缀。只对成功派生执行语义动作，每个保留结果各执行一次。
 - GLR 的 `ParserResult.alternatives` 包含成功派生，每项有 `value` 和 `tree`。`ParserResult.value` 和 `tree` 对应首项。有路径超出 `%max_stack_depth` 时，`truncated` 为真。
-- ChaLi 的 GLR 后端在生成时拒绝不消费 Token 的归约环。
+- Earley 在原产生式上做预测、扫描和完成，CYK 用 CNF 规则判定区间；两者通过后都复用 GLR 重建原文法派生。三种多路径模式均拒绝不消费 Token 的归约环。
+- DD 按产生式声明顺序回溯，选择首个完整匹配，只执行该派生的语义动作。DD 在生成时拒绝左递归。
 
 ```sh
 ParseEngine example/chali_lr1.gram --lang chali --mode ielr --out-dir out/chali
@@ -22,9 +30,10 @@ LL(1) 示例见 [`chali_ll1.gram`](../example/chali_ll1.gram)，LR(1) 系列示�
 
 ## API 与语义值
 
+- `Parser::tokenize(String)` 返回 `ParserLexResult`，其中 `tokens` 在成功时以 END 结尾，`comments` 保存保留的注释，失败时可读 `message` 和字节 `offset`。纯词法产物提供这个入口。
 - `Parser::runText(String)` 完成词法分析并解析完整输入。
 - `Parser::runTokens(List<ParserToken>)` 接受显式 Token 序列，必须恰有一个位于末尾的 END。
-- `Parser::tokenKind(String)` 查询终结符编号，未知名称返回 -1。
+- `Parser::tokenKind(String)` 查询终结符编号，未知名称返回 -1。 `Parser::tokenName(int64)` 查询名称，编号无效时返回空串。
 - `ParserToken` 包含 `kind`、`text`、`offset`、`value`。
 - `ParserResult` 包含 `ok`、`value`、`tree`、`message`、`offset`。
   失败偏移以 UTF-8 字节计；解析在首个错误处停止。
@@ -66,6 +75,6 @@ make -C source -j4
 python tests/chali_backend.py --chali /path/to/chali
 ```
 
-测试编译并执行八种模式的产物，覆盖 k 元组决策、GLR 多条歧义派生、语义动作、优先级、嵌套、空产生式、
+测试编译并执行十六种模式的产物，覆盖 k 元组决策、GLR 多条歧义派生、语义动作、优先级、嵌套、空产生式、
 IELR 拆分、最长匹配、声明优先级、trivia、语法树、Token API、自定义类型与用户代码，
 并检查错误输入、越界值引用与不支持模式的拒绝行为。

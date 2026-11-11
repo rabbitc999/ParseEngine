@@ -32,7 +32,7 @@ Windows 上可执行文件为 `build/bin/ParseEngine.exe`。默认目标语言�
 | C99 | 13 种模式 |
 | C++17、Python、C#、Rust、Go | 各 16 种模式 |
 | Java、JavaScript/TypeScript | DD、Earley、CYK |
-| ChaLi | LL(1)、LL(k)、SLR(1)、LALR(1)、LR(1)、IELR(1)、LR(k)、GLR |
+| ChaLi | 全部 16 种模式 |
 | `--lang gram` | 导出原文法与分析报告，覆盖全部 16 种模式 |
 
 十六种模式包括 LL、LR、GLR、Earley、CYK、递归下降 DD 和仅生成词法器的 `lex`。各模式的准确支持

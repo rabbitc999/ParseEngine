@@ -1,0 +1,36 @@
+    /** @brief 物化已接受的派生，按从左到右的后序执行语义动作。 */
+    ParserAlternative evaluateDerivation(int64 head) {
+        List<int64> visits = [head];
+        List<{{ value_type }}> values;
+        List<String> trees;
+        while (visits.len() > 0) {
+            int64 index = visits[visits.len() - 1]; visits.pop();
+            if (index >= 0) {
+                if (self.derivations[index].production < 0) {
+                    int64 token = self.derivations[index].token;
+                    values.push(self.tokens[token].value);
+                    trees.push(self.tokens[token].text);
+                } else {
+                    visits.push(0 - index - 1);
+                    for (int64 child in self.derivations[index].children) { visits.push(child); }
+                }
+            } else {
+                int64 production = self.derivations[0 - index - 1].production;
+                int64 count = self.lengths[production];
+                int64 start = values.len() - count;
+                List<{{ value_type }}> children;
+                String tree = "(" + self.nontermNames[self.lhs[production]];
+                int64 i = start;
+                while (i < values.len()) {
+                    children.push(values[i]); tree = tree + " " + trees[i];
+                    i = i + 1;
+                }
+                while (values.len() > start) { values.pop(); trees.pop(); }
+                values.push(parserReduce(production, children)); trees.push(tree + ")");
+            }
+        }
+        ParserAlternative result;
+        result.value = values[0]; result.tree = trees[0];
+        return result;
+    }
+

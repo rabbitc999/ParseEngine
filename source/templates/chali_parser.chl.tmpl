@@ -11,22 +11,43 @@ struct ParserToken {
 struct ParserComment {
     String text; int64 offset;
 };
-{% if glr %}/** @brief 一条成功的 GLR 派生。 */
+/** @brief 词法结果；成功时 Token 序列包含 END。 */
+struct ParserLexResult {
+    bool ok;
+    List<ParserToken> tokens;
+    List<ParserComment> comments;
+    String message;
+    int64 offset;
+};
+{% if lex %}{% else %}{% if derivations %}/** @brief 一条成功的派生。 */
 struct ParserAlternative {
     {{ value_type }} value;
     String tree;
 };
 
-/** @brief GLR 共享栈节点；归约节点保存延迟执行的子树。 */
-struct ParserGlrNode {
+/** @brief 共享解析栈节点；归约节点保存延迟执行的子树。 */
+struct ParserDerivation {
     int64 parent; int64 state; int64 depth;
     int64 production; int64 token;
     List<int64> children;
 };
 
-/** @brief 等待执行的一条 GLR 路径。 */
+{% endif %}{% if glr %}/** @brief 等待执行的一条 GLR 路径。 */
 struct ParserGlrBranch {
     int64 head; int64 position;
+};
+{% endif %}{% if dd %}/** @brief 待匹配的符号或归约任务。 */
+struct ParserDdTask {
+    int64 symbol; int64 next; int64 depth;
+};
+
+/** @brief 一条等待回溯的递归下降路径。 */
+struct ParserDdBranch {
+    int64 task; int64 head; int64 position;
+};
+{% endif %}{% if earley %}/** @brief Earley 图表项及所在输入位置。 */
+struct ParserEarleyItem {
+    int64 production; int64 dot; int64 origin; int64 position;
 };
 {% endif %}/** @brief 解析结果；失败时 message 与 offset 指示首个错误。 */
 struct ParserResult {
@@ -45,10 +66,10 @@ struct ParserResult {
 {{ reductions }}
     return result;
 }
-
+{% endif %}
 /** @brief 单次解析的独立状态，Parser 静态入口负责初始化。 */
 struct Parser {
-    List<ParserToken> tokens;
+{% if lex %}{% else %}    List<ParserToken> tokens;
     int64 position;
     String message;
     List<int64> lhs;
@@ -79,8 +100,10 @@ struct Parser {
 {% endif %}{% if ll %}
     List<int64> table;
 {% else %}
-{% if glr %}    List<ParserGlrNode> glrNodes;
-    List<int64> actionOffsets;
+{% if derivations %}    List<ParserDerivation> derivations;
+{% endif %}{% if glr %}
+{% if earley %}    List<ParserEarleyItem> chartItems;
+{% endif %}    List<int64> actionOffsets;
     List<int64> actionCommands;
 {% else %}    List<int64> actions;
 {% if wide %}    List<int64> windowActions;
@@ -100,7 +123,9 @@ struct Parser {
         if (depth >= {{ max_depth }}) { self.message = "解析栈深度超限"; return self.failure(); }
 {% if wide %}        int64 col = self.windowColumn();
         if (col < 0) { self.message = "无可用产生式"; return self.failure(); }
+{% else %}{% if ll0 %}        int64 col = 0;
 {% else %}        int64 col = self.tokens[self.position].kind;
+{% endif %}
 {% endif %}        int64 production = self.table[nonterm * {{ width }} + col];
         if (production < 0) { self.message = "无可用产生式"; return self.failure(); }
         List<{{ value_type }}> values;
@@ -126,6 +151,9 @@ struct Parser {
         result.tree = tree + ")"; return result;
     }
 {% endif %}
+{{ derivation_runtime }}
+{{ dd_runtime }}
+{{ chart_runtime }}
 {{ glr_runtime }}
     /** @brief 解析显式 Token 序列。
      * @param input 以 END 结尾的序列，Token 值由调用方填写。@return 解析结果。
@@ -166,7 +194,12 @@ struct Parser {
         }
         return result;
 {% else %}
-{% if glr %}        return parser.runGlr();
+{% if glr %}{% if chart %}        if (!parser.chartAccept()) {
+            invalid.message = "没有可接受的解析路径";
+            invalid.offset = input[input.len() - 1].offset; return invalid;
+        }
+{% endif %}        return parser.runGlr();
+{% else %}{% if dd %}        return parser.runDd();
 {% else %}        List<int64> states = [0];
         List<{{ value_type }}> values;
         List<String> trees;
@@ -207,9 +240,9 @@ struct Parser {
             }
         }
         return invalid;
-{% endif %}{% endif %}
+{% endif %}{% endif %}{% endif %}
     }
-{% if post_lex %}    static ParserToken postLex(ParserToken token) {
+{% endif %}{% if post_lex %}    static ParserToken postLex(ParserToken token) {
 {{ post_lex }}
         return token;
     }
@@ -217,17 +250,17 @@ struct Parser {
 {{ post_tokens }}
         return tokens;
     }
-{% endif %}    /** @brief 最长匹配词法分析后运行解析器。
-     * @param text 完整输入文本。@return 成功值或首个词法/语法错误。
+{% endif %}    /** @brief 最长匹配词法分析。
+     * @param text 完整输入文本。@return Token、保留注释和词法诊断。
      */
-    static ParserResult runText(String text) {
+    static ParserLexResult tokenize(String text) {
         List<String> patterns = [{{ patterns }}];
         List<int64> types = [{{ types }}];
         List<int64> orders = [{{ orders }}];
         List<Regex> rules;
         for (String pattern in patterns) {
             let compiled = Regex::compile(pattern);
-            if (compiled.isErr()) { ParserResult result; result.message = "正则表达式编译失败"; return result; }
+            if (compiled.isErr()) { ParserLexResult result; result.message = "正则表达式编译失败"; return result; }
             rules.push(compiled.unwrap());
         }
         List<ParserToken> tokens;
@@ -247,7 +280,7 @@ struct Parser {
             }
             if (best < 0) {
                 if (spaces.contains(text.substring(position, 1))) { position = position + 1; }
-                else { ParserResult result; result.message = "无法识别的输入"; result.offset = position; result.comments = comments; return result; }
+                else { ParserLexResult result; result.message = "无法识别的输入"; result.offset = position; result.comments = comments; result.tokens = tokens; return result; }
             } else {
                 if (types[best] == -3) {
                     ParserComment comment; comment.text = text.substring(position, size);
@@ -267,20 +300,42 @@ struct Parser {
                 position = position + size;
             }
         }
-{% if post_tokens %}        tokens = Parser::postTokens(tokens);
+        ParserToken end; end.kind = {{ end }}; end.offset = text.length(); tokens.push(end);
+        ParserLexResult result; result.ok = true; result.tokens = tokens; result.comments = comments;
+        return result;
+    }
+{% if lex %}{% else %}    /** @brief 分词并解析完整文本。 */
+    static ParserResult runText(String text) {
+        ParserLexResult lexical = Parser::tokenize(text);
+        if (!lexical.ok) {
+            ParserResult invalid; invalid.message = lexical.message;
+            invalid.offset = lexical.offset; invalid.comments = lexical.comments; return invalid;
+        }
+        List<ParserToken> tokens = lexical.tokens;
+{% if post_tokens %}        ParserToken end = tokens[tokens.len() - 1]; tokens.pop();
+        tokens = Parser::postTokens(tokens);
         int64 tokenIndex = 0;
         while (tokenIndex < tokens.len()) {
             if (tokens[tokenIndex].kind < 0 || tokens[tokenIndex].kind >= {{ end }}) {
                 ParserResult invalid; invalid.message = "%posttokens 产生了无效的 Token 类型";
-                invalid.offset = tokens[tokenIndex].offset; invalid.comments = comments;
+                invalid.offset = tokens[tokenIndex].offset; invalid.comments = lexical.comments;
                 return invalid;
             }
             tokenIndex = tokenIndex + 1;
         }
-{% endif %}        ParserToken end; end.kind = {{ end }}; end.offset = text.length(); tokens.push(end);
-        ParserResult result = Parser::runTokens(tokens);
-        result.comments = comments;
+        tokens.push(end);
+{% endif %}        ParserResult result = Parser::runTokens(tokens);
+        result.comments = lexical.comments;
         return result;
+    }
+{% endif %}
+    /** @brief 查询 Token 名称。
+     * @param kind 词法单元编号。@return 名称；编号无效时返回空串。
+     */
+    static String tokenName(int64 kind) {
+        List<String> names = [{{ names }}];
+        if (kind < 0 || kind >= names.len()) { return ""; }
+        return names[kind];
     }
     /** @brief 查询 Token 编号，供 runTokens 调用方使用。
      * @param name 文法终结符名称。@return 编号；未知名称返回 -1。
@@ -297,12 +352,17 @@ struct Parser {
 {% else %}
 /** @brief 从标准输入读取一行并打印解析结果。 */
 void main() {
-    ParserResult result = Parser::runText(readLine());
+{% if lex %}    ParserLexResult result = Parser::tokenize(readLine());
+    if (!result.ok) { println("error at {}: {}", result.offset, result.message); panic(result.message); }
+    for (ParserToken token in result.tokens) {
+        println("{} at {}: {}", Parser::tokenName(token.kind), token.offset, token.text);
+    }
+{% else %}    ParserResult result = Parser::runText(readLine());
     if (!result.ok) { println("error at {}: {}", result.offset, result.message); panic(result.message); }
 {% if tree %}
     println("{}", result.tree);
 {% else %}
     println("{}", result.value);
-{% endif %}
+{% endif %}{% endif %}
 }
 {% endif %}

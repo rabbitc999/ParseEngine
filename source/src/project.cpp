@@ -4061,12 +4061,10 @@ static bool generateParserProjectImpl(
                                "（只支持 lex、ll1、lr0、slr、lalr、lr1、"
                                "ielr、glr、earley、cyk、dd、lrk、lalrk、slrk 或 llk）");
     }
-    if (request.lang == "chali" && !supportsChaLiMode(mode))
-        return fail(error, "--lang chali 只支持 ll1 / llk / slr / lalr / lr1 / ielr / lrk / glr");
     // GLR 家族只在带相应运行时的后端生成；C99 暂不支持。
     const bool narrowChart = ((mode == "earley") || (mode == "cyk")) &&
         ((request.lang == "java") || (request.lang == "js"));
-    if (isGlrMode(mode) && !narrowChart && !(request.lang == "chali" && mode == "glr") &&
+    if (isGlrMode(mode) && !narrowChart && (request.lang != "chali") &&
         (request.lang != "gram") &&
         (request.lang != "cpp17") && (request.lang != "python") &&
         (request.lang != "rust") && (request.lang != "csharp") &&
@@ -4074,7 +4072,7 @@ static bool generateParserProjectImpl(
     {
         return fail(error, modeLabelText(mode) +
                            " 只支持 --lang cpp17 / python / rust / csharp" +
-                           " / go" +
+                           " / go / chali" +
                            "，当前目标语言是 " + request.lang);
     }
     if (isGlrMode(mode) && (request.lang != "gram") && request.usesError)
@@ -4132,6 +4130,17 @@ static bool generateParserProjectImpl(
     // 词法模式：产物里只有词法器与「看成什么 Token」的 CLI，没有解析器。
     if (isLexMode(mode))
     {
+        if (request.lang == "chali")
+        {
+            if (request.tokens == nullptr) return fail(error, "ChaLi 词法生成缺少终结符");
+            AnalysisResult lexical;
+            lexical.mode = "lex";
+            lexical.terminals = *request.tokens;
+            if (std::find(lexical.terminals.begin(), lexical.terminals.end(), "END") ==
+                lexical.terminals.end())
+                lexical.terminals.push_back("END");
+            return generateChaLiProject(request, lexical, out, error);
+        }
         if (request.lang == "python")
         {
             return generateLexPythonProject(request, copies, out, error);
