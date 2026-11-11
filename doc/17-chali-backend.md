@@ -68,6 +68,25 @@ LL 模式要求文法直接满足所选预测条件，暂不执行自动左递�
 没有增量解析 API，也不生成 Make/CMake 工程文件。
 所有运行时模板随生成器内嵌，生成与运行均无需读取模板目录。
 
+## C89 子集验证
+
+使用仓库的 [`c89_subset.gram`](../example/c89_subset.gram) 生成 ChaLi 解析器。以下是 LALR 模式的命令，IELR 使用 `--mode ielr` 与另一个输出目录。
+
+```sh
+ParseEngine example/c89_subset.gram --lang chali --mode lalr --out-dir out/c89-chali
+chali run out/c89-chali/parser.chl --check
+```
+
+以 ParseEngine 1.4.1 和 ChaLi Windows x64 静态编译器复测，ChaLi 源码提交为 [`88e49f04`](https://github.com/rabbitc999/ChaLi/commit/88e49f04)。两种模式的原样产物均通过 `--check`，每份约 69 秒，未再出现旧版的 512 MiB 编译器内存错误。
+
+| 验证项 | 结果 |
+| --- | --- |
+| 临时紧凑表版本的原生运行 | LALR 与 IELR 都通过。临时版本只改变 ACTION/GOTO 表的源码表示，表项和文法一致 |
+| 原样 LALR 产物的默认原生构建 | 在 300 秒测试窗口内未完成 |
+| 原样 LALR 产物的 `--debug` 构建 | 超长分析表行使 LLVM 调试列号达到 `99330`，超过 `65535` 的限制 |
+
+原生运行验证接受了普通函数、跨行循环、结构体成员访问、枚举和数组初始化、悬垂 `else` 以及函数指针。缺分号、多余右括号和非法字符均被拒绝。当前示例文法拒绝块注释及把 `typedef` 别名用作类型的输入，也接受 `for (int i = …)` 形式，因此这些结果适用于该示例的覆盖范围。
+
 ## 回归验证
 
 ```sh

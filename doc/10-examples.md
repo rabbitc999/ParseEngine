@@ -43,7 +43,7 @@ Earley / CYK 也覆盖 Go；其余语言限制与固定输入以 manifest 为准
 | `ielr_demo.gram` | IELR | `%value_type int` | 经典非 LALR 文法（def/param_spec/return_spec），演示 IELR 状态拆分 |
 | `ielr_split.gram` | IELR | `%value_type int` | 非 LALR 文法，需要两个独立拆分 |
 | `lrk_demo.gram` | （不写 `%mode`） | `%tree` | LR(k) / LALR(k) 对照：对任何 k 都不是 LALR(k) 的经典例子 |
-| `c89_subset.gram` | LALR | 兜底 `int` | C89 子集，`%tree`，规模最大的示例 |
+| `c89_subset.gram` | LALR | 兜底 `int` | C89 子集，`%tree`，规模最大的示例；见 [ChaLi 复测结果](17-chali-backend.md#c89-子集验证) |
 
 ## 4. 词法与文本容器
 
