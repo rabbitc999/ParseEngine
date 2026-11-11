@@ -925,6 +925,7 @@ std::string generatorLexerSkipLoopC(const std::string *spaceChars,
  * @param tokenDefs 固定字面量 Token。
  * @param regexDefs 正则 Token。
  * @param spaceChars %space 声明的跳过字符集；nullptr 表示没写。
+ * @param postLex 词法后处理代码。
  * @param textOnly 词法模式（只喂文本，没有 Token 数组字段）。
  * @param symbolMember 符号 -> %union 成员表；没写 %union 时传 nullptr。
  * @return C 代码段。
@@ -933,7 +934,7 @@ std::string generatorLexerC(
     bool hasRegex, bool hasIdentifier, bool hasCommits,
     const std::map<std::string, std::vector<std::string>> &tokenDefs,
     const std::map<std::string, std::string> &regexDefs,
-    const std::string *spaceChars, bool textOnly,
+    const std::string *spaceChars, const std::string &postLex, bool textOnly,
     const std::map<std::string, std::string> *symbolMember)
 {
     const auto overridden = [&tokenDefs, &regexDefs](const std::string &name)
@@ -968,6 +969,7 @@ std::string generatorLexerC(
     return tmpl::renderValues(
         Utils::loadTemplate("c99_lexer.c"),
         {{"array_mode", !textOnly},
+         {"post_lex", postLex},
          {"lex_skip_helpers",
           generatorLexerSkipHelpersC(spaceChars, hasBlankRule)},
          {"lex_skip_loop", generatorLexerSkipLoopC(spaceChars, hasBlankRule)},
@@ -2085,7 +2087,7 @@ std::string CodeGenC99::lexerOnlyC(
     const std::string lexer =
         generatorLexerC(!lexSpec.regex.empty(), lexSpec.identifier.has_value(),
                         !lexSpec.commits.empty(), tokenDefs, lexSpec.regex,
-                        spaceChars,
+                        spaceChars, lexSpec.postLex,
                         /*textOnly=*/true, symbolMember);
     return tmpl::renderValues(
         Utils::loadTemplate("c99_lexer_c_custom.c"),
@@ -2195,7 +2197,7 @@ bool CodeGenC99::customParserC(
     const std::string lexer =
         generatorLexerC(!lexSpec.regex.empty(), lexSpec.identifier.has_value(),
                         !lexSpec.commits.empty(), tokenDefs, lexSpec.regex,
-                        spaceChars, false, symbolMember);
+                        spaceChars, lexSpec.postLex, false, symbolMember);
     // %destructor：统一符号号 -> %union 成员 -> 清理片段的分派函数（LR / LL
     // 共用）。没写 %destructor、或没有符号绑到那些成员时是空串。
     const std::string discardDispatch =

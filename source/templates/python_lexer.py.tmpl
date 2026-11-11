@@ -11,9 +11,15 @@
         while True:
             status, token = self._lex_next_raw()
             if status != _LEX_COMMIT_CONSUMED:
-                return status, token
+{% if post_lex %}                if status == STATUS_OK and token.type != TOKEN_END:
+                    self._post_lex(token)
+{% endif %}                return status, token
 
-    def _lex_next_raw(self):
+{% if post_lex %}    @staticmethod
+    def _post_lex(token):
+        pass
+{{ post_lex }}
+{% endif %}    def _lex_next_raw(self):
         """取下一个词法单元（单趟；``%commit`` 命中时返回哨兵状态）。
 
         顺序与 C 目标一致：双引号字符串（内建，或用户自己声明了 STRING 的

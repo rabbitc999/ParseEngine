@@ -7,9 +7,14 @@ import std::parse;
 struct ParserToken {
     int64 kind; String text; int64 offset; {{ value_type }} value;
 };
+/** @brief 保留的注释原文与 UTF-8 起始字节偏移（0 起）。 */
+struct ParserComment {
+    String text; int64 offset;
+};
 /** @brief 解析结果；失败时 message 与 offset 指示首个错误。 */
 struct ParserResult {
     bool ok; {{ value_type }} value; String tree; String message; int64 offset;
+    List<ParserComment> comments;
 };
 /** @brief 执行一条产生式的语义动作。
  * @param production 产生式编号。@param values 从 $1 起的右部值。
@@ -146,7 +151,11 @@ struct Parser {
         return invalid;
 {% endif %}
     }
-    /** @brief 最长匹配词法分析后运行解析器。
+{% if post_lex %}    static ParserToken postLex(ParserToken token) {
+{{ post_lex }}
+        return token;
+    }
+{% endif %}    /** @brief 最长匹配词法分析后运行解析器。
      * @param text 完整输入文本。@return 成功值或首个词法/语法错误。
      */
     static ParserResult runText(String text) {
@@ -160,6 +169,7 @@ struct Parser {
             rules.push(compiled.unwrap());
         }
         List<ParserToken> tokens;
+        List<ParserComment> comments;
         String spaces = {{ space }};
         int64 position = 0;
         while (position < text.length()) {
@@ -175,9 +185,13 @@ struct Parser {
             }
             if (best < 0) {
                 if (spaces.contains(text.substring(position, 1))) { position = position + 1; }
-                else { ParserResult result; result.message = "无法识别的输入"; result.offset = position; return result; }
+                else { ParserResult result; result.message = "无法识别的输入"; result.offset = position; result.comments = comments; return result; }
             } else {
-                if (types[best] >= 0) {
+                if (types[best] == -3) {
+                    ParserComment comment; comment.text = text.substring(position, size);
+                    comment.offset = position;
+                    comments.push(comment);
+                } else if (types[best] >= 0) {
                     ParserToken token; token.kind = types[best]; token.offset = position;
                     token.text = text.substring(position, size);
 {% if numeric %}
@@ -186,13 +200,15 @@ struct Parser {
                         if (parsed.isOk()) { token.value = parsed.unwrap(); }
                     }
 {% endif %}
-                    tokens.push(token);
+                    tokens.push({% if post_lex %}Parser::postLex(token){% else %}token{% endif %});
                 }
                 position = position + size;
             }
         }
         ParserToken end; end.kind = {{ end }}; end.offset = text.length(); tokens.push(end);
-        return Parser::runTokens(tokens);
+        ParserResult result = Parser::runTokens(tokens);
+        result.comments = comments;
+        return result;
     }
     /** @brief 查询 Token 编号，供 runTokens 调用方使用。
      * @param name 文法终结符名称。@return 编号；未知名称返回 -1。

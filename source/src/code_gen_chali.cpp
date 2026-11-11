@@ -157,15 +157,21 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
     }
     for (const auto &entry : lex.regex) rule(entry.second, indexOf(a.terminals, entry.first), orderOf(entry.first));
     for (const auto &entry : lex.commits) {
-        if (!entry.isSkip) return fail(error, "ChaLi 后端暂不支持带值 %commit；%trivia 与 %commit skip 可用");
-        rule(entry.pattern, -2, entry.order);
+        if (!entry.isSkip && entry.type != "comment")
+            return fail(error, "ChaLi 后端只支持跳过规则和注释保留");
+        rule(entry.pattern, entry.isSkip ? -2 : -3, entry.order);
     }
+    const auto isPlaceholder = [&](const std::string &name) {
+        if (request.tokenDefs == nullptr) return false;
+        const auto rule = request.tokenDefs->find(name);
+        return rule != request.tokenDefs->end() && rule->second.empty();
+    };
     const int number = indexOf(a.terminals, "NUMBER");
-    if (!lex.regex.count("NUMBER") && number >= 0) rule("[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?", number, 100001);
+    if (number >= 0 && !lex.regex.count("NUMBER") && !isPlaceholder("NUMBER")) rule("[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?", number, 100001);
     const int variable = indexOf(a.terminals, "VARIABLE");
-    if (variable >= 0 && !lex.regex.count("VARIABLE")) rule(lex.identifier.value_or("[A-Za-z_][A-Za-z0-9_]*"), variable, 100002);
+    if (variable >= 0 && !lex.regex.count("VARIABLE") && !isPlaceholder("VARIABLE")) rule(lex.identifier.value_or("[A-Za-z_][A-Za-z0-9_]*"), variable, 100002);
     const int string = indexOf(a.terminals, "STRING");
-    if (string >= 0 && !lex.regex.count("STRING")) rule("\"(?:[^\"\\\\]|\\\\.)*\"", string, 100003);
+    if (string >= 0 && !lex.regex.count("STRING") && !isPlaceholder("STRING")) rule("\"(?:[^\"\\\\]|\\\\.)*\"", string, 100003);
     if (!validPatterns) return false;
     std::string names;
     for (const auto &name : a.terminals) { if (!names.empty()) names += ", "; names += quote(name); }
@@ -175,6 +181,7 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
     if (request.mainBlocks) for (const auto &block : *request.mainBlocks) main += block + "\n";
     const std::string valueType = request.valueType ? *request.valueType : "float64";
     out["parser.chl"] = tmpl::renderValues(Utils::loadTemplate("chali_parser.chl"), {
+        {"post_lex", lex.postLex},
         {"ll", mode == "ll1"}, {"tree", request.tree}, {"value_type", valueType},
         {"numeric", valueType == "float64"}, {"terminal_count", terminals}, {"nonterm_count", nonterms},
         {"start", indexOf(a.nonterms, a.grammar.start)}, {"end", indexOf(a.terminals, "END")},

@@ -149,7 +149,7 @@ def token_text(token):
 # ``%commit`` 收集到的一条片段：行号（1 起）+ 类型名 + 匹配到的原文（含
 # 字面量本身）。文法里没写 %commit 时 ``engine.commits`` 恒为空列表；
 # ``%commit skip`` 命中的片段不进容器。
-ParserCommit = namedtuple("ParserCommit", ("line", "type", "text"))
+ParserCommit = namedtuple("ParserCommit", ("line", "type", "text", "column", "offset"), defaults=(0, 0))
 
 # 输入里的一个位置：行 + 列 + UTF-8 字节偏移。行 / 列都是 1 起，offset 是
 # 0 起的 UTF-8 字节偏移{% if tree_class %}；语法树节点上的 ``Tree.location`` 也是这个类型{% endif %}。

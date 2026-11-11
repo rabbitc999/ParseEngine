@@ -5,7 +5,23 @@
  * @param pToken 输出 Token。 
  * @retval 状态码。 
  */
+{% if post_lex %}static void Parser_PostLex(ParserToken_T *token)
+{
+{{ post_lex }}
+}
+
+static int32_t Parser_LexNextRaw(ParserCtx_T *pCtx, ParserToken_T *pToken);
+
 static int32_t Parser_LexNext(ParserCtx_T *pCtx, ParserToken_T *pToken)
+{
+    const int32_t status = Parser_LexNextRaw(pCtx, pToken);
+    if (status == PARSER_OK && pToken->type != TOKEN_END) {
+        Parser_PostLex(pToken);
+    }
+    return status;
+}
+
+{% endif %}static int32_t Parser_LexNext{% if post_lex %}Raw{% endif %}(ParserCtx_T *pCtx, ParserToken_T *pToken)
 {
     const char *pStart = NULL;
     uint32_t length = 0u;

@@ -50,9 +50,12 @@
                         || (_COMMIT_ORDERS[commit_index] < best_order))))
         {
             if !_COMMIT_SKIPS[commit_index]
+                && self.commits.last().map_or(true, |last| last.offset < item.offset)
             {
                 self.commits.push(ParserCommit {
                     line: item.line as i32,
+                    column: item.column,
+                    offset: item.offset,
                     kind: _COMMIT_TYPES[commit_index].to_string(),
                     text: self.input[match_start..match_start + commit_length]
                         .iter()

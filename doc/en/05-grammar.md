@@ -652,6 +652,59 @@ Rule details:
 
 For a complete example see `example/space_demo.gram` (paired with [`10-examples.md`](../10-examples.md)).
 
+### Lexer post-processing and placeholder tokens
+
+`%token MARKER ""` declares a terminal that productions can reference. It creates no lexer rule and consumes no input. Supply a placeholder through a token-array entry point or retag an existing token in `%postlex`.
+
+Put `%postlex` and `%endpostlex` on their own lines. Each generated target can enable one block. Its body is written in the target language and runs after the lexer recognizes an ordinary token, before the parser or lexer-only caller receives it. The hook skips lexer errors, discarded whitespace and comments, `END`, and caller-supplied token arrays. Keep the internal `END` and `INVALID` kinds reserved and avoid side effects that depend on how many times the hook runs. Backtracking may scan the same position again.
+
+```gram
+%lang cpp17
+%tree
+%token AT "@"
+%token MARKER ""
+
+%postlex
+if (token.type == TokenType::TOKEN_AT)
+{
+    token.type = TokenType::TOKEN_MARKER;
+}
+%endpostlex
+
+start := MARKER;
+```
+
+| Target | Accessing the current token |
+| --- | --- |
+| C99 | `token->type` and `TOKEN_MARKER` |
+| C++17 | `token.type` and `TokenType::TOKEN_MARKER` |
+| Python | `token.type` and `TOKEN_MARKER`. Start top-level statements in the first column and indent nested statements as usual |
+| C# | `token.type` and `Token.TOKEN_MARKER` |
+| Go | `token.Type` and `TOKEN_MARKER` |
+| Rust | `token.kind` and `TOKEN_MARKER` |
+| Java | Assign the local variables `type` and `text`. Use `java.util.Arrays.asList(TOKEN_NAMES).indexOf("MARKER")` to look up the token kind |
+| JavaScript / TypeScript | `token.type` and `TOKEN_NAMES.indexOf("MARKER")` |
+| ChaLi | `token.kind` and `Parser::tokenKind("MARKER")` |
+
+To share a grammar across targets, wrap each target-specific block in `%if … %endif` and select a branch with `--define`.
+
+### Retaining comments and source positions
+
+Declare a `%trivia keep` rule for each comment syntax to retain.
+
+```gram
+%trivia keep "//[^\n]*"
+%trivia keep "/\*([^*]|\*+[^*/])*\*+/"
+```
+
+The lexer records the entire match, including any delimiters, whitespace and newlines matched by the rule. Records follow input order. Each `offset` is a zero-based UTF-8 byte offset from the start of the input. Add the UTF-8 byte length of the retained text to obtain its exclusive end offset. All targets except ChaLi also report one-based line and column numbers using their lexer's column convention.
+
+- C99 exposes `Parser_GetCommits()` and the lexer-only `Parser_LexGetCommits()`.
+- C++17 and Rust expose `commits()`, Python exposes `commits`, C# exposes `Commits`, and Go exposes `Commits()`. These six targets report the type as `comment`.
+- Java and JavaScript / TypeScript expose `comments()`. ChaLi exposes `comments` on the result from `Parser::runText(text)`.
+
+The lexer skips retained comments as trivia before delivering ordinary tokens to `%postlex` and the parser. Plain `%trivia "pattern"` continues to discard matches. Lexer-only entry points can scan the entire input on targets that support them. When parsing stops early on an error, streaming targets can report only comments already scanned.
+
 ### Maintaining a Literal Alias Table with CSV: `%token NAME include "..."`
 
 For cases where "one token has a huge number of literals", such as keyword tables / directive tables / enum name tables, put the alias list into

@@ -72,6 +72,10 @@ pub struct ParserCommit
     pub kind: String,
     /// 匹配到的原文（含字面量本身）。
     pub text: String,
+    /// 片段起始列（1 起）。
+    pub column: u32,
+    /// UTF-8 字节偏移（0 起）。
+    pub offset: u32,
 }
 
 /// 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起）。

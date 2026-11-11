@@ -2446,7 +2446,8 @@ bool CodeGenCpp17::parserCpp(const ProjectRequest &request,
     const bool blankRule = lexerHasBlankRule(request.tokenDefs);
     std::string lexer = tmpl::renderValues(
         Utils::loadTemplate("cpp17_lexer.cpp"),
-        {{"lex_skip_helpers",
+        {{"post_lex", request.lexSpec != nullptr ? request.lexSpec->postLex : ""},
+         {"lex_skip_helpers",
           (dfa != nullptr)
               ? dfa->skipHelpers + cpp17LexerSkipHelpers(request.spaceChars, blankRule)
               : cpp17LexerSkipHelpers(request.spaceChars, blankRule)},
@@ -2825,7 +2826,8 @@ bool CodeGenCpp17::lexerCpp(const ProjectRequest &request,
     }
     std::string lexer = tmpl::renderValues(
         Utils::loadTemplate("cpp17_lexer.cpp"),
-        {{"lex_skip_helpers",
+        {{"post_lex", request.lexSpec != nullptr ? request.lexSpec->postLex : ""},
+         {"lex_skip_helpers",
           (dfa != nullptr) ? dfa->skipHelpers + cpp17LexerSkipHelpers(request.spaceChars, blankRule)
                            : cpp17LexerSkipHelpers(request.spaceChars, blankRule)},
          {"lex_skip_loop",

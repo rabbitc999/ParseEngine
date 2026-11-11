@@ -228,8 +228,9 @@ ScanResult scanText(const std::string& text) {
                 }
             }
             // 段标记：正文原样收集成一个 Code token（不解析里面的内容）。
-            if (directive == "%code" || directive == "%class_body") {
-                const std::string terminator = directive == "%code" ? "%endcode" : "%endbody";
+            if (directive == "%code" || directive == "%class_body" || directive == "%postlex") {
+                const std::string terminator = directive == "%postlex" ? "%endpostlex" :
+                    directive == "%code" ? "%endcode" : "%endbody";
                 const std::size_t bodyStart = cursor.offset();
                 std::size_t marker = findMarkerLine(text, bodyStart, terminator);
                 if (marker == std::string::npos) {
@@ -246,7 +247,7 @@ ScanResult scanText(const std::string& text) {
             if (directive == "%main" || directive == "%epilogue") {
                 const std::size_t bodyStart = cursor.offset();
                 std::size_t marker = std::string::npos;
-                for (const char* candidate : {"%main", "%epilogue", "%code", "%class_body"}) {
+                for (const char* candidate : {"%main", "%epilogue", "%code", "%class_body", "%postlex"}) {
                     const std::size_t found = findMarkerLine(text, bodyStart, candidate);
                     if (found != std::string::npos && (marker == std::string::npos || found < marker)) {
                         marker = found;
@@ -343,6 +344,8 @@ const std::vector<std::pair<std::string, std::string>>& directiveDocs() {
         {"%value_type", "语义值类型（生成器补 typedef … ParserValue_T;）"},
         {"%code", "用户代码段，用 %endcode 收尾"},
         {"%endcode", "结束 %code 段（单独成行，正文不解析）"},
+        {"%postlex", "词法后处理代码，每个成功匹配的 Token 执行一次，以 %endpostlex 收尾"},
+        {"%endpostlex", "结束 %postlex 段（单独成行）"},
         {"%union", "语义值联合体，配合 %type / %token <成员> 使用"},
         {"%type", "给非终结符绑定 %union 成员：`%type <成员> a b`"},
         {"%destructor", "给 %union 成员登记清理代码：`%destructor <成员> { … }`"},
@@ -366,7 +369,7 @@ const std::vector<std::pair<std::string, std::string>>& directiveDocs() {
         {"%expect", "允许保留 N 个未消解的移入/归约冲突"},
         {"%identifier", "声明标识符正则，生成标识符识别与关键字查表接口"},
         {"%commit", "把「识别但不进语法层」的文本收进容器：%commit [类型] \"模式\" / %commit skip \"模式\""},
-        {"%trivia", "匹配即丢（等价 %commit skip）"},
+        {"%trivia", "跳过匹配片段；%trivia keep 保留注释原文及源位置"},
         {"%copy", "把文法目录下的文件/目录拷进产物：%copy [file|dir] 路径"},
         {"%build_files", "是否导出工程构建文件（Makefile / CMakeLists.txt）：%build_files on / off，只能声明一次"},
         {"%cpp_lexer", "C++17 产物的词法引擎：%cpp_lexer dfa / std，只能声明一次（命令行 --cpp-lexer 优先）。dfa（缺省）生成期把正则编译成 DFA 表，产物不依赖 <regex>；std 交给 std::regex"},

@@ -16,12 +16,21 @@
             int status = _lexNextRaw(item);
             if (status != _LEX_COMMIT_CONSUMED)
             {
-                return status;
+{% if post_lex %}                if (status == STATUS_OK && item.type != TOKEN_END)
+                {
+                    _postLex(item);
+                }
+{% endif %}                return status;
             }
         }
     }
 
-    /**
+{% if post_lex %}    private static void _postLex(Token token)
+    {
+{{ post_lex }}
+    }
+
+{% endif %}    /**
      * 取下一个词法单元（单趟；`%commit` 命中时返回哨兵状态）。
      *
      * 顺序与 C 目标一致：跳过空白（%space）→ 双引号字符串 → %token regex 与

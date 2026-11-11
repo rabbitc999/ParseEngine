@@ -112,6 +112,8 @@ type ParserCommit struct {
 	Type string
 	// Text 匹配到的原文（含字面量本身）。
 	Text string
+	Column int32 // 起始列号（1 起）。
+	Offset int32 // UTF-8 字节偏移（0 起）。
 }
 
 // ParserLocation 输入里的一个位置：行 / 列（1 起）+ UTF-8 字节偏移（0 起）。

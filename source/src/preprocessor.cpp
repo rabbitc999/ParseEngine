@@ -549,6 +549,7 @@ bool Preprocessor::run(const std::string &text, const DefineMap &defines,
     bool inCodeBlock = false;
     bool sawDirective = false;
 
+    bool inPostLex = false;
     for (std::size_t index = 0u; index < lines.size(); ++index)
     {
         const std::string &line = lines[index];
@@ -557,7 +558,11 @@ bool Preprocessor::run(const std::string &text, const DefineMap &defines,
         const bool active = frames.empty() ? true : frames.back().active;
 
         std::size_t position = std::string::npos;
-        if (inCodeBlock)
+        if (inPostLex)
+        {
+            inPostLex = strip(content) != "%endpostlex";
+        }
+        else if (inCodeBlock)
         {
             // %code ... %endcode 里原样保留，直到单独成行的 %endcode
             if (strip(content) == "%endcode")
@@ -568,6 +573,8 @@ bool Preprocessor::run(const std::string &text, const DefineMap &defines,
         else
         {
             position = firstMeaningful(content, inBlockComment, inCodeBlock);
+            inPostLex = position != std::string::npos &&
+                        strip(content.substr(position)) == "%postlex";
             if ((position != std::string::npos) &&
                 (content.compare(position, 3u, "%{{") == 0))
             {

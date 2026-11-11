@@ -50,9 +50,10 @@
 				(commitLength == bestLength &&
 					(bestKind == TOKEN_INVALID ||
 						sParserCommitOrders[commitIndex] < bestOrder))) {
-			if !sParserCommitSkips[commitIndex] {
+			if !sParserCommitSkips[commitIndex] &&
+				(len(p.commits) == 0 || p.commits[len(p.commits)-1].Offset < item.Offset) {
 				p.commits = append(p.commits, ParserCommit{
-					Line: item.Line,
+					Line: item.Line, Column: item.Column, Offset: item.Offset,
 					Type: sParserCommitTypes[commitIndex],
 					Text: string(p.input[matchStart : matchStart+commitLength]),
 				})

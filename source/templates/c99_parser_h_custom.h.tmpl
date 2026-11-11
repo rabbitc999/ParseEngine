@@ -23,6 +23,8 @@ typedef struct __ParserCommit_T
     int         line; /**< 片段起始行号（1 起）。 */
     const char *type; /**< `%commit` 的类型名；skip 不进容器。 */
     char       *text; /**< 匹配到的原文（堆分配）。 */
+    uint32_t    column; /**< 起始列号（1 起）。 */
+    uint32_t    offset; /**< 原始输入的 UTF-8 字节偏移（0 起）。 */
 } ParserCommit;
 
 /** @brief `%commit` 容器：一条动态数组（由 Parser_GetCommits 暴露）。 */

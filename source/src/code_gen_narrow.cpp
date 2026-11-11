@@ -148,10 +148,13 @@ bool rejectUnsupported(const ProjectRequest &request,
         return fail(error, "--lang " + language +
                                " 的 DD / Earley / CYK 窄后端暂不支持 %sync");
     }
-    if ((request.lexSpec != nullptr) && !request.lexSpec->commits.empty())
+    if (request.lexSpec != nullptr)
     {
-        return fail(error, "--lang " + language +
-                               " 的 DD / Earley / CYK 窄后端暂不支持 %commit");
+        for (const CommitSpec &rule : request.lexSpec->commits)
+        {
+            if (!rule.isSkip && rule.type != "comment")
+                return fail(error, "--lang " + language + " 只支持跳过规则和注释保留");
+        }
     }
     if ((request.copies != nullptr) && !request.copies->empty())
     {
@@ -185,9 +188,18 @@ bool buildNarrowBackendData(const ProjectRequest &request,
     out.terminalCount = static_cast<long long>(analysis.terminals.size());
     out.startNonterm = symbolIndex(analysis.nonterms, analysis.grammar.start);
     out.endToken = symbolIndex(analysis.terminals, "END");
-    out.numberToken = symbolIndex(analysis.terminals, "NUMBER");
-    out.stringToken = symbolIndex(analysis.terminals, "STRING");
-    out.variableToken = symbolIndex(analysis.terminals, "VARIABLE");
+    const auto builtinToken = [&](const std::string &name) -> long long {
+        if (request.tokenDefs != nullptr)
+        {
+            const auto rule = request.tokenDefs->find(name);
+            if (rule != request.tokenDefs->end() && rule->second.empty())
+                return -1; // 显式占位 Token 不启用内建匹配。
+        }
+        return symbolIndex(analysis.terminals, name);
+    };
+    out.numberToken = builtinToken("NUMBER");
+    out.stringToken = builtinToken("STRING");
+    out.variableToken = builtinToken("VARIABLE");
     out.maxDepth = request.maxStackDepth.value_or(64);
     out.tokenNames = stringList(analysis.terminals);
     out.nontermNames = stringList(analysis.nonterms);
@@ -335,6 +347,11 @@ bool buildNarrowBackendData(const ProjectRequest &request,
                                    ? fallbackOrder++
                                    : found->second});
         }
+    }
+    if (request.lexSpec != nullptr)
+    {
+        for (const CommitSpec &rule : request.lexSpec->commits)
+            regexes.push_back({rule.pattern, rule.isSkip ? -1 : -2, rule.order});
     }
     std::vector<std::string> regexTexts;
     std::vector<int> regexTypes, regexOrders;

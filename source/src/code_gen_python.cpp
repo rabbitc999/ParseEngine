@@ -1376,6 +1376,29 @@ struct LexerBlocks
     std::string identifierBlock; ///< 标识符
 };
 
+/// 将 %postlex 正文缩进到 Python 类的方法内。
+std::string pythonPostLex(const ProjectRequest &request)
+{
+    if (request.lexSpec == nullptr)
+    {
+        return {};
+    }
+    const std::string &body = request.lexSpec->postLex;
+    std::string result;
+    for (std::size_t start = 0u; start < body.size();)
+    {
+        const std::size_t end = body.find('\n', start);
+        result += "        ";
+        result.append(body, start, end == std::string::npos ? end : end - start + 1u);
+        if (end == std::string::npos)
+        {
+            break;
+        }
+        start = end + 1u;
+    }
+    return result;
+}
+
 /**
  * @brief 组装词法器各段（哪几段生效由文法声明的词法规则决定）。
  * @param request 组装入参。
@@ -1871,7 +1894,8 @@ bool CodeGenPython::parserPy(const ProjectRequest &request,
     buildLexerBlocks(request, blocks);
     const std::string lexer = tmpl::renderValues(
         Utils::loadTemplate("python_lexer.py"),
-        {{"lex_skip_loop",
+        {{"post_lex", pythonPostLex(request)},
+         {"lex_skip_loop",
           "        while _lex_is_skip_char(self._peek_char()):\n"
           "            # 空白也可能是 Token（%define NL \"\\n\" / "
           "%token SP \"\\b\"）：\n"
@@ -2051,7 +2075,8 @@ bool CodeGenPython::lexerPy(const ProjectRequest &request,
     buildLexerBlocks(request, blocks);
     const std::string lexer = tmpl::renderValues(
         Utils::loadTemplate("python_lexer.py"),
-        {{"lex_skip_loop",
+        {{"post_lex", pythonPostLex(request)},
+         {"lex_skip_loop",
           "        while _lex_is_skip_char(self._peek_char()):\n"
           "            # 空白也可能是 Token（%define NL \"\\n\" / "
           "%token SP \"\\b\"）：\n"

@@ -653,6 +653,61 @@ int main(void)
 
 完整例子见 `example/space_demo.gram`（配 [`10-examples.md`](10-examples.md)）。
 
+### 词法后处理与占位 Token
+
+`%token VIRTUAL ""` 声明一个可写在产生式里的终结符。词法器不会为它生成匹配规则，也不会在空输入上产出这个 Token。调用方可以通过 Token 数组入口提供它，或者在 `%postlex` 中把某个实际读到的 Token 改成这个类型。
+
+`%postlex` 和 `%endpostlex` 必须各自单独成行。一个目标产物最多启用一段，正文使用目标语言。每次词法器成功识别一个普通 Token 后，先运行此段代码，再把 Token 交给语法分析器。支持纯词法模式的后端也会在返回 Token 前执行此段。词法错误、跳过的空白和注释、`END` 以及调用方传入的 Token 数组不经过此段。请保留 `END` 和 `INVALID` 的内部用途，且避免在代码块中使用依赖执行次数的副作用，回溯时词法器可能再次扫描同一输入位置。
+
+以下 C++17 文法把原文中的 `@` 改标为占位 Token。
+
+```gram
+%lang cpp17
+%tree
+%token AT "@"
+%token MARKER ""
+
+%postlex
+if (token.type == TokenType::TOKEN_AT)
+{
+    token.type = TokenType::TOKEN_MARKER;
+}
+%endpostlex
+
+start := MARKER;
+```
+
+| 目标 | 正文中访问当前 Token |
+| --- | --- |
+| C99 | `token->type`，例如 `token->type = TOKEN_MARKER;` |
+| C++17 | `token.type`，使用 `TokenType::TOKEN_MARKER` |
+| Python | `token.type`，使用 `TOKEN_MARKER`。顶层语句从正文首列写起，嵌套语句按 Python 缩进 |
+| C# | `token.type`，使用 `Token.TOKEN_MARKER` |
+| Go | `token.Type`，使用 `TOKEN_MARKER` |
+| Rust | `token.kind`，使用 `TOKEN_MARKER` |
+| Java | 为局部变量 `type` 和 `text` 赋值。用 `java.util.Arrays.asList(TOKEN_NAMES).indexOf("MARKER")` 查询编号 |
+| JavaScript / TypeScript | `token.type`，用 `TOKEN_NAMES.indexOf("MARKER")` 查询编号 |
+| ChaLi | `token.kind`，用 `Parser::tokenKind("MARKER")` 查询编号 |
+
+同一文法生成多种目标时，可将各目标的整段代码包在 `%if … %endif` 里，生成时用 `--define` 选择。后处理针对当前 Token，可以改写字段。
+
+### 保留注释及源位置
+
+为每种要保留的注释声明一条 `%trivia keep` 规则。例如以下规则分别保留行注释和块注释。
+
+```gram
+%trivia keep "//[^\n]*"
+%trivia keep "/\*([^*]|\*+[^*/])*\*+/"
+```
+
+词法器按匹配规则保留整段原文，包含规则匹配到的定界符、空白和换行。记录按原始输入顺序排列。每条记录的 `offset` 是从输入开头算起、从 0 开始的 UTF-8 字节偏移。要计算结束偏移，可把原文的 UTF-8 字节长度加到起始偏移上。除 ChaLi 外，记录还包含从 1 开始的行号和列号，列号采用目标词法器的计数方式。
+
+- C99 通过 `Parser_GetCommits()` 读取，词法模式用 `Parser_LexGetCommits()`。
+- C++17 和 Rust 用 `commits()`，Python 用 `commits`，C# 和 Go 用 `Commits` 属性或 `Commits()` 方法。这六个后端中的注释类型名为 `comment`。
+- Java 和 JavaScript / TypeScript 通过 `comments()` 读取。ChaLi 通过 `Parser::runText(text)` 返回值的 `comments` 字段读取。
+
+注释仍按 trivia 跳过，语法产生式与 `%postlex` 接收普通 Token。`%trivia "模式"` 保持丢弃行为。支持纯词法模式的目标可以通过纯词法入口扫描整段输入。解析提前因错误终止时，流式后端只能报告已经扫描到的注释。
+
 ### 用 CSV 维护字面量别名表：`%token NAME include "..."`
 
 关键字表 / 指令表 / 枚举名表这类「一个 Token 有海量字面量」的场合，把别名列表放进

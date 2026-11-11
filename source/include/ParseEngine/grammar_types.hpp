@@ -199,6 +199,7 @@ struct LexSpec
      */
     std::map<std::string, int> tokenLexOrder;
     std::map<std::string, std::string> tokenAliases;
+    std::string postLex;                             ///< %postlex 目标语言代码
 };
 
 /**
@@ -362,6 +363,7 @@ struct GrammarConfig
      */
     std::map<std::string, int> tokenLexOrder;
     std::map<std::string, std::string> tokenAliases;
+    std::string postLex;                             ///< %postlex 目标语言代码
     /**
      * @brief `%space`：取 Token 前跳过的空白字符集。
      *

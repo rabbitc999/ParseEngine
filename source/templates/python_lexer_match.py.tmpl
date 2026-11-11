@@ -37,9 +37,10 @@
                  ((best_type == TOKEN_INVALID) or
                   (_COMMIT_RES[commit_index][3] < best_order)))):
             _pattern, commit_type, commit_skip, _order = _COMMIT_RES[commit_index]
-            if not commit_skip:
-                self.commits.append(ParserCommit(self._line, commit_type,
-                                                 self._input[start:start + commit_length]))
+            if not commit_skip and (not self.commits or self.commits[-1].offset < token.offset):
+                self.commits.append(ParserCommit(
+                    token.line, commit_type, self._input[start:start + commit_length],
+                    token.column, token.offset))
             for _ in range(commit_length):
                 self._read_char()
             return _LEX_COMMIT_CONSUMED, Token(TOKEN_INVALID, "", None,

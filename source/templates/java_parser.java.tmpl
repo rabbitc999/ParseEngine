@@ -49,6 +49,26 @@ public final class Parser {
     private static final Pattern IDENTIFIER = Pattern.compile("^(?:" + {{ identifier_pattern }} + ")");
     private static final Pattern NUMBER = Pattern.compile("^[0-9]+(?:\\.[0-9]+)?");
 
+    /** 保留的注释原文与起点。offset 是 0 起的 UTF-8 字节偏移。 */
+    public static final class Comment {
+        public final String text;
+        public final int line, column, offset;
+
+        Comment(String text, int line, int column, int offset) {
+            this.text = text;
+            this.line = line;
+            this.column = column;
+            this.offset = offset;
+        }
+    }
+
+    private final List<Comment> retainedComments = new ArrayList<>();
+
+    /** 返回按输入顺序保留的注释。 */
+    public List<Comment> comments() {
+        return java.util.Collections.unmodifiableList(retainedComments);
+    }
+
     public static final class Token {
         public final int type;
         public final String text;
@@ -148,7 +168,7 @@ public final class Parser {
      */
     public Parser(String input, ErrorFormatter formatter) {
         errorFormatter = formatter;
-        this.tokens = lex(input, formatter);
+        this.tokens = lex(input, formatter, retainedComments);
     }
 
     public Node root() { return root; }
@@ -341,9 +361,17 @@ public final class Parser {
         return result;
     }
 
-    private static List<Token> lex(String input, ErrorFormatter formatter) {
+{% if post_lex %}    private static Token postLex(Token token) {
+        int type = token.type;
+        String text = token.text;
+{{ post_lex }}
+        return new Token(type, text, token.line, token.column);
+    }
+
+{% endif %}    private static List<Token> lex(String input, ErrorFormatter formatter, List<Comment> comments) {
         List<Token> result = new ArrayList<>();
         int at = 0, line = 1, column = 1;
+        int previousComment = 0, commentOffset = 0;
         while (at < input.length()) {
             char ch = input.charAt(at);
             if (SKIP_CHARS.indexOf(ch) >= 0) {
@@ -399,7 +427,13 @@ public final class Parser {
             if (best == null)
                 throw new IllegalArgumentException(formatError(formatter, -29, line, column,
                     "第 " + line + " 行第 " + column + " 列：无法识别字符 " + ch));
-            result.add(new Token(bestType, best, line, column));
+            if (bestType == -2) {
+                commentOffset += input.substring(previousComment, at).getBytes(StandardCharsets.UTF_8).length;
+                previousComment = at;
+                comments.add(new Comment(best, line, column, commentOffset));
+            } else if (bestType >= 0) {
+                result.add({% if post_lex %}postLex({% endif %}new Token(bestType, best, line, column){% if post_lex %}){% endif %});
+            }
             for (int i = 0; i < best.length(); ++i) {
                 if (best.charAt(i) == '\n') { ++line; column = 1; } else ++column;
             }

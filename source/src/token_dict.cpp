@@ -873,7 +873,7 @@ bool scanPreprocessedText(const std::string &text, ScanResult &result,
 {
     const std::vector<std::string> lines = splitLines(text);
     std::size_t lineBase = 0u;
-    bool inCodeBlock = false;
+    const char *codeEnd = nullptr;
     bool inBlockComment = false;
     bool inSection = false; // %epilogue / %main 正文
     for (std::size_t lineIndex = 0u; lineIndex < lines.size(); ++lineIndex)
@@ -882,11 +882,11 @@ bool scanPreprocessedText(const std::string &text, ScanResult &result,
         const std::string line = trimLineEnd(rawLine);
         const std::size_t sourceLine = lineIndex + 1u;
         const std::string stripped = stripText(line);
-        if (inCodeBlock)
+        if (codeEnd != nullptr)
         {
-            if (isLineMarker(line, "%endcode"))
+            if (isLineMarker(line, codeEnd))
             {
-                inCodeBlock = false;
+                codeEnd = nullptr;
             }
             lineBase += rawLine.size();
             continue;
@@ -925,10 +925,16 @@ bool scanPreprocessedText(const std::string &text, ScanResult &result,
                 continue;
             }
         }
+        if (isLineMarker(line, "%postlex"))
+        {
+            codeEnd = "%endpostlex";
+            lineBase += rawLine.size();
+            continue;
+        }
         // %code ... %endcode
         if (isLineMarker(line, "%code"))
         {
-            inCodeBlock = true;
+            codeEnd = "%endcode";
             lineBase += rawLine.size();
             continue;
         }

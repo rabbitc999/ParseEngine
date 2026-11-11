@@ -52,11 +52,12 @@
               ((bestType == TOKEN_INVALID) ||
                (_COMMIT_ORDERS[commitIndex] < bestOrder)))))
         {
-            if (!_COMMIT_SKIPS[commitIndex])
+            if (!_COMMIT_SKIPS[commitIndex] &&
+                (_commits.Count == 0 || _commits[_commits.Count - 1].Offset < item.offset))
             {
                 _commits.Add(new Commit(_line, _COMMIT_TYPES[commitIndex],
                                         _input.Substring(
-                                            matchStart, commitLength)));
+                                            matchStart, commitLength), item.column, item.offset));
             }
             for (int index = 0; index < commitLength; index++)
             {

@@ -65,21 +65,23 @@ const ParserCommitList *Parser_GetCommits(void)
 
 /**
  * @brief 追加一条 %commit 片段（文本按 length 拷贝一份，堆分配）。
- * @param pCtx 上下文（%commit 容器是模块级单例，这里不用）。
- * @param line 片段起始行号。
+ * @param pToken 片段起始位置。
  * @param pType 类型名（静态字符串，不拷贝）。
  * @param pText 原文起点。
  * @param length 原文长度（字节）。
  * @retval 状态码；内存不够时返回 PARSER_ERR_STACK。
  */
-static int32_t Parser_CommitAppend(ParserCtx_T *pCtx, int32_t line,
+static int32_t Parser_CommitAppend(const ParserToken_T *pToken,
                                    const char *pType, const char *pText,
                                    uint32_t length)
 {
     char *pCopy = NULL;
     ParserCommit *pItems = NULL;
     int32_t capacity = 0;
-    (void)pCtx;
+    if (s_ParserCommits.count > 0 &&
+        s_ParserCommits.items[s_ParserCommits.count - 1].offset >= pToken->offset) {
+        return PARSER_OK; /* 回溯重读的片段已在容器里。 */
+    }
     pCopy = (char *)malloc((size_t)length + 1u);
     if (pCopy == NULL) { return PARSER_ERR_STACK; }
     PARSER_MEMCPY(pCopy, pText, length);
@@ -96,7 +98,9 @@ static int32_t Parser_CommitAppend(ParserCtx_T *pCtx, int32_t line,
         s_ParserCommits.items = pItems;
         s_ParserCommits.capacity = capacity;
     }
-    s_ParserCommits.items[s_ParserCommits.count].line = line;
+    s_ParserCommits.items[s_ParserCommits.count].line = (int)pToken->line;
+    s_ParserCommits.items[s_ParserCommits.count].column = pToken->column;
+    s_ParserCommits.items[s_ParserCommits.count].offset = pToken->offset;
     s_ParserCommits.items[s_ParserCommits.count].type = pType;
     s_ParserCommits.items[s_ParserCommits.count].text = pCopy;
     s_ParserCommits.count++;

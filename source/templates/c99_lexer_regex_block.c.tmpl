@@ -63,7 +63,7 @@
                   ((bestType == TOKEN_INVALID) ||
                    (s_ParserCommitOrders[commitIndex] < bestOrder))))) {
                 if (s_ParserCommitSkips[commitIndex] == 0u) {
-                    if (Parser_CommitAppend(pCtx, (int32_t)pToken->line,
+                    if (Parser_CommitAppend(pToken,
                                             s_ParserCommitTypes[commitIndex],
                                             pStart,
                                             commitLength) != PARSER_OK) {

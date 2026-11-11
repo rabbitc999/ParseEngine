@@ -1480,7 +1480,8 @@ std::string csLexerText(const ProjectRequest &request)
     buildCsLexerBlocks(request, blocks);
     return tmpl::renderValues(
         Utils::loadTemplate("csharp_lexer.cs"),
-        {{"lex_string_block", blocks.stringBlock},
+        {{"post_lex", request.lexSpec != nullptr ? request.lexSpec->postLex : ""},
+         {"lex_string_block", blocks.stringBlock},
          {"lex_match_block", blocks.matchBlock},
          {"lex_number_block", blocks.numberBlock},
          {"lex_identifier_block", blocks.identifierBlock}});

@@ -2,7 +2,22 @@
     ///
     /// 顺序与 C 目标一致：跳过空白（`%space`）→ 双引号字符串 → `%token regex`
     /// 与固定字面量一起做最长匹配（字面量优先）→ 数字 → 标识符。
-    fn lex_next(&mut self, item: &mut Token) -> i32
+{% if post_lex %}    fn lex_next(&mut self, token: &mut Token) -> i32
+    {
+        let status = self.lex_next_raw(token);
+        if status == STATUS_OK && token.kind != TOKEN_END
+        {
+            Self::post_lex(token);
+        }
+        status
+    }
+
+    fn post_lex(token: &mut Token)
+    {
+{{ post_lex }}
+    }
+
+{% endif %}    fn lex_next{% if post_lex %}_raw{% endif %}(&mut self, item: &mut Token) -> i32
     {
         // %commit 命中时是「吃掉这段原文（收进容器或丢掉）再继续取 Token」，
         // 不是 Token，所以整段套一个循环。

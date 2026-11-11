@@ -42,7 +42,8 @@ LL(1) 示例见 [`chali_ll1.gram`](../example/chali_ll1.gram)，LR(1) 系列示�
 支持逐项声明的字面量 `%token`、`%token regex`、`%identifier`、`%space`、
 `%trivia` 和 `%commit skip`。规则按最长匹配选择，同长度按声明顺序；
 显式规则优先于内置 NUMBER、VARIABLE、STRING 规则。字面量中的 `\b` 为空白通配。
-规则不能匹配空串。默认内置标识符会将 `abc` 识别成一个 VARIABLE，
+匹配规则须至少消费一个字符。用 `%trivia keep "模式"` 收集注释，在 `ParserResult.comments` 中读取原文和起始 UTF-8 字节偏移。
+默认内置标识符会将 `abc` 识别成一个 VARIABLE，
 单字母关键字组成的测试句子须用空格分隔。
 
 正则使用 ChaLi `std::regex::Regex` 的原生 ECMAScript 规则，生成期检查表达式能否编译，

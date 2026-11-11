@@ -15,6 +15,9 @@ function formatError(formatter: ErrorFormatter | null, code: number,
     return formatter === null ? message : formatter(code, line, column, message);
 }
 
+/** 保留的注释原文与起点。offset 是 0 起的 UTF-8 字节偏移。 */
+export type Comment = Readonly<{text: string; line: number; column: number; offset: number}>;
+
 type Token = {
     type: number;
     text: string;
@@ -122,9 +125,15 @@ function better(hit: string, order: number, best: string | null,
         (hit.length === best.length && order < bestOrder);
 }
 
-function lex(input: string, formatter: ErrorFormatter | null): Token[] {
+{% if post_lex %}function postLex(token: Token): void {
+{{ post_lex }}
+}
+
+{% endif %}function lex(input: string, formatter: ErrorFormatter | null, comments: Comment[]): Token[] {
     const result: Token[] = [];
     let at = 0;
+    let previousComment = 0;
+    let commentOffset = 0;
     let line = 1;
     let column = 1;
     while (at < input.length) {
@@ -179,7 +188,15 @@ function lex(input: string, formatter: ErrorFormatter | null): Token[] {
         }
         if (best === null)
             throw new Error(formatError(formatter, -29, line, column, `第 ${line} 行第 ${column} 列：无法识别字符 ${ch}`));
-        result.push({type: bestType, text: best, line, column});
+        if (bestType === -2) {
+            commentOffset += Buffer.byteLength(input.slice(previousComment, at));
+            previousComment = at;
+            comments.push({text: best, line, column, offset: commentOffset});
+        } else if (bestType >= 0) {
+            const token = {type: bestType, text: best, line, column};
+{% if post_lex %}            postLex(token);
+{% endif %}            result.push(token);
+        }
         for (const item of best) {
             if (item === "\n") { ++line; column = 1; } else ++column;
         }
@@ -191,6 +208,10 @@ function lex(input: string, formatter: ErrorFormatter | null): Token[] {
 
 export class Parser {
     private tokens: Token[];
+    private readonly retainedComments: Comment[] = [];
+
+    /** 返回按输入顺序保留的注释。 */
+    comments(): readonly Comment[] { return this.retainedComments; }
     private position = 0;
     private farthest = 0;
     private expected: Set<number> = new Set<number>();
@@ -204,7 +225,7 @@ export class Parser {
      */
     constructor(input: string, formatter: ErrorFormatter | null = null) {
         this.errorFormatter = formatter;
-        this.tokens = lex(input, formatter);
+        this.tokens = lex(input, formatter, this.retainedComments);
     }
 
     /** @brief 设置后续错误的提示函数，null 恢复默认。

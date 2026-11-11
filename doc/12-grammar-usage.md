@@ -49,6 +49,7 @@ initializer := assignment_expression        { $$ = $1; }
 | 指令 | 说明 |
 | --- | --- |
 | `%value_type 类型` | 声明语义值类型（如 `%value_type double`、`%value_type struct Node *`），生成器补 `typedef … ParserValue_T;` |
+| `%postlex` … `%endpostlex` | 匹配普通 Token 后、交给语法分析前，执行目标语言代码 |
 | `%code ... %endcode` | 用户 C 代码块，可跨行、可写多段；按出现顺序原样拼接进 `parser_user.h` |
 | `%code` … `%endcode` | 用户代码块：两个标记各自单独成行，中间内容原样拼接进 `parser_user.h`；可写多段 |
 | `%code include "路径"` | 同上，但正文来自外部文件：标记行直接写 `include "路径"`（也接受 `include="路径"`），**不用**写 `%endcode`。`%epilogue` / `%main` / `%class_body` 同样支持，见[把大段用户代码放外部文件](#把大段用户代码放外部文件include) |
@@ -79,6 +80,7 @@ initializer := assignment_expression        { $$ = $1; }
 | `%cpp_lexer std\|dfa\|vm` | C++17 词法引擎，命令行 `--cpp-lexer` 优先。`std`（缺省）使用标准库字节正则；`dfa` 只优化已证明等价的 ASCII 子集，其余回退标准库；`vm` 将全部规则编译到支持资源预算的有序运行时。显式 `(?u)` 规则始终使用共享运行时。非 C++ 目标不接受文法中的此指令。详见 [正则资源预算](20-regex-runtime-budgets.md)。 |
 | `%identifier "正则"` | 声明标识符正则，生成标识符识别与关键字查表接口 |
 | `%commit [类型] "模式"` / `%commit skip "模式"` | 把「识别但不进语法层」的文本收进容器（元素 `{line, type, text}`）；类型缺省 `default`，`skip` 匹配即丢。模式按正则编译，与 `%token` 同一份最长匹配顺序（同长度按声明先后）；见 [`%commit`](#commit把识别但不进语法层的文本收进容器)。**六档都支持**（C99 / C++17 / Python / C# / Rust / Go），各档的容器类型与所有权见 [`08-generated-code.md`](08-generated-code.md) |
+| `%trivia keep "模式"` | 保留注释匹配的完整原文和输入位置，语法分析仍跳过它 |
 | `%trivia "模式"` | 匹配即丢：不进容器、不进语法层。与 `%commit skip "模式"` 完全等价（两种写法生成的词法表逐字相同），推荐用 `%trivia` 表达 trivia；排序与冲突规则同 `%commit` |
 | `%copy [file\|dir] 路径` | 把文法目录下的库文件 / 目录拷进产物目录；缺省 `file`，拷进来的 `.c`/`.h` 会进 `Makefile` / `CMakeLists.txt` |
 | `%include "路径"` | 文件级包含：把被引 `.gram` 的内容**内联**进来（也接受 `%include='路径'` 与单引号，必须单独成行）。相对路径按包含它的文件所在目录解析，支持递归与循环检测；`%code` / `%class_body` / `%epilogue` / `%main` 段内不展开。内联后报错行号指向拼接后的文本（含被引文件内容） |

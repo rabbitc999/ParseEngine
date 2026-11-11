@@ -6,7 +6,19 @@
 //
 // 顺序与 C 目标一致：跳过空白（`%space`）→ 双引号字符串 → `%token regex`
 // 与固定字面量一起做最长匹配（字面量优先）→ 数字 → 标识符。
-func (p *Parser) lexNext(item *Token) int32 {
+{% if post_lex %}func (p *Parser) lexNext(token *Token) int32 {
+	status := p.lexNextRaw(token)
+	if status == StatusOK && token.Type != TOKEN_END {
+		postLex(token)
+	}
+	return status
+}
+
+func postLex(token *Token) {
+{{ post_lex }}
+}
+
+{% endif %}func (p *Parser) lexNext{% if post_lex %}Raw{% endif %}(item *Token) int32 {
 	// %commit 命中时是「吃掉这段原文（收进容器或丢掉）再继续取 Token」，
 	// 不是 Token，所以整段套一个循环。
 	for {

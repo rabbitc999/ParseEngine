@@ -154,6 +154,8 @@ struct ParserCommit
     int line = 0;                 ///< 片段起始行（1 起）
     ParserMemory::String type = "default"; ///< %commit 的类型名
     ParserMemory::String text;             ///< 匹配到的原文（含字面量本身）
+    std::uint32_t column = 0u;             ///< 片段起始列（1 起）
+    std::uint32_t offset = 0u;             ///< UTF-8 字节偏移（0 起）
 };
 
 {{ tree_api }}

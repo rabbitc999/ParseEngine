@@ -350,6 +350,8 @@ public:
     std::size_t epilogueLine = 0u;            ///< %epilogue 标记所在的原文件行号
     std::vector<std::string> mainBlocks;      ///< %main 正文（按出现顺序）
     std::vector<std::size_t> mainBlockLines;  ///< 每个 %main 标记的原文件行号
+    std::string postLex;                      ///< %postlex 正文
+    bool hasPostLex = false;                   ///< 是否写了 %postlex
     std::string classBody;                    ///< %class_body 正文（原样，不含标记行）
     bool hasClassBody = false;                ///< 是否写了 %class_body
     std::size_t classBodyLine = 0u;           ///< %class_body 标记所在的原文件行号
@@ -756,7 +758,7 @@ private:
         const std::size_t found = text.find('\n', index);
         const std::size_t bodyStart =
             (found == std::string::npos) ? text.size() : found + 1u;
-        const std::size_t bodyEnd = findCodeEnd(text, bodyStart);
+        const std::size_t bodyEnd = findBlockEnd(text, bodyStart, "%endcode");
         if (bodyEnd == std::string::npos)
         {
             fail("%code 段缺少单独成行的结束标记 %endcode", lineOf(index));
@@ -821,7 +823,7 @@ private:
         const std::size_t found = text.find('\n', index);
         const std::size_t bodyStart =
             (found == std::string::npos) ? text.size() : found + 1u;
-        const std::size_t bodyEnd = findBodyEnd(text, bodyStart);
+        const std::size_t bodyEnd = findBlockEnd(text, bodyStart, "%endbody");
         if (bodyEnd == std::string::npos)
         {
             fail("%class_body 段缺少单独成行的结束标记 %endbody",
@@ -842,12 +844,14 @@ private:
     }
 
     /**
-     * @brief 从 start 起按行查找「单独成行」的 %endbody。
+     * @brief 从 start 起按行查找单独成行的代码块结束标记。
      * @param text 全文。
      * @param start 搜索起点（正文第一行的行首）。
-     * @return `%endbody` 那一行的起始偏移；找不到返回 npos。
+     * @param marker 结束标记。
+     * @return 结束标记所在行的起始偏移；找不到返回 npos。
      */
-    static std::size_t findBodyEnd(const std::string &text, std::size_t start)
+    static std::size_t findBlockEnd(const std::string &text, std::size_t start,
+                                   const std::string &marker)
     {
         std::size_t position = start;
         while (position <= text.size())
@@ -855,34 +859,7 @@ private:
             const std::size_t lineEnd = text.find('\n', position);
             const std::size_t end =
                 (lineEnd == std::string::npos) ? text.size() : lineEnd;
-            if (strip(text.substr(position, end - position)) == "%endbody")
-            {
-                return position;
-            }
-            if (lineEnd == std::string::npos)
-            {
-                break;
-            }
-            position = lineEnd + 1u;
-        }
-        return std::string::npos;
-    }
-
-    /**
-     * @brief 从 start 起按行查找「单独成行」的 %endcode。
-     * @param text 全文。
-     * @param start 搜索起点（正文第一行的行首）。
-     * @return `%endcode` 那一行的起始偏移；找不到返回 npos。
-     */
-    static std::size_t findCodeEnd(const std::string &text, std::size_t start)
-    {
-        std::size_t position = start;
-        while (position <= text.size())
-        {
-            const std::size_t lineEnd = text.find('\n', position);
-            const std::size_t end =
-                (lineEnd == std::string::npos) ? text.size() : lineEnd;
-            if (strip(text.substr(position, end - position)) == "%endcode")
+            if (strip(text.substr(position, end - position)) == marker)
             {
                 return position;
             }
@@ -978,6 +955,33 @@ private:
                     fail(
                         "%endcode 没有对应的 %code（%code 段必须以 %endcode 收尾）",
                         lineOf(index));
+                    return;
+                }
+                if (isMarkerMatch(text, index, "%postlex"))
+                {
+                    if (hasPostLex || !isMarkerLine(text, index, "%postlex"))
+                    {
+                        fail("%postlex 必须单独成行，且只允许一个", lineOf(index));
+                        return;
+                    }
+                    const std::size_t bodyStart = text.find('\n', index);
+                    const std::size_t end = bodyStart == std::string::npos
+                        ? std::string::npos
+                        : findBlockEnd(text, bodyStart + 1u, "%endpostlex");
+                    if (end == std::string::npos)
+                    {
+                        fail("%postlex 段缺少单独成行的 %endpostlex", lineOf(index));
+                        return;
+                    }
+                    hasPostLex = true;
+                    postLex = text.substr(bodyStart + 1u, end - bodyStart - 1u);
+                    const std::size_t next = text.find('\n', end);
+                    index = next == std::string::npos ? text.size() : next + 1u;
+                    continue;
+                }
+                if (isMarkerLine(text, index, "%endpostlex"))
+                {
+                    fail("%endpostlex 没有对应的 %postlex", lineOf(index));
                     return;
                 }
                 // %class_body ... %endbody：原样收集要插进解析器类内部的正文
@@ -1784,6 +1788,7 @@ public:
         m_mainBlocks = tokenizer.mainBlocks;
         m_mainBlockLines = tokenizer.mainBlockLines;
         m_hasClassBody = tokenizer.hasClassBody;
+        m_postLex = tokenizer.postLex;
         m_classBody = tokenizer.classBody;
         m_classBodyLine = tokenizer.classBodyLine;
         for (const GramToken &token : tokenizer.tokens)
@@ -2024,10 +2029,7 @@ private:
      */
     void parseCommitDirective();
     /**
-     * @brief 解析 %trivia 指令（匹配即丢，不进容器、不进语法层）。
-     *
-     * `%trivia "<pattern>"` 与 `%commit skip "<pattern>"` 完全等价，只是
-     * 语义更清楚：推荐用 %trivia 声明 trivia。
+     * @brief 解析 %trivia 指令；keep 将匹配原文记为 comment 片段。
      */
     void parseTriviaDirective();
     /**
@@ -2049,7 +2051,8 @@ private:
      */
     void registerLiteralToken(const std::string &tokenName,
                               const std::string &literalText,
-                              const std::string &what);
+                              const std::string &what,
+                              bool allowPlaceholder = false);
     /**
      * @brief 解析 %define 指令。
      */
@@ -2281,6 +2284,7 @@ void parseLookaheadDirective();
     std::vector<std::string> m_imports;          ///< %import 的名字（按出现顺序）
     std::vector<std::size_t> m_importLines;      ///< 每个 %import 的原文件行号
     bool m_hasClassBody = false;                 ///< 是否写过 %class_body
+    std::string m_postLex;                       ///< %postlex 正文
     std::string m_classBody;                     ///< %class_body 正文（原样）
     std::size_t m_classBodyLine = 0u;            ///< %class_body 标记的原文件行号
     std::optional<std::string> m_valueType;      ///< %value_type
@@ -2381,7 +2385,8 @@ void GramParser::parseTokenDirective()
             const std::string name = token;
             const std::string literalText = peekText(1);
             m_pos += 2;
-            registerLiteralToken(name, literalText, "%token " + name);
+            registerLiteralToken(name, literalText, "%token " + name,
+                                 /*allowPlaceholder=*/true);
             readAlias(name);
             if (!tag.empty())
             {
@@ -2788,14 +2793,16 @@ void GramParser::parseTriviaDirective()
     const std::size_t directiveLine =
         (peekToken() == nullptr) ? 0u : lineOf(peekToken()->start);
     ++m_pos;
+    const bool keep = (peekKind() == "id") && (peekText() == "keep");
+    if (keep)
+    {
+        ++m_pos;
+    }
     const std::string pattern = readRegexPattern("%trivia");
     if (failed())
     {
         return;
     }
-    // 与 %commit skip 完全等价：匹配即丢，不进容器也不进语法层。
-    // 类型名也用 "skip"：两种写法生成的词法表逐字相同（skip 的 type 不会
-    // 出现在任何容器元素里，只是表里的占位）。
     std::string alias;
     if ((peekKind() == "id") && (peekText() == "alias") &&
         (peekKind(1) == "str"))
@@ -2804,7 +2811,7 @@ void GramParser::parseTriviaDirective()
         alias = GrammarLoader::decodeStringLiteral(peekText());
         ++m_pos;
     }
-    registerCommitRule("%trivia", "skip", pattern, true, directiveLine,
+    registerCommitRule("%trivia", keep ? "comment" : "skip", pattern, !keep, directiveLine,
                        alias);
     endDirective("%trivia");
 }
@@ -2848,7 +2855,8 @@ void GramParser::registerCommitRule(const std::string &what,
 
 void GramParser::registerLiteralToken(const std::string &tokenName,
                                       const std::string &literalText,
-                                      const std::string &what)
+                                      const std::string &what,
+                                      bool allowPlaceholder)
 {
     if (tokenName == k_errorTokenName)
     {
@@ -2857,8 +2865,9 @@ void GramParser::registerLiteralToken(const std::string &tokenName,
         return;
     }
     std::vector<std::string> branches;
-    if (!GrammarLoader::splitDefineLiteral(literalText, what, branches,
-                                           errorSlot()))
+    if (!(allowPlaceholder && literalText == "\"\"") &&
+        !GrammarLoader::splitDefineLiteral(literalText, what, branches,
+                                            errorSlot()))
     {
         return;
     }
@@ -2891,6 +2900,11 @@ void GramParser::registerLiteralToken(const std::string &tokenName,
         }
         m_literalOwners.insert_or_assign(literal, tokenName);
     }
+    if (branches.empty() && (tokenName == "END" || tokenName == "INVALID"))
+    {
+        fail("占位 Token 不能使用保留名 " + tokenName);
+        return;
+    }
     m_tokenDefs.insert_or_assign(tokenName, branches);
     bool known = false;
     for (const std::string &existing : m_tokenNames)
@@ -2902,7 +2916,7 @@ void GramParser::registerLiteralToken(const std::string &tokenName,
         m_tokenNames.push_back(tokenName);
     }
     // 词法声明序：%commit 与 Token 规则同长度时比较先后用
-    if (m_tokenLexOrder.count(tokenName) == 0)
+    if (!branches.empty() && m_tokenLexOrder.count(tokenName) == 0)
     {
         m_tokenLexOrder.insert_or_assign(tokenName, m_lexOrder++);
     }
@@ -4905,6 +4919,7 @@ GrammarConfig GramParser::validateAndBuild()
     config.imports = m_imports;
     config.importLines = m_importLines;
     config.hasClassBody = m_hasClassBody;
+    config.postLex = m_postLex;
     config.classBody = m_classBody;
     config.classBodyLine = m_classBodyLine;
     config.cppNamespace = m_cppNamespace;
@@ -5177,7 +5192,7 @@ bool GrammarLoader::parseGrammar(const std::string &text,
 
 // ---- 文件级 %include：把被引 .gram 的内容内联进来 ----
 // 仅展开「顶层」的 `%include "路径"`（允许 `%include='路径'` 与单/双引号）；
-// 处于 %code / %class_body / %epilogue / %main 的多行体内时不展开，避免误伤
+// 处于 %code / %postlex / %class_body / %epilogue / %main 的多行体内时不展开，避免误伤
 // 代码块里的文本。支持递归包含并做循环包含检测；相对路径按「包含它的文件」
 // 所在目录解析。注意：内联后报错行号指向拼接后的文本（含被引文件内容）。
 namespace {
@@ -5212,7 +5227,7 @@ bool expandIncludesRecursive(const std::string &text,
                              std::vector<std::filesystem::path> *stack,
                              std::string *out, Error &error)
 {
-    enum class Block { None, Code, ClassBody, Epilogue };
+    enum class Block { None, Code, PostLex, ClassBody, Epilogue };
     Block block = Block::None;
     std::size_t pos = 0;
     const std::size_t n = text.size();
@@ -5234,11 +5249,14 @@ bool expandIncludesRecursive(const std::string &text,
         }
         if (block == Block::None) {
             if (trimmed == "%code") block = Block::Code;
+            else if (trimmed == "%postlex") block = Block::PostLex;
             else if (trimmed == "%class_body") block = Block::ClassBody;
             else if (trimmed == "%epilogue" || trimmed == "%main")
                 block = Block::Epilogue;
         } else {
             if (block == Block::Code && trimmed == "%endcode")
+                block = Block::None;
+            else if (block == Block::PostLex && trimmed == "%endpostlex")
                 block = Block::None;
             else if (block == Block::ClassBody && trimmed == "%endbody")
                 block = Block::None;
@@ -5450,6 +5468,7 @@ LexSpec GrammarLoader::lexSpecFromConfig(const GrammarConfig &cfg)
     spec.commits = cfg.commits;
     spec.tokenLexOrder = cfg.tokenLexOrder;
     spec.tokenAliases = cfg.tokenAliases;
+    spec.postLex = cfg.postLex;
     return spec;
 }
 

@@ -121,6 +121,22 @@
           "contentName": "meta.embedded.block.gram-code"
         },
         {
+          "name": "meta.section.postlex.gram",
+          "begin": "^(\\s*)(%postlex)\\b",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "end": "^(\\s*)(%endpostlex)\\b",
+          "endCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "contentName": "meta.embedded.block.gram-code"
+        },
+        {
           "name": "meta.section.class-body.gram",
           "begin": "^(\\s*)(%class_body)\\b",
           "beginCaptures": {
@@ -138,14 +154,14 @@
         },
         {
           "name": "meta.section.epilogue.gram",
-          "comment": "%epilogue：正文到下一个段标记（%main / %epilogue / %code / %class_body）为止",
+          "comment": "%epilogue：正文到下一个段标记（%main / %epilogue / %code / %class_body / %postlex）为止",
           "begin": "^(\\s*)(%epilogue)\\b",
           "beginCaptures": {
             "2": {
               "name": "keyword.control.directive.gram"
             }
           },
-          "end": "^(\\s*)(%(?:epilogue|main|code|class_body))\\b",
+          "end": "^(\\s*)(%(?:epilogue|main|code|class_body|postlex))\\b",
           "endCaptures": {
             "2": {
               "name": "keyword.control.directive.gram"
@@ -162,7 +178,7 @@
               "name": "keyword.control.directive.gram"
             }
           },
-          "end": "^(\\s*)(%(?:epilogue|main|code|class_body))\\b",
+          "end": "^(\\s*)(%(?:epilogue|main|code|class_body|postlex))\\b",
           "endCaptures": {
             "2": {
               "name": "keyword.control.directive.gram"

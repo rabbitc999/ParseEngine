@@ -31,11 +31,17 @@
         public string Type { get; }
         /** 匹配到的原文（含字面量本身）。 */
         public string Text { get; }
+        /** 起始列号（1 起）。 */
+        public int Column { get; }
+        /** UTF-8 字节偏移（0 起）。 */
+        public int Offset { get; }
 
         /** 建一条片段。 */
-        public Commit(int line, string type, string text)
+        public Commit(int line, string type, string text, int column = 0, int offset = 0)
         {
             Line = line;
+            Column = column;
+            Offset = offset;
             Type = type;
             Text = text;
         }

@@ -1709,7 +1709,8 @@ std::string goLexerText(const ProjectRequest &request, const GoLexFlags &flags)
     buildGoLexerBlocks(request, flags, blocks);
     return tmpl::renderValues(
         Utils::loadTemplate("go_lexer.go"),
-        {{"lex_string_block", blocks.stringBlock},
+        {{"post_lex", request.lexSpec != nullptr ? request.lexSpec->postLex : ""},
+         {"lex_string_block", blocks.stringBlock},
          {"lex_match_block", blocks.matchBlock},
          {"lex_number_block", blocks.numberBlock},
          {"lex_identifier_block", blocks.identifierBlock}});
