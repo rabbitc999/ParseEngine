@@ -742,3 +742,16 @@ A few conventions:
 `example/token_dict_demo.gram` demonstrates `%token NAME include "csv"`: the alias lists live in
 `example/token_dict_kw.csv` / `example/token_dict_num.csv` and are appended with a single directive.
 It is a `%tree` grammar (columns `c,cpp17`); for details see [Maintaining a Literal Alias Table with CSV](#maintaining-a-literal-alias-table-with-csv) above.
+
+## Writing a grammar for ChaLi
+
+Specify `%lang chali` in the grammar or pass `--lang chali` on the command line.
+
+```sh
+ParseEngine example/chali_lr1.gram --lang chali --mode ielr --out-dir out/chali
+chali run out/chali/parser.chl
+```
+
+Write semantic actions and user code sections in ChaLi. Use `$$` for the result and `$n` for a one-based right-hand-side value. The default semantic type is `float64`. Use `%value_type` to choose another ChaLi type. `%trivia keep` preserves comment text and offsets. Use `%postlex` to process individual tokens or `%posttokens include "token_filter.chl"` to transform the whole sequence before parsing.
+
+See the [mode matrix](15-language-mode-support.md), the [generated API](08-generated-code.md#generated-chali-api), and the [ChaLi backend reference](../17-chali-backend.md).

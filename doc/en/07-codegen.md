@@ -984,3 +984,11 @@ ls /tmp/pl0_gram      # pl0.gram  pl0.analysis.md  RESULT.md
 ParseEngine example/ielr_demo.gram --out-dir /tmp/ielr_gram --lang gram \
     --mode lalr --teach
 ```
+
+## ChaLi backend
+
+Use `--lang chali` or `%lang chali` to emit a self-contained `parser.chl` and `RESULT.md`. All 16 modes are supported, with IELR as the default. LL uses prediction tables and LR uses ACTION/GOTO tables. The k-lookahead modes inspect a multi-token window.
+
+DD backtracks in production order and evaluates the first complete derivation. GLR explores unresolved alternatives. Earley and CYK recognize input with their respective chart algorithms and use GLR to reconstruct derivations. The `lex` mode emits a standalone lexer.
+
+See the [generated API](08-generated-code.md#generated-chali-api) and the [ChaLi backend reference](../17-chali-backend.md).

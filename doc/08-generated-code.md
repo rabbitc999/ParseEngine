@@ -1421,3 +1421,18 @@ Go 产物的词法器**不使用生成器自带的 DFA**，而是把正则原样
 ### C++17 LR 归约行号钩子
 
 在用户头中定义 `PARSER_USER_REDUCTION_LINE(line)`，C++17 LR 驱动会按需编译符号起始行栈，并在语义动作之前调用该宏。非空产生式使用第一个右部符号的起始行，空产生式使用当前 token 行；未定义宏时不增加位置栈开销。Magel 用它给语法节点登记预处理后的行号，再通过预处理来源映射还原原始文件和行。该钩子用于普通 LR 文本分析，LL/GLR 和增量检查点的来源持久化不在此接口范围内。
+
+## ChaLi 生成产物与 API
+
+`--lang chali` 生成 `parser.chl`，使用 `chali run parser.chl` 运行，或使用 `chali build parser.chl --out parser` 生成原生程序。可用 `%main` 替换默认入口。公开复合类型采用大驼峰，函数、方法和字段采用小驼峰。
+
+| 接口 | 返回与约定 |
+| --- | --- |
+| `Parser::tokenize(String)` | 返回 `ParserLexResult`，包含 `ok`、`tokens`、`comments`、`message`、`offset`。成功时 Token 序列以 END 结尾。纯词法模式也提供此接口 |
+| `Parser::runText(String)` | 分词并解析，返回 `ParserResult`。启用 `%posttokens` 时，在分词成功后、解析前处理整批 Token |
+| `Parser::runTokens(List<ParserToken>)` | 直接解析调用方提供的 Token 序列。调用方负责语义值与末尾唯一的 END |
+| `Parser::tokenKind(String)` / `Parser::tokenName(int64)` | 查询 Token 编号或名称。未知名称返回 `-1`，无效编号返回空串 |
+
+`ParserToken` 提供 `kind`、`text`、`offset`、`value`。Token、注释和诊断的 `offset` 均为从 0 起的 UTF-8 字节偏移。`ParserResult` 提供 `ok`、`value`、`tree`、`message`、`offset`、`comments`。在 GLR、Earley 和 CYK 中，`alternatives` 保存成功派生，`value` 和 `tree` 对应首项，`truncated` 表示路径受到栈深度限制。
+
+参见[ChaLi 后端手册](17-chali-backend.md)。

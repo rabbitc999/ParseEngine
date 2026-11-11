@@ -1004,3 +1004,11 @@ C99 的普通 DFA 路径继续使用最长接受前缀语义；扩展模式使�
 C++ 显式 Unicode 规则使用与 C99 共用的内嵌有序运行时，可与标准库字节规则混用，见 [18 Unicode 正则模式](18-regex-unicode.md)。
 
 正则的步数、回溯、工作内存、前瞻深度、取消与结构化失败状态见 [20 正则运行时资源预算](20-regex-runtime-budgets.md)。
+
+## ChaLi 后端
+
+用 `--lang chali` 或 `%lang chali` 生成自包含的 `parser.chl` 与 `RESULT.md`。ChaLi 后端支持全部 16 种模式，默认是 IELR。LL 系列读取预测表；LR 系列读取 ACTION/GOTO 表；LL(k)、LR(k)、SLR(k) 和 LALR(k) 使用多 Token 展望窗口。
+
+`dd` 按产生式声明顺序回溯，找到完整匹配后执行动作。`glr` 保留未消解冲突中的候选路径。`earley` 和 `cyk` 先用各自的图表算法判定，再由 GLR 重建原文法派生。用 `lex` 生成独立词法器。模板构建时内嵌到生成器，产物可直接交给 ChaLi 编译器。
+
+参见[生成 API](08-generated-code.md#chali-生成产物与-api)和[ChaLi 后端手册](17-chali-backend.md)。

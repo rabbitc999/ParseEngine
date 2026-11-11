@@ -1482,3 +1482,18 @@ right-hand-side symbol; empty productions use the current token line. When the m
 overhead is added. Magel uses it to record post-preprocessing line numbers on syntax nodes and then restores the
 original file and line through the preprocessing source map. This hook is for ordinary LR text analysis; source
 persistence for LL/GLR and incremental checkpoints is outside the scope of this interface.
+
+## Generated ChaLi API
+
+Run the emitted `parser.chl` with `chali run parser.chl` or compile it with `chali build parser.chl --out parser`. Use `%main` to supply your own entry point. Public aggregate types use PascalCase. Functions, methods, and fields use camelCase.
+
+| Entry point | Contract |
+| --- | --- |
+| `Parser::tokenize(String)` | Returns `ParserLexResult` with `ok`, `tokens`, `comments`, `message`, and `offset`. A successful token sequence ends in END. Available in lexer-only mode |
+| `Parser::runText(String)` | Tokenizes and parses text, returning `ParserResult`. An enabled `%posttokens` block runs after successful tokenization and before parsing |
+| `Parser::runTokens(List<ParserToken>)` | Parses caller-supplied tokens. The caller supplies semantic values and exactly one trailing END |
+| `Parser::tokenKind(String)` / `Parser::tokenName(int64)` | Look up token IDs and names. An unknown name returns `-1`. An invalid ID returns an empty string |
+
+Token, comment, and diagnostic offsets are zero-based UTF-8 byte offsets. GLR, Earley, and CYK expose successful derivations in `ParserResult.alternatives`. The `value` and `tree` fields reflect the first alternative. `truncated` signals a path exceeded the stack-depth limit.
+
+See the [ChaLi backend reference](../17-chali-backend.md).

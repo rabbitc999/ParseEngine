@@ -750,3 +750,16 @@ example/calc.gram:10:28: error: 'NoSuchGlobal' undeclared (first use in this fun
 `example/token_dict_demo.gram` 演示 `%token NAME include "csv"`：别名列表放在
 `example/token_dict_kw.csv` / `example/token_dict_num.csv` 里，一条指令追加进来。
 它是 `%tree` 文法（列 `c,cpp17`），细节见上文[用 CSV 维护字面量别名表](#用-csv-维护字面量别名表)。
+
+## 为 ChaLi 编写文法
+
+在文法里写 `%lang chali`，或在生成命令上指定 `--lang chali`。例如：
+
+```sh
+ParseEngine example/chali_lr1.gram --lang chali --mode ielr --out-dir out/chali
+chali run out/chali/parser.chl
+```
+
+语义动作以及 `%code`、`%main`、`%epilogue` 使用 ChaLi 语法。`$$` 表示结果，`$n` 表示从 1 起的右部语义值。默认语义值类型为 `float64`，可用 `%value_type` 指定 ChaLi 类型。`%trivia keep` 保留注释原文和位置。`%postlex` 逐 Token 处理，`%posttokens include "token_filter.chl"` 在语法分析前处理整批 Token。纯词法模式可通过 `Parser::tokenize` 读取 Token。
+
+参见[模式支持矩阵](15-language-mode-support.md)、[生成 API](08-generated-code.md#chali-生成产物与-api)和[ChaLi 后端手册](17-chali-backend.md)。
