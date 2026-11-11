@@ -3,7 +3,6 @@
     private int _chartPrecheck()
     {
         string text = _input;
-        List<Token> sourceTokens = new List<Token>(_tokens);
         List<int> tokens = new List<int>();
         while (_current.type != TOKEN_END)
         {
@@ -11,7 +10,16 @@
             int next = _advance();
             if (next != STATUS_OK) return next;
         }
-        int status = _textMode ? _prepareText(text) : _prepareTokens(sourceTokens);
+        int status;
+        if (_textMode)
+        {
+            status = _prepareText(text);
+        }
+        else
+        {
+            _tokenPos = 0;
+            status = _advance();
+        }
         if (status != STATUS_OK) return status;
         bool accepted = {% if earley %}_earleyAccept(tokens){% else %}_cykAccept(tokens){% endif %};
         if (!accepted)

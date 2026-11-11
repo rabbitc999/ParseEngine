@@ -182,6 +182,7 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
     const std::string valueType = request.valueType ? *request.valueType : "float64";
     out["parser.chl"] = tmpl::renderValues(Utils::loadTemplate("chali_parser.chl"), {
         {"post_lex", lex.postLex},
+        {"post_tokens", lex.postTokens},
         {"ll", mode == "ll1"}, {"tree", request.tree}, {"value_type", valueType},
         {"numeric", valueType == "float64"}, {"terminal_count", terminals}, {"nonterm_count", nonterms},
         {"start", indexOf(a.nonterms, a.grammar.start)}, {"end", indexOf(a.terminals, "END")},

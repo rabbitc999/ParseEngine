@@ -38,16 +38,16 @@
         }
         length = (uint32_t)(&pCtx->pText[pCtx->textPosition] - pStart);
         if (length >= sizeof(pCtx->lexeme)) { return PARSER_ERR_LEXER; }
-        PARSER_MEMCPY(pCtx->lexeme, pStart, length);
-        pCtx->lexeme[length] = '\0';
-        if (suffix != '\0') { pCtx->lexeme[length - 1u] = '\0'; }
+        PARSER_MEMCPY(pLexeme, pStart, length);
+        pLexeme[length] = '\0';
+        if (suffix != '\0') { pLexeme[length - 1u] = '\0'; }
         errno = 0;
         if ((suffix == 'u') || (suffix == 'U')) {
             unsigned long value = 0ul;
             if ((hasDot != 0u) || (hasExponent != 0u)) {
                 return PARSER_ERR_LEXER;
             }
-            value = strtoul(pCtx->lexeme, &pEnd, 10);
+            value = strtoul(pLexeme, &pEnd, 10);
             if ((errno == ERANGE) || (*pEnd != '\0') || (value > UINT32_MAX)) {
                 return PARSER_ERR_LEXER;
             }
@@ -64,7 +64,7 @@
             if ((hasDot == 0u) && (hasExponent == 0u)) {
                 return PARSER_ERR_LEXER;
             }
-            value = strtod(pCtx->lexeme, &pEnd);
+            value = strtod(pLexeme, &pEnd);
             if ((errno == ERANGE) || (*pEnd != '\0') ||
                 (isfinite(value) == 0)) { return PARSER_ERR_LEXER; }
 {% if number_member %}
@@ -78,7 +78,7 @@
         } else if (suffix != '\0') {
             return PARSER_ERR_LEXER;
         } else if ((hasDot != 0u) || (hasExponent != 0u)) {
-            float value = strtof(pCtx->lexeme, &pEnd);
+            float value = strtof(pLexeme, &pEnd);
             if ((errno == ERANGE) || (*pEnd != '\0') ||
                 (isfinite(value) == 0)) { return PARSER_ERR_LEXER; }
 {% if number_member %}
@@ -92,7 +92,7 @@
         } else {
             /* 整数可以到 64 位：`Token::value` 只有 32 位，别拿它当准 ——
              * 前端要用整数的话按词素原文（`token.text`）自己解析（`strtoll`）。 */
-            long long value = strtoll(pCtx->lexeme, &pEnd, 10);
+            long long value = strtoll(pLexeme, &pEnd, 10);
             if ((errno == ERANGE) || (*pEnd != '\0') ||
                 (value < INT64_MIN) || (value > INT64_MAX)) {
                 return PARSER_ERR_LEXER;
@@ -107,7 +107,7 @@
 {% endif %}
         }
         pToken->type = TOKEN_NUMBER;
-        pToken->name = pCtx->lexeme;
+        pToken->name = pLexeme;
         return PARSER_OK;
     }
 

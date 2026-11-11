@@ -688,6 +688,21 @@ start := MARKER;
 
 To share a grammar across targets, wrap each target-specific block in `%if … %endif` and select a branch with `--define`.
 
+### Transforming the complete token sequence
+
+`%posttokens … %endposttokens` runs once after successful lexing and before parsing. It receives the mutable sequence `tokens` after `%postlex`. Insert, delete, replace or reorder ordinary tokens as needed. The generator appends the original `END` after the hook returns. The hook is skipped on a lexer error and on entry points that receive caller-supplied tokens. It requires a parsing mode.
+
+`%posttokens include "token_filter.py"` loads the body relative to the entry grammar's directory and needs no closing marker. The body is a target-language fragment. Use one block per generated target, with `%if … %endif` to select target-specific code.
+
+```python
+if len(tokens) == 2:
+    tokens.insert(1, Token(TOKEN_MARKER))
+```
+
+C99 exposes `tokens->items`, `tokens->count` and `Parser_PostTokensInsert(tokens, index, token)`. Insertion can relocate `items`. C++17 and Rust pass a mutable vector, Python a list, C# and Java a `List<Token>`, JavaScript / TypeScript a `Token[]`, and ChaLi a `List<ParserToken>`. In Go, assign a resized slice back to `tokens`.
+
+Text parsing buffers all tokens when the hook is enabled. The C++17 and Rust incremental text entry points perform a full parse so the hook can run on every call.
+
 ### Retaining comments and source positions
 
 Declare a `%trivia keep` rule for each comment syntax to retain.

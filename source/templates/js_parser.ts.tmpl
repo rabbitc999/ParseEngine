@@ -129,6 +129,10 @@ function better(hit: string, order: number, best: string | null,
 {{ post_lex }}
 }
 
+{% endif %}{% if post_tokens %}function postTokens(tokens: Token[]): void {
+{{ post_tokens }}
+}
+
 {% endif %}function lex(input: string, formatter: ErrorFormatter | null, comments: Comment[]): Token[] {
     const result: Token[] = [];
     let at = 0;
@@ -202,7 +206,13 @@ function better(hit: string, order: number, best: string | null,
         }
         at += best.length;
     }
-    result.push({type: END_TOKEN, text: "", line, column});
+{% if post_tokens %}    postTokens(result);
+    for (const token of result) {
+        if (!token || !Number.isInteger(token.type) || token.type < 0 || token.type >= END_TOKEN)
+            throw new Error(formatError(formatter, -2, line, column,
+                "%posttokens 产生了无效的 Token 类型"));
+    }
+{% endif %}    result.push({type: END_TOKEN, text: "", line, column});
     return result;
 }
 

@@ -162,7 +162,7 @@
             }
         }
         const Status reset = textMode ? prepareText(source)
-                                      : (m_tokenPos = 0u, prepareCommon());
+                                      : (m_tokenPos = 0u, advance());
         if (reset != Status::Ok)
         {
             return reset;

@@ -22,6 +22,40 @@ HOOKS = {
 }
 
 
+BATCH_HOOKS = {
+    "c": """if (tokens->count == 2 && tokens->items[1].type == TOKEN_VIRTUAL) {
+    ParserToken_T marker = {0}; marker.type = TOKEN_MARKER;
+    Parser_PostTokensInsert(tokens, 1, marker);
+}""",
+    "cpp17": """if (tokens.size() == 2 && tokens.back().type == TokenType::TOKEN_VIRTUAL) {
+    Token marker; marker.type = TokenType::TOKEN_MARKER;
+    tokens.insert(tokens.begin() + 1, marker);
+}""",
+    "python": "if len(tokens) == 2 and tokens[-1].type == TOKEN_VIRTUAL:\n    tokens.insert(1, Token(TOKEN_MARKER))",
+    "csharp": """if (tokens.Count == 2 && tokens[1].type == Token.TOKEN_VIRTUAL) {
+    tokens.Insert(1, new Token(Token.TOKEN_MARKER));
+}""",
+    "go": """if len(tokens) == 2 && tokens[1].Type == TOKEN_VIRTUAL {
+    tokens = append(tokens[:1], NewTokenWithKind(TOKEN_MARKER), tokens[1])
+}""",
+    "rust": """if tokens.len() == 2 && tokens[1].kind == TOKEN_VIRTUAL {
+    tokens.insert(1, Token::with_kind(TOKEN_MARKER));
+}""",
+    "java": """if (tokens.size() == 2) {
+    int marker = java.util.Arrays.asList(TOKEN_NAMES).indexOf("MARKER");
+    tokens.add(1, new Token(marker, "", 1, 1));
+}""",
+    "js": """if (tokens.length === 2) {
+    tokens.splice(1, 0, {type: TOKEN_NAMES.indexOf("MARKER"), text: "", line: 1, column: 1});
+}""",
+    "chali": """if (tokens.len() == 2) {
+    ParserToken marker; marker.kind = Parser::tokenKind("MARKER");
+    ParserToken last = tokens[1];
+    tokens.pop(); tokens.push(marker); tokens.push(last);
+}""",
+}
+
+
 def run(args, cwd, text=None, ok=True):
     result = subprocess.run(
         [str(arg) for arg in args], cwd=cwd, input=text, capture_output=True,
@@ -33,15 +67,21 @@ def run(args, cwd, text=None, ok=True):
     return result.stdout
 
 
-def check(generator, workspace, lang, chali):
+def check(generator, workspace, lang, chali, batch):
     source = workspace / f"{lang}.gram"
-    source.write_text(
+    grammar = (
         '%tree\n%token RAW "@"\n%token VIRTUAL ""\n'
         '%trivia keep "//[^\\n]*"\n'
         '%trivia keep "/\\*([^*]|\\*+[^*/])*\\*+/"\n'
         '%if ENABLE_POSTLEX\n%postlex\n' + HOOKS[lang] +
-        '\n%endpostlex\n%endif\nstart := VIRTUAL VIRTUAL;\n', encoding="utf-8",
+        '\n%endpostlex\n%endif\n'
     )
+    if batch:
+        hook = workspace / f"{lang}-hook.txt"
+        hook.write_text(BATCH_HOOKS[lang] + "\n", encoding="utf-8")
+        grammar += f'%token MARKER ""\n%posttokens include "{hook.name}"\n'
+    grammar += "start := VIRTUAL " + ("MARKER " if batch else "") + "VIRTUAL;\n"
+    source.write_text(grammar, encoding="utf-8")
     mode = "dd" if lang in ("java", "js") else "ielr"
     target = workspace / lang
     run([generator, source, "--define", "ENABLE_POSTLEX", "--lang", lang,
@@ -75,16 +115,21 @@ def check(generator, workspace, lang, chali):
         generated = (target / "parser.chl").read_text(encoding="utf-8")
         assert HOOKS[lang] in generated and "tokens.push(Parser::postLex(token));" in generated
         assert "comment.offset = position;" in generated
+        if batch:
+            assert BATCH_HOOKS[lang] in generated and "tokens = Parser::postTokens(tokens);" in generated
         return "chali (generation only)"
 
     output = run(command, target, "@ /*注*/ @ //末\n")
-    expected = "(start @ @)" if lang == "chali" else "解析成功"
+    expected = ("(start @  @)" if batch else "(start @ @)") if lang == "chali" else "解析成功"
     assert expected in output, (lang, output)
     for invalid in ("@\n", "?\n", "\n"):
         run(command, target, invalid, ok=False)
     check_comment_positions(lang, target)
     if lang == "python":
-        check_python_modes(generator, source, workspace)
+        if batch:
+            check_batch_chart(generator, source, workspace)
+        else:
+            check_python_modes(generator, source, workspace)
     return lang
 
 
@@ -162,18 +207,45 @@ assert [(c.type, c.text, c.offset) for c in p.commits] == [
 """], target)
 
 
+def check_batch_chart(generator, source, workspace):
+    """The chart replays transformed tokens without repeating the hook."""
+    grammar = source.read_text(encoding="utf-8")
+    fixture = workspace / "python-batch-chart.gram"
+    fixture.write_text(
+        grammar.replace('%posttokens include "python-hook.txt"',
+                        "%code\ncalls = 0\n%endcode\n"
+                        "%posttokens\nglobal calls\ncalls += 1\n"
+                        + BATCH_HOOKS["python"] + "\n%endposttokens"),
+        encoding="utf-8",
+    )
+    target = workspace / "python-earley"
+    run([generator, fixture, "--define", "ENABLE_POSTLEX", "--lang", "python",
+         "--mode", "earley", "--out-dir", target], workspace)
+    run([sys.executable, "-c", """
+import parser
+p = parser.Parser()
+assert p.run_glr_tree("@ /*注*/ @") == 0
+assert parser.calls == 1
+assert [(c.text, c.offset) for c in p.commits] == [("/*注*/", 2)]
+assert p.run_glr_tree("@ ?") != 0
+assert parser.calls == 1
+"""], target)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--generator", type=Path, required=True)
+    default_generator = Path(__file__).resolve().parents[1] / "build" / "bin" / ("ParseEngine" + EXE)
+    parser.add_argument("--generator", type=Path, default=default_generator)
     parser.add_argument("--langs", default=",".join(HOOKS))
     parser.add_argument("--chali", type=Path)
+    parser.add_argument("--batch", action="store_true")
     args = parser.parse_args()
     generator = args.generator.resolve()
     chali = args.chali.resolve() if args.chali else None
     with tempfile.TemporaryDirectory(prefix="parseengine-postlex-") as tmp:
         workspace = Path(tmp)
         with ThreadPoolExecutor(max_workers=4) as pool:
-            checks = [pool.submit(check, generator, workspace, lang, chali)
+            checks = [pool.submit(check, generator, workspace, lang, chali, args.batch)
                       for lang in args.langs.split(",")]
             print("Passed: " + ", ".join(result.result() for result in checks))
 

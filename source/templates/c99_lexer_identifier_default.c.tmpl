@@ -3,13 +3,13 @@
         while ((isalnum((unsigned char)pCtx->pText[pCtx->textPosition]) != 0) ||
                (pCtx->pText[pCtx->textPosition] == '_')) {
             if (length + 1u >= sizeof(pCtx->lexeme)) { return PARSER_ERR_LEXER; }
-            pCtx->lexeme[length++] = Parser_ReadChar(pCtx);
+            pLexeme[length++] = Parser_ReadChar(pCtx);
         }
-        pCtx->lexeme[length] = '\0';
+        pLexeme[length] = '\0';
         pToken->type = TOKEN_VARIABLE;
-        pToken->pName = pCtx->lexeme;
+        pToken->pName = pLexeme;
 {% if variant_member %}
-        pToken->value.{{ variant_member }} = pCtx->lexeme;
+        pToken->value.{{ variant_member }} = pLexeme;
 {% endif %}
         return PARSER_OK;
     }

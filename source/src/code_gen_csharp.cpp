@@ -1627,7 +1627,8 @@ bool buildParserCs(const ProjectRequest &request, const std::string &mode,
     }
     const std::string engine = tmpl::renderValues(
         Utils::loadTemplate("csharp_engine.cs"),
-        {{"constants", csConstants(analysis, mode)},
+        {{"post_tokens", request.lexSpec != nullptr ? request.lexSpec->postTokens : ""},
+         {"constants", csConstants(analysis, mode)},
          {"lex_tables", lexTables},
          {"analysis_tables", analysisTables},
          {"tree_tables", treeTables},

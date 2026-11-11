@@ -351,6 +351,8 @@ public:
     std::vector<std::string> mainBlocks;      ///< %main 正文（按出现顺序）
     std::vector<std::size_t> mainBlockLines;  ///< 每个 %main 标记的原文件行号
     std::string postLex;                      ///< %postlex 正文
+    std::string postTokens;                   ///< %posttokens 正文
+    bool hasPostTokens = false;               ///< 是否写了 %posttokens
     bool hasPostLex = false;                   ///< 是否写了 %postlex
     std::string classBody;                    ///< %class_body 正文（原样，不含标记行）
     bool hasClassBody = false;                ///< 是否写了 %class_body
@@ -957,27 +959,47 @@ private:
                         lineOf(index));
                     return;
                 }
-                if (isMarkerMatch(text, index, "%postlex"))
+                const bool postTokensMarker = isMarkerMatch(text, index, "%posttokens");
+                if (postTokensMarker || isMarkerMatch(text, index, "%postlex"))
                 {
-                    if (hasPostLex || !isMarkerLine(text, index, "%postlex"))
+                    const std::string marker = postTokensMarker ? "%posttokens" : "%postlex";
+                    const std::string endMarker = postTokensMarker ? "%endposttokens" : "%endpostlex";
+                    bool &seen = postTokensMarker ? hasPostTokens : hasPostLex;
+                    std::string &body = postTokensMarker ? postTokens : postLex;
+                    if (seen)
                     {
-                        fail("%postlex 必须单独成行，且只允许一个", lineOf(index));
+                        fail(marker + " 只允许一个", lineOf(index));
                         return;
+                    }
+                    const std::string tail = markerTail(text, index, marker);
+                    if (!tail.empty())
+                    {
+                        const std::size_t next =
+                            collectIncludedBody(text, index, marker, tail, &body);
+                        if (failed()) return;
+                        seen = true;
+                        index = next;
+                        continue;
                     }
                     const std::size_t bodyStart = text.find('\n', index);
                     const std::size_t end = bodyStart == std::string::npos
                         ? std::string::npos
-                        : findBlockEnd(text, bodyStart + 1u, "%endpostlex");
+                        : findBlockEnd(text, bodyStart + 1u, endMarker);
                     if (end == std::string::npos)
                     {
-                        fail("%postlex 段缺少单独成行的 %endpostlex", lineOf(index));
+                        fail(marker + " 段缺少单独成行的 " + endMarker, lineOf(index));
                         return;
                     }
-                    hasPostLex = true;
-                    postLex = text.substr(bodyStart + 1u, end - bodyStart - 1u);
+                    seen = true;
+                    body = text.substr(bodyStart + 1u, end - bodyStart - 1u);
                     const std::size_t next = text.find('\n', end);
                     index = next == std::string::npos ? text.size() : next + 1u;
                     continue;
+                }
+                if (isMarkerLine(text, index, "%endposttokens"))
+                {
+                    fail("%endposttokens 没有对应的 %posttokens", lineOf(index));
+                    return;
                 }
                 if (isMarkerLine(text, index, "%endpostlex"))
                 {
@@ -1789,6 +1811,7 @@ public:
         m_mainBlockLines = tokenizer.mainBlockLines;
         m_hasClassBody = tokenizer.hasClassBody;
         m_postLex = tokenizer.postLex;
+        m_postTokens = tokenizer.postTokens;
         m_classBody = tokenizer.classBody;
         m_classBodyLine = tokenizer.classBodyLine;
         for (const GramToken &token : tokenizer.tokens)
@@ -2284,6 +2307,7 @@ void parseLookaheadDirective();
     std::vector<std::string> m_imports;          ///< %import 的名字（按出现顺序）
     std::vector<std::size_t> m_importLines;      ///< 每个 %import 的原文件行号
     bool m_hasClassBody = false;                 ///< 是否写过 %class_body
+    std::string m_postTokens;                    ///< %posttokens 正文
     std::string m_postLex;                       ///< %postlex 正文
     std::string m_classBody;                     ///< %class_body 正文（原样）
     std::size_t m_classBodyLine = 0u;            ///< %class_body 标记的原文件行号
@@ -4920,6 +4944,7 @@ GrammarConfig GramParser::validateAndBuild()
     config.importLines = m_importLines;
     config.hasClassBody = m_hasClassBody;
     config.postLex = m_postLex;
+    config.postTokens = m_postTokens;
     config.classBody = m_classBody;
     config.classBodyLine = m_classBodyLine;
     config.cppNamespace = m_cppNamespace;
@@ -5227,7 +5252,7 @@ bool expandIncludesRecursive(const std::string &text,
                              std::vector<std::filesystem::path> *stack,
                              std::string *out, Error &error)
 {
-    enum class Block { None, Code, PostLex, ClassBody, Epilogue };
+    enum class Block { None, Code, PostLex, PostTokens, ClassBody, Epilogue };
     Block block = Block::None;
     std::size_t pos = 0;
     const std::size_t n = text.size();
@@ -5247,9 +5272,12 @@ bool expandIncludesRecursive(const std::string &text,
                 --e;
             trimmed = line.substr(s, e - s);
         }
+        if (block == Block::Epilogue && !trimmed.empty() && trimmed[0] == '%')
+            block = Block::None;
         if (block == Block::None) {
             if (trimmed == "%code") block = Block::Code;
             else if (trimmed == "%postlex") block = Block::PostLex;
+            else if (trimmed == "%posttokens") block = Block::PostTokens;
             else if (trimmed == "%class_body") block = Block::ClassBody;
             else if (trimmed == "%epilogue" || trimmed == "%main")
                 block = Block::Epilogue;
@@ -5260,8 +5288,7 @@ bool expandIncludesRecursive(const std::string &text,
                 block = Block::None;
             else if (block == Block::ClassBody && trimmed == "%endbody")
                 block = Block::None;
-            else if (block == Block::Epilogue && !trimmed.empty() &&
-                     trimmed[0] == '%')
+            else if (block == Block::PostTokens && trimmed == "%endposttokens")
                 block = Block::None;
         }
         if (block == Block::None) {
@@ -5469,6 +5496,7 @@ LexSpec GrammarLoader::lexSpecFromConfig(const GrammarConfig &cfg)
     spec.tokenLexOrder = cfg.tokenLexOrder;
     spec.tokenAliases = cfg.tokenAliases;
     spec.postLex = cfg.postLex;
+    spec.postTokens = cfg.postTokens;
     return spec;
 }
 

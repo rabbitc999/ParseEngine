@@ -50,6 +50,7 @@ initializer := assignment_expression        { $$ = $1; }
 | --- | --- |
 | `%value_type 类型` | 声明语义值类型（如 `%value_type double`、`%value_type struct Node *`），生成器补 `typedef … ParserValue_T;` |
 | `%postlex` … `%endpostlex` | 匹配普通 Token 后、交给语法分析前，执行目标语言代码 |
+| `%posttokens` … `%endposttokens` | 整段输入分词成功后、语法分析前执行一次，可修改 Token 序列。支持 `%posttokens include "文件"` |
 | `%code ... %endcode` | 用户 C 代码块，可跨行、可写多段；按出现顺序原样拼接进 `parser_user.h` |
 | `%code` … `%endcode` | 用户代码块：两个标记各自单独成行，中间内容原样拼接进 `parser_user.h`；可写多段 |
 | `%code include "路径"` | 同上，但正文来自外部文件：标记行直接写 `include "路径"`（也接受 `include="路径"`），**不用**写 `%endcode`。`%epilogue` / `%main` / `%class_body` 同样支持，见[把大段用户代码放外部文件](#把大段用户代码放外部文件include) |

@@ -611,7 +611,39 @@ func (p *Parser) readChar() rune {
 	return ch
 }
 
+{% if post_tokens %}func postTokens(tokens []Token) []Token {
+{{ post_tokens }}
+	return tokens
+}
+
 func (p *Parser) advance() int32 {
+	if p.textMode {
+		var tokens []Token
+		for {
+			if status := p.advanceRaw(); status != StatusOK {
+				return status
+			}
+			if p.current.Type == TOKEN_END {
+				break
+			}
+			tokens = append(tokens, p.current)
+		}
+		end := p.current
+		tokens = postTokens(tokens)
+		for _, token := range tokens {
+			if token.Type < 0 || token.Type >= TOKEN_END {
+				p.setError(StatusErrLexer, token.Line, token.Column, "%posttokens 产生了无效的 Token 类型")
+				return StatusErrLexer
+			}
+		}
+		p.tokens = append(tokens, end)
+		p.tokenPos = 0
+		p.textMode = false
+	}
+	return p.advanceRaw()
+}
+
+{% endif %}func (p *Parser) advance{% if post_tokens %}Raw{% endif %}() int32 {
 	if !p.textMode {
 		if p.tokenPos < len(p.tokens) {
 			p.current = p.tokens[p.tokenPos]

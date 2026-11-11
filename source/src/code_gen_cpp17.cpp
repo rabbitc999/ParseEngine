@@ -2446,7 +2446,8 @@ bool CodeGenCpp17::parserCpp(const ProjectRequest &request,
     const bool blankRule = lexerHasBlankRule(request.tokenDefs);
     std::string lexer = tmpl::renderValues(
         Utils::loadTemplate("cpp17_lexer.cpp"),
-        {{"post_lex", request.lexSpec != nullptr ? request.lexSpec->postLex : ""},
+        {{"post_tokens", request.lexSpec != nullptr ? request.lexSpec->postTokens : ""},
+         {"post_lex", request.lexSpec != nullptr ? request.lexSpec->postLex : ""},
          {"lex_skip_helpers",
           (dfa != nullptr)
               ? dfa->skipHelpers + cpp17LexerSkipHelpers(request.spaceChars, blankRule)
@@ -2540,7 +2541,8 @@ bool CodeGenCpp17::parserCpp(const ProjectRequest &request,
         (!isLrMode(mode) && !isLexMode(mode));
     const std::string engineParseImpl = tmpl::renderValues(
         Utils::loadTemplate("cpp17_engine_parse_impl.cpp"),
-        {{"incremental", incrementalMode}});
+        {{"incremental", incrementalMode},
+         {"post_tokens", request.lexSpec != nullptr && !request.lexSpec->postTokens.empty()}});
 
     std::string publicText = tmpl::renderValues(
         Utils::loadTemplate("cpp17_public.cpp"),
@@ -2548,14 +2550,17 @@ bool CodeGenCpp17::parserCpp(const ProjectRequest &request,
          {"glr_impl",
           isGlrMode(mode) ? tmpl::renderValues(
                                 Utils::loadTemplate("cpp17_glr_impl.cpp"),
-                                {{"value_type", "ParserValue_T"}})
+                                {{"value_type", "ParserValue_T"},
+                                 {"post_tokens", request.lexSpec != nullptr &&
+                                                     !request.lexSpec->postTokens.empty()}})
                           : std::string()},
          {"parse_tree", request.tree},
          {"tree_class", true}});
 
     const std::string core = tmpl::renderValues(
         Utils::loadTemplate("cpp17_core.cpp"),
-        {{"core_syntax_error", Utils::loadTemplate("cpp17_core_syntax_error.cpp")},
+        {{"post_tokens", request.lexSpec != nullptr ? request.lexSpec->postTokens : ""},
+         {"core_syntax_error", Utils::loadTemplate("cpp17_core_syntax_error.cpp")},
          {"core_parse_entry", Utils::loadTemplate("cpp17_core_parse_entry.cpp")},
          {"glr", isGlrMode(mode)},
          {"value_type", "ParserValue_T"}});

@@ -260,7 +260,49 @@
      * @brief 取下一个 lookahead：文本模式走词法器，Token 模式按序号取。
      * @return Status::Ok 表示成功。
      */
+{% if post_tokens %}    ParserMemory::Vector<Token> m_batchTokens;
+    ParserMemory::Deque<ParserMemory::String> m_batchLexemes;
+
+    static void postTokens(ParserMemory::Vector<Token> &tokens)
+    {
+        (void)tokens;
+{{ post_tokens }}
+    }
+
     Status advance()
+    {
+        if (m_textMode)
+        {
+            m_batchTokens.clear();
+            m_batchLexemes.clear();
+            for (;;)
+            {
+                const Status status = advanceRaw();
+                if (status != Status::Ok) return status;
+                if (m_current.type == TokenType::TOKEN_END) break;
+                m_batchTokens.push_back(m_current);
+            }
+            const Token end = m_current;
+            postTokens(m_batchTokens);
+            for (const Token &token : m_batchTokens)
+            {
+                if (token.type >= TokenType::TOKEN_END)
+                {
+                    setError(failCode(Status::ErrLexer), token.line, token.column,
+                             "%posttokens 产生了无效的 Token 类型");
+                    return Status::ErrLexer;
+                }
+            }
+            m_batchTokens.push_back(end);
+            m_tokenArray = m_batchTokens.data();
+            m_tokenCount = m_batchTokens.size();
+            m_tokenPos = 0u;
+            m_textMode = false;
+        }
+        return advanceRaw();
+    }
+
+{% endif %}    Status advance{% if post_tokens %}Raw{% endif %}()
     {
         if (!m_textMode)
         {

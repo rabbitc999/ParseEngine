@@ -220,7 +220,8 @@ ScanResult scanText(const std::string& text) {
                 const std::size_t stop = (lineEnd == std::string::npos) ? text.size() : lineEnd;
                 const std::string tail = trim(text.substr(cursor.offset(), stop - cursor.offset()));
                 if ((directive == "%code" || directive == "%class_body" ||
-                     directive == "%main" || directive == "%epilogue") &&
+                     directive == "%main" || directive == "%epilogue" ||
+                     directive == "%postlex" || directive == "%posttokens") &&
                     isIncludeTail(tail)) {
                     cursor.advanceTo(stop);
                     emit(Raw::Code, Range{start, cursor.position()}, directive);
@@ -228,8 +229,10 @@ ScanResult scanText(const std::string& text) {
                 }
             }
             // 段标记：正文原样收集成一个 Code token（不解析里面的内容）。
-            if (directive == "%code" || directive == "%class_body" || directive == "%postlex") {
-                const std::string terminator = directive == "%postlex" ? "%endpostlex" :
+            if (directive == "%code" || directive == "%class_body" || directive == "%postlex" ||
+                directive == "%posttokens") {
+                const std::string terminator = directive == "%posttokens" ? "%endposttokens" :
+                    directive == "%postlex" ? "%endpostlex" :
                     directive == "%code" ? "%endcode" : "%endbody";
                 const std::size_t bodyStart = cursor.offset();
                 std::size_t marker = findMarkerLine(text, bodyStart, terminator);
@@ -247,7 +250,7 @@ ScanResult scanText(const std::string& text) {
             if (directive == "%main" || directive == "%epilogue") {
                 const std::size_t bodyStart = cursor.offset();
                 std::size_t marker = std::string::npos;
-                for (const char* candidate : {"%main", "%epilogue", "%code", "%class_body", "%postlex"}) {
+                for (const char* candidate : {"%main", "%epilogue", "%code", "%class_body", "%postlex", "%posttokens"}) {
                     const std::size_t found = findMarkerLine(text, bodyStart, candidate);
                     if (found != std::string::npos && (marker == std::string::npos || found < marker)) {
                         marker = found;
@@ -346,6 +349,8 @@ const std::vector<std::pair<std::string, std::string>>& directiveDocs() {
         {"%endcode", "结束 %code 段（单独成行，正文不解析）"},
         {"%postlex", "词法后处理代码，每个成功匹配的 Token 执行一次，以 %endpostlex 收尾"},
         {"%endpostlex", "结束 %postlex 段（单独成行）"},
+        {"%posttokens", "整批 Token 后处理；用 %endposttokens 收尾，或写 %posttokens include \"文件\""},
+        {"%endposttokens", "结束 %posttokens 段（单独成行）"},
         {"%union", "语义值联合体，配合 %type / %token <成员> 使用"},
         {"%type", "给非终结符绑定 %union 成员：`%type <成员> a b`"},
         {"%destructor", "给 %union 成员登记清理代码：`%destructor <成员> { … }`"},

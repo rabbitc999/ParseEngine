@@ -83,18 +83,18 @@
             }
             pToken->type = bestType;
             if (bestFromRegex != 0u) {
-                PARSER_MEMCPY(pCtx->lexeme, pStart, bestLength);
-                pCtx->lexeme[bestLength] = '\0';
-                pToken->pName = pCtx->lexeme;
+                PARSER_MEMCPY(pLexeme, pStart, bestLength);
+                pLexeme[bestLength] = '\0';
+                pToken->pName = pLexeme;
             } else if (bestWildcard != 0u) {
                 /* \b 通配命中：词素要按输入抄一份，不能直接指字面量 */
-                PARSER_MEMCPY(pCtx->lexeme, pStart, bestLength);
-                pCtx->lexeme[bestLength] = '\0';
-                pToken->pName = pCtx->lexeme;
+                PARSER_MEMCPY(pLexeme, pStart, bestLength);
+                pLexeme[bestLength] = '\0';
+                pToken->pName = pLexeme;
 {% if regex_cases %}
                 switch ((int)bestType) {
 {% for c in regex_cases %}
-                case TOKEN_{{ c.token }}: pToken->value.{{ c.member }} = pCtx->lexeme; break;
+                case TOKEN_{{ c.token }}: pToken->value.{{ c.member }} = pLexeme; break;
 {% endfor %}
                 default: break;
                 }

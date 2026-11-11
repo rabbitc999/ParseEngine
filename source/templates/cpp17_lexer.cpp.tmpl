@@ -28,7 +28,10 @@
 
 {% endif %}    Status lexNext{% if post_lex %}Raw{% endif %}(Token &token)
     {
-        /* %commit 命中时是「吃掉这段原文（收进容器或丢掉）再继续取 Token」，
+{% if post_tokens %}        m_batchLexemes.emplace_back();
+        auto &m_lexeme = m_batchLexemes.back();
+        (void)m_lexeme;
+{% endif %}        /* %commit 命中时是「吃掉这段原文（收进容器或丢掉）再继续取 Token」，
          * 不是 Token，所以整段套一个循环。 */
         for (;;)
         {

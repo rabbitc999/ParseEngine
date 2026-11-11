@@ -1024,7 +1024,44 @@ impl Parser
         ch
     }
 
+{% if post_tokens %}    fn post_tokens(tokens: &mut Vec<Token>)
+    {
+        let _ = &tokens;
+{{ post_tokens }}
+    }
+
     fn advance(&mut self) -> i32
+    {
+        if self.text_mode
+        {
+            let mut tokens = Vec::new();
+            loop
+            {
+                let status = self.advance_raw();
+                if status != STATUS_OK { return status; }
+                if self.current.kind == TOKEN_END { break; }
+                tokens.push(self.current.clone());
+            }
+            let end = self.current.clone();
+            Self::post_tokens(&mut tokens);
+            for token in &tokens
+            {
+                if token.kind < 0 || token.kind >= TOKEN_END
+                {
+                    self.set_error(STATUS_ERR_LEXER, token.line, token.column,
+                                   "%posttokens 产生了无效的 Token 类型");
+                    return STATUS_ERR_LEXER;
+                }
+            }
+            tokens.push(end);
+            self.tokens = tokens;
+            self.token_pos = 0;
+            self.text_mode = false;
+        }
+        self.advance_raw()
+    }
+
+{% endif %}    fn advance{% if post_tokens %}_raw{% endif %}(&mut self) -> i32
     {
         if !self.text_mode
         {
@@ -1258,7 +1295,9 @@ impl Parser
     pub fn run_text_incremental(&mut self, text: &str,
                                 cache: &mut IncrementalCache) -> i32
     {
-        if cache.valid && (cache.text == text)
+{% if post_tokens %}        cache.valid = false;
+        self.run_text(text)
+{% else %}        if cache.valid && (cache.text == text)
         {
             self.errors = cache.errors.clone();
             self.commits = cache.commits.clone();
@@ -1326,7 +1365,7 @@ impl Parser
         cache.errors = self.errors.clone();
         cache.commits = self.commits.clone();
         status
-    }
+{% endif %}    }
 
 {% endif %}
     /// 解析已经切好的 Token 序列。

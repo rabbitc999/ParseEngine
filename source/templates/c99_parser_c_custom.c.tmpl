@@ -111,8 +111,12 @@ static int32_t Parser_CommitAppend(const ParserToken_T *pToken,
  * @brief 清空错误表（每次解析开始时调用）。
  * @retval 无。
  */
-static void Parser_ClearErrors(void)
+{% if post_tokens %}static void Parser_FreeBatch(void);
+
+{% endif %}static void Parser_ClearErrors(void)
 {
+{% if post_tokens %}    Parser_FreeBatch();
+{% endif %}
     PARSER_MEMSET(s_ParserErrors, 0, sizeof(s_ParserErrors));
     s_ParserErrorCount = 0u;
 #ifdef PARSER_HAS_REGEX_RUNTIME

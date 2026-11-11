@@ -1796,6 +1796,7 @@ bool buildParserRs(const ProjectRequest &request, const std::string &mode,
         lrText += tmpl::renderValues(
             Utils::loadTemplate("rust_glr.rs"),
             {{"value_type", info.typeText},
+             {"post_tokens", request.lexSpec != nullptr && !request.lexSpec->postTokens.empty()},
              {"chart", (mode == "earley") || (mode == "cyk")}});
         if ((mode == "earley") || (mode == "cyk"))
         {
@@ -1826,7 +1827,8 @@ bool buildParserRs(const ProjectRequest &request, const std::string &mode,
         (!isLrMode(mode) && !isLexMode(mode));
     const std::string engine = tmpl::renderValues(
         Utils::loadTemplate("rust_engine.rs"),
-        {{"mode_name", modeLabelText(mode)},
+        {{"post_tokens", request.lexSpec != nullptr ? request.lexSpec->postTokens : ""},
+         {"mode_name", modeLabelText(mode)},
          {"max_stack_depth",
           static_cast<long long>(request.maxStackDepth.value_or(64))},
          {"max_errors", static_cast<long long>(request.maxErrors.value_or(8))},

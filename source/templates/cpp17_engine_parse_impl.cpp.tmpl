@@ -9,7 +9,10 @@ Status Engine::runText(std::string_view text, ParserValue_T *result)
                                   IncrementalCache &cache)
 {
     d->m_regexResult = {};
-    const Status status = d->runTextIncremental(text, result, cache);
+{% if post_tokens %}    cache.valid = false;
+    const Status status = d->runText(text, result);
+{% else %}    const Status status = d->runTextIncremental(text, result, cache);
+{% endif %}
     if (d->m_regexResult.status < 0) cache.valid = false;
     return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }

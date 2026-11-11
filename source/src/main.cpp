@@ -808,6 +808,11 @@ int main(int argc, char **argv)
         // 「写了就会生效」。
         if (isLexMode(mode))
         {
+            if (!cfg.postTokens.empty())
+            {
+                std::cerr << "错误：%posttokens 需要语法分析入口，不能用于 lex 模式\n";
+                return 2;
+            }
             std::size_t ruleCount = 0u;
             for (const auto &rule : cfg.grammar.rules)
             {

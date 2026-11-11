@@ -21,7 +21,7 @@ func (p *Parser) chartPrecheck() int32 {
 		reset = p.prepareText(source)
 	} else {
 		p.tokenPos = 0
-		reset = p.prepareCommon()
+		reset = p.advance()
 	}
 	if reset != StatusOK {
 		return reset

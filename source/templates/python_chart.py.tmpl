@@ -2,15 +2,18 @@
 
     def _chart_precheck(self):
         text_mode = self._text_mode
-        source = self._input if text_mode else self._tokens
+        source = self._input
         tokens = []
         while self._current.type != TOKEN_END:
             tokens.append(self._current.type)
             status = self._advance()
             if status != STATUS_OK:
                 return status
-        status = (self._prepare_text(source) if text_mode
-                  else self._prepare_tokens(source))
+        if text_mode:
+            status = self._prepare_text(source)
+        else:
+            self._token_pos = 0
+            status = self._advance()
         if status != STATUS_OK:
             return status
         accepted = (self._earley_accept(tokens) if {% if earley %}True{% else %}False{% endif %}

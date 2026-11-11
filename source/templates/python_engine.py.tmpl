@@ -410,7 +410,33 @@ class _GlrNode(object):
         return ParserLocation(self._current.line, self._current.column,
                               self._current.offset)
 
+{% if post_tokens %}    @staticmethod
+    def _post_tokens(tokens):
+        pass
+{{ post_tokens }}
     def _advance(self):
+        if self._text_mode:
+            tokens = []
+            while True:
+                status = self._advance_raw()
+                if status != STATUS_OK:
+                    return status
+                if self._current.type == TOKEN_END:
+                    break
+                tokens.append(self._current)
+            end = self._current
+            self._post_tokens(tokens)
+            for token in tokens:
+                if not isinstance(token, Token) or not 0 <= token.type < TOKEN_END:
+                    self._set_error(STATUS_ERR_LEXER, end.line, end.column,
+                                    "%posttokens 产生了无效的 Token 类型")
+                    return STATUS_ERR_LEXER
+            self._tokens = tuple(tokens) + (end,)
+            self._token_pos = 0
+            self._text_mode = False
+        return self._advance_raw()
+
+{% endif %}    def _advance{% if post_tokens %}_raw{% endif %}(self):
         """取下一个 lookahead：文本模式走词法器，Token 模式按序号取。"""
         if not self._text_mode:
             if self._token_pos < len(self._tokens):

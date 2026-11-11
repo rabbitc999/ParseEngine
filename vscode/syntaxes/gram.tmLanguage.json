@@ -45,7 +45,7 @@
         {
           "comment": "段标记的 include 写法：%code include \"user.h\" 等 —— 正文在外部文件里，整行只高亮标记 + include + 路径",
           "name": "meta.section.include.gram",
-          "match": "^(\\s*)(%(?:code|class_body|epilogue|main))\\s+(include)\\s*=?\\s*(\"[^\"]*\"|'[^']*')",
+          "match": "^(\\s*)(%(?:code|class_body|epilogue|main|postlex|posttokens))\\s+(include)\\s*=?\\s*(\"[^\"]*\"|'[^']*')",
           "captures": {
             "2": {
               "name": "keyword.control.directive.gram"
@@ -137,6 +137,22 @@
           "contentName": "meta.embedded.block.gram-code"
         },
         {
+          "name": "meta.section.posttokens.gram",
+          "begin": "^(\\s*)(%posttokens)\\b",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "end": "^(\\s*)(%endposttokens)\\b",
+          "endCaptures": {
+            "2": {
+              "name": "keyword.control.directive.gram"
+            }
+          },
+          "contentName": "meta.embedded.block.gram-code"
+        },
+        {
           "name": "meta.section.class-body.gram",
           "begin": "^(\\s*)(%class_body)\\b",
           "beginCaptures": {
@@ -154,14 +170,14 @@
         },
         {
           "name": "meta.section.epilogue.gram",
-          "comment": "%epilogue：正文到下一个段标记（%main / %epilogue / %code / %class_body / %postlex）为止",
+          "comment": "%epilogue：正文到下一个段标记（%main / %epilogue / %code / %class_body / %postlex / %posttokens）为止",
           "begin": "^(\\s*)(%epilogue)\\b",
           "beginCaptures": {
             "2": {
               "name": "keyword.control.directive.gram"
             }
           },
-          "end": "^(\\s*)(%(?:epilogue|main|code|class_body|postlex))\\b",
+          "end": "^(\\s*)(%(?:epilogue|main|code|class_body|postlex|posttokens))\\b",
           "endCaptures": {
             "2": {
               "name": "keyword.control.directive.gram"
@@ -178,7 +194,7 @@
               "name": "keyword.control.directive.gram"
             }
           },
-          "end": "^(\\s*)(%(?:epilogue|main|code|class_body|postlex))\\b",
+          "end": "^(\\s*)(%(?:epilogue|main|code|class_body|postlex|posttokens))\\b",
           "endCaptures": {
             "2": {
               "name": "keyword.control.directive.gram"

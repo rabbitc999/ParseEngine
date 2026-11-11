@@ -1,4 +1,73 @@
 {{ lex_skip_helpers }}
+{% if post_tokens %}
+/** @brief %posttokens 的可变 Token 数组。插入后 items 可能重新分配。 */
+typedef struct ParserPostTokens {
+    ParserToken_T *items;
+    uint32_t count;
+    uint32_t capacity;
+    int32_t status;
+} ParserPostTokens;
+
+typedef struct ParserBatchLexeme {
+    struct ParserBatchLexeme *next;
+    char text[PARSER_MAX_STRING_LENGTH];
+} ParserBatchLexeme;
+
+static ParserPostTokens s_ParserBatch;
+static ParserBatchLexeme *s_ParserBatchLexemes;
+
+/** @brief 释放上一轮词法结果和它引用的词素。 */
+static void Parser_FreeBatch(void)
+{
+    while (s_ParserBatchLexemes != NULL) {
+        ParserBatchLexeme *node = s_ParserBatchLexemes;
+        s_ParserBatchLexemes = node->next;
+        free(node);
+    }
+    free(s_ParserBatch.items);
+    PARSER_MEMSET(&s_ParserBatch, 0, sizeof(s_ParserBatch));
+}
+
+/**
+ * @brief 向 %posttokens 数组插入一枚 Token。
+ * @param tokens 当前批次。
+ * @param index 插入位置，count 表示追加。
+ * @param token 要插入的 Token。
+ * @return PARSER_OK，或记录在批次上的词法错误。
+ */
+static int32_t Parser_PostTokensInsert(ParserPostTokens *tokens, uint32_t index,
+                                       ParserToken_T token)
+{
+    if (tokens->status != PARSER_OK) return tokens->status;
+    if (index > tokens->count || tokens->count == UINT32_MAX) {
+        return tokens->status = PARSER_ERR_LEXER;
+    }
+    if (tokens->count == tokens->capacity) {
+        uint32_t capacity = tokens->capacity == 0u ? 8u : tokens->capacity;
+        if (capacity <= tokens->count)
+            capacity = capacity <= UINT32_MAX / 2u ? capacity * 2u : UINT32_MAX;
+        if (capacity > SIZE_MAX / sizeof(ParserToken_T)) {
+            return tokens->status = PARSER_ERR_LEXER;
+        }
+        ParserToken_T *items = (ParserToken_T *)realloc(
+            tokens->items, (size_t)capacity * sizeof(ParserToken_T));
+        if (items == NULL) return tokens->status = PARSER_ERR_LEXER;
+        tokens->items = items;
+        tokens->capacity = capacity;
+    }
+    memmove(tokens->items + index + 1u, tokens->items + index,
+            (size_t)(tokens->count - index) * sizeof(ParserToken_T));
+    tokens->items[index] = token;
+    ++tokens->count;
+    return PARSER_OK;
+}
+
+static void Parser_PostTokens(ParserPostTokens *tokens)
+{
+    (void)tokens;
+{{ post_tokens }}
+}
+{% endif %}
 /** 
  * @brief 从脚本文本产生 Token。 
  * @param pCtx 上下文。 
@@ -26,7 +95,14 @@ static int32_t Parser_LexNext(ParserCtx_T *pCtx, ParserToken_T *pToken)
     const char *pStart = NULL;
     uint32_t length = 0u;
     uint32_t index = 0u;
-
+    char *pLexeme = pCtx->lexeme;
+    (void)pLexeme;
+{% if post_tokens %}    ParserBatchLexeme *node = (ParserBatchLexeme *)malloc(sizeof(*node));
+    if (node == NULL) return PARSER_ERR_LEXER;
+    node->next = s_ParserBatchLexemes;
+    s_ParserBatchLexemes = node;
+    pLexeme = node->text;
+{% endif %}
     /* %commit 命中时是「吃掉这段原文（收进容器或丢掉）再继续取 Token」，
      * 不是 Token，所以整段套一个循环。 */
     for (;;) {
@@ -53,7 +129,47 @@ static int32_t Parser_LexNext(ParserCtx_T *pCtx, ParserToken_T *pToken)
  * @param pCtx 上下文。 
  * @retval 状态码。 
  */
+{% if post_tokens %}static int32_t Parser_AdvanceRaw(ParserCtx_T *pCtx);
+
+/** @brief 先准备并变换整批 Token，再从数组读取首个 Token。 */
 static int32_t Parser_Advance(ParserCtx_T *pCtx)
+{
+    if (pCtx->textMode != 0u) {
+        int32_t status;
+        uint32_t index;
+        ParserToken_T end;
+        for (;;) {
+            status = Parser_AdvanceRaw(pCtx);
+            if (status != PARSER_OK) return status;
+            if (pCtx->current.type == TOKEN_END) break;
+            if (Parser_PostTokensInsert(&s_ParserBatch, s_ParserBatch.count,
+                                        pCtx->current) != PARSER_OK) break;
+        }
+        if (s_ParserBatch.status == PARSER_OK) {
+            end = pCtx->current;
+            Parser_PostTokens(&s_ParserBatch);
+            for (index = 0u; index < s_ParserBatch.count; ++index) {
+                if ((uint32_t)s_ParserBatch.items[index].type >= (uint32_t)TOKEN_END) {
+                    s_ParserBatch.status = PARSER_ERR_LEXER;
+                    break;
+                }
+            }
+            Parser_PostTokensInsert(&s_ParserBatch, s_ParserBatch.count, end);
+        }
+        if (s_ParserBatch.status != PARSER_OK) {
+            Parser_SetError(PARSER_ERR_LEXER, pCtx->current.line, pCtx->current.column,
+                            "%posttokens 无法生成有效的 Token 数组");
+            return PARSER_ERR_LEXER;
+        }
+        pCtx->pTokens = s_ParserBatch.items;
+        pCtx->tokenCount = s_ParserBatch.count;
+        pCtx->tokenPosition = 0u;
+        pCtx->textMode = 0u;
+    }
+    return Parser_AdvanceRaw(pCtx);
+}
+
+{% endif %}static int32_t Parser_Advance{% if post_tokens %}Raw{% endif %}(ParserCtx_T *pCtx)
 {
     int32_t ret = PARSER_OK;
     if (pCtx->textMode != 0u) {

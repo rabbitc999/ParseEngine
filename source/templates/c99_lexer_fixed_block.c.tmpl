@@ -19,9 +19,9 @@
                 if (pRule->length >= (uint32_t)sizeof(pCtx->lexeme)) {
                     return PARSER_ERR_LEXER;
                 }
-                PARSER_MEMCPY(pCtx->lexeme, pStart, pRule->length);
-                pCtx->lexeme[pRule->length] = '\0';
-                pToken->pName = pCtx->lexeme;
+                PARSER_MEMCPY(pLexeme, pStart, pRule->length);
+                pLexeme[pRule->length] = '\0';
+                pToken->pName = pLexeme;
             } else {
                 pToken->pName = pRule->pText;
             }

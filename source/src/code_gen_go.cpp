@@ -1915,7 +1915,8 @@ bool buildParserGo(const ProjectRequest &request, const std::string &mode,
 
     const std::string engine = tmpl::renderValues(
         Utils::loadTemplate("go_engine.go"),
-        {{"mode_name", modeLabelText(mode)},
+        {{"post_tokens", request.lexSpec != nullptr ? request.lexSpec->postTokens : ""},
+         {"mode_name", modeLabelText(mode)},
          {"max_stack_depth",
           static_cast<long long>(request.maxStackDepth.value_or(64))},
          {"max_errors", static_cast<long long>(request.maxErrors.value_or(8))},

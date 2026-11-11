@@ -20,18 +20,18 @@
             if (outputIndex + 1u >= sizeof(pCtx->lexeme)) {
                 return PARSER_ERR_LEXER;
             }
-            pCtx->lexeme[outputIndex++] = ch;
+            pLexeme[outputIndex++] = ch;
         }
         if (pCtx->pText[pCtx->textPosition] != '"') {
             /* 读到输入末尾还没等到收尾的引号：细分码 PARSER_ERR_LEX_UNTERMINATED */
             return PARSER_ERR_LEX_UNTERMINATED;
         }
         Parser_ReadChar(pCtx);
-        pCtx->lexeme[outputIndex] = '\0';
+        pLexeme[outputIndex] = '\0';
         pToken->type = TOKEN_STRING;
-        pToken->name = pCtx->lexeme;
+        pToken->name = pLexeme;
 {% if string_member %}
-        pToken->value.{{ string_member }} = pCtx->lexeme;
+        pToken->value.{{ string_member }} = pLexeme;
 {% endif %}
         return PARSER_OK;
     }

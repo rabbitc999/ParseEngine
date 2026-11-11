@@ -47,6 +47,7 @@ An action may be written as `{ ... }`, or written at the end of the line without
 | --- | --- |
 | `%value_type type` | Declares the semantic value type (e.g. `%value_type double`, `%value_type struct Node *`); the generator appends `typedef … ParserValue_T;` |
 | `%postlex` … `%endpostlex` | Runs target-language code after each ordinary token is matched and before parsing consumes it |
+| `%posttokens` … `%endposttokens` | Runs once on the mutable token sequence before parsing. Supports `%posttokens include "file"` |
 | `%code ... %endcode` | A user C code block; may span lines and be written in several sections; concatenated verbatim into `parser_user.h` in order of appearance |
 | `%code` … `%endcode` | A user code block: each of the two markers occupies its own line, and the content between them is concatenated verbatim into `parser_user.h`; may be written in several sections |
 | `%code include "path"` | Same as above, but the body comes from an external file: the marker line writes `include "path"` directly (also accepts `include="path"`), and you do **not** write `%endcode`. `%epilogue` / `%main` / `%class_body` support it too; see [Putting Large User Code Blocks in External Files](#putting-large-user-code-blocks-in-external-files-include) |

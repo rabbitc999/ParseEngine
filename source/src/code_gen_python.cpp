@@ -1377,13 +1377,8 @@ struct LexerBlocks
 };
 
 /// 将 %postlex 正文缩进到 Python 类的方法内。
-std::string pythonPostLex(const ProjectRequest &request)
+std::string pythonHook(const std::string &body)
 {
-    if (request.lexSpec == nullptr)
-    {
-        return {};
-    }
-    const std::string &body = request.lexSpec->postLex;
     std::string result;
     for (std::size_t start = 0u; start < body.size();)
     {
@@ -1894,7 +1889,7 @@ bool CodeGenPython::parserPy(const ProjectRequest &request,
     buildLexerBlocks(request, blocks);
     const std::string lexer = tmpl::renderValues(
         Utils::loadTemplate("python_lexer.py"),
-        {{"post_lex", pythonPostLex(request)},
+        {{"post_lex", pythonHook(request.lexSpec != nullptr ? request.lexSpec->postLex : "")},
          {"lex_skip_loop",
           "        while _lex_is_skip_char(self._peek_char()):\n"
           "            # 空白也可能是 Token（%define NL \"\\n\" / "
@@ -1959,7 +1954,8 @@ bool CodeGenPython::parserPy(const ProjectRequest &request,
 
     const std::string engine = tmpl::renderValues(
         Utils::loadTemplate("python_engine.py"),
-        {{"class", className(request)},
+        {{"post_tokens", pythonHook(request.lexSpec != nullptr ? request.lexSpec->postTokens : "")},
+         {"class", className(request)},
          {"mode_name", modeLabelText(mode)},
          {"max_stack_depth",
           std::to_string(request.maxStackDepth.value_or(64))},
@@ -2075,7 +2071,7 @@ bool CodeGenPython::lexerPy(const ProjectRequest &request,
     buildLexerBlocks(request, blocks);
     const std::string lexer = tmpl::renderValues(
         Utils::loadTemplate("python_lexer.py"),
-        {{"post_lex", pythonPostLex(request)},
+        {{"post_lex", pythonHook(request.lexSpec != nullptr ? request.lexSpec->postLex : "")},
          {"lex_skip_loop",
           "        while _lex_is_skip_char(self._peek_char()):\n"
           "            # 空白也可能是 Token（%define NL \"\\n\" / "

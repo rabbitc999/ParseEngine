@@ -155,6 +155,10 @@ struct Parser {
 {{ post_lex }}
         return token;
     }
+{% endif %}{% if post_tokens %}    static List<ParserToken> postTokens(List<ParserToken> tokens) {
+{{ post_tokens }}
+        return tokens;
+    }
 {% endif %}    /** @brief 最长匹配词法分析后运行解析器。
      * @param text 完整输入文本。@return 成功值或首个词法/语法错误。
      */
@@ -205,7 +209,17 @@ struct Parser {
                 position = position + size;
             }
         }
-        ParserToken end; end.kind = {{ end }}; end.offset = text.length(); tokens.push(end);
+{% if post_tokens %}        tokens = Parser::postTokens(tokens);
+        int64 tokenIndex = 0;
+        while (tokenIndex < tokens.len()) {
+            if (tokens[tokenIndex].kind < 0 || tokens[tokenIndex].kind >= {{ end }}) {
+                ParserResult invalid; invalid.message = "%posttokens 产生了无效的 Token 类型";
+                invalid.offset = tokens[tokenIndex].offset; invalid.comments = comments;
+                return invalid;
+            }
+            tokenIndex = tokenIndex + 1;
+        }
+{% endif %}        ParserToken end; end.kind = {{ end }}; end.offset = text.length(); tokens.push(end);
         ParserResult result = Parser::runTokens(tokens);
         result.comments = comments;
         return result;

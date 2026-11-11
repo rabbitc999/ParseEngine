@@ -549,7 +549,7 @@ bool Preprocessor::run(const std::string &text, const DefineMap &defines,
     bool inCodeBlock = false;
     bool sawDirective = false;
 
-    bool inPostLex = false;
+    std::string postEnd;
     for (std::size_t index = 0u; index < lines.size(); ++index)
     {
         const std::string &line = lines[index];
@@ -558,9 +558,9 @@ bool Preprocessor::run(const std::string &text, const DefineMap &defines,
         const bool active = frames.empty() ? true : frames.back().active;
 
         std::size_t position = std::string::npos;
-        if (inPostLex)
+        if (!postEnd.empty())
         {
-            inPostLex = strip(content) != "%endpostlex";
+            if (strip(content) == postEnd) postEnd.clear();
         }
         else if (inCodeBlock)
         {
@@ -573,8 +573,12 @@ bool Preprocessor::run(const std::string &text, const DefineMap &defines,
         else
         {
             position = firstMeaningful(content, inBlockComment, inCodeBlock);
-            inPostLex = position != std::string::npos &&
-                        strip(content.substr(position)) == "%postlex";
+            if (position != std::string::npos)
+            {
+                const std::string marker = strip(content.substr(position));
+                if (marker == "%postlex") postEnd = "%endpostlex";
+                else if (marker == "%posttokens") postEnd = "%endposttokens";
+            }
             if ((position != std::string::npos) &&
                 (content.compare(position, 3u, "%{{") == 0))
             {

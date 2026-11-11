@@ -741,13 +741,19 @@
     /// 外部环境变化时递增 semantic_revision 或 clear()；有歧义回调时禁用复用。
     pub fn run_glr_incremental(&mut self, text: &str, cache: &mut GlrIncrementalCache) -> i32
     {
-        self.run_glr_incremental_mode(text, cache, false)
+{% if post_tokens %}        cache.valid = false;
+        self.run_glr(text)
+{% else %}        self.run_glr_incremental_mode(text, cache, false)
+{% endif %}
     }
 
     /// 局部修补共享 forest；GSS 重新走表，Tree 结果重新物化。
     pub fn run_glr_tree_incremental(&mut self, text: &str, cache: &mut GlrIncrementalCache) -> i32
     {
-        self.run_glr_incremental_mode(text, cache, true)
+{% if post_tokens %}        cache.valid = false;
+        self.run_glr_tree(text)
+{% else %}        self.run_glr_incremental_mode(text, cache, true)
+{% endif %}
     }
 
     fn collect_glr_token_spans(&mut self, text: &str) -> (i32, Vec<GlrTokenSpan>)

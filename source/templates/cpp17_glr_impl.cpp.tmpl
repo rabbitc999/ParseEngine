@@ -14,7 +14,10 @@ Status Engine::runGlrIncremental(std::string_view text,
                                  GlrIncrementalCache &cache)
 {
     d->m_regexResult = {};
-    const Status status = d->runGlrIncremental(text, cache, false);
+{% if post_tokens %}    cache.valid = false;
+    const Status status = d->runGlr(text, false);
+{% else %}    const Status status = d->runGlrIncremental(text, cache, false);
+{% endif %}
     if (d->m_regexResult.status < 0) cache.valid = false;
     return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }
@@ -30,7 +33,10 @@ Status Engine::runGlrTreeIncremental(std::string_view text,
                                      GlrIncrementalCache &cache)
 {
     d->m_regexResult = {};
-    const Status status = d->runGlrIncremental(text, cache, true);
+{% if post_tokens %}    cache.valid = false;
+    const Status status = d->runGlr(text, true);
+{% else %}    const Status status = d->runGlrIncremental(text, cache, true);
+{% endif %}
     if (d->m_regexResult.status < 0) cache.valid = false;
     return d->m_regexResult.status < 0 ? static_cast<Status>(d->m_regexResult.status) : status;
 }

@@ -925,9 +925,9 @@ bool scanPreprocessedText(const std::string &text, ScanResult &result,
                 continue;
             }
         }
-        if (isLineMarker(line, "%postlex"))
+        if (isLineMarker(line, "%postlex") || isLineMarker(line, "%posttokens"))
         {
-            codeEnd = "%endpostlex";
+            codeEnd = isLineMarker(line, "%postlex") ? "%endpostlex" : "%endposttokens";
             lineBase += rawLine.size();
             continue;
         }

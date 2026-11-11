@@ -691,6 +691,42 @@ start := MARKER;
 
 同一文法生成多种目标时，可将各目标的整段代码包在 `%if … %endif` 里，生成时用 `--define` 选择。后处理针对当前 Token，可以改写字段。
 
+### 在语法分析前处理整批 Token
+
+`%posttokens … %endposttokens` 在整段文本成功完成词法分析后、语法分析前执行一次。它接收经过 `%postlex` 处理的可变序列 `tokens`，可插入、删除、替换或重新排列 Token。序列中只有普通 Token，生成器会在处理完毕后附加原输入的 `END`。词法失败时不会执行。显式 Token 数组入口会直接使用调用方传入的数组。纯词法模式没有语法分析阶段，不能使用此指令。
+
+代码可以写在文法里，也可以像其他代码段一样导入外部文件。路径以入口文法文件所在目录为基准，导入写法无需结束标记。每个目标最多启用一段，可以用 `%if … %endif` 选择目标语言代码。
+
+```gram
+%lang python
+%tree
+%token WORD "word"
+%token MARKER ""
+%posttokens include "token_filter.py"
+
+start := WORD MARKER WORD;
+```
+
+`token_filter.py` 正文（Python 顶层语句从首列开始）：
+
+```python
+if len(tokens) == 2:
+    tokens.insert(1, Token(TOKEN_MARKER))
+```
+
+| 目标 | `tokens` |
+| --- | --- |
+| C99 | `ParserPostTokens *`，通过 `items`、`count` 查看或修改，通过 `Parser_PostTokensInsert(tokens, index, token)` 插入。插入后重新读取 `items`，它可能已重新分配 |
+| C++17 | `ParserMemory::Vector<Token> &` |
+| Python | `list[Token]` |
+| C# / Java | `List<Token>` |
+| Go | `[]Token`，改变长度后给 `tokens` 重新赋值，例如 `tokens = append(tokens, token)` |
+| Rust | `&mut Vec<Token>` |
+| JavaScript / TypeScript | `Token[]` |
+| ChaLi | `List<ParserToken>`，可用 `push`、`pop` 等方法修改 |
+
+启用该指令时，文本解析会暂存全部 Token。C++17 和 Rust 的增量文本入口会执行一次完整解析，使每次调用都能重新运行代码块。
+
 ### 保留注释及源位置
 
 为每种要保留的注释声明一条 `%trivia keep` 规则。例如以下规则分别保留行注释和块注释。
