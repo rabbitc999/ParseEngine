@@ -256,9 +256,8 @@ To use it only as a parsing library: drop `main.go` and add `parser.go` / `token
 ### ChaLi Output (`--lang chali`)
 
 ChaLi is the ninth code-generation target. The emitted native ChaLi runtime uses the
-LL(1) prediction table or LR ACTION/GOTO tables built by the generator, including
-split IELR states. Only `ll1`, `slr`, `lalr`, `lr1`, and `ielr` are supported;
-other modes are explicitly rejected.
+LL prediction table or LR ACTION/GOTO tables built by the generator, including
+split IELR states. Supported modes are `ll1`, `llk`, `slr`, `lalr`, `lr1`, `ielr`, `lrk`, and `glr`.
 
 | Item | ChaLi output |
 | --- | --- |
@@ -308,7 +307,7 @@ declaration order for ties. Regexes use native ECMAScript semantics through ChaL
 the API also exposes tree text through the `tree` field.
 The backend currently rejects `%union`, member annotations, `%destructor`, `error`,
 `%sync`, value-carrying `%commit`, `%class_body`, `%package`, `%import`, and `%copy`.
-LL(1) requires an LL(1) grammar supplied directly; actions from automatic
+LL modes require a grammar that directly satisfies the selected lookahead; actions from automatic
 left-recursion rewriting are not supported.
 
 See the [ChaLi backend reference](../17-chali-backend.md) for full limitations and

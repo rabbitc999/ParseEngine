@@ -32,7 +32,7 @@ Windows 上可执行文件为 `build/bin/ParseEngine.exe`。默认目标语言�
 | C99 | 13 种模式 |
 | C++17、Python、C#、Rust、Go | 各 16 种模式 |
 | Java、JavaScript/TypeScript | DD、Earley、CYK |
-| ChaLi | LL(1)、SLR(1)、LALR(1)、LR(1)、IELR(1) |
+| ChaLi | LL(1)、LL(k)、SLR(1)、LALR(1)、LR(1)、IELR(1)、LR(k)、GLR |
 | `--lang gram` | 导出原文法与分析报告，覆盖全部 16 种模式 |
 
 十六种模式包括 LL、LR、GLR、Earley、CYK、递归下降 DD 和仅生成词法器的 `lex`。各模式的准确支持
@@ -50,7 +50,7 @@ chali run build/examples/chali-parser/parser.chl
 chali build build/examples/chali-parser/parser.chl --out build/examples/chali-parser/parser
 ```
 
-仅支持 `ll1`、`slr`、`lalr`、`lr1`、`ielr`，其他模式明确报错。
+`--mode "LL(2)"` 和 `--mode "LR(2)"` 可直接指定窗口长度；`--mode glr` 可返回多条成功派生。
 生成的解析器提供 `Parser::runText`、`Parser::runTokens` 和语法树结果；
 语义动作及 `%code` / `%main` / `%epilogue` 中须使用 ChaLi 代码。
 默认入口从标准输入读取一行，默认语义值为 `float64`。

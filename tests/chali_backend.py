@@ -118,15 +118,73 @@ int64 nativeValue() { String marker = "$1"; return 23; }
 '''
     execute(custom, "custom", "ielr", 'assert(Parser::runText("").value == 23);')
 
+    llk = """%lang chali
+%lookahead 2
+%token A "@"
+%token B "+"
+%token C "-"
+s := A B { $$ = 1; } | A C { $$ = 2; } | A { $$ = 3; };
+"""
+    execute(llk, "llk", "llk", """
+assert(Parser::runText("@+").value == 1);
+assert(Parser::runText("@-").value == 2);
+assert(Parser::runText("@").value == 3);
+assert(!Parser::runText("@@").ok);
+""")
+
+    lrk = """%lang chali
+%lookahead 2
+%token A "+"
+%token B "-"
+%token C "@"
+s := x A A { $$ = $1; } | y A B { $$ = $1; };
+x := C { $$ = 4; };
+y := C { $$ = 5; };
+"""
+    execute(lrk, "lrk", "lrk", """
+assert(Parser::runText("@++").value == 4);
+assert(Parser::runText("@+-").value == 5);
+assert(!Parser::runText("@+").ok);
+""")
+
+    glr = """%lang chali
+%token SUB "-"
+%trivia keep "//[^\\n]*"
+e := e SUB e { $$ = $1 - $3; } | NUMBER { $$ = $1; };
+"""
+    execute(glr, "glr", "glr", """
+ParserResult r = Parser::runText("8-3-2 // note");
+assert(r.ok && !r.truncated && r.alternatives.len() == 2);
+float64 a = r.alternatives[0].value;
+float64 b = r.alternatives[1].value;
+assert((a == 3 && b == 7) || (a == 7 && b == 3));
+assert(r.value == a && r.tree == r.alternatives[0].tree);
+assert(r.comments.len() == 1 && r.comments[0].offset == 6);
+assert(!Parser::runText("8-").ok);
+ParserResult many = Parser::runText("8-3-2-1-1-1");
+assert(many.ok && !many.truncated && many.alternatives.len() == 42);
+""")
+    nullable = """%lang chali
+s := a { $$ = $1; } | b { $$ = $1; };
+a := %empty { $$ = 1; };
+b := %empty { $$ = 2; };
+"""
+    execute(nullable, "glr-nullable", "glr", """
+ParserResult r = Parser::runText("");
+assert(r.ok && r.alternatives.len() == 2);
+""")
+    generate("%lang chali\ns := s { $$ = $1; } | %empty { $$ = 1; };\n",
+             "glr-cycle", "glr", ok=False)
+
     base = '%lang chali\n%start s\ns := NUMBER { $$ = $1; };\n'
-    for mode in ("lex", "ll0", "llk", "lr0", "slrk", "lalrk", "lrk", "dd", "glr", "earley", "cyk"):
+    for mode in ("lex", "ll0", "lr0", "slrk", "lalrk", "dd", "earley", "cyk"):
         _, output = generate(base, "unsupported-" + mode, mode, ok=False)
         assert "chali" in output, output
     for name, extra in (("sync", '%sync NUMBER\n'), ("commit", '%commit Keep "abc"\n'),
                         ("regex", '%token regex NUMBER "(?i)[a-z]+"\n')):
         generate(extra + base, "reject-" + name, "ielr", ok=False)
     generate(base.replace("$1", "$2"), "bad-action", "ielr", ok=False)
-    print("ChaLi：五种模式、IELR 拆分、原生动作、词法、树、Token API 与拒绝路径全部通过")
+    print("ChaLi：八种模式、k 元组、GLR 歧义、IELR 拆分、原生动作、词法、树、Token API 与拒绝路径全部通过")
 
 
 if __name__ == "__main__":

@@ -14,21 +14,21 @@ The algorithm, applicable scenarios and limitations of each mode are in [10 Gene
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `ll0` | LL(0) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
 | `ll1` | LL(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
-| `llk` | LL(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `llk` | LL(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
 | `lr0` | Canonical LR(0) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
 | `slr` | SLR(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
 | `slrk` | SLR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
 | `lalr` | LALR(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
 | `lalrk` | LALR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
 | `lr1` | Canonical LR(1) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
-| `lrk` | Canonical LR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `lrk` | Canonical LR(k) | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
 | `ielr` | IELR(1), default mode | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
-| `glr` | GSS multi-path parsing | Not supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
+| `glr` | GSS multi-path parsing | Not supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Supported | Export |
 | `earley` | Earley chart parsing | Not supported | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Export |
 | `cyk` | CNF conversion, CYK decision and result-tree reconstruction | Not supported | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Export |
 | `dd` | Backtracking recursive descent | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Export |
 | `lex` | Lexing only | Supported | Supported | Supported | Supported | Supported | Supported | Not supported | Not supported | Not supported | Export |
-| Total | 16 modes | 13 | 16 | 16 | 16 | 16 | 16 | 3 | 3 | 5 | 16 |
+| Total | 16 modes | 13 | 16 | 16 | 16 | 16 | 16 | 3 | 3 | 8 | 16 |
 
 C99 does not provide GLR, Earley or CYK runtimes; Go, like the other four full backends, provides GLR, Earley and CYK. Go's Earley/CYK first decides the whole input with a chart algorithm, then rebuilds all result trees against the original grammar via GSS and executes semantic actions.
 Java and JS/TS are narrow DD/Earley/CYK backends: Java generates a self-contained `Parser.java`, and JS generates `parser.ts` with erasable TypeScript type annotations. Both profiles support `%tree` but do not execute semantic actions, and do not support `%value_type` / `%union`, `%sync`, `%commit`, `%copy` or user code sections; Earley keeps the first derivation tree, and once the CYK decision passes, the first tree is recovered using the original-grammar Earley table, without showing CNF synthetic nodes.
@@ -95,4 +95,4 @@ On 2026-09-27, Java/JS DD and Earley artifacts were also verified with `dd_expr`
 The incremental implementation lives in the C++17 and Rust runtime templates of [`source/templates/`](../../source/templates/).
 The dedicated regression entry point is in [06 Build, Templates and Small Tests](09-build-and-test.md).
 
-ChaLi supports only `ll1`, `slr`, `lalr`, `lr1`, and `ielr`. It emits a self-contained `parser.chl` with native semantic actions and a Token API. See the [ChaLi reference](../17-chali-backend.md) for directives, lexical rules, and limitations.
+ChaLi supports `ll1`, `llk`, `slr`, `lalr`, `lr1`, `ielr`, `lrk`, and `glr`. It emits a self-contained `parser.chl` with native semantic actions and a Token API. See the [ChaLi reference](../17-chali-backend.md) for directives, lexical rules, and limitations.

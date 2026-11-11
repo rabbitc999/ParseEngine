@@ -11,11 +11,30 @@ struct ParserToken {
 struct ParserComment {
     String text; int64 offset;
 };
-/** @brief 解析结果；失败时 message 与 offset 指示首个错误。 */
+{% if glr %}/** @brief 一条成功的 GLR 派生。 */
+struct ParserAlternative {
+    {{ value_type }} value;
+    String tree;
+};
+
+/** @brief GLR 共享栈节点；归约节点保存延迟执行的子树。 */
+struct ParserGlrNode {
+    int64 parent; int64 state; int64 depth;
+    int64 production; int64 token;
+    List<int64> children;
+};
+
+/** @brief 等待执行的一条 GLR 路径。 */
+struct ParserGlrBranch {
+    int64 head; int64 position;
+};
+{% endif %}/** @brief 解析结果；失败时 message 与 offset 指示首个错误。 */
 struct ParserResult {
     bool ok; {{ value_type }} value; String tree; String message; int64 offset;
     List<ParserComment> comments;
-};
+{% if glr %}    List<ParserAlternative> alternatives;
+    bool truncated;
+{% endif %}};
 /** @brief 执行一条产生式的语义动作。
  * @param production 产生式编号。@param values 从 $1 起的右部值。
  * @return $$ 的值；缺省取 $1，空产生式取类型缺省值。
@@ -38,11 +57,34 @@ struct Parser {
     List<int64> rhs;
     List<String> names;
     List<String> nontermNames;
-{% if ll %}
+{% if wide %}    List<int64> keys;
+    /** @brief 查找当前 k 元组展望符的列号；输入末尾用 END 补齐。 */
+    int64 windowColumn() {
+        int64 col = 0;
+        while (col < {{ width }}) {
+            int64 i = 0;
+            while (i < {{ k }}) {
+                int64 kind = {{ end }};
+                if (self.position + i < self.tokens.len()) {
+                    kind = self.tokens[self.position + i].kind;
+                }
+                if (kind != self.keys[col * {{ k }} + i]) { break; }
+                i = i + 1;
+            }
+            if (i == {{ k }}) { return col; }
+            col = col + 1;
+        }
+        return 0 - 1;
+    }
+{% endif %}{% if ll %}
     List<int64> table;
 {% else %}
-    List<int64> actions;
-    List<int64> gotos;
+{% if glr %}    List<ParserGlrNode> glrNodes;
+    List<int64> actionOffsets;
+    List<int64> actionCommands;
+{% else %}    List<int64> actions;
+{% if wide %}    List<int64> windowActions;
+{% endif %}{% endif %}    List<int64> gotos;
 {% endif %}
     /** @brief 返回当前位置的失败结果。@return 首个失败位置与原因。 */
     ParserResult failure() {
@@ -56,7 +98,10 @@ struct Parser {
      */
     ParserResult node(int64 nonterm, int64 depth) {
         if (depth >= {{ max_depth }}) { self.message = "解析栈深度超限"; return self.failure(); }
-        int64 production = self.table[nonterm * {{ terminal_count }} + self.tokens[self.position].kind];
+{% if wide %}        int64 col = self.windowColumn();
+        if (col < 0) { self.message = "无可用产生式"; return self.failure(); }
+{% else %}        int64 col = self.tokens[self.position].kind;
+{% endif %}        int64 production = self.table[nonterm * {{ width }} + col];
         if (production < 0) { self.message = "无可用产生式"; return self.failure(); }
         List<{{ value_type }}> values;
         String tree = "(" + self.nontermNames[nonterm];
@@ -81,6 +126,7 @@ struct Parser {
         result.tree = tree + ")"; return result;
     }
 {% endif %}
+{{ glr_runtime }}
     /** @brief 解析显式 Token 序列。
      * @param input 以 END 结尾的序列，Token 值由调用方填写。@return 解析结果。
      */
@@ -92,11 +138,15 @@ struct Parser {
         parser.rhs = [{{ rhs }}];
         parser.names = [{{ names }}];
         parser.nontermNames = [{{ nonterm_names }}];
-{% if ll %}
+{% if wide %}        parser.keys = [{{ keys }}];
+{% endif %}{% if ll %}
         parser.table = [{{ ll_table }}];
 {% else %}
-        parser.actions = [{{ actions }}];
-        parser.gotos = [{{ gotos }}];
+{% if glr %}        parser.actionOffsets = [{{ glr_offsets }}];
+        parser.actionCommands = [{{ glr_commands }}];
+{% else %}        parser.actions = [{{ actions }}];
+{% if wide %}        parser.windowActions = [{{ window_actions }}];
+{% endif %}{% endif %}        parser.gotos = [{{ gotos }}];
 {% endif %}
         ParserResult invalid;
         if (input.len() == 0) { invalid.message = "缺少 END Token"; return invalid; }
@@ -116,12 +166,20 @@ struct Parser {
         }
         return result;
 {% else %}
-        List<int64> states = [0];
+{% if glr %}        return parser.runGlr();
+{% else %}        List<int64> states = [0];
         List<{{ value_type }}> values;
         List<String> trees;
         while (true) {
             int64 token = parser.tokens[parser.position].kind;
-            int64 command = parser.actions[states[states.len() - 1] * {{ terminal_count }} + token];
+            int64 state = states[states.len() - 1];
+            int64 command = parser.actions[state * {{ terminal_count }} + token];
+{% if wide %}            int64 col = parser.windowColumn();
+            if (col >= 0) {
+                int64 selected = parser.windowActions[state * {{ width }} + col];
+                if (selected != 0) { command = selected; }
+            }
+{% endif %}
             if (command == 2147483647) {
                 ParserResult result; result.ok = true;
                 if (values.len() > 0) { result.value = values[values.len() - 1]; result.tree = trees[trees.len() - 1]; }
@@ -149,7 +207,7 @@ struct Parser {
             }
         }
         return invalid;
-{% endif %}
+{% endif %}{% endif %}
     }
 {% if post_lex %}    static ParserToken postLex(ParserToken token) {
 {{ post_lex }}

@@ -4061,13 +4061,13 @@ static bool generateParserProjectImpl(
                                "（只支持 lex、ll1、lr0、slr、lalr、lr1、"
                                "ielr、glr、earley、cyk、dd、lrk、lalrk、slrk 或 llk）");
     }
-    if (request.lang == "chali" && mode != "ll1" && mode != "slr" &&
-        mode != "lalr" && mode != "lr1" && mode != "ielr")
-        return fail(error, "--lang chali 只支持 ll1 / slr / lalr / lr1 / ielr");
+    if (request.lang == "chali" && !supportsChaLiMode(mode))
+        return fail(error, "--lang chali 只支持 ll1 / llk / slr / lalr / lr1 / ielr / lrk / glr");
     // GLR 家族只在带相应运行时的后端生成；C99 暂不支持。
     const bool narrowChart = ((mode == "earley") || (mode == "cyk")) &&
         ((request.lang == "java") || (request.lang == "js"));
-    if (isGlrMode(mode) && !narrowChart && (request.lang != "gram") &&
+    if (isGlrMode(mode) && !narrowChart && !(request.lang == "chali" && mode == "glr") &&
+        (request.lang != "gram") &&
         (request.lang != "cpp17") && (request.lang != "python") &&
         (request.lang != "rust") && (request.lang != "csharp") &&
         (request.lang != "go"))

@@ -38,7 +38,7 @@ command-line option see the [usage manual](doc/12-grammar-usage.md).
 | C99 | 13 modes |
 | C++17, Python, C#, Rust, Go | 16 modes each |
 | Java, JavaScript/TypeScript | DD, Earley, CYK |
-| ChaLi | LL(1), SLR(1), LALR(1), LR(1), IELR(1) |
+| ChaLi | LL(1), LL(k), SLR(1), LALR(1), LR(1), IELR(1), LR(k), GLR |
 | `--lang gram` | Export the original grammar and the analysis report; covers all 16 modes |
 
 The sixteen modes include LL, LR, GLR, Earley, CYK, recursive-descent DD and `lex`, which emits the
@@ -57,7 +57,7 @@ chali run build/examples/chali-parser/parser.chl
 chali build build/examples/chali-parser/parser.chl --out build/examples/chali-parser/parser
 ```
 
-Only `ll1`, `slr`, `lalr`, `lr1`, and `ielr` are supported; other modes are explicitly rejected.
+Use `--mode "LL(2)"` or `--mode "LR(2)"` to set the lookahead width, and `--mode glr` to retain multiple successful derivations.
 The generated parser provides `Parser::runText`, `Parser::runTokens`, and syntax-tree results.
 Semantic actions and `%code` / `%main` / `%epilogue` sections must contain ChaLi code.
 The default entry point reads one line from standard input; the default semantic value is `float64`.

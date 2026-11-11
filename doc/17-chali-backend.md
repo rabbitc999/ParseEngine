@@ -1,10 +1,13 @@
 # ChaLi 目标语言
 
 `--lang chali` 或文法中的 `%lang chali` 生成原生 ChaLi 源码 `parser.chl` 与
-`RESULT.md`。支持范围仅为 LL(1)、SLR(1)、LALR(1)、规范 LR(1)、IELR(1)：
-模式名分别为 `ll1`、`slr`、`lalr`、`lr1`、`ielr`。默认仍为 IELR。
-其他模式在生成时明确报错。运行时直接使用生成器构造的预测表或 ACTION/GOTO 表，
-IELR 使用拆分后的状态表。
+`RESULT.md`。支持 LL(1)、LL(k)、SLR(1)、LALR(1)、规范 LR(1)、IELR(1)、规范 LR(k) 和 GLR。
+模式名分别为 `ll1`、`llk`、`slr`、`lalr`、`lr1`、`ielr`、`lrk`、`glr`。默认使用 IELR。
+
+- LL(k) 和 LR(k) 使用 `%lookahead K` 或 `--lookahead K` 配置窗口，支持 1 到 3。也可写 `--mode "LL(2)"` 或 `--mode "LR(2)"`。输入末尾用 END 补齐。
+- GLR 遍历分析表保留的冲突动作，路径共享栈前缀。只对成功派生执行语义动作，每个保留结果各执行一次。
+- GLR 的 `ParserResult.alternatives` 包含成功派生，每项有 `value` 和 `tree`。`ParserResult.value` 和 `tree` 对应首项。有路径超出 `%max_stack_depth` 时，`truncated` 为真。
+- ChaLi 的 GLR 后端在生成时拒绝不消费 Token 的归约环。
 
 ```sh
 ParseEngine example/chali_lr1.gram --lang chali --mode ielr --out-dir out/chali
@@ -52,7 +55,7 @@ LL(1) 示例见 [`chali_ll1.gram`](../example/chali_ll1.gram)，LR(1) 系列示�
 
 当前明确拒绝 `%union`、成员标注、`%destructor`、`error` 产生式、`%sync`、
 带值 `%commit`、`%class_body`、`%package`、`%import` 和 `%copy`。
-LL(1) 要求直接提供 LL(1) 文法，暂不执行自动左递归改写后的语义动作。
+LL 模式要求文法直接满足所选预测条件，暂不执行自动左递归改写后的语义动作。
 没有增量解析 API，也不生成 Make/CMake 工程文件。
 所有运行时模板随生成器内嵌，生成与运行均无需读取模板目录。
 
@@ -63,6 +66,6 @@ make -C source -j4
 python tests/chali_backend.py --chali /path/to/chali
 ```
 
-测试编译并执行五种模式的产物，覆盖语义动作、优先级、嵌套、空产生式、
+测试编译并执行八种模式的产物，覆盖 k 元组决策、GLR 多条歧义派生、语义动作、优先级、嵌套、空产生式、
 IELR 拆分、最长匹配、声明优先级、trivia、语法树、Token API、自定义类型与用户代码，
 并检查错误输入、越界值引用与不支持模式的拒绝行为。

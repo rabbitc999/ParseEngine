@@ -1,11 +1,12 @@
-/** @file code_gen_chali.cpp @brief ChaLi LL(1) 与 LR(1) 系列代码生成。 */
+/** @file code_gen_chali.cpp @brief ChaLi LL / LR / GLR 代码生成。 */
 #include "ParseEngine/code_gen_chali.hpp"
 #include "ParseEngine/utils.hpp"
 #include "template/engine.hpp"
 #include <algorithm>
 #include <cctype>
-#include <sstream>
 #include <regex>
+#include <set>
+#include <sstream>
 
 namespace ParseEngine {
 namespace {
@@ -77,13 +78,67 @@ bool action(const std::string &source, int count, std::string &out, Error &error
     }
     return true;
 }
+
+/** @brief 将 LR 动作编码为移进、归约或接受命令。 */
+int command(const LrAction &action) {
+    if (action.kind == LrAction::Kind::Accept) return 2147483647;
+    return action.kind == LrAction::Kind::Shift ? action.value + 1 : -action.value - 1;
+}
+
+/** @brief 检测可在不消费终结符时回到自身的归约环。 */
+bool hasZeroWidthCycle(const AnalysisResult &analysis) {
+    std::set<std::string> nullable;
+    const auto isNullable = [&](const std::string &symbol) {
+        return nullable.count(symbol) != 0;
+    };
+    std::size_t previous;
+    do {
+        previous = nullable.size();
+        for (const auto &production : analysis.productions) {
+            if (std::all_of(production.rhs.begin(), production.rhs.end(), isNullable))
+                nullable.insert(production.lhs);
+        }
+    } while (nullable.size() != previous);
+
+    std::vector<std::vector<int>> edges(analysis.nonterms.size());
+    std::vector<int> indegree(analysis.nonterms.size());
+    for (const auto &production : analysis.productions) {
+        const int lhs = indexOf(analysis.nonterms, production.lhs);
+        if (lhs < 0) continue;
+        const auto &rhs = production.rhs;
+        for (auto it = rhs.begin(); it != rhs.end(); ++it) {
+            const int target = indexOf(analysis.nonterms, *it);
+            if (target >= 0 && std::all_of(rhs.begin(), it, isNullable) &&
+                std::all_of(it + 1, rhs.end(), isNullable)) {
+                edges[lhs].push_back(target);
+                ++indegree[target];
+            }
+        }
+    }
+    std::vector<int> ready;
+    for (std::size_t i = 0; i < indegree.size(); ++i)
+        if (indegree[i] == 0) ready.push_back(static_cast<int>(i));
+    for (std::size_t i = 0; i < ready.size(); ++i)
+        for (int next : edges[ready[i]])
+            if (--indegree[next] == 0) ready.push_back(next);
+    return ready.size() != indegree.size();
+}
+}
+
+bool supportsChaLiMode(const std::string &mode) {
+    return mode == "ll1" || mode == "llk" || mode == "slr" || mode == "lalr" ||
+           mode == "lr1" || mode == "ielr" || mode == "lrk" || mode == "glr";
 }
 
 bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a,
                           std::map<std::string, std::string> &out, Error &error) {
     const auto &mode = request.mode;
-    if (mode != "ll1" && mode != "slr" && mode != "lalr" && mode != "lr1" && mode != "ielr")
-        return fail(error, "--lang chali 只支持 ll1 / slr / lalr / lr1 / ielr");
+    if (!supportsChaLiMode(mode))
+        return fail(error, "--lang chali 只支持 ll1 / llk / slr / lalr / lr1 / ielr / lrk / glr");
+    const bool llMode = mode == "ll1" || mode == "llk";
+    const bool glrMode = mode == "glr";
+    if (glrMode && hasZeroWidthCycle(a))
+        return fail(error, "ChaLi GLR 不支持不消耗 Token 的归约环");
     if (request.unionBody || request.symbolValueMember ||
         (request.destructors && !request.destructors->empty()) || request.usesError ||
         (request.syncTokens && !request.syncTokens->empty()) ||
@@ -99,7 +154,7 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
     for (std::size_t p = 0; p < a.productions.size(); ++p) {
         const auto &production = a.productions[p];
         if (!production.transform.empty())
-            return fail(error, "ChaLi LL(1) 暂不支持自动左递归改写，请提供 LL(1) 文法");
+            return fail(error, "ChaLi LL 暂不支持自动左递归改写，请提供直接满足所选模式的文法");
         lhs.push_back(indexOf(a.nonterms, production.lhs));
         starts.push_back(static_cast<int>(rhs.size()));
         lengths.push_back(static_cast<int>(production.rhs.size()));
@@ -111,14 +166,50 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
         if (!action(production.action, lengths.back(), body, error)) return false;
         reductions += "    if (production == " + std::to_string(p) + ") {\n" + body + "\n    }\n";
     }
-    std::vector<int> ll(nonterms * terminals, -1), actions(states * terminals, 0), gotos(states * nonterms, -1);
-    for (const auto &entry : a.table)
-        ll[indexOf(a.nonterms, entry.first.first) * terminals + indexOf(a.terminals, entry.first.second)] = entry.second;
-    for (const auto &entry : a.action) {
-        const auto &v = entry.second;
-        actions[entry.first.first * terminals + indexOf(a.terminals, entry.first.second)] =
-            v.kind == LrAction::Kind::Accept ? 2147483647 :
-            (v.kind == LrAction::Kind::Shift ? v.value + 1 : -v.value - 1);
+    const bool wide = a.lookaheadK > 1;
+    const auto &columns = a.lookaheadColumns;
+    const int width = wide ? static_cast<int>(columns.size()) : terminals;
+    std::vector<int> keys, reductionsByWindow(wide && !llMode ? states * width : 0, 0);
+    std::vector<int> ll(llMode ? nonterms * width : 0, -1);
+    std::vector<int> actions(!llMode && !glrMode ? states * terminals : 0, 0);
+    std::vector<int> gotos(states * nonterms, -1), glrOffsets, glrCommands;
+    if (wide) {
+        for (const auto &column : columns) {
+            for (int i = 0; i < a.lookaheadK; ++i)
+                keys.push_back(indexOf(a.terminals, i < static_cast<int>(column.size())
+                    ? column[i] : "END"));
+        }
+    }
+    for (const auto &entry : a.table) {
+        const int row = indexOf(a.nonterms, entry.first.first);
+        const int col = wide ? a.lookaheadColumnIndex.at(entry.first.second)
+                             : indexOf(a.terminals, entry.first.second);
+        ll[row * width + col] = entry.second;
+    }
+    if (glrMode) {
+        for (int state = 0; state < states; ++state) {
+            for (const auto &terminal : a.terminals) {
+                glrOffsets.push_back(static_cast<int>(glrCommands.size()));
+                const auto key = std::make_pair(state, terminal);
+                const auto alternatives = a.glrAlternatives.find(key);
+                if (alternatives != a.glrAlternatives.end()) {
+                    for (const auto &candidate : alternatives->second)
+                        glrCommands.push_back(command(candidate));
+                } else {
+                    const auto single = a.action.find(key);
+                    if (single != a.action.end()) glrCommands.push_back(command(single->second));
+                }
+            }
+        }
+        glrOffsets.push_back(static_cast<int>(glrCommands.size()));
+    } else {
+        for (const auto &entry : a.action) {
+            const int state = entry.first.first;
+            const int token = indexOf(a.terminals, entry.first.second);
+            if (token >= 0) actions[state * terminals + token] = command(entry.second);
+            else if (wide) reductionsByWindow[state * width +
+                a.lookaheadColumnIndex.at(entry.first.second)] = command(entry.second);
+        }
     }
     for (const auto &entry : a.gotoTable) gotos[entry.first.first * nonterms + entry.first.second] = entry.second;
     std::string patterns, types, orders;
@@ -180,10 +271,19 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
     std::string main;
     if (request.mainBlocks) for (const auto &block : *request.mainBlocks) main += block + "\n";
     const std::string valueType = request.valueType ? *request.valueType : "float64";
+    const std::string glrRuntime = glrMode ? tmpl::renderValues(
+        Utils::loadTemplate("chali_glr.chl"),
+        {{"value_type", valueType}, {"terminal_count", terminals},
+         {"nonterm_count", nonterms}, {"end", indexOf(a.terminals, "END")},
+         {"max_depth", request.maxStackDepth.value_or(k_maxStackDepthDefault)}}) : "";
     out["parser.chl"] = tmpl::renderValues(Utils::loadTemplate("chali_parser.chl"), {
+        {"glr_runtime", glrRuntime},
         {"post_lex", lex.postLex},
         {"post_tokens", lex.postTokens},
-        {"ll", mode == "ll1"}, {"tree", request.tree}, {"value_type", valueType},
+        {"ll", llMode}, {"glr", glrMode}, {"tree", request.tree},
+        {"wide", wide}, {"k", a.lookaheadK}, {"width", width},
+        {"keys", numbers(keys)}, {"window_actions", numbers(reductionsByWindow)},
+        {"glr_offsets", numbers(glrOffsets)}, {"glr_commands", numbers(glrCommands)}, {"value_type", valueType},
         {"numeric", valueType == "float64"}, {"terminal_count", terminals}, {"nonterm_count", nonterms},
         {"start", indexOf(a.nonterms, a.grammar.start)}, {"end", indexOf(a.terminals, "END")},
         {"number", number}, {"max_depth", request.maxStackDepth.value_or(k_maxStackDepthDefault)},
@@ -202,7 +302,10 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
         "Token 含 kind / text / offset / value。offset 为字节偏移。\n\n"
         "默认语义值 float64；NUMBER 自动转换。自定义 %value_type 时由 runTokens 调用者提供 Token 值。"
         "支持 $$ / $n、%code、%main、%epilogue、%tree、%space、%trivia、原生 ECMAScript 正则。"
-        "解析失败立即返回，无错误恢复或增量 API。\n";
+        "无错误恢复或增量 API。\n";
+    if (wide) out["RESULT.md"] += "\n展望符窗口：" + std::to_string(a.lookaheadK) + " 个 Token。\n";
+    if (glrMode) out["RESULT.md"] +=
+        "\nGLR 结果通过 alternatives 返回；truncated 表示有路径超过栈深度限制。\n";
     if (request.fullReport) out["RESULT.md"] += "\n" + request.reportText;
     return true;
 }
