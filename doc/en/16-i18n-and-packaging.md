@@ -90,10 +90,10 @@ ZIP is a release operation, implemented by `tools/package_compiler.py` using the
 
 ```sh
 python tools/package_compiler.py ParseEngine out dist/ParseEngine-windows-x64.zip --ui-lang zh
-python tools/package_compiler.py magel out dist/magel-windows-x64.zip --ui-lang ja
+python tools/package_compiler.py chali out dist/chali-windows-x64.zip --ui-lang ja
 ```
 
-The script reads `build/bin/ParseEngine(.exe)` or `magel/magel(.exe)` by default, and `--compiler FILE` can point to a different build. The output parent directory must exist; the default name includes the OS and architecture, and inside the repository Magel also reads VERSION. The ZIP contains only the compiler executable for the current platform, not the host Python, C++ compiler or dynamic libraries. The embedded templates, standard library and messages remain stored in the executable.
+The script reads `build/bin/ParseEngine(.exe)` or `chali/chali(.exe)` by default, and `--compiler FILE` can point to a different build. The output parent directory must exist; the default name includes the OS and architecture, and inside the repository ChaLi also reads VERSION. The ZIP contains only the compiler executable for the current platform, not the host Python, C++ compiler or dynamic libraries. The embedded templates, standard library and messages remain stored in the executable.
 
 ParseEngine additionally provides a thin entry point that extracts the same embedded Python script and passes argv through directly, without going through a shell:
 
@@ -102,16 +102,16 @@ ParseEngine zip
 ParseEngine zip out dist/ParseEngine.zip --ui-lang ja
 ```
 
-`PARSEENGINE_PYTHON` can specify the Python path. The script itself does not depend on the repository to package an explicitly given executable; the ParseEngine thin entry point therefore also works after being extracted outside the repository. Magel's release uses only the standalone Python script and does not provide a `magel zip` command.
+`PARSEENGINE_PYTHON` can specify the Python path. The script itself does not depend on the repository to package an explicitly given executable; the ParseEngine thin entry point therefore also works after being extracted outside the repository. ChaLi's release uses only the standalone Python script and does not provide a `chali zip` command.
 
-Packaging uses DEFLATE and creates files exclusively; existing files and links are refused rather than overwritten, and a failed write deletes the incomplete archive. Inside the archive the name is uniformly `ParseEngine.exe` / `ParseEngine` or `magel.exe` / `magel`. It does not modify or re-link the compiler, write the registry or install system components.
+Packaging uses DEFLATE and creates files exclusively; existing files and links are refused rather than overwritten, and a failed write deletes the incomplete archive. Inside the archive the name is uniformly `ParseEngine.exe` / `ParseEngine` or `chali.exe` / `chali`. It does not modify or re-link the compiler, write the registry or install system components.
 
 ## Verification
 
 ```sh
 python tests/parseengine_i18n.py
-python tests/magel_i18n.py --magel magel/magel.exe
-python tests/magel_zip.py --magel magel/magel.exe
+python tests/chali_i18n.py --chali chali/chali.exe
+python tests/chali_zip.py --chali chali/chali.exe
 ```
 
 The Windows-specific tests read UTF-16 characters from a real console buffer in code pages 936 / 932, checking C++ streams, C stdio, the actual tool messages and code page restoration; pipes are strictly decoded as UTF-8 separately. They also test paths containing spaces and CJK, the trilingual option precedence, identical generated source, ZIP CRC, byte-for-byte identity, refusal to overwrite, failure cleanup and running outside the repository. Other platforms skip the Windows console checks.

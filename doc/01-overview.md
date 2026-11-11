@@ -4,7 +4,7 @@
 > SVG / HTML 都是在这里定型的。它现已拆分为独立仓库 <https://github.com/rabbitc999/rust-view>；
 > 本文里指向 `rust-view/` 的链接都改指新仓库的同名文档。
 
-本页说明 ParseEngine 仓库各处文档的归属。仓库总入口是[根目录 README](../README.md)；生成器、Magel、MetroLang、RustView 各有独立工程文档。
+本页说明 ParseEngine 仓库各处文档的归属。仓库总入口是[根目录 README](../README.md)；生成器、ChaLi、MetroLang、RustView 各有独立工程文档。
 
 ## 独立工程
 
@@ -51,10 +51,10 @@
 
 [`library/allocator`](../library/allocator/README.md) 提供链表池、线性池和 C++17 容器适配，命名空间为 `Memory`。构建产物位于 `build/allocator/`。
 
-## Magel 二进制流解析
+## ChaLi 二进制流解析
 
-[`std::binary::BinaryReader`](https://github.com/rabbitc999/magel/blob/master/doc/12-binary-reader.md) 通过 C++ 胶水读取大小端基础数值、定长字符串与数组。
+`std::binary::BinaryReader` 通过 C++ 胶水读取大小端基础数值、定长字符串与数组。
 
-## Magel JSON 与 TOML
+## ChaLi JSON 与 TOML
 
-[JSON/TOML 解析接口](https://github.com/rabbitc999/magel/blob/master/doc/13-json-toml.md) 将 `library/json`、`library/toml` 的副本接入 Magel，提供解析、嵌套读取、遍历、诊断和序列化。
+JSON/TOML 解析接口 将 `library/json`、`library/toml` 的副本接入 ChaLi，提供解析、嵌套读取、遍历、诊断和序列化。

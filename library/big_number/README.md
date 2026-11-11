@@ -1,7 +1,7 @@
 # big_number：任意精度大整数 + 十进制浮点（C++17）
 
 > **谁在用**：`library/stackvm` 的 `bint` 类型（虚拟机的任意精度整数）后端就是这个库的
-> `bigint::BigInt` —— 宿主语言（如 `magel` 的 Magel 语言）里的
+> `bigint::BigInt` —— 宿主语言（如 `chali` 的 ChaLi 语言）里的
 > `bint a = bint("…"); a + b;` 走到虚拟机内部就是这边的运算符重载。
 > 那一步是**可选的**：`make -C library/stackvm STACKVM_WITH_BIGINT=0` 能编出不带大整数的
 > 轻量虚拟机。

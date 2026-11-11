@@ -72,7 +72,7 @@ LL(1) 示例见 [`chali_ll1.gram`](example/chali_ll1.gram)。
 ## 构建
 
 <!-- docgen:build-summary:start -->
-构建入口是 `build.sh`，实际步骤由 `build-all.sh` 维护。Windows 下使用 Git Bash；Linux/macOS 使用 POSIX Shell。脚本构建 ParseEngine、库和示例工程（Magel、MetroLang、RustView 已拆分为独立仓库），不运行测试；上述独立仓库不在统一构建清单中。
+构建入口是 `build.sh`，实际步骤由 `build-all.sh` 维护。Windows 下使用 Git Bash；Linux/macOS 使用 POSIX Shell。脚本构建 ParseEngine、库和示例工程（ChaLi、MetroLang、RustView 已拆分为独立仓库），不运行测试；上述独立仓库不在统一构建清单中。
 
 ```sh
 sh build.sh                  # 全量构建
@@ -82,7 +82,7 @@ sh clear.sh --dry-run        # 预览清理范围
 sh clear.sh                 # 清理构建产物
 ```
 
-构建入口产生的文件统一位于仓库根目录 `build/`。生成器在 `build/bin/`（release 在 `build/bin/release/`），Rust 在 `build/rust/<库名>/`，示例工程在 `build/project/<工程名>/`，日志在 `build/build-all/logs/`，全量示例产物在 `build/build-all/examples/`。Magel 在 `build/work/magel/` 的源码副本中生成和编译，依赖库在 `build/work/build/`，其他库沿用根目录 `build/` 下的目录；Magel、MetroLang 与 RustView 已拆分为独立仓库，构建产物在各自仓库里。
+构建入口产生的文件统一位于仓库根目录 `build/`。生成器在 `build/bin/`（release 在 `build/bin/release/`），Rust 在 `build/rust/<库名>/`，示例工程在 `build/project/<工程名>/`，日志在 `build/build-all/logs/`，全量示例产物在 `build/build-all/examples/`。ChaLi、MetroLang 与 RustView 已拆分为独立仓库，构建产物在各自仓库里。
 
 构建入口实际运行 `python3`、`python`，选择可用的 Python 3 解释器，跳过不可用的占位程序和 Python 2；检测结果传给生成器，也可用 `PYTHON` 覆盖选择结果。C/C++ 编译器、make 和 Python 3 为必需工具；Rust、.NET 和 Go 工具链缺失时跳过对应部分。
 
@@ -117,7 +117,7 @@ ParseEngine 生成的**（它们既是用户，也是最好的用例）。各工
 
 | 工程 | 是什么 | 入口 |
 | --- | --- | --- |
-| **ChaLi（原 Magel）** | 静态类型语言，提供值语义、显式借用与移动、生命周期检查；`source/chali.gram` 经 ParseEngine 生成 C++17 前端，再从已检查的 AST 生成 LLVM 原生代码。它也是 ParseEngine 新增的 ChaLi 代码生成目标所使用的编译器 | <https://github.com/rabbitc999/ChaLi> |
+| **ChaLi** | 静态类型语言，提供值语义、显式借用与移动、生命周期检查；`source/chali.gram` 经 ParseEngine 生成 C++17 前端，再从已检查的 AST 生成 LLVM 原生代码。它也是 ParseEngine 新增的 ChaLi 代码生成目标所使用的编译器 | <https://github.com/rabbitc999/ChaLi> |
 | **MetroLang** | 地铁线网数据语言工具链：编译器、模板化反编译器、自包含 HTML/SVG 地图、Dijkstra 路线查询与交互式查看器；前端由 `metrolang.gram` 生成（169 个关键字各占一条产生式，842 状态 · 0 冲突）——**已拆分为独立仓库** | <https://github.com/rabbitc999/metro-lang> |
 | **RustView** | 极简 Rust 伪代码的**借用语义可视化**（教学用）：Move / 借用 / 冲突 / 悬垂画成零依赖 SVG + HTML；前端由 `rust_subset.gram` 生成，1.0 功能已冻结——**已拆分为独立仓库** | <https://github.com/rabbitc999/rust-view> |
 

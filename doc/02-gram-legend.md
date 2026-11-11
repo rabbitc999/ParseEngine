@@ -1,8 +1,8 @@
 # 满级文法与一次大扫除（ParseEngine 外传）
 
-> **Magel 的那段光辉历史**：这门语言早期就在本仓库里长大——生成器、StackVM、标准库、
-> 胶水与反射都是在这里一起打磨出来的（下面这些 Magel 文档就是那段记录）。它现已拆分为
-> 独立仓库 <https://github.com/rabbitc999/magel>；本文里指向 `magel/` 的链接都改指新仓库的
+> **ChaLi 的那段光辉历史**：这门语言早期就在本仓库里长大——生成器、StackVM、标准库、
+> 胶水与反射都是在这里一起打磨出来的（下面这些 ChaLi 文档就是那段记录）。它现已拆分为
+> 独立仓库 <https://github.com/rabbitc999/ChaLi>；本文里指向 `chali/` 的链接都改指新仓库的
 > 同名文档。
 
 **作者：糖糖（业余写作）**
@@ -21,10 +21,10 @@
 >
 > 编的只有两样：**叙事外壳**与**文中的对话**。主人公「糖糖」是叙事设定，别对号入座。
 >
-> 全书二十六章：先讲这东西在干嘛，再讲为什么做，然后讲哪里失败、怎么减负、怎么协作、最后学到什么；后半部分继续记录增量解析、严格 C-- 五次实验、Java/JS 窄后端、图表模式收口，以及 Magel 的 C++ 胶水、正文宏、事件中断与 Qt GUI 迁移；第二十二章把 MetroLang、RustView 挂上地图，第二十三章续写 Magel 的非空引用、后置泛型与整库迁移，第二十四章收口 Magel 1.0 的名字、引用与迭代流水线，第二十五章记录 1.1 的多数据库和外置库三后端验收。
+> 全书二十六章：先讲这东西在干嘛，再讲为什么做，然后讲哪里失败、怎么减负、怎么协作、最后学到什么；后半部分继续记录增量解析、严格 C-- 五次实验、Java/JS 窄后端、图表模式收口，以及 ChaLi 的 C++ 胶水、正文宏、事件中断与 Qt GUI 迁移；第二十二章把 MetroLang、RustView 挂上地图，第二十三章续写 ChaLi 的非空引用、后置泛型与整库迁移，第二十四章收口 ChaLi 1.0 的名字、引用与迭代流水线，第二十五章记录 1.1 的多数据库和外置库三后端验收。
 >
 > **口径说明**：当前是六个完整后端 + Java / JS 两个窄后端、十六种模式；第二～十一章及部分后续章节保留开发当时的数字和尝试。生成目标、模板数与样例数以当前源码和支持矩阵为准。
-> Magel 的源码语法已有独立的[EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)；故事中出现的旧 API 与试验方案均按当时阶段阅读。
+> ChaLi 的源码语法已有独立的[EBNF 语法参考](https://github.com/rabbitc999/ChaLi/blob/master/doc/14-grammar-ebnf.md)；故事中出现的旧 API 与试验方案均按当时阶段阅读。
 
 > 各语言并非都支持十六种模式；当前支持矩阵、导出限制与增量 API 边界见 [15](15-language-mode-support.md)。
 
@@ -143,15 +143,15 @@ Star 数：3。其中两个是他自己点的。
 
 不是羡慕。是那种“原来地图外面不止我一个人在走”的愣。
 
-南大的同学在课上被要求写 C— 的编译器——词法、语法、语义、中间代码、目标代码，一条龙。而他在住处，没人要求，自己给自己加戏，从 `.gram` 推到六种后端，从 LL(0) 推到 IELR，又从四元式那条失败线退回来，换到 `pl0-super`，最后还嫌不够，开始写 Magel 语言。
+南大的同学在课上被要求写 C— 的编译器——词法、语法、语义、中间代码、目标代码，一条龙。而他在住处，没人要求，自己给自己加戏，从 `.gram` 推到六种后端，从 LL(0) 推到 IELR，又从四元式那条失败线退回来，换到 `pl0-super`，最后还嫌不够，开始写 ChaLi 语言。
 
 方向竟然撞上了。
 
-南大是“被要求手搓 C—”，他是“自找麻烦手搓 Magel”。一个在课程里，一个在住处；一个有评分标准，一个只有 `git log` 里深夜的提交。但两拨人干的事，本质上是一件事：**把一张地图从“老师画过的那半张”推到“自己能重算的整张”。**
+南大是“被要求手搓 C—”，他是“自找麻烦手搓 ChaLi”。一个在课程里，一个在住处；一个有评分标准，一个只有 `git log` 里深夜的提交。但两拨人干的事，本质上是一件事：**把一张地图从“老师画过的那半张”推到“自己能重算的整张”。**
 
 他把那份实验文档存进了书签。没跟任何人说。
 
-只是那天晚上写 Magel 语言的时候，心里多了一点很轻的底气——**原来这条路上，还有别人。**
+只是那天晚上写 ChaLi 语言的时候，心里多了一点很轻的底气——**原来这条路上，还有别人。**
 
 ---
 
@@ -399,19 +399,19 @@ Rust 后端加回来的时候，词法是照着 C99 那套写的：生成期把�
 
 ---
 
-## 第七章 给 Magel 语言装上对象表：值放在哪儿
+## 第七章 给 ChaLi 语言装上对象表：值放在哪儿
 
-正文里说「第四章写减法的部分」——删掉长歪的后端、删掉没人用的模式，把项目收瘦。但那只是**减法**。真正让糖糖兴奋的是后面这一段：他回头把 `magel`（Magel 语言）从早期「能算数的 C 子集」原型推成「能写数据结构与字符串处理的 C 风格虚拟机语言」，而且中间**每一处都踩在“表示”上**——和第三章那句「表示选错，后面每一步都在还债」正好接上。
+正文里说「第四章写减法的部分」——删掉长歪的后端、删掉没人用的模式，把项目收瘦。但那只是**减法**。真正让糖糖兴奋的是后面这一段：他回头把 `chali`（ChaLi 语言）从早期「能算数的 C 子集」原型推成「能写数据结构与字符串处理的 C 风格虚拟机语言」，而且中间**每一处都踩在“表示”上**——和第三章那句「表示选错，后面每一步都在还债」正好接上。
 
-### 先解释一下：这个 Magel 不是 Minecraft
+### 先解释一下：这个 ChaLi 不是 Minecraft
 
-每次他跟别人说“我在写一个 Magel 语言”，对方第一反应都是：
+每次他跟别人说“我在写一个 ChaLi 语言”，对方第一反应都是：
 
 > “Minecraft？你要写模组？”
 
-糖糖一开始还耐心解释：“不是，是 Magel，早期原型借了 C 的语法。”后来他放弃了，改成一句自嘲：
+糖糖一开始还耐心解释：“不是，是 ChaLi，早期原型借了 C 的语法。”后来他放弃了，改成一句自嘲：
 
-> “对，就是 Minecraft 的 Magel。我在里面挖矿——挖的是内存。”
+> “对，就是 Minecraft 的 ChaLi。我在里面挖矿——挖的是内存。”
 
 > **说人话旁白：**  
 > Minecraft 里你要挖方块、合成物品、管理背包、防苦力怕。  
@@ -420,26 +420,26 @@ Rust 后端加回来的时候，词法是照着 C99 那套写的：生成期把�
 
 ### 差点叫 C+- 的那一晚
 
-这一段开始之前，糖糖有一个一直没敢公开的冲动：他想把 Magel 语言改名叫 **C+-**。
+这一段开始之前，糖糖有一个一直没敢公开的冲动：他想把 ChaLi 语言改名叫 **C+-**。
 
 原因很直白：它不是 C，它只是 C 的一个子集——减掉了指针算术、减掉了预处理器、减掉了那些“你能写但我不保证”的东西；同时又加上了字符串、容器、大整数、对象表。
 
 “C 加一点，减一点，不就是 C+- 吗？”他在 README 草稿里敲下这三个字符，又删掉，再敲，再删。
 
-最后没改。因为 `magel` 已经叫顺了，而且他怕别人以为这是个玩笑项目。
+最后没改。因为 `chali` 已经叫顺了，而且他怕别人以为这是个玩笑项目。
 
 但那一晚，他在提交信息里留了一句：`// 差点叫 C+-`。
 
-后来这句话被删了。只有他自己知道，Magel 语言曾经离 C+- 只有一次 `git mv` 的距离。
+后来这句话被删了。只有他自己知道，ChaLi 语言曾经离 C+- 只有一次 `git mv` 的距离。
 
 > **说人话旁白：**  
 > 如果真叫 C+-，搜索引擎会以为你在找 C++ 的错别字。  
-> 如果叫 Magel，搜索引擎会以为你在找 Minecraft。
+> 如果叫 ChaLi，搜索引擎会以为你在找 Minecraft。
 > 糖糖最后选择了一个**搜索引擎和人类都会误解**的名字，然后继续写代码。
 
-### 南京大学的 C—，和他的 Magel
+### 南京大学的 C—，和他的 ChaLi
 
-就在 Magel 语言推到“字符串搬上堆”那一晚，糖糖又点开了那个存了很久的书签——南京大学编译原理课程的实验文档。
+就在 ChaLi 语言推到“字符串搬上堆”那一晚，糖糖又点开了那个存了很久的书签——南京大学编译原理课程的实验文档。
 
 附录 A 里的 C— 语言文法，他之前只看了一眼。这次他一行一行读了下去。
 
@@ -455,23 +455,23 @@ Rust 后端加回来的时候，词法是照着 C99 那套写的：生成期把�
 
 南大的 C— 是一份**课程实验文法**：有明确的评分标准、有 IR Simulator 虚拟机、有 QtSpim 目标代码执行、有老师提供的额外测试用例。学生按部就班，从词法分析写到目标代码，一门课下来，一个完整的编译器。
 
-他的 Magel 语言是一份**自修文法**：没有评分标准、没有虚拟机的图形界面、没有老师给的测试用例，只有 `git log` 里深夜的提交、仓库里不断校准的专题文档、和屏幕另一头的 AI 搭档。他从 `pl0-super` 推到 `magel`，从四元式失败线退回来，从字符串缓冲的权宜之计改成堆上分配，从手动 `delete` 改成块作用域软释放。
+他的 ChaLi 语言是一份**自修文法**：没有评分标准、没有虚拟机的图形界面、没有老师给的测试用例，只有 `git log` 里深夜的提交、仓库里不断校准的专题文档、和屏幕另一头的 AI 搭档。他从 `pl0-super` 推到 `chali`，从四元式失败线退回来，从字符串缓冲的权宜之计改成堆上分配，从手动 `delete` 改成块作用域软释放。
 
 方向竟然是一样的。
 
-南大的同学在课程里被要求“手搓 C—”；他在住处自找麻烦“手搓 Magel”。一个在教室里，一个在住处；一个有老师点头，一个只有自己点头。
+南大的同学在课程里被要求“手搓 C—”；他在住处自找麻烦“手搓 ChaLi”。一个在教室里，一个在住处；一个有老师点头，一个只有自己点头。
 
 但两拨人干的事，本质上是一件事：**把一张地图从“老师画过的那半张”推到“自己能重算的整张”。**
 
-他关掉书签，继续写 Magel 语言的对象表。
+他关掉书签，继续写 ChaLi 语言的对象表。
 
 那天晚上他在提交信息里多写了一句：
 
-> `// 南大的 C— 是课程，我的 Magel 是自找的。但地图是同一条。`
+> `// 南大的 C— 是课程，我的 ChaLi 是自找的。但地图是同一条。`
 
 ### 给生成器起名，比给语言起名还难
 
-Magel 语言跑通之后，糖糖写了一个生成器，把 `.quad` 文件变成**自带虚拟机的独立可执行文件**。这个生成器现在叫 `magel/magel-emit`（原 `library/magel-emit`），它的名字也经历了一场小型命名危机。
+ChaLi 语言跑通之后，糖糖写了一个生成器，把 `.quad` 文件变成**自带虚拟机的独立可执行文件**。这个生成器现在叫 `chali/chali-emit`（原 `library/chali-emit`），它的名字也经历了一场小型命名危机。
 
 他最初的灵感是 **C+-ava**——因为它是把 C 子集（C+-）变成可执行文件（-ava 听起来像 Java 的某种变体），简称 **cava**。
 
@@ -479,35 +479,35 @@ Magel 语言跑通之后，糖糖写了一个生成器，把 `.quad` 文件变�
 
 然后他停住了。
 
-> “等等，这是 Magel 语言的工具。难道叫 **mcava**？
+> “等等，这是 ChaLi 语言的工具。难道叫 **mcava**？
 > 还是 **mc+-ava**？  
 > 这符号也太多了，文件名里带加号减号，shell 里还得转义。”
 
 他在 README 里打了几行草稿：
 
 ```text
-magel-emit        # 现在叫这个（后来搬进 magel/）
+chali-emit        # 现在叫这个（后来搬进 chali/）
 cava                # 简洁，但不知道的以为是咖啡
-mcava               # 有 Magel，但读起来像某个地名
+mcava               # 有 ChaLi，但读起来像某个地名
 mc+-ava             # 符号太多，文件名不友好
 ```
 
 最后他叹了口气：
 
-> “算了，还是叫 `magel-emit` 吧。
-> 至少它诚实——它就是把 magel emit 出去。”
+> “算了，还是叫 `chali-emit` 吧。
+> 至少它诚实——它就是把 chali emit 出去。”
 
-于是 `magel/magel-emit` 这个名字定了下来。它不短，不酷，但准确说明了自己的职责。
+于是 `chali/chali-emit` 这个名字定了下来。它不短，不酷，但准确说明了自己的职责。
 
 > **说人话旁白：**  
 > 给工具起名就像给 Minecraft 里的宠物狼起名：  
 > 你一开始想叫它“战神”，后来发现它只会坐在原地等你喂骨头。  
 > 最后你叫它“狗子”。  
-> `magel-emit` 就是那只狗子。
+> `chali-emit` 就是那只狗子。
 
 ### 「字符串为什么不放在数据区？」
 
-那天晚上他盯着 Magel 语言的类型表，第一句话就把自己问住了：
+那天晚上他盯着 ChaLi 语言的类型表，第一句话就把自己问住了：
 
 > 字符串的值是数据区里一串字节的基址。那 `a + b` 怎么办？数据区是**编译期布局**，运行期拼出来的串放哪儿？切片呢？`format` 出来的呢？
 
@@ -548,7 +548,7 @@ mc+-ava             # 符号太多，文件名不友好
 
 后来这层接口也收口了：源码只写 `lang::List<T>`、`lang::Set<T>`、`lang::Map<K,V>`，早期的
 `vec/set/map` 类型拼写直接删除；`__vm_vec_*` 只作为看不见的 VM ABI 留在底层。标准算法
-也不再保留 Magel 包装文件：编译器识别 `std::algorithms`、检查泛型实参与回调签名，然后直接
+也不再保留 ChaLi 包装文件：编译器识别 `std::algorithms`、检查泛型实参与回调签名，然后直接
 调用胶水层。排序复制输入列表后使用带辅助缓冲区的自底向上稳定归并排序，时间复杂度为
 $O(n\log n)$，并且不占用递归调用栈。
 
@@ -570,17 +570,17 @@ $O(n\log n)$，并且不占用递归调用栈。
 
 最后一件是糖糖一直想做、也一直没敢做的：**让产物自己带虚拟机**。
 
-他一直记得第一章那个说法——「产物自包含」。但那是“不依赖生成器”，产物仍然要 `stackvm` 那个进程去跑 `.quad`。于是他拿 `library/template` 写了个生成器（现在是 `magel/magel-emit`）：
+他一直记得第一章那个说法——「产物自包含」。但那是“不依赖生成器”，产物仍然要 `stackvm` 那个进程去跑 `.quad`。于是他拿 `library/template` 写了个生成器（现在是 `chali/chali-emit`）：
 
 > 用模板把四元式、数据区字节、布局表**模板化成 C++ 常量**，再把 `library/stackvm` 与 `library/big_number` 的**源码整段内嵌**进同一个文件。`g++ -std=c++17 -O2` 一编——出来就是一个**独立可执行文件**：没有 `.quad`、没有 `.data`、不依赖本仓库、只 `#include` 标准库。
 
 一条命令走完：
 
 ```sh
-sh magel/magel-emit/build-target.sh magel/example/samples/containers.mgl
+sh chali/chali-emit/build-target.sh chali/example/samples/containers.mgl
 ```
 
-他挑了十个程序验：containers、bigint、tree、fourier、recursion、list、structs、array2d、scope、input_text——产物输出与 `magel/example/expected/*.txt` **逐字节一致**。
+他挑了十个程序验：containers、bigint、tree、fourier、recursion、list、structs、array2d、scope、input_text——产物输出与 `chali/example/expected/*.txt` **逐字节一致**。
 
 > **说人话旁白：**  
 > 这就像 Minecraft 里的“命令方块”：以前你要跑一个红石机器，得先摆一堆方块、连一堆线。  
@@ -616,9 +616,9 @@ Node::storeAt      原来"先算地址再算值"，递归重入时地址临时�
 
 第三章的结论是「**表示选错，后面每一步都在还债**」。这一章是它的反面：表示**选对**之后，优化变成了顺手的事。
 
-### 关于 Magel 这个名字的最终结论
+### 关于 ChaLi 这个名字的最终结论
 
-后来有人问糖糖：“你这个 Magel 语言，到底是不是 Minecraft？”
+后来有人问糖糖：“你这个 ChaLi 语言，到底是不是 Minecraft？”
 
 他说：“不是。但如果你非要用 Minecraft 的方式理解——”
 
@@ -668,7 +668,7 @@ Node::storeAt      原来"先算地址再算值"，递归重入时地址临时�
    字符串搬上堆，“拼接摊平”才有意义；`lang::BigInteger` / 容器做成对象句柄，“句柄与地址一眼分开”就省掉一整个分支；对象定成值语义，“别名悬挂”从源头上就没有；虚拟机源码能整段内嵌进产物，“自包含”才真的成立。先想清楚值放哪儿，再写第一行代码。
 
 10. **地图外面不止你一个人。**  
-    南大的同学在课程里手搓 C—，你在住处自找麻烦手搓 Magel。方向撞上了，不是竞争，是安慰。**原来这条路上，还有别人。**
+    南大的同学在课程里手搓 C—，你在住处自找麻烦手搓 ChaLi。方向撞上了，不是竞争，是安慰。**原来这条路上，还有别人。**
 
 06:39，楼下早餐铺该开了。把这些存进仓库，然后去睡。
 
@@ -1087,21 +1087,21 @@ Rust 库、Markdown 表格、Mermaid、预览图视觉检查，以及这轮图�
 
 ## 第十六章 给虚拟机装一扇门
 
-Magel 已经会算大整数，会拼字符串，会开文件，也会把 `lang::List`、`lang::Set` 和 `lang::Map` 放进运行期
+ChaLi 已经会算大整数，会拼字符串，会开文件，也会把 `lang::List`、`lang::Set` 和 `lang::Map` 放进运行期
 对象表。每增加一种能力，最直接的办法都是去 StackVM 那张内置函数表里再添一项。最初这
 很方便，后来却越来越像在墙上凿洞：数学库能进去，容器能进去，下一块开发板的串口、传感器
 和 C++ 业务对象难道也要逐个焊进虚拟机？
 
 真正缺的不是又一个内置函数，而是一扇有门框的门。
 
-门的外侧是宿主 C++，里面是 Magel 与 StackVM；门框就是 ABI。第 44 段先在 VM 层加入
+门的外侧是宿主 C++，里面是 ChaLi 与 StackVM；门框就是 ABI。第 44 段先在 VM 层加入
 `NativeRegistry` 与 `NativeCallContext`。宿主函数按名字注册，参数和返回值只经过整数槽或
 浮点槽；字符串和内存不把内部容器裸露出去，而是通过上下文受控读取、分配和报错。这样，
 应用可以换，VM 不必跟着改。
 
 ```mermaid
 flowchart LR
-    Magel["Magel 宿主声明"] --> TYPE["类型检查 / 泛型单态化"]
+    ChaLi["ChaLi 宿主声明"] --> TYPE["类型检查 / 泛型单态化"]
     TYPE --> CALL["call 稳定符号"]
     CALL --> BIN[".quad 或 .svmb"]
     BIN --> VM["StackVM"]
@@ -1109,7 +1109,7 @@ flowchart LR
     VM --> CPP["宿主函数 / 设备 / 业务对象"]
 ```
 
-Magel 一侧只负责把门牌写清楚：
+ChaLi 一侧只负责把门牌写清楚：
 
 ```c
 type HostHandle<T> = uint64;
@@ -1121,15 +1121,15 @@ T cpp_identity<T>(T value);
 
 `type Name = ABI;` 声明名义宿主类型。一个 `HostHandle<int32>` 即使底层用 `uint64` 承载，也不会因此
 偷偷获得整数加减；复杂 C++ 对象只把句柄或指针送过边界，不复制宿主布局。转换接口
-明确写出哪些转换被允许；无函数体、以分号结束的函数只登记宿主签名，不伪造一份 Magel 函数体。重载冲突、重复
+明确写出哪些转换被允许；无函数体、以分号结束的函数只登记宿主签名，不伪造一份 ChaLi 函数体。重载冲突、重复
 转换、缺失转换和运行时漏绑定，都在各自该报错的层次停下来。
 
 门的另一侧不用手拆每一个槽：
 
 ```cpp
 struct CounterTag;
-using Counter = magel_glue::Handle<CounterTag>;
-magel_glue::Registry glue;
+using Counter = chali_glue::Handle<CounterTag>;
+chali_glue::Registry glue;
 glue.bindTypedImplementation<Counter, uint64_t>("counter_from_uint", from_uint);
 glue.bindTypedImplementation<uint64_t, Counter>("counter_to_uint", to_uint);
 glue.bindTyped<Counter, Counter, Counter>("cpp_add", add);
@@ -1144,22 +1144,22 @@ glue.install();
 
 这里还有一条故意留下的限制：函数地址不能写进 `.svmb`。地址只在当前进程有意义，把它
 序列化既不可移植，也会把程序文件和某次宿主构建绑死。因此 `.svmb` 保存调用符号，加载后
-由当前宿主重新挂同名注册表。`magel-emit` 的 C++ 两档通过 `--glue app.cpp` 在生成期把应用
+由当前宿主重新挂同名注册表。`chali-emit` 的 C++ 两档通过 `--glue app.cpp` 在生成期把应用
 注册代码原样内嵌；Rust 档不提供应用胶水层。少一点“自动”，换来的是同一份程序可以进入不同宿主。
 
 当时的验收分两层：StackVM 通过 **210 项断言**，其中包含程序保存为 `.svmb`、重新加载、重挂
-注册表再执行；Magel 通过 **52 个正常样例 + 80 个错误样例**，覆盖宿主泛型、字符串、
+注册表再执行；ChaLi 通过 **52 个正常样例 + 80 个错误样例**，覆盖宿主泛型、字符串、
 显式转换、漏绑定、重载冲突与非法宿主算术。代码分成两个提交：通用 VM 注册表一段，
-Magel 类型化胶水一段，工作区收尾保持干净。
+ChaLi 类型化胶水一段，工作区收尾保持干净。
 
-以前，Magel 能调用的是“虚拟机替它准备好的世界”。现在，门终于打开了：语言仍然检查类型，
+以前，ChaLi 能调用的是“虚拟机替它准备好的世界”。现在，门终于打开了：语言仍然检查类型，
 二进制仍然只认稳定符号，而门外可以是一段普通 C++，也可以是一台真正的设备。
 
 ---
 
-## 第十七章 当 Magel 不再只是 C 的影子
+## 第十七章 当 ChaLi 不再只是 C 的影子
 
-后来，Magel 的定位终于改清楚了：它不是“C 的一个子集”，而是一门面向 StackVM 的
+后来，ChaLi 的定位终于改清楚了：它不是“C 的一个子集”，而是一门面向 StackVM 的
 C 风格语言。语法看起来熟悉，但类型、生命周期、模块和运行时边界都由虚拟机自己的规则
 决定。这个改名不是文案修饰，而是后面一串设计能够同时成立的前提。
 
@@ -1221,15 +1221,15 @@ lang::SharedCoroutine::wait(task);
 继续留在程序中供实现调用，却不再冒充可链接 API。宿主函数则由无函数体的签名自动识别，
 源码不再显示 `extern`。后来又升到 **v4**：在 exports 之后追加一节**调试信息**
 （指令下标 → 源码位置），于是 VM 能报出"运行到哪一行、在哪一行出错"，并把调用栈翻成源码级；
-`magel-emit` 导出的独立程序同样带着这张表。位置里的语言源码字段（`.mgl` 文件与行号）留好了槽位，
+`chali-emit` 导出的独立程序同样带着这张表。位置里的语言源码字段（`.mgl` 文件与行号）留好了槽位，
 但组装期只拿得到四元式行，所以目前显示的是 `.quad` 行号。
 
-这批能力最后不是靠“能生成”收尾，而是靠三组回归闭环：Magel **70 个正常样例 +
+这批能力最后不是靠“能生成”收尾，而是靠三组回归闭环：ChaLi **70 个正常样例 +
 105 个错误样例**，C++ StackVM **234 项断言**，Rust StackVM **12 项测试**。其中包含
 协程交错执行、句柄类型拒绝、枚举运算符接口、构造与自动析构，以及精确时钟和每 N 条
 指令钩子的确定性测试。
 
-到这里，Magel 已经很难再被叫作 C 的子集。它借了 C 的外形，但模块、泛型枚举、接口协议、
+到这里，ChaLi 已经很难再被叫作 C 的子集。它借了 C 的外形，但模块、泛型枚举、接口协议、
 值生命周期、宿主胶水、二进制程序和协程上下文，都在为一台可嵌入的虚拟机服务。
 
 ---
@@ -1261,17 +1261,17 @@ Result<float64, std::parse::ParseError> real = std::parse::Parse::parseFloat64("
 仍然属于宿主文件接口。
 
 内存层只公开 `std::memory::MemoryStats`、`std::memory::Arena` 与 `std::memory::Span<T>`。Arena 在 VM 对象表里保存
-自己持有的堆块地址，`reset` 或 `drop` 时成批释放；Magel 看得到的是 Span，不是 C++
+自己持有的堆块地址，`reset` 或 `drop` 时成批释放；ChaLi 看得到的是 Span，不是 C++
 `RuntimeObject` 的字段。释放后再通过旧 Span 访问会触发边界检查，而不是读到偶然留下的字节。
 
 第一次全量样例还顺手揭开了两个旧问题。结构体“逐 8 字节槽拷贝”实际生成了 `store:i32`，
 所以 `Result<float64, E>` 中的 `12.5` 会变成 `12.0`；改成显式 `store:i64` 后，浮点位模式和
-宽整数才真正按位保真。随后，所有枚举构造器都叫 `__magel_enum_arg0`，而 StackVM 的类型表按
+宽整数才真正按位保真。随后，所有枚举构造器都叫 `__chali_enum_arg0`，而 StackVM 的类型表按
 名字索引，不同泛型特化会彼此覆盖。构造器形参现在包含枚举名、变体名和载荷位置，类型不再
 串线。静态工厂调用还与枚举构造器共用 AST 节点，生命周期判定也补上这一条，PathString 返回的
 字符串终于能在块出口自动释放。
 
-这轮最终通过 C++ StackVM **234 项断言**，以及 Magel **70 个正常样例 + 105 个错误
+这轮最终通过 C++ StackVM **234 项断言**，以及 ChaLi **70 个正常样例 + 105 个错误
 样例**。新增错误样例专门保留了 Arena 重置后访问旧 Span 的失败路径。四组 API 不算庞大，
 但它们把一个更重要的原则写进了实现：标准库可以提供统一语义，宿主能力必须从明确的胶水
 入口进入，VM 内部布局则留在边界以内。
@@ -1281,41 +1281,41 @@ Result<float64, std::parse::ParseError> real = std::parse::Parse::parseFloat64("
 ## 第十九章 把边界写成一门小语言
 
 标准库的宿主能力越来越多以后，手写一排排 `bindTyped` 开始变成新的重复劳动。问题不在
-C++ 回调本身，而在同一份信息被写了三遍：Magel 里声明一次，C++ 里注册一次，文档里再解释
+C++ 回调本身，而在同一份信息被写了三遍：ChaLi 里声明一次，C++ 里注册一次，文档里再解释
 一次。任何一处名字、参数或泛型特化没同步，错误都要等到程序加载后才出现。
 
-于是仓库里多了一种很小的胶水描述文件：`.mcpp`。它不替代 C++，只把 Magel 模块、宿主函数、
+于是仓库里多了一种很小的胶水描述文件：`.mcpp`。它不替代 C++，只把 ChaLi 模块、宿主函数、
 类型转换、接口实现、泛型绑定和变长参数写成可检查的数据，再由生成器产出 C++ 注册代码。
-`std::math::Math`、随机熵源和标准容器一类宿主能力因此能在 `magel/glue/lang.mcpp` 里集中维护，
-Magel 源码只看见标准库 API，不需要知道宿主函数地址。
+`std::math::Math`、随机熵源和标准容器一类宿主能力因此能在 `chali/glue/lang.mcpp` 里集中维护，
+ChaLi 源码只看见标准库 API，不需要知道宿主函数地址。
 
-导出工具也跟着改名为 `magel-emit`。名字变短不是重点，重点是职责变清楚了：它读取 Magel 编译
+导出工具也跟着改名为 `chali-emit`。名字变短不是重点，重点是职责变清楚了：它读取 ChaLi 编译
 结果与胶水，当时规划过桌面 C++、嵌入式 C++ 和 Rust Cargo 工程；现在只导出前两种
-C++ 目标。`magel-generator` 则把编译器、VM 模板和标准胶水装配成可再生成的工具链。
+C++ 目标。`chali-generator` 则把编译器、VM 模板和标准胶水装配成可再生成的工具链。
 `clear` 命令只清理生成器自己认识的产物，不去猜用户目录里哪些文件“看起来多余”。
 
 最后补上的不是新语法，而是一条资源边界。堆早已可以通过 `HeapAllocator` 换成静态 arena，
 求值栈现在也能由宿主设置每个协程的槽位上限：
 
 ```sh
-magel-emit program.quad --target embedded-cpp --heap-bytes 65536 --stack-slots 256
+chali-emit program.quad --target embedded-cpp --heap-bytes 65536 --stack-slots 256
 ```
 
 生成的运行器在启动 VM 前设置限制。超过上限会在执行现场报出槽位数、PC 与指令，不再把
 宿主内存耗尽伪装成普通语言错误；不给参数时行为保持不变，仍使用动态、无显式上限的求值
 栈。桌面和嵌入式因此共用同一套字节码语义，只由宿主决定资源预算。
 
-后来 `.mcpp` 描述语言也被撤下：应用胶水回到普通 C++，动态库函数可以在 Magel 的
+后来 `.mcpp` 描述语言也被撤下：应用胶水回到普通 C++，动态库函数可以在 ChaLi 的
 `abi` 块里集中声明。阶段快照很容易把过去的数字伪装成今天的事实；生成器的语言与模式
-支持矩阵以 [`15`](15-language-mode-support.md) 为准，Magel 的语法兼容基线见
-[EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)，用户 API 见 [`magel/README.md`](https://github.com/rabbitc999/magel/blob/master/README.md)；设计演进随语言
-一起维护（`magel/doc/35-magel-story.md`）。故事可以记住为什么，源码和测试负责回答现在是什么。
+支持矩阵以 [`15`](15-language-mode-support.md) 为准，ChaLi 的语法兼容基线见
+[EBNF 语法参考](https://github.com/rabbitc999/ChaLi/blob/master/doc/14-grammar-ebnf.md)，用户 API 见 [`chali/README.md`](https://github.com/rabbitc999/ChaLi/blob/master/README.md)；设计演进随语言
+一起维护（`chali/doc/35-chali-story.md`）。故事可以记住为什么，源码和测试负责回答现在是什么。
 
 ---
 
 ## 第二十章 给施工图加上名字
 
-Magel 早已有 `%define`，但它只是一枚条件开关。糖糖刻意没有让它像 C 那样替换正文，因为同一
+ChaLi 早已有 `%define`，但它只是一枚条件开关。糖糖刻意没有让它像 C 那样替换正文，因为同一
 个名字既控制分支又改写表达式，出错时很难判断是哪一层动了手。正文宏后来使用另一套醒目的
 `$macro NAME() … $end_macro`：先有定参块宏，再补对象宏、命名可变尾参和 `$delete_macro`。两套符号
 因此各守一条边界，`%` 决定源码是否出现，`$` 决定出现的源码怎样展开。
@@ -1343,7 +1343,7 @@ Magel 早已有 `%define`，但它只是一枚条件开关。糖糖刻意没有�
 
 ## 第二十一章 给切片软件留的位置
 
-Magel 的语言特性快收口的时候，一个真实需求摆到面前：给一台打印机写切片软件。
+ChaLi 的语言特性快收口的时候，一个真实需求摆到面前：给一台打印机写切片软件。
 
 先用一句话说清那台机器。连续碳纤维、柔性 TPU、普通耗材，三种料走同一套进给和同一个喷嘴。纤维要守着最大弯曲半径，TPU 要防回抽拉丝，普通料只要温度对了就不闹。三种参数互相打架，调好一种就顶坏另一种。这是台**融合怪**；没有现成经验可抄，谁都没把握一次做成。
 
@@ -1363,9 +1363,9 @@ Magel 的语言特性快收口的时候，一个真实需求摆到面前：给�
 
 补这些的时候还顺手挖出一个一直挡路的类型错误：`-2.5` 被当成了 `int`。值本身没错（取负走的是浮点），错的是类型，于是 `auto x = -2.5` 推成整数、`abs(-0.5)` 算成 `0`、`{:3F}` 报"整数不接受浮点格式"。修法是一元运算的类型跟着操作数走。切片软件里 `-2.5` 这种写法到处都是，这个错早修比晚修好。
 
-模块这边也改了一次。往编译器里新增标准模块（比如刚加的 `lang::Clock`）时，必须在编译器那张硬编码的"哪些 `lang::X` 是模块"的表里同步登记，漏了就报"自定义类型 X 用于 `lang::print` 时必须实现 `toString`"这种指错方向的错。现在这张表搬进文法里声明（`kMagelStdModules`），加模块改文法，不再改编译器实现。
+模块这边也改了一次。往编译器里新增标准模块（比如刚加的 `lang::Clock`）时，必须在编译器那张硬编码的"哪些 `lang::X` 是模块"的表里同步登记，漏了就报"自定义类型 X 用于 `lang::print` 时必须实现 `toString`"这种指错方向的错。现在这张表搬进文法里声明（`kChaLiStdModules`），加模块改文法，不再改编译器实现。
 
-Magel 当初借过 Rust 的不少想法：默认导出、接口当约束、`?` 传播错误、没有异常。现在它自己也在收口——固定宽度数值、泛型、接口、元组、模式匹配、错误传播、迭代器、协程、宿主模组，切片软件要用到的机关基本都在了。**Rust 那一边还在长**，Magel 这一边快写完了。
+ChaLi 当初借过 Rust 的不少想法：默认导出、接口当约束、`?` 传播错误、没有异常。现在它自己也在收口——固定宽度数值、泛型、接口、元组、模式匹配、错误传播、迭代器、协程、宿主模组，切片软件要用到的机关基本都在了。**Rust 那一边还在长**，ChaLi 这一边快写完了。
 
 深夜的时候糖糖还在写这个仓库。白天的时间总是被切得很碎，一天里最好的精力未必轮得到这里，夜里的这几个小时才是自己的。他也清楚：一门语言能不能收口，不是他更努力一点就能决定的。
 
@@ -1376,15 +1376,15 @@ Magel 当初借过 Rust 的不少想法：默认导出、接口当约束、`?` �
 ## 第二十二章 五扇门，仍是一张地图
 
 最早把所有东西摆在同一层时，打开仓库像走进一间堆满半成品的工作室：
-解析器、Magel 编译器、虚拟机和课程示例都能找到，却很难一眼分清谁依赖谁。
-后来门牌重新挂好：`source/` 是 ParseEngine 生成器，`magel/` 是用它生成前端的
-Magel 语言工程。`project/` 留给生成器的示例和课程实验，
+解析器、ChaLi 编译器、虚拟机和课程示例都能找到，却很难一眼分清谁依赖谁。
+后来门牌重新挂好：`source/` 是 ParseEngine 生成器，`chali/` 是用它生成前端的
+ChaLi 语言工程。`project/` 留给生成器的示例和课程实验，
 `library/` 放可复用的库。
 
 再后来又多开了一扇门：`metro-lang/`。它拿同一份生成器做前端，把地铁线网数据语言
 **MetroLang** 整套做出来——编译器、模板化反编译器、自包含 SVG 地图、路线查询，
 外加一个能同时读 metro-lang JSON 与老编辑器 JSON 的交互式查看器。它不是解析器生成器的
-试验田，而是"生成器 + 三个可复用库"能不能撑起一个真工程的那次验收；如今也像 Magel
+试验田，而是"生成器 + 三个可复用库"能不能撑起一个真工程的那次验收；如今也像 ChaLi
 一样拆成了独立仓库（<https://github.com/rabbitc999/metro-lang>）：用法见
 [`README.md`](https://github.com/rabbitc999/metro-lang/blob/master/README.md)，JSON 口径见
 [`doc/02`](https://github.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md)。
@@ -1399,14 +1399,14 @@ Magel 语言工程。`project/` 留给生成器的示例和课程实验，
 （<https://github.com/rabbitc999/rust-view>）：用法与语言边界见
 [`README.md`](https://github.com/rabbitc999/rust-view/blob/master/README.md)。
 
-这不是把旧目录换个名字就完事。根目录构建入口必须先生成 ParseEngine，再用它刷新 Magel
+这不是把旧目录换个名字就完事。根目录构建入口必须先生成 ParseEngine，再用它刷新 ChaLi
 的语法前端，最后构建各个工程和示例；README 也要先把解析器生成器讲清楚，再告诉读者
 另外几扇门通向哪里。门口那枚解析器图标还在，因为它仍是这张地图的起点。
 
-Magel 那条支线也继续长大：接口可以给方法默认实现，`foreach` 通过 `Iterator` 协议遍历，`robot::`
-承接机器人算法，`abi` 块让动态库声明回到 Magel 源码。早先试过的 `.mcpp` 胶水小语言
+ChaLi 那条支线也继续长大：接口可以给方法默认实现，`foreach` 通过 `Iterator` 协议遍历，`robot::`
+承接机器人算法，`abi` 块让动态库声明回到 ChaLi 源码。早先试过的 `.mcpp` 胶水小语言
 被撤下，Rust VM 导出也停止了；留下桌面和嵌入式两种 C++ 导出。故事里的旧方案仍是
-真实的尝试，当前语法从[EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)核对，API 从 [Magel 手册](https://github.com/rabbitc999/magel/blob/master/README.md)查。
+真实的尝试，当前语法从[EBNF 语法参考](https://github.com/rabbitc999/ChaLi/blob/master/doc/14-grammar-ebnf.md)核对，API 从 [ChaLi 手册](https://github.com/rabbitc999/ChaLi/blob/master/README.md)查。
 
 这几扇门各能单独打开，也能接成一条路：文法生成前端，前端产出中间表示，后端与虚拟机让
 程序真正跑起来。这张地图的价值不只在多了几种模式，而在每一段都能单独构建、检查和解释。
@@ -1437,7 +1437,7 @@ C++ 胶水用 `std::optional<Reference<T>>` 接住它，空值不能冒充有效
 下一块被改动的是循环。数组和列表的 `foreach` 变量直接读写源元素；自定义引用迭代器
 返回 `Option<T mut&>`，有元素就交出引用，结束就交出 `None`。矩阵和数组都可迭代，
 矩阵索引取列向量，向量索引取数值，矩阵、向量还可以与数组互转。
-这些规则的例子和边界写进了[引用与迭代](https://github.com/rabbitc999/magel/blob/master/doc/04-references.md)。
+这些规则的例子和边界写进了[引用与迭代](https://github.com/rabbitc999/ChaLi/blob/master/doc/22-resource-lifetime.md)。
 
 然后轮到泛型的告示牌。
 
@@ -1456,18 +1456,18 @@ enum Choice<T> { None1, Value1(T value); };
 
 糖糖没有把“省字”当成自动放行。函数指针的泛型也要特化，循环引用自身的函数指针类型
 必须拒绝；枚举省掉前缀以后，声明、赋值、返回值、参数和 `match` 仍要指向同一种类型。
-[集合与抽象](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md)里留下了完整写法。
+集合与抽象里留下了完整写法。
 
 `match` 的分支也能用 `|` 连接多个备选模式，字符串范围补齐了四种开闭区间：
 `['a','z']`、`['a','z')`、`('a','z']`、`('a','z')`。边界是否包含，直接写在端点上。
 
 标准库也跟着换了零件。`std::binary` 读取二进制流中的基础数值、定长字符串和数组；
 `lang::toInt32` 用 `Option<int32>` 表达失败，IEEE 754 转换支持 float32、float64、
-大小端和数组重载。JSON、TOML 可以在 Magel 中解析。线性代数的 LU 等计算进入宿主胶水，
-Magel 保留声明、类型选择与必要包装，裁剪统一使用 `NO_MAGEL_XXX`。
+大小端和数组重载。JSON、TOML 可以在 ChaLi 中解析。线性代数的 LU 等计算进入宿主胶水，
+ChaLi 保留声明、类型选择与必要包装，裁剪统一使用 `NO_CHALI_XXX`。
 
 最后才轮到窗口。WinAPI 补齐了与 Qt 对应的 GUI 事件 ABI，Windows 默认加载 `mcgui.dll`，
-`MAGEL_GUI_LIBRARY` 可以指定其他兼容后端。按钮、定时器与计算循环之间，仍是
+`CHALI_GUI_LIBRARY` 可以指定其他兼容后端。按钮、定时器与计算循环之间，仍是
 “事件排队，VM 在指令边界交付”的约定。小车示例改用 `std::math`、`std::linalg` 和
 `Ekf2.pose()`；GUI、小车、海龟的构建与测试统一由 Python 驱动，产物留在 `build/`。
 机器人库的 AOT 导出还撞过 MinGW 目标文件节数限制，于是 Windows 编译补上了大目标文件支持。
@@ -1478,14 +1478,14 @@ Magel 保留声明、类型选择与必要包装，裁剪统一使用 `NO_MAGEL_
 解释器检查，导出使用 float32、float64 和 int64 代表类型。Qt 后端保留，本轮没有实测。
 
 这次更新的故事到这里就有了落点：短下来的语法，要靠更明确的类型边界和跑过的程序支撑。
-命令与覆盖范围放在[库迁移与回归验证](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)，
-语言变更记在 [Magel 变更记录](https://github.com/rabbitc999/magel/blob/master/CHANGELOG.md)。
+命令与覆盖范围放在[库迁移与回归验证](https://github.com/rabbitc999/ChaLi/blob/master/doc/11-algorithm-validation.md)，
+语言变更记在 [ChaLi 变更记录](https://github.com/rabbitc999/ChaLi/blob/master/CHANGELOG.md)。
 
 ---
 
 ## 第二十四章 流水线上的东西，总得有人接住
 
-集成链的问题刚收口，Magel 的问题又排了过来。
+集成链的问题刚收口，ChaLi 的问题又排了过来。
 
 “字符串、大数字、Set、Map、元组，都能引用。那引用字符串取字符，为什么还得写
 `(*ref)[index]`？既然平常默认解引用，到了下标就不认了？”
@@ -1514,11 +1514,11 @@ Magel 保留声明、类型选择与必要包装，裁剪统一使用 `NO_MAGEL_
 两种断言宏 `$assert_eq`、`$assert_neq` 曾加进来，后来又按要求删除。
 今天写的是 `lang::assert`，没有冲突时也可以写 `assert`。旧语法的专门迁移提示也统一
 清理：无效拼写按普通语法错误处理，已经释放的名字则按普通标识符规则判断。
-这些收尾共同组成 **Magel 1.0 的语言基线**，不能再从旧章节里挑一条已撤下的规则使用。
+这些收尾共同组成 **ChaLi 1.0 的语言基线**，不能再从旧章节里挑一条已撤下的规则使用。
 
 最费工夫的，还是那条看起来最顺手的调用：
 
-```magel
+```chali
 T3 result = t.f1().f2();
 ```
 
@@ -1526,7 +1526,7 @@ T3 result = t.f1().f2();
 
 下面是降级思路，变量名只用于解释，不是要求用户照抄的源码：
 
-```magel
+```chali
 T2 hidden = t.f1();
 T3 result = hidden.f2();
 ```
@@ -1551,9 +1551,9 @@ Set 和 Map 当前走值迭代，不把能改坏键规则的可写引用交出�
 具名游标的 `next()` 等方法推进当前位置；`collect()`、`fold()` 的链式写法处理游标副本。
 把这些区别写清楚，比把所有方法统称为‘消费迭代器’更有用。
 
-具体接口与可运行样例见[标准迭代器](https://github.com/rabbitc999/magel/blob/master/doc/05-iterators.md)，
-临时量的责任见[值语义与链式调用](https://github.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md)，
-集合的规则见[泛型与集合](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md)。
+具体接口与可运行样例见标准迭代器，
+临时量的责任见值语义与链式调用，
+集合的规则见泛型与集合。
 这一次，用户写在一行里的流水线，终于由编译器接住每一件中间产物。
 
 ---
@@ -1599,7 +1599,7 @@ AOT 的类型预扫描把输出也记成浮点，布尔函数指针的返回签�
 | --- | --- |
 | 语言与类型 | 155 个正常样例、268 个错误样例；simple_ast 单测 77 项断言全部通过 |
 | 逐库 | 22 个综合样例在解释器、C++ VM、AOT 通过，覆盖全部 27 个标准库模块、utils 和机器人六个模块 |
-| Windows 桌面 | WinAPI GUI、小车三种底盘与导航定位、海龟真实 DLL 与 Magel 导出程序复验通过 |
+| Windows 桌面 | WinAPI GUI、小车三种底盘与导航定位、海龟真实 DLL 与 ChaLi 导出程序复验通过 |
 | 外部接口 | C ABI 值与可空引用、缓冲区、临时资源，以及泛型回调、C++ 胶水、JSON/TOML 专项通过 |
 | SQLite | 内存库与文件库三后端实测，包含事务、回滚、重开、Unicode、NULL、大整数和错误路径 |
 | PostgreSQL | libpq ABI 测试夹具三后端验证，检查连接、结果类型、错误处理及原生资源释放 |
@@ -1616,8 +1616,8 @@ PostgreSQL 的 bytea 按文本表示返回，COPY 流式协议仍未实现。
 
 这一轮功能和修复进入 **1.1.0**，源码语言兼容基线仍是 **1.0.0**。
 第二十四章的 2026-10-07 数字保留为当时的验收记录，本章接着记录两天后的范围。
-复现清单见[库迁移与回归验证](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md)，
-数据库入口、依赖和限制见[SQL 接口文档](https://github.com/rabbitc999/magel/blob/master/sql-magel/doc/01-sql-library.md)。
+复现清单见[库迁移与回归验证](https://github.com/rabbitc999/ChaLi/blob/master/doc/11-algorithm-validation.md)，
+数据库入口、依赖和限制见SQL 接口文档。
 
 糖糖把“通过”两个字改成了表格。地图扩建到这里，每扇门后面究竟走过多远，
 比门上挂着多少名字更值得留下来。
@@ -1630,23 +1630,23 @@ PostgreSQL 的 bytea 按文本表示返回，COPY 流式协议仍未实现。
 **六个完整后端 + Java / JS 两个 DD-Earley-CYK 窄后端、一个文法导出档、十六种模式、
 384 份模板、155 个实测组合**。中间还删过东西、退回过一档，把 Rust 与 Go 完整加回，
 又把 Java 按更诚实的边界接回来；随后补齐增量解析、严格 C-- 五次实验，以及
-Magel 的类型化胶水、接口生命周期、泛型枚举、协程运行时、正文宏，以及 Parse / Random /
+ChaLi 的类型化胶水、接口生命周期、泛型枚举、协程运行时、正文宏，以及 Parse / Random /
 PathString / Memory-Arena / Text / Linalg 标准库。
 
-Magel 后来又长了两段：一是 `std::event` 的**事件回调 / 中断 / 软件定时器**——事件异步发生、
+ChaLi 后来又长了两段：一是 `std::event` 的**事件回调 / 中断 / 软件定时器**——事件异步发生、
 在 VM 的指令边界交付，中断优先于线程与协程，`EventHandle` 把定时器和宿主事件统一成一种
 事件源，GUI 与小车模拟器都接到这条线上；二是窗口层支持 **WinAPI / Qt** 两种后端，
 `libmcguiqt.so` 只传定宽整数和 UTF-8 字符串，`gui::bindEvents(EventHandle)` 把 Qt 事件
 登记成中断源，小车模拟器 `car_sim` 用同一份仿真逻辑配 WinAPI / Qt 两个后端（`USE_GUI_QT`）。
-交付方式也收口了：`magel/stackvm` 与 `library/stackvm` 正式分叉、各自迭代，Magel 侧版本写进
-`magel/VERSION`（当前版本 `1.2.0`，语言兼容基线 `1.0.0`），破坏性变更记 `magel/CHANGELOG.md`，
+交付方式也收口了：`chali/stackvm` 与 `library/stackvm` 正式分叉、各自迭代，ChaLi 侧版本写进
+`chali/VERSION`（当前版本 `1.2.0`，语言兼容基线 `1.0.0`），破坏性变更记 `chali/CHANGELOG.md`，
 关键字、`match` / `Result` / `?` / `loop` 的拼写、接口名、生命周期与 `.svmb` v4 布局都算
 冻结契约；通用验收入口为 `sh ci/run.sh`；逐库三后端和 Windows 桌面验证另有专项脚本。
-2026-10-07 的 Magel 回归为 **144 个正常样例 + 192 个错误样例**，见第二十三章；2026-10-09 的 1.1.0 推进到 **155 个正常样例 + 268 个错误样例**，以及覆盖 27 个标准库模块的 22 个逐库样例，外置库与多数据库验收范围见第二十五章。1.1.1 补入完整表达式清理回归后，正常样例增至 **156 个**，错误样例仍为 **268 个**。各章的分阶段数字按当时读。
+2026-10-07 的 ChaLi 回归为 **144 个正常样例 + 192 个错误样例**，见第二十三章；2026-10-09 的 1.1.0 推进到 **155 个正常样例 + 268 个错误样例**，以及覆盖 27 个标准库模块的 22 个逐库样例，外置库与多数据库验收范围见第二十五章。1.1.1 补入完整表达式清理回归后，正常样例增至 **156 个**，错误样例仍为 **268 个**。各章的分阶段数字按当时读。
 
-1.2.0 在文法中逐个登记十种复合赋值 Token 和产生式，通过 `M_CompoundAssign` 将 `A op= B` 展开为 `A = A op B`。纯 `a = b = c + 3` 链从右向左执行；包含复合赋值的链非法，包括 `a += b *= 3`、`a = b += 3` 及右侧加括号的形式。规则和正式样例见 [Magel 语言指南](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#复合赋值先计算再写回)。
+1.2.0 在文法中逐个登记十种复合赋值 Token 和产生式，通过 `M_CompoundAssign` 将 `A op= B` 展开为 `A = A op B`。纯 `a = b = c + 3` 链从右向左执行；包含复合赋值的链非法，包括 `a += b *= 3`、`a = b += 3` 及右侧加括号的形式。规则和正式样例见 ChaLi 语言指南。
 
-Magel 后来把源码语法的兼容基线单独写进 [EBNF 语法参考](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md)。标准库拆成三层：核心 `lang.mgl` 自动加载、`std::xxx` 按需 `import`、`robot::` 等可选库；1.0 通过 `std::iter` 提供迭代链 API，程序可使用惰性适配器，也可显式使用 `foreach` 和 `lang::List<T>`。这也说明故事里某一阶段的功能清单，不能代替今天的语言规则。
+ChaLi 后来把源码语法的兼容基线单独写进 [EBNF 语法参考](https://github.com/rabbitc999/ChaLi/blob/master/doc/14-grammar-ebnf.md)。标准库拆成三层：核心 `lang.mgl` 自动加载、`std::xxx` 按需 `import`、`robot::` 等可选库；1.0 通过 `std::iter` 提供迭代链 API，程序可使用惰性适配器，也可显式使用 `foreach` 和 `lang::List<T>`。这也说明故事里某一阶段的功能清单，不能代替今天的语言规则。
 
 情节是编的，验证是真的。想自己核一遍：
 
@@ -1662,7 +1662,7 @@ diff -r tmp/base tmp/after                             # 改口径前后：该�
 
 故事到这里可以停了：地图还在，一个周末也补不完；但下一次要改图表模式，先读 `AGENTS.md` §0.1 和 §0.3；要把哪一档加回来，再翻到 §4 末尾那份清单，照着做就行。
 
-还有一件事：南大的同学在课程里手搓 C—，他在住处手搓 Magel。两拨人干的是同一件事——**把一张地图从“老师画过的那半张”推到“自己能重算的整张”**。这条路不孤单。
+还有一件事：南大的同学在课程里手搓 C—，他在住处手搓 ChaLi。两拨人干的是同一件事——**把一张地图从“老师画过的那半张”推到“自己能重算的整张”**。这条路不孤单。
 
 ---
 
@@ -1675,11 +1675,11 @@ diff -r tmp/base tmp/after                             # 改口径前后：该�
 - 文中命令按各档支持范围可用：`--lang {c,cpp17,python,csharp,rust,go,java,js,gram}`、`--mode {ll0,ll1,llk,lr0,slr,lalr,lr1,ielr,lrk,lalrk,slrk,glr,earley,cyk,dd,lex}`；Java / JS 当前只接 DD、Earley 与 CYK。
 - 六个完整后端、两个 DD/Earley/CYK 窄后端和一个导出档的细节，见 [代码生成](07-codegen.md)、[产物 API](08-generated-code.md) 与 [支持矩阵](15-language-mode-support.md)。
 - 开发与交接经验现在只维护在根目录 `AGENTS.md`；独立会话记忆目录已经删除，避免旧快照重新污染当前口径。
-- Magel 自己那半张地图有一套统一验收：仓库根目录跑 `sh ci/run.sh`（或 `--skip-vm-tests` 跑快档），
-  事件 / 中断 / 定时器看 `magel/example/samples/interrupt*.mgl`，Qt GUI 看
-  `python magel/gui/test_qt.py`、`python magel/car_sim/test_car_qt.py`。
+- ChaLi 自己那半张地图有一套统一验收：仓库根目录跑 `sh ci/run.sh`（或 `--skip-vm-tests` 跑快档），
+  事件 / 中断 / 定时器看 `chali/example/samples/interrupt*.mgl`，Qt GUI 看
+  `python chali/gui/test_qt.py`、`python chali/car_sim/test_car_qt.py`。
 - 想照着第一章的剧情自己爽一遍：`example/pl0.gram` + `--lang gram`，两分钟。
-- 想照着第八章的剧情自己挖矿一遍：`sh magel/magel-emit/build-target.sh magel/example/samples/containers.mgl`，然后祈祷不要遇到苦力怕。
+- 想照着第八章的剧情自己挖矿一遍：`sh chali/chali-emit/build-target.sh chali/example/samples/containers.mgl`，然后祈祷不要遇到苦力怕。
 - 想照着第十二章的剧情自己换库函数一遍：`ParseEngine example/pl0.gram --out-dir /tmp/pl0_rs --lang rust`，然后打开 `src/parser.rs`，看看里面的 `Result` 和 `regex`——那才是 Rust 该有的样子。
 - 想看看南大的 C— 实验长什么样：翻到附录 A，从 Tokens 读到 Expressions。你会发现，那张地图上，不止你一个人。
 - 有几段被撤下来了。正文里关于工作单位、岗位、同事与薪酬的段落，已经整体撤下、封存在
@@ -1687,4 +1687,4 @@ diff -r tmp/base tmp/after                             # 改口径前后：该�
   怎么开，这里不说。
 
 
-1.2.0 还支持前后置 `++` / `--`，前置取新值、后置取旧值。一个完整表达式最多一个自增减符号，`a=(i++)+(++i)` 非法，括号、调用实参和短路分支合并检查；详见[自增减规则与样例](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#自增与自减一个表达式最多一个)。
+1.2.0 还支持前后置 `++` / `--`，前置取新值、后置取旧值。一个完整表达式最多一个自增减符号，`a=(i++)+(++i)` 非法，括号、调用实参和短路分支合并检查；详见自增减规则与样例。

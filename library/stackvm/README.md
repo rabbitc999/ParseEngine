@@ -69,15 +69,15 @@ machine.setNativeRegistry(&natives);
 stackvm::RunResult result = machine.run(program);
 ```
 
-`NativeCallContext::readList` 可把 Magel `lang::List<T>` 解包为胶水值；`invoke` 可在宿主回调
-期间同步调用 Magel 函数指针，并复用当前执行的堆、对象表、全局变量与调用栈。由上下文创建的
+`NativeCallContext::readList` 可把 ChaLi `lang::List<T>` 解包为胶水值；`invoke` 可在宿主回调
+期间同步调用 ChaLi 函数指针，并复用当前执行的堆、对象表、全局变量与调用栈。由上下文创建的
 函数、结构体和枚举视图只在本次 Native 回调内有效，不能跨线程或保存到回调结束以后。
 
 内建 `__vm_*` 名称优先，宿主注册表不能覆盖 VM 运行时。注册表只属于宿主进程，`.svmb`
 只保存调用符号；加载二进制后应重新挂接同一组实现。
 `__vm_panic` 接受一个指向 VM 长度字符串的地址（8 字节长度 + UTF-8 字节，不带结尾 NUL），
 并通过 `RunResult::error` 立即终止；
-它是 Magel `panic(string)` 的运行时入口，不把错误当成正常 `exitCode`。
+它是 ChaLi `panic(string)` 的运行时入口，不把错误当成正常 `exitCode`。
 
 ### 精确计时、指令钩子与协程上下文
 
@@ -118,9 +118,9 @@ stackvm::RunResult result = machine.run(program);
 接口对象和它返回的文件句柄必须至少存活到 `run()` 返回。不能提供文件系统的固件也可以
 注入一个总是返回错误的实现，使 `std::fileOpen` 正常得到 `Result::Err`，而不是依赖桌面 API。
 
-Magel 的 `std::Parse`、`std::Path` 与 `std::Memory` 由 StackVM 的受控原生函数实现：解析
+ChaLi 的 `std::Parse`、`std::Path` 与 `std::Memory` 由 StackVM 的受控原生函数实现：解析
 只接受完整文本，路径处理不触碰文件系统，内存层只返回统计值和 Arena 分配出的字节地址。
-Arena 在对象表中只保存所持堆块的地址清单；`reset/drop` 释放这些块，Magel 侧只能经
+Arena 在对象表中只保存所持堆块的地址清单；`reset/drop` 释放这些块，ChaLi 侧只能经
 `std::Span<T>` 使用，拿不到 `RuntimeObject` 布局。`std::Random::fromEntropy` 则刻意不放进
 内建表，由宿主通过 `NativeRegistry` 单独注入；嵌入式环境可换成自己的硬件熵源。
 
@@ -142,7 +142,7 @@ Arena 在对象表中只保存所持堆块的地址清单；`reset/drop` 释放�
 
 要找变量时先看当前帧的局部、再看全局；没有帧（顶层代码）时 `DECLARE` 落到全局槽，
 与"函数外的局部名就是全局"一致。名字仍然是**按名字全程序唯一**的：同一个名字不可能
-既是一层的局部、又是另一层的局部 —— 前端要保证这一点（magel 的重名自动加 `$序号`）。
+既是一层的局部、又是另一层的局部 —— 前端要保证这一点（chali 的重名自动加 `$序号`）。
 
 ### 堆：`(alloc, 字节数, _, 目标)` / `(free, 地址, _, _)`
 
@@ -279,8 +279,8 @@ make -C library/stackvm STACKVM_WITH_BIGINT=0 STACKVM_WITH_BIGFLOAT=0
 ### 数学库边界
 
 StackVM 不再内建 `__vm_sin` / `__vm_pow` 等数学指令。语言前端应声明普通宿主函数，
-再通过 `NativeRegistry` 注册平台数学库；Magel 的桌面实现见
-`magel/glue/std_math.hpp`。这样嵌入式移植可替换数学库，不需要修改 VM。
+再通过 `NativeRegistry` 注册平台数学库；ChaLi 的桌面实现见
+`chali/glue/std_math.hpp`。这样嵌入式移植可替换数学库，不需要修改 VM。
 
 ## 四元式化简
 
@@ -350,7 +350,7 @@ v4 再在 exports 之后追加**调试信息表**（指令下标 → 源码位�
 里的标签；加载器仍能读取旧的 v1 固定字段与 v2 变长指令文件，旧文件没有显式可见性，
 因此兼容地把全部标签视为可见。新生成文件统一写 v4。
 裸四元式本身没有模块可见性声明，因此 `assemble` 默认把全部标签放进 exports；具有模块
-语义的前端（例如 Magel）会在组装后清空并按自己的公开 API 重新填写。
+语义的前端（例如 ChaLi）会在组装后清空并按自己的公开 API 重新填写。
 `check` 会报告公开入口数量，`disasm` 会在指令前以 `; export 标签` 列出它们。
 
 ### 调试
@@ -363,7 +363,7 @@ v4 再在 exports 之后追加**调试信息表**（指令下标 → 源码位�
 `currentLocation` / `callStack`；`RunResult` 出错时带 `failureLocation` 与 `sourceTrace`
 （调用者那一帧显示**调用点**）。命令行 `--debug` 按位置逐行打印（走 stderr），出错时
 自动打印位置与调用栈；位置里的 `file`/`line` 字段留给语言源码，目前显示的是 `.quad` 行号。
-完整说明与实测输出见 [magel/stackvm/README.md](../../magel/stackvm/README.md#调试)。
+完整说明与实测输出见 [chali/stackvm/README.md](../../chali/stackvm/README.md#调试)。
 
 运行内存以 **1 字节 cell** 寻址和分配（`kRuntimeCellBytes == 1`），堆不再把短字符串或
 小块请求向上补齐到 8 字节。`int64`、`double`、地址和对象句柄仍是 8 字节宽值，只是连续

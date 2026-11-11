@@ -69,7 +69,7 @@ if(Python3_Interpreter_FOUND)
     add_custom_command(OUTPUT
         "${CMAKE_CURRENT_SOURCE_DIR}/include/ParseEngine/i18n_messages.hpp"
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../tools/embed_parseengine_i18n.py"
-        DEPENDS i18n/messages.tsv ../tools/embed_parseengine_i18n.py ../tools/embed_i18n.py)
+        DEPENDS i18n/messages.tsv ../tools/embed_parseengine_i18n.py)
     add_custom_command(OUTPUT
         "${CMAKE_CURRENT_SOURCE_DIR}/include/ParseEngine/package_tool.hpp"
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../tools/embed_package_tool.py"

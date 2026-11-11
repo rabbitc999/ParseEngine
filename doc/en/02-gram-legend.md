@@ -2,11 +2,11 @@
 
 # A Maxed-Out Grammar and a Big Cleanup (A ParseEngine Side Story)
 
-> **That glorious chapter of Magel**: this language grew up inside this repository early on — the
+> **That glorious chapter of ChaLi**: this language grew up inside this repository early on — the
 > generator, StackVM, standard library, glue and reflection were all polished here together (the
-> Magel documents below are the record of that time). It has since been split into its own
-> repository <https://github.com/rabbitc999/magel>; every link in this document that pointed at
-> `magel/` now points at the same-named document in the new repository.
+> ChaLi documents below are the record of that time). It has since been split into its own
+> repository <https://github.com/rabbitc999/ChaLi>; every link in this document that pointed at
+> `chali/` now points at the same-named document in the new repository.
 
 **Author: Tangtang (an amateur writer)**
 
@@ -24,10 +24,10 @@
 >
 > Only two things are made up: **the narrative shell** and **the dialogue in the text**. The protagonist "Tangtang" is a narrative device — don't take it as a real person.
 >
-> The book has twenty-six chapters: first what this thing does, then why it was built, then where it failed, how the load was trimmed, how the collaboration worked, and finally what was learned; the second half continues with incremental parsing, the five strict C-- experiments, the Java/JS narrow backends, closing out graph mode, and Magel's C++ glue, body macros, event interrupts and Qt GUI migration; Chapter 22 puts MetroLang and RustView on the map, Chapter 23 continues with Magel's non-null references, postfix generics and whole-library migration; Chapter 24 closes out Magel 1.0's names, references and iterator pipelines, and Chapter 25 records the multi-database and external-library three-backend acceptance for 1.1.
+> The book has twenty-six chapters: first what this thing does, then why it was built, then where it failed, how the load was trimmed, how the collaboration worked, and finally what was learned; the second half continues with incremental parsing, the five strict C-- experiments, the Java/JS narrow backends, closing out graph mode, and ChaLi's C++ glue, body macros, event interrupts and Qt GUI migration; Chapter 22 puts MetroLang and RustView on the map, Chapter 23 continues with ChaLi's non-null references, postfix generics and whole-library migration; Chapter 24 closes out ChaLi 1.0's names, references and iterator pipelines, and Chapter 25 records the multi-database and external-library three-backend acceptance for 1.1.
 >
 > **A note on scope**: the current state is six complete backends + two narrow backends, Java / JS, and sixteen modes; Chapters 2–11 and some later chapters keep the numbers and attempts as they were at the time of development. For target languages, template counts and example counts, the current source and support matrix are authoritative.
-> Magel's source syntax already has a separate [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md); the old APIs and experimental schemes that appear in the story should be read as belonging to the stage they came from.
+> ChaLi's source syntax already has a separate [EBNF grammar reference](https://github.com/rabbitc999/ChaLi/blob/master/doc/14-grammar-ebnf.md); the old APIs and experimental schemes that appear in the story should be read as belonging to the stage they came from.
 
 > Not every language supports all sixteen modes; the current support matrix, export restrictions and the boundaries of the incremental API are in [15](../15-language-mode-support.md).
 
@@ -146,15 +146,15 @@ He froze for a moment.
 
 Not envy. It was the dawning that "so there's more than just me walking outside this map".
 
-The students at Nanjing University were asked, in class, to write a compiler for C— — lexer, parser, semantics, intermediate code, target code, the whole chain. Meanwhile he, at home, with no one asking, added chores for himself: pushing from `.gram` to six backends, from LL(0) to IELR, then retreating from the failed quadruple line, switching to `pl0-super`, and finally, still unsatisfied, starting to write the Magel language.
+The students at Nanjing University were asked, in class, to write a compiler for C— — lexer, parser, semantics, intermediate code, target code, the whole chain. Meanwhile he, at home, with no one asking, added chores for himself: pushing from `.gram` to six backends, from LL(0) to IELR, then retreating from the failed quadruple line, switching to `pl0-super`, and finally, still unsatisfied, starting to write the ChaLi language.
 
 The direction had collided.
 
-Nanjing University was "asked to hand-roll C—"; he was "making trouble for himself by hand-rolling Magel". One inside a course, one at home; one with a grading standard, one with nothing but late-night commits in `git log`. But the two groups were essentially doing one thing: **pushing a map from "the half the teacher drew" out to "the whole thing you can recompute yourself".**
+Nanjing University was "asked to hand-roll C—"; he was "making trouble for himself by hand-rolling ChaLi". One inside a course, one at home; one with a grading standard, one with nothing but late-night commits in `git log`. But the two groups were essentially doing one thing: **pushing a map from "the half the teacher drew" out to "the whole thing you can recompute yourself".**
 
 He bookmarked that lab document. Told no one.
 
-Only that night, while writing the Magel language, there was a little extra quiet confidence in his heart — **so there are others on this road too.**
+Only that night, while writing the ChaLi language, there was a little extra quiet confidence in his heart — **so there are others on this road too.**
 
 ---
 
@@ -402,19 +402,19 @@ Finally, I deleted that version of `AGENTS.md`, folded the rules into the projec
 
 ---
 
-## Chapter 7 Giving the Magel Language an Object Table: Where Values Live
+## Chapter 7 Giving the ChaLi Language an Object Table: Where Values Live
 
-The main text says "the part in Chapter 4 about subtraction" — deleting the backends that had grown crooked, deleting the modes nobody used, slimming the project down. But that was only **subtraction**. What really excited Tangtang was the stretch that followed: he went back and pushed `magel` (the Magel language) from an early "C subset that can do arithmetic" prototype into "a C-style virtual machine language that can write data structures and string processing", and **every step along the way landed on "representation"** — dovetailing exactly with Chapter 3's line that "pick the wrong representation and every later step is paying off debt".
+The main text says "the part in Chapter 4 about subtraction" — deleting the backends that had grown crooked, deleting the modes nobody used, slimming the project down. But that was only **subtraction**. What really excited Tangtang was the stretch that followed: he went back and pushed `chali` (the ChaLi language) from an early "C subset that can do arithmetic" prototype into "a C-style virtual machine language that can write data structures and string processing", and **every step along the way landed on "representation"** — dovetailing exactly with Chapter 3's line that "pick the wrong representation and every later step is paying off debt".
 
-### First, Some Explanation: This Magel Is Not Minecraft
+### First, Some Explanation: This ChaLi Is Not Minecraft
 
-Every time he told someone "I'm writing a language called Magel", their first reaction was:
+Every time he told someone "I'm writing a language called ChaLi", their first reaction was:
 
 > "Minecraft? You're writing a mod?"
 
-At first Tangtang patiently explained: "No, it's Magel, the early prototype borrowed C's syntax." Later he gave up and switched to a self-deprecating line:
+At first Tangtang patiently explained: "No, it's ChaLi, the early prototype borrowed C's syntax." Later he gave up and switched to a self-deprecating line:
 
-> "Right, it's Minecraft's Magel. I'm mining in there — mining memory."
+> "Right, it's Minecraft's ChaLi. I'm mining in there — mining memory."
 
 > **Plain-speak aside:**  
 > In Minecraft you mine blocks, craft items, manage your inventory, and fend off creepers.  
@@ -423,26 +423,26 @@ At first Tangtang patiently explained: "No, it's Magel, the early prototype borr
 
 ### The Night It Almost Got Named C+-
 
-Before this stretch began, Tangtang had an urge he never dared make public: he wanted to rename the Magel language **C+-**.
+Before this stretch began, Tangtang had an urge he never dared make public: he wanted to rename the ChaLi language **C+-**.
 
 The reason was plain: it isn't C, it's just a subset of C — subtracting pointer arithmetic, subtracting the preprocessor, subtracting the things "you can write but I don't guarantee"; while at the same time adding strings, containers, big integers and an object table.
 
 "C plus a bit, minus a bit, isn't that just C+-?" He typed those three characters into the README draft, deleted them, typed them again, deleted them again.
 
-In the end he didn't change it. Because `magel` already rolled off the tongue, and he was afraid people would think it was a joke project.
+In the end he didn't change it. Because `chali` already rolled off the tongue, and he was afraid people would think it was a joke project.
 
 But that night he left a line in the commit message: `// 差点叫 C+-`.
 
-Later that line was deleted. Only he knows that the Magel language was ever one `git mv` away from C+-.
+Later that line was deleted. Only he knows that the ChaLi language was ever one `git mv` away from C+-.
 
 > **Plain-speak aside:**  
 > If it were really called C+-, search engines would think you were looking for a typo of C++.  
-> If it's called Magel, search engines will think you're looking for Minecraft.
+> If it's called ChaLi, search engines will think you're looking for Minecraft.
 > In the end Tangtang chose a name that **both search engines and humans will misread**, and then went on writing code.
 
-### Nanjing University's C— and His Magel
+### Nanjing University's C— and His ChaLi
 
-On the very night the Magel language was pushed to "move strings onto the heap", Tangtang opened that long-bookmarked page again — the lab document for the compiler principles course at Nanjing University.
+On the very night the ChaLi language was pushed to "move strings onto the heap", Tangtang opened that long-bookmarked page again — the lab document for the compiler principles course at Nanjing University.
 
 The C— language grammar in Appendix A, which he'd only glanced at before, he now read line by line.
 
@@ -458,23 +458,23 @@ He stared at the screen and suddenly laughed.
 
 Nanjing University's C— is a **course lab grammar**: with a clear grading standard, an IR Simulator virtual machine, QtSpim target-code execution, and additional test cases provided by the teacher. Students follow the steps, from lexical analysis through to target code — one course, one complete compiler.
 
-His Magel language is a **self-study grammar**: no grading standard, no virtual machine with a graphical interface, no test cases handed down by a teacher — only late-night commits in `git log`, topic documents in the repository constantly being recalibrated, and the AI partner on the other side of the screen. He pushed from `pl0-super` to `magel`, retreated from the failed quadruple line, changed string buffering from a stopgap to heap allocation, and switched from manual `delete` to block-scope soft release.
+His ChaLi language is a **self-study grammar**: no grading standard, no virtual machine with a graphical interface, no test cases handed down by a teacher — only late-night commits in `git log`, topic documents in the repository constantly being recalibrated, and the AI partner on the other side of the screen. He pushed from `pl0-super` to `chali`, retreated from the failed quadruple line, changed string buffering from a stopgap to heap allocation, and switched from manual `delete` to block-scope soft release.
 
 The direction turned out to be the same.
 
-The students at Nanjing University were asked, in a course, to "hand-roll C—"; he, at home, made trouble for himself and "hand-rolled Magel". One in a classroom, one at home; one with a teacher nodding, one with only himself nodding.
+The students at Nanjing University were asked, in a course, to "hand-roll C—"; he, at home, made trouble for himself and "hand-rolled ChaLi". One in a classroom, one at home; one with a teacher nodding, one with only himself nodding.
 
 But the two groups were essentially doing one thing: **pushing a map from "the half the teacher drew" out to "the whole thing you can recompute yourself".**
 
-He closed the bookmark and went back to writing the Magel language's object table.
+He closed the bookmark and went back to writing the ChaLi language's object table.
 
 That night he added a line to the commit message:
 
-> `// 南大的 C— 是课程，我的 Magel 是自找的。但地图是同一条。`
+> `// 南大的 C— 是课程，我的 ChaLi 是自找的。但地图是同一条。`
 
 ### Naming the Generator Was Harder Than Naming the Language
 
-After the Magel language ran, Tangtang wrote a generator that turns `.quad` files into **standalone executables with a bundled virtual machine**. That generator is now called `magel/magel-emit` (formerly `library/magel-emit`), and its name went through a small naming crisis too.
+After the ChaLi language ran, Tangtang wrote a generator that turns `.quad` files into **standalone executables with a bundled virtual machine**. That generator is now called `chali/chali-emit` (formerly `library/chali-emit`), and its name went through a small naming crisis too.
 
 His first inspiration was **C+-ava** — because it turns a C subset (C+-) into an executable file (-ava sounds like some Java variant), abbreviated **cava**.
 
@@ -482,35 +482,35 @@ His first inspiration was **C+-ava** — because it turns a C subset (C+-) into 
 
 Then he stopped.
 
-> "Wait, this is a tool for the Magel language. So should it be **mcava**?
+> "Wait, this is a tool for the ChaLi language. So should it be **mcava**?
 > Or **mc+-ava**?  
 > Too many symbols; filenames with plus and minus signs still need escaping in the shell."
 
 He typed a few draft lines into the README:
 
 ```text
-magel-emit        # 现在叫这个（后来搬进 magel/）
+chali-emit        # 现在叫这个（后来搬进 chali/）
 cava                # 简洁，但不知道的以为是咖啡
-mcava               # 有 Magel，但读起来像某个地名
+mcava               # 有 ChaLi，但读起来像某个地名
 mc+-ava             # 符号太多，文件名不友好
 ```
 
 In the end he sighed:
 
-> "Forget it, let's just call it `magel-emit`.
-> At least it's honest — it just emits magel."
+> "Forget it, let's just call it `chali-emit`.
+> At least it's honest — it just emits chali."
 
-So the name `magel/magel-emit` was settled. It isn't short, isn't cool, but it states its job accurately.
+So the name `chali/chali-emit` was settled. It isn't short, isn't cool, but it states its job accurately.
 
 > **Plain-speak aside:**  
 > Naming a tool is like naming a pet wolf in Minecraft:  
 > At first you want to call it "War God", then you find it just sits in place waiting for you to feed it a bone.  
 > In the end you call it "Doggie".  
-> `magel-emit` is that doggie.
+> `chali-emit` is that doggie.
 
 ### "Why Aren't Strings Kept in the Data Section?"
 
-That night, staring at the Magel language's type table, his very first sentence stopped himself:
+That night, staring at the ChaLi language's type table, his very first sentence stopped himself:
 
 > A string's value is the base address of a run of bytes in the data section. So what about `a + b`? The data section is **laid out at compile time** — where do strings built at runtime go? What about slices? What about things produced by `format`?
 
@@ -551,7 +551,7 @@ So came the **runtime object table**: handle → C++ object.
 
 Later this layer of interface was closed off too: the source only writes `lang::List<T>`, `lang::Set<T>`, `lang::Map<K,V>`, and the early
 `vec/set/map` type spellings were deleted outright; `__vm_vec_*` remains only as an invisible VM ABI underneath. The standard algorithms
-no longer keep Magel wrapper files either: the compiler recognizes `std::algorithms`, checks the generic arguments and the callback signatures, and then calls
+no longer keep ChaLi wrapper files either: the compiler recognizes `std::algorithms`, checks the generic arguments and the callback signatures, and then calls
 the glue layer directly. Sorting copies the input list and then uses a bottom-up stable merge sort with an auxiliary buffer; the time complexity is
 $O(n\log n)$, and it doesn't consume the recursion call stack.
 
@@ -573,17 +573,17 @@ By the way, three things were nailed down:
 
 The last one was what Tangtang had always wanted to do but never dared: **let the artifacts carry the virtual machine themselves**.
 
-He always remembered that phrase from Chapter 1 — "self-contained artifacts". But that meant "not depending on the generator"; the artifacts still needed the `stackvm` process to run `.quad`. So he used `library/template` to write a generator (now `magel/magel-emit`):
+He always remembered that phrase from Chapter 1 — "self-contained artifacts". But that meant "not depending on the generator"; the artifacts still needed the `stackvm` process to run `.quad`. So he used `library/template` to write a generator (now `chali/chali-emit`):
 
 > Use templates to **template the quadruples, the data-section bytes and the layout table into C++ constants**, then **embed the entire source** of `library/stackvm` and `library/big_number` into the same file. `g++ -std=c++17 -O2` compiles it — and out comes a **standalone executable**: no `.quad`, no `.data`, no dependency on this repository, only `#include` of the standard library.
 
 One command does the whole thing:
 
 ```sh
-sh magel/magel-emit/build-target.sh magel/example/samples/containers.mgl
+sh chali/chali-emit/build-target.sh chali/example/samples/containers.mgl
 ```
 
-He picked ten programs to verify: containers, bigint, tree, fourier, recursion, list, structs, array2d, scope, input_text — the artifacts' output was **byte-for-byte identical** to `magel/example/expected/*.txt`.
+He picked ten programs to verify: containers, bigint, tree, fourier, recursion, list, structs, array2d, scope, input_text — the artifacts' output was **byte-for-byte identical** to `chali/example/expected/*.txt`.
 
 > **Plain-speak aside:**  
 > It's like "command blocks" in Minecraft: before, to run a redstone machine you had to lay out a pile of blocks and wire up a pile of lines.  
@@ -619,9 +619,9 @@ Node::storeAt      原来"先算地址再算值"，递归重入时地址临时�
 
 Chapter 3's conclusion was "**pick the wrong representation and every later step is paying off debt**". This chapter is its flip side: once the representation is **picked right**, optimization becomes a matter of convenience.
 
-### The Final Word on the Name Magel
+### The Final Word on the Name ChaLi
 
-Later someone asked Tangtang: "This Magel language of yours — is it actually Minecraft?"
+Later someone asked Tangtang: "This ChaLi language of yours — is it actually Minecraft?"
 
 He said: "No. But if you insist on understanding it in Minecraft terms —"
 
@@ -671,7 +671,7 @@ Writing until nearly dawn, jot down what was learned over these few months (espe
    Move strings onto the heap and only then does "flatten the concatenation" mean anything; make `lang::BigInteger` / containers into object handles and "handles and addresses distinguishable at a glance" saves an entire branch; make objects value semantics and "aliasing and dangling" disappear at the source; embed the whole VM source in the artifacts and only then does "self-contained" really hold. Figure out where the value lives first, then write the first line of code.
 
 10. **You're not the only one outside the map.**  
-    The students at Nanjing University hand-roll C— in a course; you hand-roll Magel out of self-made trouble at home. The directions collided — not a competition, but a comfort. **So there are others on this road too.**
+    The students at Nanjing University hand-roll C— in a course; you hand-roll ChaLi out of self-made trouble at home. The directions collided — not a competition, but a comfort. **So there are others on this road too.**
 
 06:39 — the breakfast place downstairs should be open. Save this into the repository, then go sleep.
 
@@ -1090,21 +1090,21 @@ What changed was the map and the way of handing over: Go and `gram` both reach s
 
 ## Chapter 16 Fitting the Virtual Machine With a Door
 
-Magel could already compute big integers, build strings, open files, and put `lang::List`, `lang::Set` and `lang::Map` into the runtime
+ChaLi could already compute big integers, build strings, open files, and put `lang::List`, `lang::Set` and `lang::Map` into the runtime
 object table. Every time a new capability was added, the most direct approach was to add one more entry to StackVM's table of built-in functions. At first this
 was convenient, but later it looked more and more like chiseling holes in a wall: the math library got in, the containers got in — would the next dev board's serial port, sensors
 and C++ business objects also have to be soldered into the virtual machine one by one?
 
 What was really missing wasn't yet another built-in function, but a door with a frame.
 
-The outside of the door is the host C++, and inside are Magel and StackVM; the door frame is the ABI. Section 44 first adds
+The outside of the door is the host C++, and inside are ChaLi and StackVM; the door frame is the ABI. Section 44 first adds
 `NativeRegistry` and `NativeCallContext` at the VM layer. Host functions are registered by name, and arguments and return values pass only through integer slots or
 floating-point slots; strings and memory don't expose internal containers, but are read, allocated and errored through the context in a controlled way. This way,
 the application can change, and the VM doesn't have to change along with it.
 
 ```mermaid
 flowchart LR
-    Magel["Magel 宿主声明"] --> TYPE["类型检查 / 泛型单态化"]
+    ChaLi["ChaLi 宿主声明"] --> TYPE["类型检查 / 泛型单态化"]
     TYPE --> CALL["call 稳定符号"]
     CALL --> BIN[".quad 或 .svmb"]
     BIN --> VM["StackVM"]
@@ -1112,7 +1112,7 @@ flowchart LR
     VM --> CPP["宿主函数 / 设备 / 业务对象"]
 ```
 
-The Magel side only has to write the doorplates clearly:
+The ChaLi side only has to write the doorplates clearly:
 
 ```c
 type HostHandle<T> = uint64;
@@ -1124,15 +1124,15 @@ T cpp_identity<T>(T value);
 
 `type Name = ABI;` declares a nominal host type. Even if a `HostHandle<int32>` is carried underneath by `uint64`, it doesn't thereby
 secretly gain integer addition and subtraction; complex C++ objects only send handles or pointers across the boundary, without copying the host layout. The conversion interface
-explicitly writes out which conversions are allowed; a function with no body, ended by a semicolon, only registers the host signature and doesn't fabricate a Magel function body. Overload conflicts, duplicate
+explicitly writes out which conversions are allowed; a function with no body, ended by a semicolon, only registers the host signature and doesn't fabricate a ChaLi function body. Overload conflicts, duplicate
 conversions, missing conversions and runtime missing bindings all stop at their proper level, each raising its own error.
 
 The other side of the door doesn't have to disassemble every slot by hand:
 
 ```cpp
 struct CounterTag;
-using Counter = magel_glue::Handle<CounterTag>;
-magel_glue::Registry glue;
+using Counter = chali_glue::Handle<CounterTag>;
+chali_glue::Registry glue;
 glue.bindTypedImplementation<Counter, uint64_t>("counter_from_uint", from_uint);
 glue.bindTypedImplementation<uint64_t, Counter>("counter_to_uint", to_uint);
 glue.bindTyped<Counter, Counter, Counter>("cpp_add", add);
@@ -1147,22 +1147,22 @@ and `bindGeneric` / `bindTypedGeneric` only register stable specialized symbols 
 
 There's also a deliberately kept limitation here: function addresses can't be written into `.svmb`. An address is only meaningful in the current process; serializing it
 is neither portable, and it would also bind the program file to one particular host build. So `.svmb` stores the call symbol, and after loading,
-the current host re-hooks the same-named registry. The two C++ tiers of `magel-emit` embed the application registration code verbatim at generation time via `--glue app.cpp`;
+the current host re-hooks the same-named registry. The two C++ tiers of `chali-emit` embed the application registration code verbatim at generation time via `--glue app.cpp`;
 the Rust tier doesn't provide an application glue layer. A bit less "automatic" buys the ability for the same program to enter different hosts.
 
 At the time, acceptance had two layers: StackVM passed **210 assertions**, including saving a program as `.svmb`, reloading it, re-hooking the
-registry and executing again; Magel passed **52 normal examples + 80 error examples**, covering host generics, strings,
+registry and executing again; ChaLi passed **52 normal examples + 80 error examples**, covering host generics, strings,
 explicit conversion, missing bindings, overload conflicts and illegal host arithmetic. The code was split into two commits: one for the general VM registry,
-one for Magel's typed glue, keeping the workspace clean at the end.
+one for ChaLi's typed glue, keeping the workspace clean at the end.
 
-Before, what Magel could call was "the world the virtual machine had prepared for it". Now, the door is finally open: the language still checks types,
+Before, what ChaLi could call was "the world the virtual machine had prepared for it". Now, the door is finally open: the language still checks types,
 the binary still recognizes only stable symbols, and outside the door can be ordinary C++, or a real device.
 
 ---
 
-## Chapter 17 When Magel Is No Longer Just C's Shadow
+## Chapter 17 When ChaLi Is No Longer Just C's Shadow
 
-Later, Magel's positioning was finally cleared up: it isn't "a subset of C", but a C-style language aimed at StackVM.
+Later, ChaLi's positioning was finally cleared up: it isn't "a subset of C", but a C-style language aimed at StackVM.
 The syntax looks familiar, but types, lifetimes, modules and runtime boundaries are all decided by the virtual machine's own rules. This renaming isn't cosmetic wording,
 but the precondition for a whole series of later designs to hold at the same time.
 
@@ -1224,15 +1224,15 @@ performance hint, it's visibility. `.svmb` was upgraded to v3 accordingly, writi
 remain in the program for implementation use, but no longer pretend to be linkable APIs. Host functions are automatically recognized by their body-less signatures,
 and the source no longer shows `extern`. Later it was upgraded to **v4**: after exports, a **debug-info** section is appended
 (instruction index → source location), so the VM can report "which line it's running at, which line errored", and translate call stacks to source level;
-the standalone programs exported by `magel-emit` carry this table too. The language-source fields in the locations (the `.mgl` file and line number) have their slots reserved,
+the standalone programs exported by `chali-emit` carry this table too. The language-source fields in the locations (the `.mgl` file and line number) have their slots reserved,
 but at assembly time only the quadruple lines are available, so for now what's shown is the `.quad` line number.
 
-These capabilities weren't wrapped up by "being able to generate", but by three regression closures: Magel **70 normal examples +
+These capabilities weren't wrapped up by "being able to generate", but by three regression closures: ChaLi **70 normal examples +
 105 error examples**, the C++ StackVM **234 assertions**, and the Rust StackVM **12 tests**. Among them are deterministic tests for
 interleaved coroutine execution, handle-type rejection, enum operator interfaces, construction and automatic destruction, plus exact clocks and per-N-instruction
 hooks.
 
-By this point, Magel can hardly be called a subset of C anymore. It borrowed C's shape, but modules, generic enums, interface protocols,
+By this point, ChaLi can hardly be called a subset of C anymore. It borrowed C's shape, but modules, generic enums, interface protocols,
 value lifetimes, host glue, binary programs and coroutine contexts are all in service of an embeddable virtual machine.
 
 ---
@@ -1264,17 +1264,17 @@ separators and folding `.` / `..`, never casually probing the disk. Whether a fi
 still belongs to the host file interface.
 
 The memory layer exposes only `std::memory::MemoryStats`, `std::memory::Arena` and `std::memory::Span<T>`. The Arena keeps
-the addresses of the heap blocks it holds in the VM object table, and releases them in bulk on `reset` or `drop`; what Magel sees is a Span, not the fields of C++
+the addresses of the heap blocks it holds in the VM object table, and releases them in bulk on `reset` or `drop`; what ChaLi sees is a Span, not the fields of C++
 `RuntimeObject`. Accessing through an old Span after release triggers a bounds check, rather than reading bytes that happen to be left behind.
 
 The first full run of the examples also incidentally exposed two old problems. A struct's "copy 8-bytes-per-slot" actually generated `store:i32`,
 so the `12.5` in `Result<float64, E>` would become `12.0`; after switching to an explicit `store:i64`, floating-point bit patterns and
-wide integers were finally bit-faithful. Then, all enum constructors were called `__magel_enum_arg0`, while StackVM's type table indexes
+wide integers were finally bit-faithful. Then, all enum constructors were called `__chali_enum_arg0`, while StackVM's type table indexes
 by name, so different generic specializations overwrote each other. Constructor parameters now include the enum name, variant name and payload position, and types no longer
 cross wires. Static factory calls also share the AST node with enum constructors, lifetime determination was extended with this case too, and the string returned by PathString
 can finally be released automatically at the block exit.
 
-This round ultimately passed C++ StackVM's **234 assertions**, plus Magel's **70 normal examples + 105 error
+This round ultimately passed C++ StackVM's **234 assertions**, plus ChaLi's **70 normal examples + 105 error
 examples**. New error examples specifically preserve the failure path of accessing an old Span after an Arena reset. The four groups of APIs aren't huge,
 but they wrote a more important principle into the implementation: the standard library can provide unified semantics, host capabilities must enter through explicit glue
 entry points, and the VM's internal layout stays within the boundary.
@@ -1284,41 +1284,41 @@ entry points, and the VM's internal layout stays within the boundary.
 ## Chapter 19 Writing the Boundary as a Small Language
 
 Once the standard library had more and more host capabilities, writing rows of `bindTyped` by hand started turning into new repetitive labor. The problem wasn't the
-C++ callback itself, but that the same piece of information was written three times: once declared in Magel, once registered in C++, and once more explained
+C++ callback itself, but that the same piece of information was written three times: once declared in ChaLi, once registered in C++, and once more explained
 in the docs. If any name, parameter or generic specialization isn't in sync, the error doesn't show up until after the program loads.
 
-So the repository gained a very small glue description file: `.mcpp`. It doesn't replace C++; it just writes Magel modules, host functions,
+So the repository gained a very small glue description file: `.mcpp`. It doesn't replace C++; it just writes ChaLi modules, host functions,
 type conversions, interface implementations, generic bindings and variadic parameters as checkable data, and then the generator produces C++ registration code.
-Host capabilities like `std::math::Math`, random entropy sources and standard containers can thus be maintained centrally in `magel/glue/lang.mcpp`,
-and Magel source only sees standard library APIs, without needing to know host function addresses.
+Host capabilities like `std::math::Math`, random entropy sources and standard containers can thus be maintained centrally in `chali/glue/lang.mcpp`,
+and ChaLi source only sees standard library APIs, without needing to know host function addresses.
 
-The export tool was also renamed to `magel-emit`. A shorter name isn't the point; the point is that its responsibility became clear: it reads the Magel compilation
+The export tool was also renamed to `chali-emit`. A shorter name isn't the point; the point is that its responsibility became clear: it reads the ChaLi compilation
 result and the glue, and at the time desktop C++, embedded C++ and Rust Cargo projects were planned; now it only exports the first two
-C++ targets. `magel-generator` assembles the compiler, the VM templates and the standard glue into a regenerable toolchain.
+C++ targets. `chali-generator` assembles the compiler, the VM templates and the standard glue into a regenerable toolchain.
 The `clear` command only cleans artifacts the generator itself recognizes, without guessing which files in the user's directory "look redundant".
 
 What was added last wasn't new syntax, but a resource boundary. The heap could already be swapped for a static arena via `HeapAllocator`,
 and now the evaluation stack can also have its per-coroutine slot limit set by the host:
 
 ```sh
-magel-emit program.quad --target embedded-cpp --heap-bytes 65536 --stack-slots 256
+chali-emit program.quad --target embedded-cpp --heap-bytes 65536 --stack-slots 256
 ```
 
 The generated runner sets the limits before starting the VM. Exceeding a limit reports the slot count, PC and instruction on the spot, no longer disguising
 an exhausted host memory as an ordinary language error; when no arguments are given the behavior stays unchanged, still using the dynamic, explicitly unbounded evaluation
 stack. Desktop and embedded thus share the same bytecode semantics, with only the host deciding the resource budget.
 
-Later the `.mcpp` description language was withdrawn too: application glue went back to ordinary C++, and dynamic library functions can be declared centrally in Magel's
+Later the `.mcpp` description language was withdrawn too: application glue went back to ordinary C++, and dynamic library functions can be declared centrally in ChaLi's
 `abi` block. Stage snapshots easily disguise past numbers as today's facts; the generator's language and mode
-support matrix takes [`15`](../15-language-mode-support.md) as authoritative, Magel's syntax-compatibility baseline is in the
-[EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md), the user API is in [`magel/README.md`](https://github.com/rabbitc999/magel/blob/master/README.md); design evolution is maintained together
-with the language (`magel/doc/35-magel-story.md`). The story can remember why, and the source and tests are responsible for answering what is now.
+support matrix takes [`15`](../15-language-mode-support.md) as authoritative, ChaLi's syntax-compatibility baseline is in the
+[EBNF grammar reference](https://github.com/rabbitc999/ChaLi/blob/master/doc/14-grammar-ebnf.md), the user API is in [`chali/README.md`](https://github.com/rabbitc999/ChaLi/blob/master/README.md); design evolution is maintained together
+with the language (`chali/doc/35-chali-story.md`). The story can remember why, and the source and tests are responsible for answering what is now.
 
 ---
 
 ## Chapter 20 Giving Names to the Blueprints
 
-Magel had long had `%define`, but it was only a conditional switch. Tangtang deliberately didn't make it substitute text like C, because the same
+ChaLi had long had `%define`, but it was only a conditional switch. Tangtang deliberately didn't make it substitute text like C, because the same
 name both controlling branches and rewriting expressions makes it hard to tell which layer moved when something goes wrong. Body macros later used a different, eye-catching
 `$macro NAME() … $end_macro`: first a fixed-parameter block macro, then object macros, named variadic tails and `$delete_macro`. The two
 symbol families thus each guard a boundary: `%` decides whether source appears, `$` decides how the source that appears gets expanded.
@@ -1346,7 +1346,7 @@ diagnostics. Being able to concatenate a name isn't hard; making people understa
 
 ## Chapter 21 A Place Reserved for Slicing Software
 
-When Magel's language features were nearly closed out, a real requirement was laid on the table: write slicing software for a printer.
+When ChaLi's language features were nearly closed out, a real requirement was laid on the table: write slicing software for a printer.
 
 First, describe that machine in one sentence. Continuous carbon fiber, flexible TPU, and ordinary filament — three materials go through the same feed system and the same nozzle. The fiber has to respect a maximum bend radius, TPU has to guard against retraction stringing, and ordinary filament behaves as long as the temperature is right. The three sets of parameters fight each other; tuning one wrecks another. This is a **fusion monster**; there's no ready-made experience to copy, and no one was confident of getting it right in one go.
 
@@ -1368,9 +1368,9 @@ While adding these, he also incidentally dug out a type error that had been in t
 was, so `auto x = -2.5` inferred as an integer, `abs(-0.5)` computed to `0`, and `{:3F}` reported "integers don't accept a floating-point format". The fix was to make the unary operation's type follow its operand. In slicing software, expressions like `-2.5` are everywhere, so fixing this error early beats fixing it late.
 
 The module side was also changed once. When adding a new standard module to the compiler (like the just-added `lang::Clock`), you had to register it in sync in the compiler's hard-coded
-table of "which `lang::X` are modules"; miss it and you'd get an error pointing in the wrong direction, like "custom type X must implement `toString` when used with `lang::print`". Now this table has been moved into the grammar as a declaration (`kMagelStdModules`), so adding a module means changing the grammar, no longer changing the compiler implementation.
+table of "which `lang::X` are modules"; miss it and you'd get an error pointing in the wrong direction, like "custom type X must implement `toString` when used with `lang::print`". Now this table has been moved into the grammar as a declaration (`kChaLiStdModules`), so adding a module means changing the grammar, no longer changing the compiler implementation.
 
-Magel borrowed quite a few ideas from Rust at the start: default export, interfaces as constraints, `?` for error propagation, no exceptions. Now it's being closed out itself — fixed-width numerics, generics, interfaces, tuples, pattern matching, error propagation, iterators, coroutines, host modules; the machinery slicing software needs is basically all there. **The Rust side is still growing**, while the Magel side is nearly finished.
+ChaLi borrowed quite a few ideas from Rust at the start: default export, interfaces as constraints, `?` for error propagation, no exceptions. Now it's being closed out itself — fixed-width numerics, generics, interfaces, tuples, pattern matching, error propagation, iterators, coroutines, host modules; the machinery slicing software needs is basically all there. **The Rust side is still growing**, while the ChaLi side is nearly finished.
 
 Late at night, Tangtang was still writing this repository. Daytime is always chopped into small fragments, and the best energy of the day doesn't necessarily go to this; those few hours at night are the ones that are his own. He also knows clearly: whether a language can be closed out isn't something he can decide by working a bit harder.
 
@@ -1381,15 +1381,15 @@ The only thing he can decide is this — give everything the language side shoul
 ## Chapter 22 Five Doors, Still One Map
 
 When everything was first laid out on the same level, opening the repository was like walking into a studio piled full of half-finished work:
-a parser, a Magel compiler, a virtual machine and course examples could all be found, yet it was hard to tell at a glance who depended on whom.
-Later the doorplates were re-hung: `source/` is the ParseEngine generator, `magel/` is the
-Magel language project that uses it to generate a front end. `project/` is left for the generator's examples and course labs,
+a parser, a ChaLi compiler, a virtual machine and course examples could all be found, yet it was hard to tell at a glance who depended on whom.
+Later the doorplates were re-hung: `source/` is the ParseEngine generator, `chali/` is the
+ChaLi language project that uses it to generate a front end. `project/` is left for the generator's examples and course labs,
 and `library/` holds reusable libraries.
 
 Even later another door was opened: `metro-lang/`. It uses the same generator as a front end and builds out the whole subway-network-data language
 **MetroLang**: a compiler, a templated decompiler, self-contained SVG maps, route queries,
 plus an interactive viewer that can read both metro-lang JSON and the old editor's JSON. It isn't a test bed for the parser generator,
-but that acceptance of whether "generator + three reusable libraries" can hold up a real project; now it has also been split into its own repository like Magel
+but that acceptance of whether "generator + three reusable libraries" can hold up a real project; now it has also been split into its own repository like ChaLi
 (<https://github.com/rabbitc999/metro-lang>): usage in
 [`README.md`](https://github.com/rabbitc999/metro-lang/blob/master/README.md), the JSON contract in
 [`doc/02`](https://github.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md).
@@ -1404,14 +1404,14 @@ it would rather error out and write not a single file than draw a graph with mis
 (<https://github.com/rabbitc999/rust-view>): usage and language boundaries in
 [`README.md`](https://github.com/rabbitc999/rust-view/blob/master/README.md).
 
-This isn't just renaming old directories and calling it done. The root build entry must first generate ParseEngine, then use it to refresh Magel's
+This isn't just renaming old directories and calling it done. The root build entry must first generate ParseEngine, then use it to refresh ChaLi's
 syntax front end, and finally build the various projects and examples; the README must also explain the parser generator clearly first, then tell readers
 where the other doors lead. The parser icon at the door is still there, because it's still the starting point of this map.
 
-Magel's branch kept growing too: interfaces can give methods default implementations, `foreach` iterates through the `Iterator` protocol, `robot::`
-carries robot algorithms, and the `abi` block brings dynamic library declarations back into Magel source. The earlier `.mcpp` glue mini-language
+ChaLi's branch kept growing too: interfaces can give methods default implementations, `foreach` iterates through the `Iterator` protocol, `robot::`
+carries robot algorithms, and the `abi` block brings dynamic library declarations back into ChaLi source. The earlier `.mcpp` glue mini-language
 was withdrawn, and Rust VM export was stopped too; what remains is desktop and embedded C++ export. The old schemes in the story are still
-real attempts; the current syntax is checked against the [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md), and the API is looked up in the [Magel manual](https://github.com/rabbitc999/magel/blob/master/README.md).
+real attempts; the current syntax is checked against the [EBNF grammar reference](https://github.com/rabbitc999/ChaLi/blob/master/doc/14-grammar-ebnf.md), and the API is looked up in the [ChaLi manual](https://github.com/rabbitc999/ChaLi/blob/master/README.md).
 
 These doors can each be opened on their own, and can also be connected into one route: the grammar generates a front end, the front end produces an intermediate representation, and the backend and virtual machine make the
 program really run. The value of this map isn't only that there are more modes, but that every segment can be built, checked and explained on its own.
@@ -1442,7 +1442,7 @@ and C++ glue catches it with `std::optional<Reference<T>>`, so a null value can'
 The next thing changed was loops. The `foreach` variable over arrays and lists reads and writes the source element directly; a custom reference iterator
 returns `Option<T mut&>` — if there's an element it hands out a reference, and at the end it hands out `None`. Both matrices and arrays are iterable,
 matrix indexing takes a column vector, vector indexing takes a value, and matrices and vectors can also convert to and from arrays.
-Examples of these rules and their boundaries are written in [References and Iteration](https://github.com/rabbitc999/magel/blob/master/doc/04-references.md).
+Examples of these rules and their boundaries are written in [References and Iteration](https://github.com/rabbitc999/ChaLi/blob/master/doc/22-resource-lifetime.md).
 
 Then it was the turn of the generics signboard.
 
@@ -1461,18 +1461,18 @@ but can't be guessed arbitrarily when there's no context. Payloads can help infe
 
 Tangtang didn't treat "saving characters" as automatic clearance. Function-pointer generics must be specialized too, and a function-pointer type that recursively references itself
 must be rejected; after enums drop their prefix, declarations, assignments, return values, parameters and `match` must still point to the same type.
-The full syntax is left in [Collections and Abstractions](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md).
+The full syntax is left in Collections and Abstractions.
 
 `match` branches can also join multiple alternative patterns with `|`, and string ranges filled in four kinds of open/closed intervals:
 `['a','z']`, `['a','z')`, `('a','z']`, `('a','z')`. Whether a boundary is inclusive is written directly on the endpoint.
 
 The standard library swapped parts along with it. `std::binary` reads basic numeric values, fixed-length strings and arrays from binary streams;
 `lang::toInt32` expresses failure with `Option<int32>`, and IEEE 754 conversion supports float32, float64,
-big/little endian and array overloads. JSON and TOML can be parsed in Magel. Linear algebra computations such as LU enter the host glue,
-with Magel keeping the declarations, type selection and necessary wrappers, and trimming uniformly using `NO_MAGEL_XXX`.
+big/little endian and array overloads. JSON and TOML can be parsed in ChaLi. Linear algebra computations such as LU enter the host glue,
+with ChaLi keeping the declarations, type selection and necessary wrappers, and trimming uniformly using `NO_CHALI_XXX`.
 
 Only last was the turn of windows. WinAPI filled in a GUI event ABI corresponding to Qt; Windows loads `mcgui.dll` by default, and
-`MAGEL_GUI_LIBRARY` can specify another compatible backend. Between buttons, timers and the compute loop, the convention is still
+`CHALI_GUI_LIBRARY` can specify another compatible backend. Between buttons, timers and the compute loop, the convention is still
 "events queue up, the VM delivers them at instruction boundaries". The car example switched to `std::math`, `std::linalg` and
 `Ekf2.pose()`; the build and tests of the GUI, car and turtle are driven uniformly by Python, with artifacts left in `build/`.
 The robot library's AOT export also hit MinGW's object-file section-count limit, so Windows compilation gained large-object-file support.
@@ -1483,14 +1483,14 @@ the GUI, car and turtle passed Windows desktop end-to-end tests. All integer wid
 interpreter, and exports use float32, float64 and int64 as representative types. The Qt backend is kept, but wasn't measured this round.
 
 The story of this update has its landing point here: the shortened syntax is supported by clearer type boundaries and programs that have actually run.
-Commands and coverage are in [Library Migration and Regression Verification](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md),
-and language changes are recorded in the [Magel changelog](https://github.com/rabbitc999/magel/blob/master/CHANGELOG.md).
+Commands and coverage are in [Library Migration and Regression Verification](https://github.com/rabbitc999/ChaLi/blob/master/doc/11-algorithm-validation.md),
+and language changes are recorded in the [ChaLi changelog](https://github.com/rabbitc999/ChaLi/blob/master/CHANGELOG.md).
 
 ---
 
 ## Chapter 24 On an Assembly Line, Someone Has to Catch Each Piece
 
-The integration chain had just been closed off when Magel's problems lined up again.
+The integration chain had just been closed off when ChaLi's problems lined up again.
 
 "Strings, big numbers, Set, Map, tuples — all of them can be referenced. So why, when referencing a string to get a character, do I still have to write
 `(*ref)[index]`? Since normally it dereferences by default, why doesn't it recognize subscript?"
@@ -1518,11 +1518,11 @@ after importing the corresponding library you can just write `BigDecimal`.
 The two assertion macros `$assert_eq`, `$assert_neq` were once added, and later deleted as requested.
 Today you write `lang::assert`, and when there's no conflict you can also write `assert`. The special migration hints for old syntax were also cleaned up uniformly:
 invalid spellings are handled as ordinary syntax errors, and names that have already been released are judged by ordinary identifier rules.
-These wrap-ups together make up the **Magel 1.0 language baseline**, and a rule that has been withdrawn can no longer be picked out of an old chapter.
+These wrap-ups together make up the **ChaLi 1.0 language baseline**, and a rule that has been withdrawn can no longer be picked out of an old chapter.
 
 The most laborious one was still that most convenient-looking call:
 
-```magel
+```chali
 T3 result = t.f1().f2();
 ```
 
@@ -1530,7 +1530,7 @@ T3 result = t.f1().f2();
 
 Below is the lowering idea; the variable names are only for explanation, not source the user is asked to copy:
 
-```magel
+```chali
 T2 hidden = t.f1();
 T3 result = hidden.f2();
 ```
@@ -1555,9 +1555,9 @@ Cursors also have their own value semantics: copying an iterator gives an indepe
 A named cursor's methods like `next()` advance the current position; the chained forms of `collect()`, `fold()` operate on a copy of the cursor.
 Writing these distinctions clearly is more useful than calling every method a 'consuming iterator'.
 
-Concrete interfaces and runnable examples are in [Standard Iterators](https://github.com/rabbitc999/magel/blob/master/doc/05-iterators.md),
-responsibility for temporaries in [Value Semantics and Chained Calls](https://github.com/rabbitc999/magel/blob/master/doc/03-value-semantics.md),
-and collection rules in [Generics and Collections](https://github.com/rabbitc999/magel/blob/master/doc/10-abstractions-and-collections.md).
+Concrete interfaces and runnable examples are in Standard Iterators,
+responsibility for temporaries in Value Semantics and Chained Calls,
+and collection rules in Generics and Collections.
 This time, the pipeline a user writes on one line is finally caught piece by piece by the compiler.
 
 ---
@@ -1603,7 +1603,7 @@ As of **2026-10-09**, this round is recorded as:
 | --- | --- |
 | Language and types | 155 normal examples, 268 error examples; all 77 assertions of the simple_ast unit test pass |
 | Per-library | 22 integrated examples pass on the interpreter, C++ VM and AOT, covering all 27 standard library modules, utils and the robot's six modules |
-| Windows desktop | WinAPI GUI, the car's three chassis types and navigation/localization, and the turtle's real DLL and Magel-exported program re-verified |
+| Windows desktop | WinAPI GUI, the car's three chassis types and navigation/localization, and the turtle's real DLL and ChaLi-exported program re-verified |
 | External interfaces | C ABI values and nullable references, buffers, temporary resources, plus generic callbacks, C++ glue and JSON/TOML — all passed their dedicated checks |
 | SQLite | In-memory and file databases tested across the three backends, including transactions, rollback, reopening, Unicode, NULL, big integers and error paths |
 | PostgreSQL | libpq ABI test fixture verified across the three backends, checking connections, result types, error handling and native resource release |
@@ -1620,8 +1620,8 @@ A unified interface doesn't automatically level out these differences; the docs 
 
 This round's features and fixes went into **1.1.0**, and the source-language compatibility baseline is still **1.0.0**.
 Chapter 23's 2026-10-07 numbers are kept as the acceptance record of that time, and this chapter continues by recording the scope two days later.
-The reproduction checklist is in [Library Migration and Regression Verification](https://github.com/rabbitc999/magel/blob/master/doc/28-library-migration.md),
-and database entry points, dependencies and limitations are in the [SQL interface document](https://github.com/rabbitc999/magel/blob/master/sql-magel/doc/01-sql-library.md).
+The reproduction checklist is in [Library Migration and Regression Verification](https://github.com/rabbitc999/ChaLi/blob/master/doc/11-algorithm-validation.md),
+and database entry points, dependencies and limitations are in the SQL interface document.
 
 Tangtang changed the word "pass" into a table. As the map expands this far, how far each door has actually been walked
 is worth keeping more than how many names hang on the doors.
@@ -1634,23 +1634,23 @@ This side story is about one person and a few AI partners, filling a map from "f
 **six complete backends + two Java / JS DD-Earley-CYK narrow backends, one grammar-export tier, sixteen modes,
 384 templates, 155 measured combinations**. Along the way they also deleted things and rolled one tier back, added Rust and Go back completely,
 then brought Java back within a more honest boundary; afterward they filled in incremental parsing, the five strict C-- experiments, and
-Magel's typed glue, interface lifetimes, generic enums, coroutine runtime, body macros, plus the Parse / Random /
+ChaLi's typed glue, interface lifetimes, generic enums, coroutine runtime, body macros, plus the Parse / Random /
 PathString / Memory-Arena / Text / Linalg standard libraries.
 
-Magel later grew two more segments: one is `std::event`'s **event callbacks / interrupts / software timers** — events happen asynchronously
+ChaLi later grew two more segments: one is `std::event`'s **event callbacks / interrupts / software timers** — events happen asynchronously
 and are delivered at the VM's instruction boundaries, interrupts take priority over threads and coroutines, and `EventHandle` unifies timers and host events into a single
 event source, with the GUI and the car simulator both wired onto this line; the other is the window layer supporting **WinAPI / Qt** two backends,
 where `libmcguiqt.so` passes only fixed-width integers and UTF-8 strings, `gui::bindEvents(EventHandle)` registers Qt events
 as interrupt sources, and the car simulator `car_sim` uses the same simulation logic with both the WinAPI / Qt backends (`USE_GUI_QT`).
-The delivery method was also closed out: `magel/stackvm` and `library/stackvm` formally forked and iterate separately, the Magel-side version is written in
-`magel/VERSION` (current version `1.2.0`, language compatibility baseline `1.0.0`), breaking changes are recorded in `magel/CHANGELOG.md`,
+The delivery method was also closed out: `chali/stackvm` and `library/stackvm` formally forked and iterate separately, the ChaLi-side version is written in
+`chali/VERSION` (current version `1.2.0`, language compatibility baseline `1.0.0`), breaking changes are recorded in `chali/CHANGELOG.md`,
 and keywords, the spellings of `match` / `Result` / `?` / `loop`, interface names, lifetimes and the `.svmb` v4 layout all count as
 frozen contracts; the general acceptance entry is `sh ci/run.sh`; per-library three-backend and Windows desktop verification have their own dedicated scripts.
-The 2026-10-07 Magel regression was **144 normal examples + 192 error examples**, see Chapter 23; the 2026-10-09 1.1.0 advanced to **155 normal examples + 268 error examples**, plus 22 per-library examples covering 27 standard library modules, and the external-library and multi-database acceptance scope is in Chapter 25. After 1.1.1 added the full-expression cleanup regression, normal examples rose to **156**, while error examples remained **268**. Each chapter's phase-by-phase numbers are read as of that time.
+The 2026-10-07 ChaLi regression was **144 normal examples + 192 error examples**, see Chapter 23; the 2026-10-09 1.1.0 advanced to **155 normal examples + 268 error examples**, plus 22 per-library examples covering 27 standard library modules, and the external-library and multi-database acceptance scope is in Chapter 25. After 1.1.1 added the full-expression cleanup regression, normal examples rose to **156**, while error examples remained **268**. Each chapter's phase-by-phase numbers are read as of that time.
 
-1.2.0 registers the ten compound-assignment Tokens and productions one by one in the grammar, expanding `A op= B` into `A = A op B` through `M_CompoundAssign`. A pure `a = b = c + 3` chain executes from right to left; a chain containing a compound assignment is illegal, including `a += b *= 3`, `a = b += 3` and the parenthesized form on the right. The rules and formal examples are in the [Magel language guide](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#复合赋值先计算再写回).
+1.2.0 registers the ten compound-assignment Tokens and productions one by one in the grammar, expanding `A op= B` into `A = A op B` through `M_CompoundAssign`. A pure `a = b = c + 3` chain executes from right to left; a chain containing a compound assignment is illegal, including `a += b *= 3`, `a = b += 3` and the parenthesized form on the right. The rules and formal examples are in the ChaLi language guide.
 
-Magel later wrote its source-syntax compatibility baseline separately into the [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md). The standard library is split into three layers: the core `lang.mgl` loads automatically, `std::xxx` is `import`ed on demand, and optional libraries such as `robot::`; 1.0 provides the iterator-chain API through `std::iter`, so programs can use lazy adapters, or explicitly use `foreach` and `lang::List<T>`. This also shows that a feature list from some stage in the story can't substitute for today's language rules.
+ChaLi later wrote its source-syntax compatibility baseline separately into the [EBNF grammar reference](https://github.com/rabbitc999/ChaLi/blob/master/doc/14-grammar-ebnf.md). The standard library is split into three layers: the core `lang.mgl` loads automatically, `std::xxx` is `import`ed on demand, and optional libraries such as `robot::`; 1.0 provides the iterator-chain API through `std::iter`, so programs can use lazy adapters, or explicitly use `foreach` and `lang::List<T>`. This also shows that a feature list from some stage in the story can't substitute for today's language rules.
 
 The plot is invented; the verification is real. If you want to check it yourself:
 
@@ -1666,7 +1666,7 @@ What was really useful along the way wasn't some algorithm, but **five rules**: 
 
 The story can stop here: the map is still there, and a weekend isn't enough to finish it; but next time you want to change graph mode, first read `AGENTS.md` §0.1 and §0.3; to add back any tier, flip to the list at the end of §4 and just follow it.
 
-One more thing: the students at Nanjing University hand-roll C— in a course, and he hand-rolls Magel at home. The two groups are doing the same thing — **pushing a map from "the half the teacher drew" out to "the whole thing you can recompute yourself"**. This road isn't lonely.
+One more thing: the students at Nanjing University hand-roll C— in a course, and he hand-rolls ChaLi at home. The two groups are doing the same thing — **pushing a map from "the half the teacher drew" out to "the whole thing you can recompute yourself"**. This road isn't lonely.
 
 ---
 
@@ -1679,10 +1679,10 @@ One more thing: the students at Nanjing University hand-roll C— in a course, a
 - The commands in the text are usable according to each tier's supported range: `--lang {c,cpp17,python,csharp,rust,go,java,js,gram}`, `--mode {ll0,ll1,llk,lr0,slr,lalr,lr1,ielr,lrk,lalrk,slrk,glr,earley,cyk,dd,lex}`; Java / JS currently only connect DD, Earley and CYK.
 - The details of the six complete backends, the two DD/Earley/CYK narrow backends and one export tier are in [Code Generation](../07-codegen.md), [Generated-code API](../08-generated-code.md) and [Support Matrix](../15-language-mode-support.md).
 - Development and handover experience is now maintained only in the root `AGENTS.md`; the standalone session-memory directory has been deleted, to avoid old snapshots re-polluting the current scope.
-- Magel's own half of the map has a unified acceptance: run `sh ci/run.sh` in the repository root (or `--skip-vm-tests` for the fast tier),
-  see `magel/example/samples/interrupt*.mgl` for events / interrupts / timers, and `python magel/gui/test_qt.py`, `python magel/car_sim/test_car_qt.py` for the Qt GUI.
+- ChaLi's own half of the map has a unified acceptance: run `sh ci/run.sh` in the repository root (or `--skip-vm-tests` for the fast tier),
+  see `chali/example/samples/interrupt*.mgl` for events / interrupts / timers, and `python chali/gui/test_qt.py`, `python chali/car_sim/test_car_qt.py` for the Qt GUI.
 - To relive Chapter 1's plot yourself: `example/pl0.gram` + `--lang gram`, two minutes.
-- To do Chapter 8's mining yourself: `sh magel/magel-emit/build-target.sh magel/example/samples/containers.mgl`, then pray you don't run into a creeper.
+- To do Chapter 8's mining yourself: `sh chali/chali-emit/build-target.sh chali/example/samples/containers.mgl`, then pray you don't run into a creeper.
 - To do Chapter 12's library-function swap yourself: `ParseEngine example/pl0.gram --out-dir /tmp/pl0_rs --lang rust`, then open `src/parser.rs` and look at the `Result` and `regex` in it — that's what Rust should look like.
 - To see what Nanjing University's C— lab looks like: flip to Appendix A and read from Tokens through to Expressions. You'll find that you're not the only one on that map.
 - A few sections were withdrawn. The passages in the main text about workplace, position, colleagues and compensation have been withdrawn as a whole and sealed into
@@ -1690,4 +1690,4 @@ One more thing: the students at Nanjing University hand-roll C— in a course, a
   How to open it, I won't say here.
 
 
-1.2.0 also supports prefix and postfix `++` / `--`, with prefix taking the new value and postfix taking the old one. A single complete expression allows at most one increment/decrement symbol; `a=(i++)+(++i)` is illegal, with parentheses, call arguments and short-circuit branches checked together; see [Increment/decrement rules and examples](https://github.com/rabbitc999/magel/blob/master/doc/01-language.md#自增与自减一个表达式最多一个).
+1.2.0 also supports prefix and postfix `++` / `--`, with prefix taking the new value and postfix taking the old one. A single complete expression allows at most one increment/decrement symbol; `a=(i++)+(++i)` is illegal, with parentheses, call arguments and short-circuit branches checked together; see Increment/decrement rules and examples.

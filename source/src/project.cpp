@@ -4002,7 +4002,7 @@ bool projectRoot(const std::string &outDir, std::filesystem::path &root,
  * @brief 判断产物清单里的一项是不是「工程构建文件」。
  *
  * `--no-build-files` 时这些文件不该由生成器写出，也不该被当作过期产物删掉——
- * 用户可能已经手写了同名文件（例如 magel 自己维护的 `Makefile`）。
+ * 用户可能已经手写了同名文件（例如 chali 自己维护的 `Makefile`）。
  * 只看路径的 basename，覆盖各语言后端的构建工程文件。
  * @param relative 产物清单里的相对路径（用 `/` 分隔）。
  * @return 是构建工程文件返回 true。

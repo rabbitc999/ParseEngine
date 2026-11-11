@@ -81,10 +81,10 @@ ZIP 是发布操作，由 `tools/package_compiler.py` 使用 Python 3.11+ 标准
 
 ```sh
 python tools/package_compiler.py ParseEngine out dist/ParseEngine-windows-x64.zip --ui-lang zh
-python tools/package_compiler.py magel out dist/magel-windows-x64.zip --ui-lang en
+python tools/package_compiler.py chali out dist/chali-windows-x64.zip --ui-lang en
 ```
 
-脚本默认读取 `build/bin/ParseEngine(.exe)` 或 `magel/magel(.exe)`，可用 `--compiler FILE` 指定其他构建。输出父目录须存在；默认名称含系统和架构，Magel 在仓库内还读取 VERSION。ZIP 只包含当前平台的编译器可执行文件，不包含宿主 Python、C++ 编译器和动态库。内嵌模板、标准库与消息仍保存在可执行文件中。
+脚本默认读取 `build/bin/ParseEngine(.exe)` 或 `chali/chali(.exe)`，可用 `--compiler FILE` 指定其他构建。输出父目录须存在；默认名称含系统和架构，ChaLi 在仓库内还读取 VERSION。ZIP 只包含当前平台的编译器可执行文件，不包含宿主 Python、C++ 编译器和动态库。内嵌模板、标准库与消息仍保存在可执行文件中。
 
 ParseEngine 另外提供薄入口，释放内嵌的同一份 Python 脚本后直接传递 argv，不经 shell：
 
@@ -93,16 +93,16 @@ ParseEngine zip
 ParseEngine zip out dist/ParseEngine.zip --ui-lang en
 ```
 
-`PARSEENGINE_PYTHON` 可指定 Python 路径。脚本本身不依赖仓库即可打包明确指定的可执行文件；ParseEngine 薄入口因此也能在解压到仓库外后使用。Magel 的发布仅使用独立 Python 脚本，不提供 `magel zip` 指令。
+`PARSEENGINE_PYTHON` 可指定 Python 路径。脚本本身不依赖仓库即可打包明确指定的可执行文件；ParseEngine 薄入口因此也能在解压到仓库外后使用。ChaLi 的发布仅使用独立 Python 脚本，不提供 `chali zip` 指令。
 
-打包使用 DEFLATE，排他创建文件；已有文件和链接拒绝覆盖，写入失败删除本次不完整归档。归档内统一为 `ParseEngine.exe` / `ParseEngine` 或 `magel.exe` / `magel`。不修改、重新链接编译器，不写注册表或安装系统组件。
+打包使用 DEFLATE，排他创建文件；已有文件和链接拒绝覆盖，写入失败删除本次不完整归档。归档内统一为 `ParseEngine.exe` / `ParseEngine` 或 `chali.exe` / `chali`。不修改、重新链接编译器，不写注册表或安装系统组件。
 
 ## 验证
 
 ```sh
 python tests/parseengine_i18n.py
-python tests/magel_i18n.py --magel magel/magel.exe
-python tests/magel_zip.py --magel magel/magel.exe
+python tests/chali_i18n.py --chali chali/chali.exe
+python tests/chali_zip.py --chali chali/chali.exe
 ```
 
 Windows 专项在 936 / 932 代码页的真实控制台缓冲区读取 UTF-16 字符，核对 C++ 流、C stdio、实际工具提示及代码页恢复；管道单独按 UTF-8 严格解码。另测含空格和中文的路径、显示选项优先级、生成源码一致、ZIP CRC、字节一致、拒绝覆盖、故障清理和仓库外运行。其他平台跳过 Windows 控制台检查。

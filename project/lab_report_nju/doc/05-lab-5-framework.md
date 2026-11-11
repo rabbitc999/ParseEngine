@@ -33,13 +33,13 @@ flowchart LR
 
 1. git clone
 ```bash
-git clone https://github.com/tianxinghe/cmmagel_optimizer.git
+git clone https://github.com/tianxinghe/cmchali_optimizer.git
 ```
 
 2. 下载压缩包 8
 进入 git 网址并下载 zip
 ```bash
-https://github.com/tianxinghe/cmmagel_optimizer.git
+https://github.com/tianxinghe/cmchali_optimizer.git
 ```
 
 ## C 语言面向对象编程

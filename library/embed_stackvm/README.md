@@ -7,7 +7,7 @@
 
 | 实现 | 策略 | 适合 |
 | --- | --- | --- |
-| `embed_pool.h` / `embed_pool.c` + `embed_pool_allocator.hpp` | **C 写的静态内存池**：首次适配、按需切块、相邻空闲块合并，**释放过的内存可以再分配** | 内存紧张、程序会反复分配释放（容器 / 字符串多）；也是 `magel-emit --target embedded-cpp` 的内置堆 |
+| `embed_pool.h` / `embed_pool.c` + `embed_pool_allocator.hpp` | **C 写的静态内存池**：首次适配、按需切块、相邻空闲块合并，**释放过的内存可以再分配** | 内存紧张、程序会反复分配释放（容器 / 字符串多）；也是 `chali-emit --target embedded-cpp` 的内置堆 |
 | `static_heap_allocator.hpp` | 只向后分配，已释放块留到下次 `reset` 才作废 | 想用"地址不复用"当护栏，宁可多占内存 |
 
 ## 接入
@@ -22,7 +22,7 @@ stackvm::RunResult result = machine.run(program);
 ```
 
 块表大小由 `EMBED_POOL_MAX_BLOCKS`（缺省 32）在编译期定：`-DEMBED_POOL_MAX_BLOCKS=64`；
-`magel-emit --target embedded-cpp` 用的是 `--heap-blocks`。
+`chali-emit --target embedded-cpp` 用的是 `--heap-blocks`。
 
 **每次 `run()` 开始时 Machine 都会调用 `reset(base)`**：C 池的 `reset` 把**整张块表**清空
 （块表收回"一整块空闲"、占用计数与峰值一起归零），所以同一个分配器对象、同一个 `Machine`
@@ -41,7 +41,7 @@ for (int round = 0; round < 2; ++round) machine.run(program);
 - StackVM 内置运行时和 C++ 胶水通过 `NativeCallContext::makeString()` 创建的字符串。
 
 它暂不接管 C++ 自身的求值栈、调用帧、STL 容器、大整数和运行期对象表。这一版先把最适合
-固定 arena 的 VM 字节堆开放出来，保持默认 StackVM 和 Magel 行为不变。
+固定 arena 的 VM 字节堆开放出来，保持默认 StackVM 和 ChaLi 行为不变。
 
 ## 策略
 

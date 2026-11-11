@@ -352,7 +352,7 @@ async function main() {
     const kinds = state.providers.map((item) => item.kind).sort();
     console.log(`   注册的能力：${kinds.join('、')}`);
     check('注册了 8 个语言能力入口', state.providers.length === 8);
-    // `.mgl`（Magel）归 magel/vscode 插件，MetroLang 的编辑器也已经从这个仓库搬走；
+    // `.chl`（ChaLi）归 ChaLi/vscode 插件，MetroLang 的编辑器也已经从这个仓库搬走；
     // 本插件只认 `.gram` 一个语言。
     check('只注册 .gram 一个语言',
       state.providers.every((item) =>

@@ -4,8 +4,8 @@
 // 位置约定与 LSP 一致：行、列都从 0 开始，列是 **UTF-16 代码单元**偏移
 // （中文一个字算 1 列，非 BMP 字符算 2 列）。
 //
-// `.gram` 的模型（`grammar.hpp` 的 GrammarDocument）与 Magel 的宏模型
-// （`magel/lsp/mc.hpp` 的 McDocument）都只用这里的类型，不互相依赖。
+// `.gram` 的模型（`grammar.hpp` 的 GrammarDocument）与 ChaLi 的宏模型
+// （`chali/lsp/mc.hpp` 的 McDocument）都只用这里的类型，不互相依赖。
 #include <cstddef>
 #include <string>
 #include <vector>

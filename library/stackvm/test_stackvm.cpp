@@ -1687,7 +1687,7 @@ void testDebugger()
 /**
  * `__vm_panic`：唯一的中止原语。
  *
- * `__vm_exit` 与 `__vm_assert` 已删除 —— Magel 侧的中止只有 `std::panic`，
+ * `__vm_exit` 与 `__vm_assert` 已删除 —— ChaLi 侧的中止只有 `std::panic`，
  * `std::assert` 是标准库对它的包装，虚拟机里不再有第二条停机路径。
  */
 void testPanic()
@@ -1698,7 +1698,7 @@ void testPanic()
     const char message[] = "fatal state";
     CHECK(data.writeBytes(8u, message, sizeof(message)));
     const stackvm::QuadFile panicFile = stackvm::parseQuads(
-        "0: (param, 8, _, __magel_value)\n"
+        "0: (param, 8, _, __chali_value)\n"
         "1: (call, __vm_panic, _, t)\n"
         "2: (write, 99, _, _)\n"
         "3: (halt, _, _, _)\n",

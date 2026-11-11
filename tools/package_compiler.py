@@ -8,9 +8,9 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 
-def display_language(tool):
+def display_language():
     """按工具环境、区域和 Windows UI 语言选择中英提示。"""
-    setting = os.environ.get('MAGEL_LANG' if tool == 'magel' else 'PARSEENGINE_LANG', '')
+    setting = os.environ.get('PARSEENGINE_LANG', '')
     if not setting or setting == 'auto':
         setting = next((os.environ[key] for key in ('LC_ALL', 'LC_MESSAGES', 'LANG') if os.environ.get(key)), '')
     if not setting and os.name == 'nt':
@@ -53,7 +53,7 @@ def main(argv=None):
     args = parser.parse_intermixed_args(argv)
     if bool(args.output_word) != bool(args.output_path) or (args.out and args.output_path):
         parser.error('use out FILE.zip or --out FILE.zip')
-    language = display_language(args.tool) if args.ui_lang == 'auto' else args.ui_lang
+    language = display_language() if args.ui_lang == 'auto' else args.ui_lang
     def text(zh, en):
         return {'zh': zh, 'en': en}[language]
     if sys.version_info < (3, 11):

@@ -18,7 +18,7 @@
 
 set -u
 # 已有诊断夹具使用中文；双语专项测试会自行隔离环境。
-export MAGEL_LANG=zh
+export CHALI_LANG=zh
 export PARSEENGINE_LANG=zh
 export PYTHONIOENCODING=utf-8
 

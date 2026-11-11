@@ -4,7 +4,7 @@
 「一份 `.gram` + 一个驱动 + 一批样例 + 期望输出」，能用 `make` 构建、
 用 `make check` 自验，生成器本身一行都不用改。
 
-Magel 语言已经提升为仓库根目录的独立工程，见 [`../magel/`](../magel/README.md)；
+ChaLi 语言已经提升为仓库根目录的独立工程，见 [`../chali/`](../chali/README.md)；
 它不再属于 `project/` 示例集合。
 
 ## C++17 后端与虚拟机
@@ -57,8 +57,8 @@ make -C project/bigint-calc check     # 大整数计算器（2^10000 / 5000!）
 make -C project/protocol-dsl check    # 二进制协议 → 四档编解码器与文档
 # lab_report_axhu 不使用统一 Makefile，按 lab_report_axhu/README.md 的三条生成/编译命令运行
 # lab_report_nju 用 PowerShell 运行 lab_report_nju/run-evidence.ps1
-# 根目录 magel 与 project/bigint-calc 各有自己的挂载点（local.mk），按各自 README 运行
-make -C magel check
+# 根目录 chali 与 project/bigint-calc 各有自己的挂载点（local.mk），按各自 README 运行
+make -C chali check
 
 # 2) 想看单个产物的用法，各工程的 README 里有逐条命令
 ```

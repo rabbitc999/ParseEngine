@@ -1479,7 +1479,7 @@ does "compute tables / compute flag bits / escape string literals"); all wording
 Define `PARSER_USER_REDUCTION_LINE(line)` in the user header, and the C++17 LR driver will compile a symbol start-line
 stack on demand and call the macro before each semantic action. Non-empty productions use the start line of the first
 right-hand-side symbol; empty productions use the current token line. When the macro is undefined, no position-stack
-overhead is added. Magel uses it to record post-preprocessing line numbers on syntax nodes and then restores the
+overhead is added. ChaLi uses it to record post-preprocessing line numbers on syntax nodes and then restores the
 original file and line through the preprocessing source map. This hook is for ordinary LR text analysis; source
 persistence for LL/GLR and incremental checkpoints is outside the scope of this interface.
 

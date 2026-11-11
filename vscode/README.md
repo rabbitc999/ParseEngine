@@ -8,10 +8,10 @@
 **语言服务器内嵌在编译器里**：插件不再单独去找一个 `lsp-server`，而是用
 `ParseEngine lsp --stdio` 起服务、`ParseEngine lsp --check FILE` 做校验；发布包
 自带 `bin/ParseEngine[.exe]`（打包时由 `tools/embed-compiler.js` 拷进来），
-装上就能用，不需要仓库、也不需要另装编译器。**Magel（`.mgl`）与 MetroLang
+装上就能用，不需要仓库、也不需要另装编译器。**ChaLi（`.chl`）与 MetroLang
 （`.metro` / `.m`）的支持都已经搬走**，见
-[Magel 插件](https://github.com/rabbitc999/magel/tree/master/vscode)（那边的语言服务器
-同样是编译器本体 `magel lsp`）；本插件只声明 `.gram` 一个后缀。
+[ChaLi 插件](https://github.com/rabbitc999/ChaLi/tree/master/vscode)（那边的语言服务器
+同样是编译器本体 `chali lsp`）；本插件只声明 `.gram` 一个后缀。
 
 生成菜单与 `gram.defaultMode` 支持全部 16 种模式，包括 `earley` / `cyk`；
 两种图表模式支持 C++17、Python、C#、Rust、Go、Java、JavaScript 目标产物。
@@ -70,8 +70,8 @@
 
 `.gram` 没有独立的 `FoldingRangeProvider`：折叠标记全部写在
 `language-configuration.json` 里（`// #region` 一类），插件不再注册折叠能力。
-`.mgl` 的宏块折叠在
-[Magel 插件](https://github.com/rabbitc999/magel/tree/master/vscode) 里。
+`.chl` 的宏块折叠在
+[ChaLi 插件](https://github.com/rabbitc999/ChaLi/tree/master/vscode) 里。
 
 想确认注册是否完整，跑一句自检（打包前也会自动跑）：
 
@@ -152,7 +152,7 @@ node vscode/test/p0.js
 
 ## 自动打包（.vsix）
 
-入口统一走 npm（与 Magel 仓库一致），在 `vscode/` 里跑：
+入口统一走 npm（与 ChaLi 仓库一致），在 `vscode/` 里跑：
 
 ```text
 npm run package                    # 全套：内嵌编译器 → 清单自检 → 冒烟测试 → 打包

@@ -5,7 +5,7 @@ pom.xml / package.json / go.mod 等）；`--no-build-files`（或缺省用 `%bui
 声明）时只写目标语言源码 + RESULT.md，构建工程留给用户自己写。命令行优先于文法。
 
 `--no-build-files` 也必须保留用户已经手写（或上一次生成）的同名构建文件——正是
-magel 自己的 `Makefile` 依赖这条语义（gen.sh 传 `--no-build-files` 不覆盖它）。
+chali 自己的 `Makefile` 依赖这条语义（gen.sh 传 `--no-build-files` 不覆盖它）。
 """
 from pathlib import Path
 import os
@@ -62,7 +62,7 @@ def main():
         assert (grammar_out / "Makefile").exists(), "命令行 --build-files 应覆盖 %build_files off"
 
         # 4) 保留语义：先默认生成（Makefile 进清单），再用 --no-build-files 重跑同一目录，
-        #    手写 / 已有的 Makefile 必须留（magel 的 gen.sh 走的就是这条路）。
+        #    手写 / 已有的 Makefile 必须留（chali 的 gen.sh 走的就是这条路）。
         keep = work / "keep"
         run([ENGINE, GRAMMAR, "--lang", "cpp17", "--mode", "ielr", "--out-dir", keep])
         marker = keep / "Makefile"

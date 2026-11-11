@@ -8,7 +8,7 @@
 
 排版：四栏 —— ① 生成器 ② 应用 ③ 附加库 ④ 工具。
 信息都对应仓库现有内容（src/ · project/ · library/ · vscode/；
-    ChaLi（原 Magel）/ metro-lang / rust-view 已独立维护），
+    ChaLi/ metro-lang / rust-view 已独立维护），
 改这些目录时记得一起改本脚本的文案。
 
 为什么不用 SVG/HTML：README 在 GitHub 上渲染 PNG 最稳，且这张图文字多，
@@ -317,10 +317,10 @@ def build() -> Canvas:
         c.text(x + 28, top + 19, name, f_code, CODE)
         c.text(x + 28, top + 37, desc, f_note, NOTE)
 
-    # 已独立维护的应用；Magel 是 ChaLi 的原名，不重复计数。
+    # 已独立维护的应用；ChaLi 是 ChaLi 的原名，不重复计数。
     c.text(x + 18, COL_TOP + 208, "独立应用工程（3 个，前端由 ParseEngine 生成）", f_ctitle, CTITLE)
     root_projects = (
-        ("ChaLi（原 Magel）", "静态类型语言 · LLVM 编译"),
+        ("ChaLi", "静态类型语言 · LLVM 编译"),
         ("MetroLang", "地铁线网语言工具链"),
         ("RustView", "Rust 借用语义可视化"),
     )
@@ -469,7 +469,7 @@ def build() -> Canvas:
     # ============================================================
     c.text(40, 846,
            "四层关系：生成器（①）产出解析器工程；应用（②）含 project/ 实验"
-           "（ChaLi（原 Magel）/ metro-lang / rust-view 已独立维护）；"
+           "（ChaLi/ metro-lang / rust-view 已独立维护）；"
            "附加库（③）提供数据模型与后端；工具（④）辅助开发和验证",
            f_foot, FOOT)
     c.text(40, 872,

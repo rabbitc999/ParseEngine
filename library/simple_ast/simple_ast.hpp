@@ -199,7 +199,7 @@ struct Node
      *
      * 与 `freeMemory` 的区别是"还不了就当没这回事"：地址是 0（空指针）、指向数据区
      * （静态字面量）、或者那块堆内存**已经还过**了，都不算错。编译器在语句块出口插的
-     * 自动释放走这一条（见 magel 的"生命周期"），显式 `delete` 仍用 `freeMemory`。
+     * 自动释放走这一条（见 chali 的"生命周期"），显式 `delete` 仍用 `freeMemory`。
      */
     static NodePtr release(NodePtr pointer);
     /**

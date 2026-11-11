@@ -3,7 +3,7 @@
 /**
  * 打 VSIX：内嵌编译器 → 清单自检 → 冒烟测试 → 写包，产物落在 `dist/`。
  *
- * 入口统一走 npm（与 Magel 仓库一致）：
+ * 入口统一走 npm（与 ChaLi 仓库一致）：
  *   npm run package                 # 全套
  *   npm run package -- --skip-tests # 只内嵌 + 打包
  *   npm run package -- --dry-run    # 只打印要跑的命令

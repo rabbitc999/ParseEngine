@@ -81,7 +81,7 @@ between modes and backends see the [support matrix](doc/15-language-mode-support
 
 The build entry point is `build.sh`, and the actual steps live in `build-all.sh`. Git Bash is used on
 Windows; POSIX shell on Linux/macOS. The script builds ParseEngine, the libraries and the example
-projects (Magel, MetroLang and RustView have been split into standalone repositories and
+projects (ChaLi, MetroLang and RustView have been split into standalone repositories and
 are not part of the unified build list); it does not run tests.
 
 ```sh
@@ -95,9 +95,9 @@ sh clear.sh                  # clean build artifacts
 Everything the build entry point produces lives under the repository root `build/`. The generator is
 in `build/bin/` (release in `build/bin/release/`), Rust crates in `build/rust/<library>/`, example
 projects in `build/project/<project>/`, logs in `build/build-all/logs/`, and the full set of example
-artifacts in `build/build-all/examples/`. Magel is generated and compiled from a source copy in
-`build/work/magel/`, with its dependencies in `build/work/build/`, while other libraries reuse the
-directories under the root `build/`; Magel, MetroLang and RustView have been split into
+artifacts in `build/build-all/examples/`. ChaLi is generated and compiled from a source copy in
+`build/work/chali/`, with its dependencies in `build/work/build/`, while other libraries reuse the
+directories under the root `build/`; ChaLi, MetroLang and RustView have been split into
 standalone repositories, so their build artifacts live in those repositories.
 
 The build entry point actually runs `python3` / `python`, picks a usable Python 3 interpreter, and
@@ -146,7 +146,7 @@ both users and the best test cases). Overview diagrams for each project are in
 
 | Project | What it is | Entry point |
 | --- | --- | --- |
-| **ChaLi (formerly Magel)** | A statically typed language with value semantics, explicit borrowing and moves, and lifetime checks. ParseEngine generates its C++17 front end from `source/chali.gram`; the checked AST is compiled through LLVM. Its compiler also builds the new ChaLi output target of ParseEngine | <https://github.com/rabbitc999/ChaLi> |
+| **ChaLi** | A statically typed language with value semantics, explicit borrowing and moves, and lifetime checks. ParseEngine generates its C++17 front end from `source/chali.gram`; the checked AST is compiled through LLVM. Its compiler also builds the new ChaLi output target of ParseEngine | <https://github.com/rabbitc999/ChaLi> |
 | **MetroLang** | Toolchain for a metro-network data language: compiler, templated decompiler, self-contained HTML/SVG maps, Dijkstra route queries and an interactive viewer; the front end is generated from `metrolang.gram` (169 keywords, one production each, 842 states · 0 conflicts) — **split into a standalone repository** | <https://github.com/rabbitc999/metro-lang> |
 | **RustView** | **Borrow-semantics visualisation** for a minimalist Rust pseudo-language (teaching): moves, borrows, conflicts and dangling references drawn as dependency-free SVG + HTML; the front end is generated from `rust_subset.gram`, with the 1.0 feature set frozen — **split into a standalone repository** | <https://github.com/rabbitc999/rust-view> |
 

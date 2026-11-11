@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1560" height="720" viewBox="0 0 1560 720">
   <rect width="1560" height="720" fill="#f4f7fb"/>
-  <text x="40" y="58" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="31" font-weight="700" fill="#10233f">MAGEL StackVM 性能 · 两台机器对照</text>
-  <text x="40" y="88" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="15" fill="#4a5b73">同一份 MAGEL 字节码与同一段 VM 整数循环 · 每项预热 1 次、正式 7 次取中位数 · 运行指令数逐条一致（20,000,035 / 18,000,007）</text>
+  <text x="40" y="58" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="31" font-weight="700" fill="#10233f">CHALI StackVM 性能 · 两台机器对照</text>
+  <text x="40" y="88" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="15" fill="#4a5b73">同一份 CHALI 字节码与同一段 VM 整数循环 · 每项预热 1 次、正式 7 次取中位数 · 运行指令数逐条一致（20,000,035 / 18,000,007）</text>
   <rect x="40" y="112" width="1480" height="568" rx="14" fill="#ffffff" stroke="#d8e1ee" stroke-width="1.5"/>
   <rect x="70" y="141" width="14" height="14" rx="3" fill="#888780"/>
   <text x="92" y="152" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" fill="#4a5b73">Ryzen 5 5600X · Windows 10 19045</text>
@@ -27,19 +27,19 @@
   <text x="209.0" y="224.2" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#4a5b73">1127</text>
   <rect x="245.0" y="331.0" width="58.0" height="229.0" rx="3" fill="#378ADD" stroke="#185FA5" stroke-width="1"/>
   <text x="274.0" y="324.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#4a5b73">785</text>
-  <text x="245.0" y="586.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" fill="#2b3a52">MAGEL 循环 · MSVC 32 位</text>
+  <text x="245.0" y="586.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" fill="#2b3a52">CHALI 循环 · MSVC 32 位</text>
   <text x="245.0" y="608.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" font-weight="700" fill="#14507e">9700X 吞吐量 ×1.44</text>
   <rect x="410.0" y="264.4" width="58.0" height="295.6" rx="3" fill="#888780" stroke="#5F5E5A" stroke-width="1"/>
   <text x="439.0" y="257.4" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#4a5b73">1013</text>
   <rect x="475.0" y="367.9" width="58.0" height="192.1" rx="3" fill="#378ADD" stroke="#185FA5" stroke-width="1"/>
   <text x="504.0" y="360.9" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#4a5b73">659</text>
-  <text x="475.0" y="586.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" fill="#2b3a52">MAGEL 循环 · MSVC 64 位</text>
+  <text x="475.0" y="586.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" fill="#2b3a52">CHALI 循环 · MSVC 64 位</text>
   <text x="475.0" y="608.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" font-weight="700" fill="#14507e">9700X 吞吐量 ×1.54</text>
   <rect x="640.0" y="343.6" width="58.0" height="216.4" rx="3" fill="#888780" stroke="#5F5E5A" stroke-width="1"/>
   <text x="669.0" y="336.6" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#4a5b73">742</text>
   <rect x="705.0" y="409.5" width="58.0" height="150.5" rx="3" fill="#378ADD" stroke="#185FA5" stroke-width="1"/>
   <text x="734.0" y="402.5" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#4a5b73">516</text>
-  <text x="705.0" y="586.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" fill="#2b3a52">MAGEL 循环 · GCC 64 位</text>
+  <text x="705.0" y="586.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" fill="#2b3a52">CHALI 循环 · GCC 64 位</text>
   <text x="705.0" y="608.0" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="14" font-weight="700" fill="#14507e">9700X 吞吐量 ×1.44</text>
   <rect x="870.0" y="306.2" width="58.0" height="253.8" rx="3" fill="#888780" stroke="#5F5E5A" stroke-width="1"/>
   <text x="899.0" y="299.2" text-anchor="middle" font-family="Microsoft YaHei, Segoe UI, Noto Sans SC, sans-serif" font-size="12" fill="#4a5b73">870</text>

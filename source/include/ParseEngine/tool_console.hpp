@@ -6,7 +6,7 @@
  *   * `source/include/ParseEngine/tool_console.hpp`（按 ParseEngine 自己的 include 根命名）
  * 改这里再跑同步脚本（`source/Makefile` 与 `source/CMakeLists.txt` 也会在构建时自动同步）。
  *
- * Magel 已剥离成独立项目，自带一份同名头（那边的 master 是 `magel/console/utf8.hpp`，
+ * ChaLi 已剥离成独立项目，自带一份同名头（那边的 master 是 `chali/console/utf8.hpp`，
  * 由它自己的 `tools/sync_tool_console.py` 同步到板端副本）；改一边不再自动同步另一边。
  *
  * 为什么需要它：Windows 上 `main(int, char**)` 拿到的实参是系统 ANSI 代码页而不是
@@ -190,7 +190,7 @@ public:
  * 恢复代码页。要点：
  *   * 代码页查得到才切，查不到（无控制台 / 被重定向）就原样不动；
  *   * 重定向时的**字节**编码不受影响（`ConsoleBuffer` 直接透传）；
- *   * 顺带把 `PYTHONIOENCODING` 设成 `utf-8`，让开发子进程（`magel test/fmt/lsp`
+ *   * 顺带把 `PYTHONIOENCODING` 设成 `utf-8`，让开发子进程（`chali test/fmt/lsp`
  *     这类 Python 工具）的输出也是 UTF-8。
  */
 class Session {

@@ -18,11 +18,11 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     suffix='.exe' if os.name=='nt' else ''
     parser.add_argument('--engine',type=Path,default=ROOT/('build/bin/ParseEngine'+suffix))
-    parser.add_argument('--magel',type=Path,default=ROOT/('magel/magel'+suffix))
-    options=parser.parse_args();engine=options.engine.resolve();magel=options.magel.resolve()
+    parser.add_argument('--chali',type=Path,help='可选的独立 ChaLi 编译器路径')
+    options=parser.parse_args();engine=options.engine.resolve();chali=options.chali.resolve() if options.chali else None
     env=os.environ.copy()
-    for key in ('MAGEL_LANG','PARSEENGINE_LANG','LC_ALL','LC_MESSAGES','LANG'):env.pop(key,None)
-    env['PARSEENGINE_PYTHON']=sys.executable;env['MAGEL_PYTHON']=sys.executable
+    for key in ('CHALI_LANG','PARSEENGINE_LANG','LC_ALL','LC_MESSAGES','LANG'):env.pop(key,None)
+    env['PARSEENGINE_PYTHON']=sys.executable;env['CHALI_PYTHON']=sys.executable
     def run(*args,cwd=ROOT,extra=None):
         return subprocess.run([str(x) for x in args],cwd=cwd,env={**env,**(extra or {})},capture_output=True,encoding='utf-8',errors='strict',timeout=180)
     with tempfile.TemporaryDirectory(prefix='parseengine i18n-') as temporary:
@@ -33,12 +33,12 @@ def main():
         result=run(helper,'--bytes')
         assert result.returncode==0 and result.stdout=='C++ 中文 / 日本語\n' and result.stderr=='C stdio 中文 / 日本語\n',result
         if os.name=='nt':
-            # Magel 已拆分为独立仓库：这里只顺带检查本地那份二进制，不在就跳过这一项。
+            # ChaLi 已拆分为独立仓库：这里只顺带检查本地那份二进制，不在就跳过这一项。
             checks=[(engine,['--help','--ui-lang','en'],'Usage')]
-            if magel.exists():
-                checks.append((magel,['help','lang','zh'],'用法'))
+            if chali is not None:
+                checks.append((chali,['help','lang','zh'],'用法'))
             else:
-                print('（跳过 Magel 检查：magel/magel 不在本地；Magel 已是独立仓库）')
+                print('（未指定 --chali，跳过独立 ChaLi 编译器检查）')
             for cp in (936,932):
                 result=run(helper,cp,helper,'--bytes')
                 assert result.returncode==0 and 'C++ 中文 / 日本語' in result.stdout and 'C stdio 中文 / 日本語' in result.stdout,result

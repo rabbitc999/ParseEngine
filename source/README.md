@@ -1,7 +1,7 @@
 # ParseEngine 生成器本体（`source/`）
 
 > 这是**生成器本体**的说明文档（命令行、模板、产物形态、构建与小测）。
-> 项目总览、Magel 语言与全仓目录见根目录 [README](../README.md)。
+> 项目总览、ChaLi 语言与全仓目录见根目录 [README](../README.md)。
 
 命令行支持 `--ui-lang zh|en|auto`，独立于 `--lang` 代码生成目标。内嵌手册（`ParseEngine man`）、内嵌语言服务器（`ParseEngine lsp`）、Windows Unicode 输出与 Python ZIP 发布脚本见 [16 显示语言、内嵌资产与发布](../doc/16-i18n-and-packaging.md)。
 
@@ -782,9 +782,9 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 │   ├── manifest.tsv        冒烟清单：每份文法实测支持的语言档 + 固定输入
 │   ├── <名字>.expected     冒烟期望输出（需要按语言分开时是 <名字>.<语言>.expected）
 │   └── lib/parser_value.h  %copy 示例库文件
-├── magel/        Magel 语言：C 风格虚拟机语言（规范、实现与完整回归）
-│   ├── magel-generator/  C++ 工具链生成器：导出可构建的 Magel 编译器或带胶水的 VM 工程
-│   ├── magel-emit/  VM 导出器：把 .quad 导出为 C++、Rust 或嵌入式 C++
+├── chali/        ChaLi 语言：C 风格虚拟机语言（规范、实现与完整回归）
+│   ├── chali-generator/  C++ 工具链生成器：导出可构建的 ChaLi 编译器或带胶水的 VM 工程
+│   ├── chali-emit/  VM 导出器：把 .quad 导出为 C++、Rust 或嵌入式 C++
 │   ├── glue/          标准宿主胶水与应用胶水（手写 C++，导出时原样内嵌）
 │   ├── samples/ expected/  70 个正常样例及固定输出
 │   └── samples-error/ expected-error/  105 个错误路径及诊断
@@ -866,7 +866,7 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 | [`doc/08-generated-code.md`](../doc/08-generated-code.md) | 生成产物清单与生成代码的 C / C++17 / Python / C# / Rust / Go API、文法导出档 `--lang gram` 的产物 |
 | [`doc/09-build-and-test.md`](../doc/09-build-and-test.md) | 构建、模板重建与小测流程 |
 | [`doc/10-examples.md`](../doc/10-examples.md) | `example/` 下 46 个示例文法导读 |
-| [`doc/11-project-examples.md`](../doc/11-project-examples.md) | `project/` 下九个工程示例及根目录 Magel 的导读（主体是 `pl0-ir`） |
+| [`doc/11-project-examples.md`](../doc/11-project-examples.md) | `project/` 下九个工程示例及根目录 ChaLi 的导读（主体是 `pl0-ir`） |
 | [`project/protocol-dsl/README.md`](../project/protocol-dsl/README.md) | **二进制协议 DSL 与代码生成器**：Python / C++17 / Rust 三套编译器均使用 ParseEngine 前端；一份 `.pdl` 输出 Python / C++17 / 零分配 C99 / `no_std` Rust 编解码器及 Markdown / Mermaid 文档 |
 
 ### 附加库
@@ -879,7 +879,7 @@ GBK(936)，按默认设置直接输出会显示成乱码，所以构建与运行
 | [`library/transfer-rust/技术报告.md`](../library/transfer-rust/技术报告.md) | Rust 版的设计与实现：模块划分、机器字长展开、优化流水线、代码生成、模拟执行与范围边界 |
 | [`library/lsp/README.md`](../library/lsp/README.md) | **当前工具库**：`.gram` 语言服务器，含诊断、悬停、补全、格式化与快速修复 |
 | [`library/lsp/技术报告.md`](../library/lsp/技术报告.md) | 语言服务器的协议、模型与实测 |
-| [`library/preprocess/README.md`](../library/preprocess/README.md) | **通用预处理器**：`#` / `%` 指令、条件编译、include / import、CSV 等自定义加载器（`magel` 的源码也走它） |
+| [`library/preprocess/README.md`](../library/preprocess/README.md) | **通用预处理器**：`#` / `%` 指令、条件编译、include / import、CSV 等自定义加载器（`chali` 的源码也走它） |
 | [`library/preprocess-rust/README.md`](../library/preprocess-rust/README.md) | **Rust 版预处理器**（独立 crate `preprocess`，零依赖）：指令表、条件表达式、行号映射、自定义加载器与 CLI；自检 102 处断言与 C++ 版逐条对应 |
 | [`library/preprocess-rust/技术报告.md`](../library/preprocess-rust/技术报告.md) | Rust 版的设计与实测：模块划分、按字节工作的下标约定、C++ → Rust 的类型映射、56 组 CLI 逐字节对照与三处有意差异 |
 | [`library/json/README.md`](../library/json/README.md) | **JSON 库**：现代 C++17、迭代器可直接 `for` 与 `<algorithm>`，支持 JSON ↔ 模型类投射 |
@@ -1023,7 +1023,7 @@ t1t transfer demo.quad --target=mips --data=demo.data.bin --layout=demo.layout
 | --- | --- | --- |
 | **GramEditor for VS Code** | [`vscode/`](../vscode/README.md) | 零依赖插件（不需要 npm 安装），自带 `.vsix` 打包脚本 |
 
-插件直接使用仓库里的语言服务；文法生成命令仅用于 `.gram`，Magel 的完整编译由 magel 驱动负责。
+插件直接使用仓库里的语言服务；文法生成命令仅用于 `.gram`，ChaLi 的完整编译由 chali 驱动负责。
 图标由 `python tools/make_icon.py` 生成（同时导出 PNG 与 Windows `.ico`）。
 
 ## 依赖与构建

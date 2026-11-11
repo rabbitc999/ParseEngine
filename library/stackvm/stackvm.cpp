@@ -1572,7 +1572,7 @@ struct CoroutineContext
  *
  * 运行时字符串是“8 字节长度 + UTF-8 字节数据”，不附加结尾 NUL；数据区字面量只是
  * 复制源，仍用生成期哨兵界定。**读字节 / 拼接 / 切片 / 格式化这些活儿全在这层 C++ 里干**，宿主语言
- * （magel）只发一次调用 —— 不用在四元式里手写逐字节的循环，也就能顺手用上
+ * （chali）只发一次调用 —— 不用在四元式里手写逐字节的循环，也就能顺手用上
  * `std::string` / `snprintf`。
  *
  * 与数学原生函数（`kNatives`）的两点不同：
@@ -1593,7 +1593,7 @@ struct NativeContext
     const std::vector<std::string> *input = nullptr;  ///< 输入项（按顺序取）。
     std::size_t *inputIndex = nullptr;                ///< 已经取到第几项。
     const std::vector<std::string> *programArguments = nullptr; ///< 程序入口参数。
-    NativeInvoker *invoker = nullptr; ///< 同步调用 MAGEL 函数指针。
+    NativeInvoker *invoker = nullptr; ///< 同步调用 CHALI 函数指针。
     struct ObjectStore *objects = nullptr;            ///< 运行期对象表（bint / 容器）。
     int *bigFloatPrecision = nullptr;                  ///< bfloat 除法的有效位数（本次 run 独立）。
     bool *exitRequested = nullptr;      ///< `exit(n)` 请求提前正常停机。
@@ -3618,7 +3618,7 @@ Slot programArguments(NativeContext &ctx, const std::vector<Slot> &)
     return handle;
 }
 
-/** `__vm_vec_pack(isText, isObject, values...) -> vec`：MAGEL 变长参数的调用点打包。 */
+/** `__vm_vec_pack(isText, isObject, values...) -> vec`：CHALI 变长参数的调用点打包。 */
 Slot vecPack(NativeContext &ctx, const std::vector<Slot> &args)
 {
     if (args.size() < 2u)
@@ -3956,7 +3956,7 @@ bool nativeCallbackResult(NativeContext &ctx, const NativeValue &produced, std::
         out->isText = true;
         const std::size_t address = static_cast<std::size_t>(produced.asInt());
         const bool read = nativeReadCString(ctx, address, &out->text);
-        /* 回调返回的堆串所有权归调用方（MAGEL 的 `return` 是 move）：内容已经复制进
+        /* 回调返回的堆串所有权归调用方（CHALI 的 `return` 是 move）：内容已经复制进
          * `out->text`，这块堆串就地还掉，否则每个字符串元素漏一块。 */
         if (ctx.heap != nullptr) ctx.heap->release(address);
         if (!read)
@@ -4056,7 +4056,7 @@ Slot vecMap(NativeContext &ctx, const std::vector<Slot> &args)
         NativeValue produced;
         const bool invoked = (*ctx.invoker)(nativeInt(args[1]), {argument}, produced);
         /* 字符串实参的临时块同时也是回调形参的存储：回调 `return 形参` 时结果
-         * 就是它（MAGEL 的 return 是 move），这时不能先还，交给 `nativeCallbackResult`
+         * 就是它（CHALI 的 return 是 move），这时不能先还，交给 `nativeCallbackResult`
          * 统一释放；结果不是它才在这里还。 */
         if (temporary != 0u &&
             (kind != 2 || produced.asInt() != static_cast<std::int64_t>(temporary)))
@@ -5429,7 +5429,7 @@ TypeInfo typeOf(std::string_view name)
     else if (name == "u32") { type.bits = 32; type.size = 4; type.isUnsigned = true; }
     else if (name == "i64") { type.bits = 64; type.size = 8; }
     else if (name == "u64") { type.bits = 64; type.size = 8; type.isUnsigned = true; }
-    /* MAGEL 语言只写 float32 / float64；`f32` / `f64` 是**四元式层面**的旧名字，
+    /* CHALI 语言只写 float32 / float64；`f32` / `f64` 是**四元式层面**的旧名字，
      * 仓库里手写的 .quad 还在用，所以 VM 两个都认（VM 不是语言表面）。 */
     else if (name == "float32" || name == "f32") { type.bits = 32; type.size = 4; type.isFloat = true; }
     else if (name == "float64" || name == "f64") { type.bits = 64; type.size = 8; type.isFloat = true; }
@@ -6991,16 +6991,16 @@ RunResult Machine::run(const Program &program, const std::vector<std::string> &i
             const NativeValue &argument = arguments[index];
             if (argument.isText())
             {
-                fail("胶水层调用 MAGEL 函数时，文本参数必须先由 Codec<string> 编码");
+                fail("胶水层调用 CHALI 函数时，文本参数必须先由 Codec<string> 编码");
                 break;
             }
-            pending.push_back(PendingArg{"__magel_p" + std::to_string(index),
+            pending.push_back(PendingArg{"__chali_p" + std::to_string(index),
                                          argument.isFloat()
                                              ? Slot::fromDouble(argument.floating)
                                              : Slot::fromInt(argument.integer)});
         }
 
-        const std::string destination = "__magel_native_callback_" +
+        const std::string destination = "__chali_native_callback_" +
                                         std::to_string(result.steps) + "_" +
                                         std::to_string(callerFrames);
         ++nativeCallbackDepth;
@@ -7018,7 +7018,7 @@ RunResult Machine::run(const Program &program, const std::vector<std::string> &i
             }
             if (entered && result.error.empty() && frames.size() != callerFrames)
             {
-                fail("胶水层调用的 MAGEL 函数没有正常 return");
+                fail("胶水层调用的 CHALI 函数没有正常 return");
                 entered = false;
             }
         }
@@ -7043,7 +7043,7 @@ RunResult Machine::run(const Program &program, const std::vector<std::string> &i
         return entered && result.error.empty();
     };
 
-    /** 调用 VM 内部运行时或宿主注册表；不建普通 MAGEL 调用帧。 */
+    /** 调用 VM 内部运行时或宿主注册表；不建普通 CHALI 调用帧。 */
     callNative = [&](const std::string &name, const std::string &returnDest) -> bool {
         const bool coroutineCreate = name == "lang::SharedCoroutine::create";
         const bool coroutineWait = name == "lang::SharedCoroutine::wait";

@@ -2,18 +2,18 @@
 
 > This is the English edition. The Chinese edition is the default and is the one maintained first — see [中文文档](../../doc/README.md)。
 
-> **Magel's glorious history**: This language grew up in this repository in its early days — the generator, StackVM, standard library, glue and reflection were all polished together here. It has since been split into an independent repository at <https://github.com/rabbitc999/magel>; links to `magel/` in this document now point to the corresponding documents in the new repository.
+> **ChaLi's glorious history**: This language grew up in this repository in its early days — the generator, StackVM, standard library, glue and reflection were all polished together here. It has since been split into an independent repository at <https://github.com/rabbitc999/ChaLi>; links to `chali/` in this document now point to the corresponding documents in the new repository.
 >
 > **The RustView line**: It likewise grew up in this repository — the minimal Rust grammar, borrow analysis and zero-dependency SVG / HTML all took their final shape here. It has since been split into an independent repository at <https://github.com/rabbitc999/rust-view>; links to `rust-view/` in this document now point to the corresponding documents in the new repository.
 
-This page describes where documentation across the ParseEngine repository lives. The repository's main entry is the [root README](../../README.md); the generator, Magel, MetroLang and RustView each have their own project documentation.
+This page describes where documentation across the ParseEngine repository lives. The repository's main entry is the [root README](../../README.md); the generator, ChaLi, MetroLang and RustView each have their own project documentation.
 
 ## Independent Projects
 
 | Project | Documentation | Content |
 | --- | --- | --- |
 | ParseEngine parser generator | [Usage entry](../../source/README.md) · [Topic document index](../README.md) | `.gram` grammar, analysis modes, eight target languages, output artifacts and implementation |
-| Magel | [Language entry](https://github.com/rabbitc999/magel/blob/master/README.md) · [EBNF grammar reference](https://github.com/rabbitc999/magel/blob/master/doc/33-ebnf.md) · [Topic documents](https://github.com/rabbitc999/magel/blob/master/doc/README.md) · [Magel exporter](https://github.com/rabbitc999/magel/blob/master/magel-emit/README.md) | Language syntax baseline, standard library, StackVM, glue and export |
+| ChaLi | [Language entry](https://github.com/rabbitc999/ChaLi/blob/master/README.md) · [EBNF grammar reference](https://github.com/rabbitc999/ChaLi/blob/master/doc/14-grammar-ebnf.md) · [Topic documents](https://github.com/rabbitc999/ChaLi/blob/master/doc/README.md) · ChaLi exporter | Language syntax baseline, standard library, StackVM, glue and export |
 | MetroLang | [Toolchain entry](https://github.com/rabbitc999/metro-lang/blob/master/README.md) · [Language reference](https://github.com/rabbitc999/metro-lang/blob/master/doc/01-metrolang-reference.md) · [JSON format](https://github.com/rabbitc999/metro-lang/blob/master/doc/02-json-format.md) · [Interactive viewer](https://github.com/rabbitc999/metro-lang/blob/master/map_view/README.md) | A metro network data language: grammar, compilation / decompilation, SVG maps and route queries (**independent repository**) |
 | RustView | [Project entry](https://github.com/rabbitc999/rust-view/blob/master/README.md) · [Preview page and demo](https://github.com/rabbitc999/rust-view/blob/master/doc/preview.html) · [Grammar](https://github.com/rabbitc999/rust-view/blob/master/rust_subset.gram) | Borrow-semantics visualization for minimal Rust pseudocode: ParseEngine-generated frontend, scope stack + borrow state table analysis, hand-written SVG / HTML; **1.0 feature freeze** (**independent repository**) |
 
@@ -54,10 +54,10 @@ When changing any project, defer to that project's source, tests and local docum
 
 [`library/allocator`](../../library/allocator/README.md) provides a linked-list pool, a linear pool and C++17 container adapters, under the namespace `Memory`. Build artifacts live in `build/allocator/`.
 
-## Magel Binary Stream Parsing
+## ChaLi Binary Stream Parsing
 
-[`std::binary::BinaryReader`](https://github.com/rabbitc999/magel/blob/master/doc/12-binary-reader.md) reads little/big-endian primitive numbers, fixed-length strings and arrays through C++ glue.
+`std::binary::BinaryReader` reads little/big-endian primitive numbers, fixed-length strings and arrays through C++ glue.
 
-## Magel JSON and TOML
+## ChaLi JSON and TOML
 
-The [JSON/TOML parsing interfaces](https://github.com/rabbitc999/magel/blob/master/doc/13-json-toml.md) plug copies of `library/json` and `library/toml` into Magel, providing parsing, nested reads, traversal, diagnostics and serialization.
+The JSON/TOML parsing interfaces plug copies of `library/json` and `library/toml` into ChaLi, providing parsing, nested reads, traversal, diagnostics and serialization.

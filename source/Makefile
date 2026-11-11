@@ -118,7 +118,7 @@ endif
 all: $(TARGET)
 
 # 消息与发布脚本在构建期内嵌，运行时不读取仓库文件。
-include/ParseEngine/i18n_messages.hpp: i18n/messages.tsv ../tools/embed_parseengine_i18n.py ../tools/embed_i18n.py
+include/ParseEngine/i18n_messages.hpp: i18n/messages.tsv ../tools/embed_parseengine_i18n.py
 	$(PYTHON) ../tools/embed_parseengine_i18n.py
 include/ParseEngine/package_tool.hpp: ../tools/package_compiler.py ../tools/embed_package_tool.py
 	$(PYTHON) ../tools/embed_package_tool.py

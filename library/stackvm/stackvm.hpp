@@ -532,7 +532,7 @@ struct RunResult
  * @brief 可替换的 VM 字节堆。
  *
  * `Machine::run()` 每次执行前都会调用 `reset(base)`；实现必须清空上一轮状态，并把地址 0
- * 留给空指针。接口管理的是 MAGEL/四元式 `alloc`、字符串和按地址 load/store 使用的字节堆，
+ * 留给空指针。接口管理的是 CHALI/四元式 `alloc`、字符串和按地址 load/store 使用的字节堆，
  * 不接管 C++ 调用帧、STL 容器或运行期对象表的宿主内存。
  */
 class HeapAllocator
@@ -590,7 +590,7 @@ public:
     /** 把 VM `lang::List<T>` 句柄读取为无所有权的胶水值序列。 */
     [[nodiscard]] virtual bool readList(std::int64_t handle,
                                         std::vector<NativeValue> &out) const = 0;
-    /** 在当前 VM 上同步调用一个 MAGEL 函数指针；堆、对象表与全局状态保持不变。 */
+    /** 在当前 VM 上同步调用一个 CHALI 函数指针；堆、对象表与全局状态保持不变。 */
     virtual bool invoke(std::int64_t functionPointer,
                         const std::vector<NativeValue> &arguments,
                         NativeValue &result) = 0;
