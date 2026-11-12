@@ -35,11 +35,11 @@
 #endif
         }
 
-        /// 入栈；栈深超过 kMaxStackDepth 时返回 false。
+        /// 入栈；达到非零深度上限时返回 false。
         bool push(std::uint16_t state, std::uint16_t symbol,
                   ParserValue_T value, std::string_view name)
         {
-            if (top >= kMaxStackDepth)
+            if (kMaxStackDepth != 0 && top >= kMaxStackDepth)
             {
                 return false;
             }

@@ -703,7 +703,7 @@ std::string generatorResultMd(const ProjectRequest &request,
                : (cpp17 ? "Parser::kErrorRecoveryTokens"
                         : "PARSER_ERROR_RECOVERY_TOKENS");
     const std::string stackValue =
-        std::to_string(request.maxStackDepth.value_or(k_maxStackDepthDefault));
+        std::to_string(request.maxStackDepth.value_or(capsConst ? 0 : k_maxStackDepthDefault));
     const std::string errorsValue =
         std::to_string(request.maxErrors.value_or(k_maxErrorsDefault));
     const std::string recoveryValue = std::to_string(

@@ -3,7 +3,7 @@
 // ---------- LR 分析栈 ----------
 
 func (p *Parser) lrPush(state int32, symbol int32, value {{ value_type }}, name string, node *Tree) int32 {
-	if p.top >= sParserMaxStackDepth {
+	if sParserMaxStackDepth != 0 && p.top >= sParserMaxStackDepth {
 		return StatusErrStack
 	}
 	p.states = append(p.states, state)

@@ -2,13 +2,16 @@
 
 {{ chart_driver }}
 
+    /// 图结构栈的动态下标与分析表的状态、符号编号分开。
+    static constexpr std::size_t kInvalidGlrIndex = static_cast<std::size_t>(-1);
+
     /// GSS 的一条边：从 fromNode 指向本边所属节点。
     struct GlrEdge
     {
-        std::uint16_t fromNode = kInvalidIndex;
+        std::size_t fromNode = kInvalidGlrIndex;
         std::uint16_t symbol = kInvalidIndex;
         std::uint16_t production = kInvalidIndex;
-        std::uint16_t nameSlot = kInvalidIndex;
+        std::size_t nameSlot = kInvalidGlrIndex;
         ParserValue_T value{};
         ParserMemory::UniquePtr<Tree> tree; ///< %tree：这条边对应的子树
         std::uint32_t startToken = 0u;
@@ -20,14 +23,14 @@
     struct GlrNode
     {
         std::uint16_t state = 0u;
-        ParserMemory::Vector<std::uint16_t> edges;
+        ParserMemory::Vector<std::size_t> edges;
     };
 
     /// 一个输入位置上的活跃节点集合（状态 -> 节点）。
     struct GlrPos
     {
-        ParserMemory::UnorderedMap<std::uint16_t, std::uint16_t> map;
-        ParserMemory::Vector<std::uint16_t> nodes;
+        ParserMemory::UnorderedMap<std::uint16_t, std::size_t> map;
+        ParserMemory::Vector<std::size_t> nodes;
 
         void clear()
         {
@@ -67,11 +70,11 @@
         m_glrReduceEntries.clear();
         m_glrTokenIndex = 0u;
         m_glrPathVisits = 0u;
-        m_glrPathEdges.assign(kMaxPathDepth, kInvalidIndex);
+        m_glrPathEdges.assign(kMaxPathDepth, kInvalidGlrIndex);
     }
 
     /// 在指定输入位置取（或新建）状态对应的节点。
-    std::uint16_t glrNodeFor(GlrPos &pos, std::uint16_t state)
+    std::size_t glrNodeFor(GlrPos &pos, std::uint16_t state)
     {
         const auto found = pos.map.find(state);
         if (found != pos.map.end())
@@ -79,17 +82,13 @@
             return found->second;
         }
         const std::size_t index = m_glrNodes.size();
-        if (index >= kInvalidIndex)
-        {
-            return kInvalidIndex;
-        }
         GlrNode node;
         node.state = state;
         m_glrNodes.push_back(std::move(node));
         m_glrQueued.resize(m_glrNodes.size(), false);
-        pos.map.emplace(state, static_cast<std::uint16_t>(index));
-        pos.nodes.push_back(static_cast<std::uint16_t>(index));
-        return static_cast<std::uint16_t>(index);
+        pos.map.emplace(state, index);
+        pos.nodes.push_back(index);
+        return index;
     }
 
     /// 目标节点上是否已经有这条归约边（路径合并的判定）。
@@ -102,12 +101,12 @@
         return left->toString() == right->toString();
     }
 
-    bool glrEdgeExists(std::uint16_t target, std::uint16_t fromNode,
+    bool glrEdgeExists(std::size_t target, std::size_t fromNode,
                        std::uint16_t symbol, std::uint16_t production,
                        const Tree *tree = nullptr,
                        bool compareTree = false) const
     {
-        const ParserMemory::Vector<std::uint16_t> &edges = m_glrNodes[target].edges;
+        const ParserMemory::Vector<std::size_t> &edges = m_glrNodes[target].edges;
         for (std::size_t index = 0u; index < edges.size(); ++index)
         {
             const GlrEdge &item = m_glrEdges[edges[index]];
@@ -123,11 +122,11 @@
 
     /**
      * @brief 往目标节点加一条边；相同 (fromNode, symbol, production) 不重复加。
-     * @return 1 表示新增，0 表示已存在，-1 表示容量不足。
+     * @return true 表示新增，false 表示已存在。
      */
-    int glrAddEdge(std::uint16_t target, std::uint16_t fromNode,
+    bool glrAddEdge(std::size_t target, std::size_t fromNode,
                    std::uint16_t symbol, std::uint16_t production,
-                   std::uint16_t nameSlot, ParserValue_T value,
+                   std::size_t nameSlot, ParserValue_T value,
                    ParserMemory::UniquePtr<Tree> tree, bool mergeExisting = true,
                    bool compareTree = false, std::uint32_t startToken = 0u,
                    std::uint32_t endToken = 0u)
@@ -136,11 +135,7 @@
             glrEdgeExists(target, fromNode, symbol, production, tree.get(),
                           compareTree))
         {
-            return 0;
-        }
-        if (m_glrEdges.size() >= kInvalidIndex)
-        {
-            return -1;
+            return false;
         }
         GlrEdge edge;
         edge.fromNode = fromNode;
@@ -153,15 +148,14 @@
         edge.endToken = endToken;
         if ((m_glrForestCache != nullptr) && (production == kInvalidIndex))
             edge.forestNode = glrForestNode(symbol, startToken, endToken, true, m_current.text);
-        const std::uint16_t index =
-            static_cast<std::uint16_t>(m_glrEdges.size());
+        const std::size_t index = m_glrEdges.size();
         m_glrEdges.push_back(std::move(edge));
         m_glrNodes[target].edges.push_back(index);
-        return 1;
+        return true;
     }
 
     /// 把节点加入归约工作表（同一节点不会重复入表）。
-    void glrQueue(std::uint16_t node)
+    void glrQueue(std::size_t node)
     {
         if (m_glrQueued[node])
         {
@@ -172,23 +166,23 @@
     }
 
     /// 从工作表取出一个节点。
-    std::uint16_t glrDequeue()
+    std::size_t glrDequeue()
     {
-        const std::uint16_t node = m_glrWork.front();
+        const std::size_t node = m_glrWork.front();
         m_glrWork.pop_front();
         m_glrQueued[node] = false;
         return node;
     }
 
     /// 把 Token 变量名拷进名字池，返回下标。
-    std::uint16_t glrStoreName(std::string_view name)
+    std::size_t glrStoreName(std::string_view name)
     {
-        if (name.empty() || (m_glrNames.size() >= kInvalidIndex))
+        if (name.empty())
         {
-            return kInvalidIndex;
+            return kInvalidGlrIndex;
         }
         m_glrNames.emplace_back(name);
-        return static_cast<std::uint16_t>(m_glrNames.size() - 1u);
+        return m_glrNames.size() - 1u;
     }
 
     /**
@@ -219,7 +213,7 @@
     }
 
     /// 用一条路径上的语义值执行一次归约，并按 GOTO 建一条边。
-    Status glrReduceApply(GlrPos &pos, std::uint16_t startNode,
+    Status glrReduceApply(GlrPos &pos, std::size_t startNode,
                           std::uint16_t production, bool treeMode)
     {
         LrStack stack;
@@ -231,11 +225,7 @@
         {
             return Status::Ok;
         }
-        const std::uint16_t node = glrNodeFor(pos, target);
-        if (node == kInvalidIndex)
-        {
-            return Status::ErrStack;
-        }
+        const std::size_t node = glrNodeFor(pos, target);
         const std::uint16_t symbol =
             static_cast<std::uint16_t>(kTerminalCount + lhs);
         const std::uint64_t forestNode = glrForestReduce(symbol, production, length);
@@ -258,7 +248,7 @@
             endToken = edge.endToken;
             stack.symbols[index] = edge.symbol;
             stack.values[index] = edge.value;
-            if (edge.nameSlot != kInvalidIndex)
+            if (edge.nameSlot != kInvalidGlrIndex)
             {
                 stack.names[index] = m_glrNames[edge.nameSlot];
             }
@@ -280,15 +270,11 @@
         {
             return Status::ErrSyntax;
         }
-        const int added = glrAddEdge(node, startNode, symbol, production,
-                                     kInvalidIndex, result.value,
+        const bool added = glrAddEdge(node, startNode, symbol, production,
+                                     kInvalidGlrIndex, result.value,
                                      std::move(nodeTree), true, treeMode,
                                      startToken, endToken);
-        if (added < 0)
-        {
-            return Status::ErrStack;
-        }
-        if (added > 0)
+        if (added)
         {
             m_glrEdges.back().forestNode = forestNode;
             GlrReduceEntry entry;
@@ -305,7 +291,7 @@
     }
 
     /// 深度优先枚举长度为 length 的归约路径（pathEdges 按右部顺序回填）。
-    Status glrReduceWalk(GlrPos &pos, std::uint16_t node, std::uint32_t depth,
+    Status glrReduceWalk(GlrPos &pos, std::size_t node, std::uint32_t depth,
                          std::uint32_t length, std::uint16_t production,
                          bool treeMode)
     {
@@ -327,7 +313,7 @@
         const std::size_t count = m_glrNodes[node].edges.size();
         for (std::size_t index = count; index-- > 0u;)
         {
-            const std::uint16_t edge = m_glrNodes[node].edges[index];
+            const std::size_t edge = m_glrNodes[node].edges[index];
             m_glrPathEdges[length - 1u - depth] = edge;
             const Status status = glrReduceWalk(
                 pos, m_glrEdges[edge].fromNode, depth + 1u, length, production,
@@ -341,7 +327,7 @@
     }
 
     /// 在一个节点上执行一个候选动作（只处理归约）。
-    Status glrApplyAction(GlrPos &pos, std::uint16_t node, std::int32_t action,
+    Status glrApplyAction(GlrPos &pos, std::size_t node, std::int32_t action,
                           bool treeMode)
     {
         if (action >= 0)
@@ -359,7 +345,7 @@
     }
 
     /// 执行一个节点在当前 Token 上的全部归约动作（主动作 + 冲突候选）。
-    Status glrReduceNode(GlrPos &pos, std::uint16_t node, std::uint16_t token,
+    Status glrReduceNode(GlrPos &pos, std::size_t node, std::uint16_t token,
                          bool treeMode)
     {
         const std::uint16_t state = m_glrNodes[node].state;
@@ -398,7 +384,7 @@
         const std::size_t nodeCount = cur.nodes.size();
         for (std::size_t index = 0u; index < nodeCount; ++index)
         {
-            const std::uint16_t node = cur.nodes[index];
+            const std::size_t node = cur.nodes[index];
             const std::uint16_t state = m_glrNodes[node].state;
             if (state >= kStateCount)
             {
@@ -419,30 +405,23 @@
                 const std::uint16_t target =
                     static_cast<std::uint16_t>(action - 1);
                 const ParserValue_T value = tokenValue(m_current);
-                const std::uint16_t nameSlot = glrStoreName(m_current.text);
+                const std::size_t nameSlot = glrStoreName(m_current.text);
                 ParserMemory::UniquePtr<Tree> leaf;
                 if (treeMode)
                 {
                     leaf = makeLeaf(m_current);
                 }
-                const std::uint16_t created = glrNodeFor(next, target);
-                if (created == kInvalidIndex)
-                {
-                    return Status::ErrStack;
-                }
-                if (glrAddEdge(created, node, token, kInvalidIndex, nameSlot,
-                               value, std::move(leaf), true, false,
-                               m_glrTokenIndex, m_glrTokenIndex + 1u) < 0)
-                {
-                    return Status::ErrStack;
-                }
+                const std::size_t created = glrNodeFor(next, target);
+                glrAddEdge(created, node, token, kInvalidIndex, nameSlot,
+                           value, std::move(leaf), true, false,
+                           m_glrTokenIndex, m_glrTokenIndex + 1u);
             }
         }
         return Status::Ok;
     }
 
     /// 在指定节点上检查接受动作，收集所有被接受路径的结果。
-    Status glrAcceptNode(std::uint16_t node)
+    Status glrAcceptNode(std::size_t node)
     {
         const std::uint16_t state = m_glrNodes[node].state;
         if (state >= kStateCount)
@@ -527,13 +506,7 @@
         std::uint32_t deleted = 0u;
         bool recovering = false;
         clearModeResults();
-        const std::uint16_t startNode = glrNodeFor(*cur, 0u);
-        if (startNode == kInvalidIndex)
-        {
-            setError(failCode(Status::ErrStack), m_current.line,
-                     m_current.column, "{{ lr_name }} GSS 图容量不足");
-            return Status::ErrStack;
-        }
+        const std::size_t startNode = glrNodeFor(*cur, 0u);
         glrQueue(startNode);
         for (;;)
         {
@@ -541,7 +514,7 @@
                 static_cast<std::uint16_t>(m_current.type);
             while (!m_glrWork.empty())
             {
-                const std::uint16_t node = glrDequeue();
+                const std::size_t node = glrDequeue();
                 const Status status = glrReduceNode(*cur, node, token, treeMode);
                 if (status != Status::Ok)
                 {
@@ -553,7 +526,7 @@
             }
             if (m_current.type == TokenType::TOKEN_END)
             {
-                for (const std::uint16_t node : cur->nodes)
+                for (const std::size_t node : cur->nodes)
                 {
                     const Status status = glrAcceptNode(node);
                     if (status != Status::Ok)
@@ -635,7 +608,7 @@
                 ++m_glrTokenIndex;
                 // 活跃集合没动，只是输入前进了一个 Token：用新 Token 重跑归约，
                 // 下一轮再试着移进。
-                for (const std::uint16_t node : cur->nodes)
+                for (const std::size_t node : cur->nodes)
                 {
                     glrQueue(node);
                 }
@@ -644,7 +617,7 @@
             std::swap(cur, next);
             recovering = false;
             deleted = 0u;
-            for (const std::uint16_t node : cur->nodes)
+            for (const std::size_t node : cur->nodes)
             {
                 glrQueue(node);
             }
@@ -1096,13 +1069,13 @@
     std::uint64_t m_glrForestFirstNewId = 1u;
     ParserMemory::Vector<GlrEdge> m_glrEdges;
     GlrPos m_glrPos[2];
-    ParserMemory::Deque<std::uint16_t> m_glrWork;
+    ParserMemory::Deque<std::size_t> m_glrWork;
     ParserMemory::Vector<bool> m_glrQueued;
     ParserMemory::Vector<ParserMemory::String> m_glrNames;
     ParserMemory::Vector<ParserValue_T> m_glrResults;
     ParserMemory::Vector<ParserMemory::UniquePtr<Tree>> m_glrTrees;
     Engine::AmbiguityResolver m_glrResolver;
-    ParserMemory::Vector<std::uint16_t> m_glrPathEdges;
+    ParserMemory::Vector<std::size_t> m_glrPathEdges;
     ParserMemory::Vector<GlrReduceEntry> m_glrReduceEntries;
     std::uint32_t m_glrTokenIndex = 0u;
     std::uint32_t m_glrPathVisits = 0u;

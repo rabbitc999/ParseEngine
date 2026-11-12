@@ -12,7 +12,7 @@
     private bool _llPush(int kind, int symbol, int frameIndex,
                          int valueIndex, int seedFrame)
     {
-        if (_llStack.Count >= MAX_STACK_DEPTH)
+        if (MAX_STACK_DEPTH != 0 && _llStack.Count >= MAX_STACK_DEPTH)
         {
             return false;
         }
@@ -398,7 +398,7 @@
                     }
                     continue;
                 }
-                if (_llFrames.Count >= MAX_STACK_DEPTH)
+                if (MAX_STACK_DEPTH != 0 && _llFrames.Count >= MAX_STACK_DEPTH)
                 {
                     _setError(STATUS_ERR_STACK, _current.line, _current.column,
                               "语义帧栈已满");
@@ -492,7 +492,7 @@
                     _setSyntaxError(item[1], expected);
                     return STATUS_ERR_SYNTAX;
                 }
-                if (_treePath.Count >= MAX_STACK_DEPTH)
+                if (MAX_STACK_DEPTH != 0 && _treePath.Count >= MAX_STACK_DEPTH)
                 {
                     _setError(STATUS_ERR_STACK, _current.line, _current.column,
                               "语法树节点栈已满");

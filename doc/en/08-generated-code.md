@@ -858,7 +858,7 @@ context (see [`07-codegen.md`](../07-codegen.md) §9 for details).
 import parser
 
 parser.STATUS_OK            # 0；解析成功
-parser.STATUS_ERR_STACK     # -20；分析栈溢出（%max_stack_depth）
+parser.STATUS_ERR_STACK     # -20; explicit analysis stack limit reached
 parser.STATUS_ERR_SYNTAX    # -21；语法错误
 parser.STATUS_ERR_LEXER     # -22；词法错误
 parser.STATUS_ERR_DUPLICATE # -23

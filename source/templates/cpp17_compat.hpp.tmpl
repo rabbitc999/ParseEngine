@@ -30,7 +30,7 @@ inline constexpr std::int32_t PARSER_ERR_UNDEFINED = -24;
 /// 系统错误。
 inline constexpr std::int32_t PARSER_ERR_SYSTEM = -25;
 
-/// 分析栈最大深度（%max_stack_depth），与 C 产物的宏同名。
+/// 分析栈最大深度（%max_stack_depth），与 C 产物的宏同名，0 表示不限。
 inline constexpr std::size_t PARSER_MAX_STACK_DEPTH = kMaxStackDepth;
 /// 一次解析最多记多少条错误（%max_errors）。
 inline constexpr std::size_t PARSER_MAX_ERRORS = kMaxErrors;

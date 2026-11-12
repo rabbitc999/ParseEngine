@@ -68,7 +68,7 @@ struct ProjectRequest
     const LineInfo *lines = nullptr;             ///< #line 的行号信息（没写就不插）
     const std::vector<std::string> *mainBlocks = nullptr; ///< %main 段（按出现顺序）
     const std::vector<std::size_t> *mainBlockLines = nullptr; ///< 每个 %main 的行号
-    std::optional<int> maxStackDepth;           ///< %max_stack_depth（空 = 缺省 64）
+    std::optional<int> maxStackDepth;           ///< %max_stack_depth（空 = 按后端缺省）
     std::optional<int> maxErrors;               ///< %max_errors（空 = 缺省 8）
     std::optional<int> errorRecoveryTokens;     ///< %error_recovery_tokens（空 = 缺省 3）
     std::string mode = "ielr";                   ///< ll1 / slr / lalr

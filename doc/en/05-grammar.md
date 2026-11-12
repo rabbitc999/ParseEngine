@@ -71,7 +71,7 @@ expr := expr PLUS term { $$ = $1 + $3; }
 
 | Directive | Effect |
 | --- | --- |
-| `%max_stack_depth N` | The analysis stack depth limit `PARSER_MAX_STACK_DEPTH`; N ranges 1..65535, default 64 (the stack index is a `uint16_t`, so larger values are pointless) |
+| `%max_stack_depth N` | Optional parser depth limit for modes with a depth check. Accepts 1..65535. Defaults to 64 in C and to no ParseEngine limit in other backends. Recursive modes still depend on the host call stack. |
 | `%max_errors N` | The maximum number of errors retained per parse `PARSER_MAX_ERRORS`; N ranges 1..4096, default 8 |
 | `%error_recovery_tokens N` | The number of tokens to stay silent for after error recovery `PARSER_ERROR_RECOVERY_TOKENS`; N ranges 0..4096, default 3; 0 means the next error is reported immediately after recovery |
 | `%error_context` (equivalent to command-line `-DPARSER_ERROR_CONTEXT`) | Adds to each error record a piece of "the original text of the offending line + a `^` pointer" (`ParserError_T::context`, length `PARSER_ERROR_CONTEXT_LENGTH`, default 120). **Off by default** — this is pure memory overhead, and only text mode (`Parser_RunText`) can obtain the source text. See [`08-generated-code.md`](../08-generated-code.md) |
@@ -509,7 +509,7 @@ The three capacity limits can be set either in the grammar or overridden at comp
 
 | Directive | Macro | Range | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `%max_stack_depth N` | `PARSER_MAX_STACK_DEPTH` | 1..65535 | 64 | The analysis stack depth limit; hitting it reports `PARSER_ERR_STACK` (-20) |
+| `%max_stack_depth N` | `PARSER_MAX_STACK_DEPTH` | 1..65535 | 64 (C), unlimited (other backends) | Optional depth limit for modes with a depth check. |
 | `%max_errors N` | `PARSER_MAX_ERRORS` | 1..4096 | 8 | The maximum number of errors retained per parse (see [`08-generated-code.md`](../08-generated-code.md) §2.2) |
 | `%error_recovery_tokens N` | `PARSER_ERROR_RECOVERY_TOKENS` | 0..4096 | 3 | The number of tokens for "suppressing repeated errors" after error recovery (bison's 3-token rule); 0 = no suppression |
 

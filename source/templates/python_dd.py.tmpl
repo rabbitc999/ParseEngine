@@ -50,7 +50,7 @@
         :return: ``(True, 语义值或语法树节点)``；该非终结符的所有产生式都
             失败时返回 ``(False, None)``，由调用方回退。
         """
-        if self._dd_frame_depth >= self.max_stack_depth:
+        if 0 < self.max_stack_depth and self._dd_frame_depth >= self.max_stack_depth:
             self._set_error(STATUS_ERR_STACK, self._current.line,
                             self._current.column,
                             "递归太深（超过 max_stack_depth = %d）"

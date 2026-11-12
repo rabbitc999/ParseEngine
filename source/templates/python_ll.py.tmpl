@@ -1,8 +1,8 @@
     # ---------- LL(1) 分析驱动 ----------
 
     def _ll_push(self, kind, symbol, frame_index, value_index, seed_frame=None):
-        """压入分析栈项目；栈满返回 ``False``。"""
-        if len(self._ll_stack) >= self.max_stack_depth:
+        """压入分析栈项目；达到非零深度上限时返回 ``False``。"""
+        if 0 < self.max_stack_depth and len(self._ll_stack) >= self.max_stack_depth:
             return False
         self._ll_stack.append((kind, symbol, frame_index, value_index,
                                seed_frame if seed_frame is not None
@@ -285,7 +285,7 @@
                     if self._ll_synchronize(item) != STATUS_OK:
                         return STATUS_ERR_SYNTAX
                     continue
-                if len(self._ll_frames) >= self.max_stack_depth:
+                if 0 < self.max_stack_depth and len(self._ll_frames) >= self.max_stack_depth:
                     self._set_error(STATUS_ERR_STACK, self._current.line,
                                     self._current.column, "语义帧栈已满")
                     return STATUS_ERR_STACK
@@ -370,7 +370,7 @@
                 if production < 0:
                     self._set_syntax_error(item[1], _EXPECTED[item[1]])
                     return STATUS_ERR_SYNTAX
-                if len(self._tree_path) >= self.max_stack_depth:
+                if 0 < self.max_stack_depth and len(self._tree_path) >= self.max_stack_depth:
                     self._set_error(STATUS_ERR_STACK, self._current.line,
                                     self._current.column, "语法树节点栈已满")
                     return STATUS_ERR_STACK

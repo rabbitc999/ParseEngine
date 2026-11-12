@@ -64,7 +64,7 @@ initializer := assignment_expression        { $$ = $1; }
 
 | 指令 | 说明 |
 | --- | --- |
-| `%max_stack_depth N` | 分析栈深度上限（`PARSER_MAX_STACK_DEPTH`，1..65535，缺省 64） |
+| `%max_stack_depth N` | 有深度检查的模式可设置分析栈上限，取值 1..65535。C 后端缺省 64，其他后端缺省不设 ParseEngine 上限。递归模式仍受目标运行时的调用栈限制。 |
 | `%max_errors N` | 一次解析最多报几条错（`PARSER_MAX_ERRORS`，1..4096，缺省 8） |
 | `%error_recovery_tokens N` | 错误恢复后静默几个 Token（`PARSER_ERROR_RECOVERY_TOKENS`，0..4096，缺省 3；0 = 恢复后立刻报下一个错） |
 | `%sync TOKEN...` | 声明错误恢复的同步锚点 Token（见[错误恢复](#错误恢复error-产生式--sync--ll-的-follow-集)）：LR 家族在 `error` 产生式找不到恢复点时兜底，LL 家族是额外汇进来的锚点；Token 必须是已声明的，没声明报错 |

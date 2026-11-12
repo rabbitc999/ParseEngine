@@ -3,9 +3,19 @@
     private int _lrPush(int state, int symbol, {{ value_type }} value, string name,
                         Tree node)
     {
-        if (_top >= MAX_STACK_DEPTH)
+        if (MAX_STACK_DEPTH != 0 && _top >= MAX_STACK_DEPTH)
         {
             return STATUS_ERR_STACK;
+        }
+        if (_top == _states.Length)
+        {
+            // 各数组使用相同的下标，按倍数扩容以摊薄入栈成本。
+            int capacity = checked(_top * 2);
+            System.Array.Resize(ref _symbols, capacity);
+            System.Array.Resize(ref _values, capacity);
+            System.Array.Resize(ref _names, capacity);
+            System.Array.Resize(ref _nodes, capacity);
+            System.Array.Resize(ref _states, capacity);
         }
         _states[_top] = state;
         _symbols[_top] = symbol;
@@ -24,6 +34,7 @@
         }
         for (int index = newTop; index < _top; index++)
         {
+            _values[index] = default({{ value_type }});
             _names[index] = "";
             _nodes[index] = null;
         }

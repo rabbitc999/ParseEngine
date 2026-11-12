@@ -276,7 +276,7 @@ export class Parser {
 
     private parseNonterm(nonterm: number, requireEnd: boolean,
                          depth: number): SyntaxNode | null {
-        if (depth >= MAX_DEPTH) return null;
+        if (MAX_DEPTH != 0 && depth >= MAX_DEPTH) return null;
         const mark = this.position;
         const start = DD_PROD_START[nonterm];
         const count = DD_PROD_COUNT[nonterm];

@@ -69,7 +69,7 @@ expr := expr PLUS term { $$ = $1 + $3; }
 
 | 指令 | 作用 |
 | --- | --- |
-| `%max_stack_depth N` | 分析栈深度上限 `PARSER_MAX_STACK_DEPTH`，N 取 1..65535、缺省 64（栈下标是 `uint16_t`，再大没意义） |
+| `%max_stack_depth N` | 有深度检查的模式可设置分析栈上限，取值 1..65535。C 后端缺省 64，其他后端缺省不设 ParseEngine 上限。递归模式仍受目标运行时的调用栈限制。 |
 | `%max_errors N` | 一次解析最多保留几条错 `PARSER_MAX_ERRORS`，N 取 1..4096、缺省 8 |
 | `%error_recovery_tokens N` | 错误恢复后静默几个 Token `PARSER_ERROR_RECOVERY_TOKENS`，N 取 0..4096、缺省 3；0 表示恢复后立刻报下一个错 |
 | `%error_context`（等价命令行 `-DPARSER_ERROR_CONTEXT`） | 让错误记录里多一段「出错那一行原文 + `^` 指示」（`ParserError_T::context`，长度 `PARSER_ERROR_CONTEXT_LENGTH`，缺省 120）。**缺省关闭**——这是纯内存开销，而且只有文本模式（`Parser_RunText`）能拿到源文。见 [`08-generated-code.md`](08-generated-code.md) |
@@ -510,7 +510,7 @@ LL(2) 而不是 LL(1) 的文法）。分析层的构造见 [`06-analysis.md`](06
 
 | 指令 | 宏 | 取值范围 | 缺省 | 作用 |
 | --- | --- | --- | --- | --- |
-| `%max_stack_depth N` | `PARSER_MAX_STACK_DEPTH` | 1..65535 | 64 | 分析栈深度上限，撞上就报 `PARSER_ERR_STACK`（-20） |
+| `%max_stack_depth N` | `PARSER_MAX_STACK_DEPTH` | 1..65535 | C 为 64，其他后端不限 | 为有深度检查的模式设置上限。 |
 | `%max_errors N` | `PARSER_MAX_ERRORS` | 1..4096 | 8 | 一次解析最多保留几条错（见 [`08-generated-code.md`](08-generated-code.md) §2.2） |
 | `%error_recovery_tokens N` | `PARSER_ERROR_RECOVERY_TOKENS` | 0..4096 | 3 | 错误恢复后「压制重复报错」的 Token 数（bison 的 3 Token 规则）；0 = 不压制 |
 

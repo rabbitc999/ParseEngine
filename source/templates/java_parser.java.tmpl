@@ -213,7 +213,7 @@ public final class Parser {
     }
 
     private Node parseNonterm(int nonterm, boolean requireEnd, int depth) {
-        if (depth >= MAX_DEPTH) return null;
+        if (MAX_DEPTH != 0 && depth >= MAX_DEPTH) return null;
         int mark = position;
         int start = DD_PROD_START[nonterm];
         int count = DD_PROD_COUNT[nonterm];

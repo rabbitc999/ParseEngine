@@ -10,8 +10,8 @@
         self._top = 1
 
     def _lr_push(self, state, symbol, value, name, node=None):
-        """入栈；栈深超过 ``max_stack_depth`` 时返回 ``False``。"""
-        if self._top >= self.max_stack_depth:
+        """入栈；达到非零深度上限时返回 ``False``。"""
+        if 0 < self.max_stack_depth and self._top >= self.max_stack_depth:
             return False
         self._states.append(state)
         self._symbols.append(symbol)

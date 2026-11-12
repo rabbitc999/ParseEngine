@@ -8,7 +8,7 @@
 {% endif %}        case {{ c.id }}u:
         {
 {% for i in c.items %}{% if i.note %}            /* 空尾规则由 LeftLoop 直接完成 */
-{% else %}            if (!push({{ i.kind }}, {% if i.terminal %}static_cast<std::uint16_t>(TOKEN_{{ i.symbol }}){% else %}{{ i.symbol }}u{% endif %}, frameIndex, {{ i.slot }}u, kInvalidIndex))
+{% else %}            if (!push({{ i.kind }}, {% if i.terminal %}static_cast<std::uint16_t>(TOKEN_{{ i.symbol }}){% else %}{{ i.symbol }}u{% endif %}, frameIndex, {{ i.slot }}u, kInvalidFrame))
             {
                 return Status::ErrStack;
             }

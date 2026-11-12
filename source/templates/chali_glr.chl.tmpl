@@ -45,7 +45,7 @@
                         if (node.state < 0) { continue; }
                     }
                     node.depth = self.derivations[node.parent].depth + 1;
-                    if (node.depth >= {{ max_depth }}) {
+                    if ({{ max_depth }} != 0 && node.depth >= {{ max_depth }}) {
                         result.truncated = true; continue;
                     }
                     next.head = self.derivations.len(); self.derivations.push(node); pending.push(next);

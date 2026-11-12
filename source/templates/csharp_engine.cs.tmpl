@@ -14,7 +14,7 @@
     public const int STATUS_ERR_LEX_UNTERMINATED = -28;
     public const int STATUS_ERR_LEX_CHAR = -29;
 
-    /** 分析栈最大深度（`%max_stack_depth`）。 */
+    /** 分析栈最大深度（`%max_stack_depth`），0 表示不限。 */
     public const int MAX_STACK_DEPTH = {{ max_stack_depth }};
     /** 一次解析最多记录多少条错误（`%max_errors`）。 */
     public const int MAX_ERRORS = {{ max_errors }};
@@ -318,12 +318,11 @@
     private readonly List<Commit> _commits = new List<Commit>();
 
     // LR 分析栈
-    private readonly int[] _states = new int[MAX_STACK_DEPTH + 8];
-    private readonly int[] _symbols = new int[MAX_STACK_DEPTH + 8];
-    private readonly {{ value_type }}[] _values =
-        new {{ value_type }}[MAX_STACK_DEPTH + 8];
-    private readonly string[] _names = new string[MAX_STACK_DEPTH + 8];
-    private readonly Tree[] _nodes = new Tree[MAX_STACK_DEPTH + 8];
+    private int[] _states = new int[16];
+    private int[] _symbols = new int[16];
+    private {{ value_type }}[] _values = new {{ value_type }}[16];
+    private string[] _names = new string[16];
+    private Tree[] _nodes = new Tree[16];
     private int _top = 0;
     private readonly {{ value_type }}[] _actionValues =
         new {{ value_type }}[VALUE_SLOTS + 1];

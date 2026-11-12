@@ -200,7 +200,7 @@ bool buildNarrowBackendData(const ProjectRequest &request,
     out.numberToken = builtinToken("NUMBER");
     out.stringToken = builtinToken("STRING");
     out.variableToken = builtinToken("VARIABLE");
-    out.maxDepth = request.maxStackDepth.value_or(64);
+    out.maxDepth = request.maxStackDepth.value_or(0);
     out.tokenNames = stringList(analysis.terminals);
     out.nontermNames = stringList(analysis.nonterms);
 

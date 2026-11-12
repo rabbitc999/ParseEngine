@@ -34,7 +34,7 @@
                     branch.head = self.derivations.len(); self.derivations.push(node);
                     if (task.symbol != {{ end }}) { branch.position = branch.position + 1; }
                 } else {
-                    if (task.depth >= {{ max_depth }}) { depthExceeded = true; break; }
+                    if ({{ max_depth }} != 0 && task.depth >= {{ max_depth }}) { depthExceeded = true; break; }
                     int64 production = self.lhs.len();
                     while (production > 0) {
                         production = production - 1;

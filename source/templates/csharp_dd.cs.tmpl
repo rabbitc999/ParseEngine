@@ -62,7 +62,7 @@
     private bool _ddParse(int nonterm, bool treeMode, bool requireEnd,
                           _DdSlot outSlot)
     {
-        if (_ddFrameDepth >= MAX_STACK_DEPTH)
+        if (MAX_STACK_DEPTH != 0 && _ddFrameDepth >= MAX_STACK_DEPTH)
         {
             _setError(STATUS_ERR_STACK, _current.line, _current.column,
                       "递归太深（超过 max_stack_depth）");

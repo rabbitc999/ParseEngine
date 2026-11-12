@@ -9,7 +9,7 @@
         seed_frame: i32,
     ) -> bool
     {
-        if self.ll_stack.len() >= MAX_STACK_DEPTH
+        if MAX_STACK_DEPTH != 0 && self.ll_stack.len() >= MAX_STACK_DEPTH
         {
             return false;
         }
@@ -419,7 +419,7 @@
                     }
                     continue;
                 }
-                if self.ll_frames.len() >= MAX_STACK_DEPTH
+                if MAX_STACK_DEPTH != 0 && self.ll_frames.len() >= MAX_STACK_DEPTH
                 {
                     let (line, column) = (self.current.line, self.current.column);
                     self.set_error(STATUS_ERR_STACK, line, column, "语义帧栈已满");
@@ -526,7 +526,7 @@
                     self.set_syntax_error(item[1], &expected);
                     return STATUS_ERR_SYNTAX;
                 }
-                if self.tree_path.len() >= MAX_STACK_DEPTH
+                if MAX_STACK_DEPTH != 0 && self.tree_path.len() >= MAX_STACK_DEPTH
                 {
                     let (line, column) = (self.current.line, self.current.column);
                     self.set_error(STATUS_ERR_STACK, line, column, "语法树节点栈已满");

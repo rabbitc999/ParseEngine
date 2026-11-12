@@ -120,7 +120,7 @@ struct Parser {
      * @param nonterm 非终结符编号。@param depth 当前递归深度。@return 该符号的结果。
      */
     ParserResult node(int64 nonterm, int64 depth) {
-        if (depth >= {{ max_depth }}) { self.message = "解析栈深度超限"; return self.failure(); }
+        if ({{ max_depth }} != 0 && depth >= {{ max_depth }}) { self.message = "解析栈深度超限"; return self.failure(); }
 {% if wide %}        int64 col = self.windowColumn();
         if (col < 0) { self.message = "无可用产生式"; return self.failure(); }
 {% else %}{% if ll0 %}        int64 col = 0;
@@ -220,7 +220,7 @@ struct Parser {
             }
             if (command == 0) { parser.message = "意外 Token: " + parser.names[token]; return parser.failure(); }
             if (command > 0) {
-                if (states.len() >= {{ max_depth }}) { parser.message = "解析栈深度超限"; return parser.failure(); }
+                if ({{ max_depth }} != 0 && states.len() >= {{ max_depth }}) { parser.message = "解析栈深度超限"; return parser.failure(); }
                 states.push(command - 1); values.push(parser.tokens[parser.position].value);
                 trees.push(parser.tokens[parser.position].text);
                 if (token != {{ end }}) { parser.position = parser.position + 1; }
@@ -235,7 +235,7 @@ struct Parser {
                 while (i < count) { values.pop(); states.pop(); trees.pop(); i = i + 1; }
                 int64 next = parser.gotos[states[states.len() - 1] * {{ nonterm_count }} + parser.lhs[production]];
                 if (next < 0) { parser.message = "GOTO 表缺项"; return parser.failure(); }
-                if (states.len() >= {{ max_depth }}) { parser.message = "解析栈深度超限"; return parser.failure(); }
+                if ({{ max_depth }} != 0 && states.len() >= {{ max_depth }}) { parser.message = "解析栈深度超限"; return parser.failure(); }
                 states.push(next); values.push(parserReduce(production, children)); trees.push(tree + ")");
             }
         }

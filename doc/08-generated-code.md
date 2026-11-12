@@ -829,7 +829,7 @@ Python 产物只有 `parser.py` / `main.py` 两个文件（外加 `%mermaid` 的
 import parser
 
 parser.STATUS_OK            # 0；解析成功
-parser.STATUS_ERR_STACK     # -20；分析栈溢出（%max_stack_depth）
+parser.STATUS_ERR_STACK     # -20；达到显式设置的分析栈上限
 parser.STATUS_ERR_SYNTAX    # -21；语法错误
 parser.STATUS_ERR_LEXER     # -22；词法错误
 parser.STATUS_ERR_DUPLICATE # -23

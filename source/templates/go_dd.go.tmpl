@@ -91,7 +91,7 @@ func (p *Parser) ddRecordFail(expected int32) {
 // 函数」由 sParserDdProdStart / sParserDdProdCount 两张表表达。
 func (p *Parser) ddParse(nonterm int32, treeMode bool, requireEnd bool) (sDdSlot, bool) {
 	var zero sDdSlot
-	if p.ddFrameDepth >= sParserMaxStackDepth {
+	if sParserMaxStackDepth != 0 && p.ddFrameDepth >= sParserMaxStackDepth {
 		p.setError(StatusErrStack, p.current.Line, p.current.Column,
 			"递归太深（超过 max_stack_depth）")
 		return zero, false

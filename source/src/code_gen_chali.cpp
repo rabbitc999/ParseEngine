@@ -285,7 +285,7 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
         Utils::loadTemplate("chali_dd.chl"),
         {{"terminal_count", terminals}, {"end", indexOf(a.terminals, "END")},
          {"start", indexOf(a.nonterms, a.grammar.start)},
-         {"max_depth", request.maxStackDepth.value_or(k_maxStackDepthDefault)}}) : "";
+         {"max_depth", request.maxStackDepth.value_or(0)}}) : "";
     std::string chartRuntime;
     if (chartMode) {
         const ChartGrammar chart = buildChartGrammar(a);
@@ -304,7 +304,7 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
         Utils::loadTemplate("chali_glr.chl"),
         {{"value_type", valueType}, {"terminal_count", terminals},
          {"nonterm_count", nonterms}, {"end", indexOf(a.terminals, "END")},
-         {"max_depth", request.maxStackDepth.value_or(k_maxStackDepthDefault)}}) : "";
+         {"max_depth", request.maxStackDepth.value_or(0)}}) : "";
     out["parser.chl"] = tmpl::renderValues(Utils::loadTemplate("chali_parser.chl"), {
         {"glr_runtime", glrRuntime}, {"dd_runtime", ddRuntime},
         {"derivation_runtime", derivationRuntime}, {"chart_runtime", chartRuntime},
@@ -319,7 +319,7 @@ bool generateChaLiProject(const ProjectRequest &request, const AnalysisResult &a
         {"glr_offsets", numbers(glrOffsets)}, {"glr_commands", numbers(glrCommands)}, {"value_type", valueType},
         {"numeric", valueType == "float64"}, {"terminal_count", terminals}, {"nonterm_count", nonterms},
         {"start", indexOf(a.nonterms, a.grammar.start)}, {"end", indexOf(a.terminals, "END")},
-        {"number", number}, {"max_depth", request.maxStackDepth.value_or(k_maxStackDepthDefault)},
+        {"number", number}, {"max_depth", request.maxStackDepth.value_or(0)},
         {"lhs", numbers(lhs)}, {"starts", numbers(starts)}, {"lengths", numbers(lengths)},
         {"rhs", numbers(rhs)}, {"ll_table", numbers(ll)}, {"actions", numbers(actions)},
         {"gotos", numbers(gotos)}, {"reductions", reductions}, {"patterns", patterns},

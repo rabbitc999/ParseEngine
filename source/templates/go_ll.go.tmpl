@@ -4,7 +4,7 @@
 // ---------- LL 分析驱动 ----------
 
 func (p *Parser) llPush(kind int32, symbol int32, frameIndex int32, valueIndex int32, seedFrame int32) bool {
-	if len(p.llStack) >= sParserMaxStackDepth {
+	if sParserMaxStackDepth != 0 && len(p.llStack) >= sParserMaxStackDepth {
 		return false
 	}
 	p.llStack = append(p.llStack, [5]int32{kind, symbol, frameIndex, valueIndex, seedFrame})
@@ -318,7 +318,7 @@ func (p *Parser) runLLLoop(treeMode bool) int32 {
 				}
 				continue
 			}
-			if len(p.llFrames) >= sParserMaxStackDepth {
+			if sParserMaxStackDepth != 0 && len(p.llFrames) >= sParserMaxStackDepth {
 				p.setError(StatusErrStack, p.current.Line, p.current.Column, "语义帧栈已满")
 				return StatusErrStack
 			}
@@ -399,7 +399,7 @@ func (p *Parser) runLLTreeLoop() int32 {
 				p.setSyntaxError(item[1], expected)
 				return StatusErrSyntax
 			}
-			if len(p.treePath) >= sParserMaxStackDepth {
+			if sParserMaxStackDepth != 0 && len(p.treePath) >= sParserMaxStackDepth {
 				p.setError(StatusErrStack, p.current.Line, p.current.Column, "语法树节点栈已满")
 				return StatusErrStack
 			}

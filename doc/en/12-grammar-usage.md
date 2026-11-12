@@ -61,7 +61,7 @@ An action may be written as `{ ... }`, or written at the end of the line without
 
 | Directive | Description |
 | --- | --- |
-| `%max_stack_depth N` | The analysis stack depth limit (`PARSER_MAX_STACK_DEPTH`, 1..65535, default 64) |
+| `%max_stack_depth N` | Optional parser depth limit for modes with a depth check. Accepts 1..65535. Defaults to 64 in C and to no ParseEngine limit in other backends. Recursive modes still depend on the host call stack. |
 | `%max_errors N` | The maximum number of errors reported in one parse (`PARSER_MAX_ERRORS`, 1..4096, default 8) |
 | `%error_recovery_tokens N` | The number of tokens to stay silent for after error recovery (`PARSER_ERROR_RECOVERY_TOKENS`, 0..4096, default 3; 0 = report the next error immediately after recovery) |
 | `%sync TOKEN...` | Declares the synchronization anchor tokens for error recovery (see [Error Recovery](#error-recovery-error-productions--sync--ll-follow-sets)): for the LR family it is the fallback when an `error` production finds no recovery point, and for the LL family it is an extra token pushed in; the token must already be declared, and an undeclared one is an error |

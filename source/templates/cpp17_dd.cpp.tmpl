@@ -105,7 +105,7 @@
     bool ddParse(std::uint16_t nonterm, bool treeMode, bool requireEnd,
                  DdSlot &out)
     {
-        if (m_ddFrameDepth >= kMaxStackDepth)
+        if (kMaxStackDepth != 0 && m_ddFrameDepth >= kMaxStackDepth)
         {
             setError(static_cast<std::int32_t>(Status::ErrStack), m_current.line,
                      m_current.column, "递归太深（超过 max_stack_depth）");

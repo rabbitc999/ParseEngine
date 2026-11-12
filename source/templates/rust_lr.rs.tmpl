@@ -9,7 +9,7 @@
         node: Option<Tree>,
     ) -> i32
     {
-        if self.top >= MAX_STACK_DEPTH
+        if MAX_STACK_DEPTH != 0 && self.top >= MAX_STACK_DEPTH
         {
             return STATUS_ERR_STACK;
         }

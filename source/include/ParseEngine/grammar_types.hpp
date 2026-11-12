@@ -100,7 +100,7 @@ using DefineMap = std::map<std::string, bool>;
 /// 可空标记（对应 Python 里的 EPS = ""）。
 extern const std::string k_epsilon;
 
-/// `PARSER_MAX_STACK_DEPTH`（分析栈深度上限）的缺省值。
+/// `PARSER_MAX_STACK_DEPTH`（分析栈深度上限）在 C 后端的缺省值。
 extern const int k_maxStackDepthDefault;
 
 /// `%max_stack_depth` 允许的最大值（栈下标是 uint16_t，不能再大）。

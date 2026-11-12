@@ -2169,7 +2169,7 @@ bool CodeGenCpp17::parserHpp(const ProjectRequest &request,
 
     // 容量常量（%max_stack_depth / %max_errors / %error_recovery_tokens）
     const std::size_t maxStackDepth = static_cast<std::size_t>(
-        request.maxStackDepth.value_or(64));
+        request.maxStackDepth.value_or(0));
     const std::size_t maxErrors =
         static_cast<std::size_t>(request.maxErrors.value_or(8));
     const std::size_t recoveryTokens = static_cast<std::size_t>(
@@ -2692,7 +2692,7 @@ bool CodeGenCpp17::lexerHpp(const ProjectRequest &request,
          {"value_slots", "4"},
          {"max_stack_depth",
           std::to_string(
-              static_cast<std::size_t>(request.maxStackDepth.value_or(64)))},
+              static_cast<std::size_t>(request.maxStackDepth.value_or(0)))},
          {"max_errors",
           std::to_string(
               static_cast<std::size_t>(request.maxErrors.value_or(8)))},

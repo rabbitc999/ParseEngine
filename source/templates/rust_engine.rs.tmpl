@@ -14,7 +14,7 @@ pub const STATUS_ERR_UNEXPECTED_EOF: i32 = -27;
 pub const STATUS_ERR_LEX_UNTERMINATED: i32 = -28;
 pub const STATUS_ERR_LEX_CHAR: i32 = -29;
 
-/// 分析栈最大深度（`%max_stack_depth`）。
+/// 分析栈最大深度（`%max_stack_depth`），0 表示不限。
 const MAX_STACK_DEPTH: usize = {{ max_stack_depth }};
 /// 一次解析最多记录多少条错误（`%max_errors`）。
 const MAX_ERRORS: usize = {{ max_errors }};

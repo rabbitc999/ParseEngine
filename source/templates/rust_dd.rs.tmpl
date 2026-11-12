@@ -67,7 +67,7 @@
     fn dd_parse(&mut self, nonterm: usize, tree_mode: bool, require_end: bool)
         -> Option<DdSlot>
     {
-        if self.dd_frame_depth >= MAX_STACK_DEPTH
+        if MAX_STACK_DEPTH != 0 && self.dd_frame_depth >= MAX_STACK_DEPTH
         {
             let (line, column) = (self.current.line, self.current.column);
             self.set_error(STATUS_ERR_STACK, line, column,

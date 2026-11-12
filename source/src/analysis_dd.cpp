@@ -414,8 +414,7 @@ std::string formatDdReport(const AnalysisResult &analysis)
         "把「最可能需要的那条产生式写在前面」能显著减少回退次数；真正有歧义"
         "的文法只会保留**第 1 条匹配路径**的结果（不像 GLR 那样枚举全部解释）。");
     lines.push_back(
-        "递归深度用 %max_stack_depth 挡（缺省 " +
-        std::to_string(k_maxStackDepthDefault) + " 层），超过就报「递归太深」。");
+        "%max_stack_depth 可限制递归深度（C 缺省 64 层，其余后端缺省不限）。");
 
     std::string result;
     for (std::size_t index = 0; index < lines.size(); ++index)
